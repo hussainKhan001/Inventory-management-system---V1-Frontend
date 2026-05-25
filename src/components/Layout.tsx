@@ -53,7 +53,8 @@ export const Layout = ({ children }: { children: React.ReactNode }) => {
     outwardReturnsPagination,
     stockCheckReportsPagination,
     hasPermission,
-    loading
+    loading,
+    settings
   } = useAppStore();
   const role = user?.role;
   const [collapsed, setCollapsed] = useState(false);
@@ -133,11 +134,19 @@ export const Layout = ({ children }: { children: React.ReactNode }) => {
         `}
       >
         <div className="h-14 flex items-center px-4 border-b border-white/10 shrink-0">
-          <div className="w-8 h-8 bg-primary rounded flex items-center justify-center font-bold text-lg shrink-0">
-            N
-          </div>
+          {settings?.logoUrl ? (
+            <img 
+              src={settings.logoUrl.startsWith('/') && !settings.logoUrl.startsWith('/uploads') ? settings.logoUrl : settings.logoUrl.startsWith('/uploads') ? `${window.location.protocol}//${window.location.hostname}:5000${settings.logoUrl}` : settings.logoUrl} 
+              alt="Logo" 
+              className="w-8 h-8 object-contain shrink-0 rounded"
+            />
+          ) : (
+            <div className="w-8 h-8 bg-primary rounded flex items-center justify-center font-bold text-lg shrink-0">
+              {(settings?.appName || "N").charAt(0)}
+            </div>
+          )}
           {(!collapsed || mobileMenuOpen) && (
-            <span className="ml-3 font-bold truncate">Garden City</span>
+            <span className="ml-3 font-bold truncate">{settings?.appName || "Garden City"}</span>
           )}
           <button
             onClick={() => setMobileMenuOpen(false)}
@@ -212,7 +221,7 @@ export const Layout = ({ children }: { children: React.ReactNode }) => {
               <Menu className="w-5 h-5" />
             </button>
             <div className="text-[13px] text-gray-500 dark:text-gray-400 hidden sm:block">
-              Garden City /{" "}
+              {settings?.appName || "Garden City"} /{" "}
               <span className="text-gray-900 dark:text-white font-medium capitalize">
                 {ROUTES.find(r => r.id === currentHash)?.label || "Dashboard"}
               </span>

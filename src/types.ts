@@ -160,7 +160,7 @@ export interface PurchaseOrder {
   supplier: string;
   items: POLineItem[];
   totalValue: number;
-  status: "Approved" | "Pending L1" | "Pending L2" | "Pending L3" | "Fulfilled" | "Blocked" | "Draft" | "bill_verify" | "payment_pending" | "paid" | "rejected" | "GRN Pending" | "GRN Fulfilled" | "GRN Variance" | "Ready for Payment" | "PO Closed";
+  status: "Approved" | "Cancelled" | "Pending L1" | "Pending L2" | "Pending L3" | "Fulfilled" | "Blocked" | "Draft" | "bill_verify" | "payment_pending" | "paid" | "rejected" | "GRN Pending" | "GRN Fulfilled" | "GRN Variance" | "Ready for Payment" | "PO Closed";
   approvalL1: "N/A" | "Pending" | "Approved";
   approvalL2: "N/A" | "Pending" | "Approved";
   approvalL3: "N/A" | "Pending" | "Approved";
@@ -209,6 +209,10 @@ export interface PurchaseOrder {
     filename?: string;
   };
   vendorEmail?: string;
+  // Cancellation (set when AGM cancels an approved PO)
+  cancelNote?: string;
+  cancelledBy?: string;
+  cancelledAt?: string;
   auditTrail?: {
     timestamp: string;
     action: string;
@@ -519,6 +523,7 @@ export interface QuotationItem {
   category?: string;
   gstPct?: number;
   gstType?: "Inclusive" | "Exclusive";
+  approved?: boolean;
 }
 
 export interface Quotation {
@@ -612,4 +617,9 @@ export interface Settings {
   units: string[];
   workTypes: string[];
   companies: Company[];
+  appName?: string;
+  logoUrl?: string;
+  faviconUrl?: string;
+  themeColor?: string;
+  fontFamily?: string;
 }

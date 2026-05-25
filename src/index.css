@@ -9,10 +9,10 @@
 
   @keyframes pulse-subtle {
     0%, 100% {
-      box-shadow: 0 0 0 0 rgba(249, 115, 22, 0.1);
+      box-shadow: 0 0 0 0 rgba(var(--color-primary-rgb, 249, 115, 22), 0.1);
     }
     50% {
-      box-shadow: 0 0 0 4px rgba(249, 115, 22, 0.2);
+      box-shadow: 0 0 0 4px rgba(var(--color-primary-rgb, 249, 115, 22), 0.2);
     }
   }
 

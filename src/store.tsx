@@ -298,6 +298,11 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     units: UNITS,
     workTypes: WORK_TYPES,
     companies: MY_COMPANIES,
+    appName: 'Garden City',
+    logoUrl: '',
+    faviconUrl: '',
+    themeColor: '#F97316',
+    fontFamily: 'Inter',
   });
 
   const saveSettings = async (data: ISettings) => {
@@ -648,7 +653,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
           case 'public-settings': {
             const serverData = (res.data || res) || {};
 
-            setSettings(prev => {
+             setSettings(prev => {
               const updated: ISettings = {
                 poThreshold: serverData.poThreshold ?? prev.poThreshold ?? 50000,
                 minQuotesLow: serverData.minQuotesLow ?? prev.minQuotesLow ?? 3,
@@ -659,6 +664,11 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
                 units: Array.isArray(serverData.units) ? serverData.units : (prev.units ?? UNITS),
                 workTypes: Array.isArray(serverData.workTypes) ? serverData.workTypes : (prev.workTypes ?? WORK_TYPES),
                 companies: Array.isArray(serverData.companies) ? serverData.companies : (prev.companies ?? MY_COMPANIES),
+                appName: serverData.appName ?? prev.appName ?? 'Garden City',
+                logoUrl: serverData.logoUrl ?? prev.logoUrl ?? '',
+                faviconUrl: serverData.faviconUrl ?? prev.faviconUrl ?? '',
+                themeColor: serverData.themeColor ?? prev.themeColor ?? '#F97316',
+                fontFamily: serverData.fontFamily ?? prev.fontFamily ?? 'Inter',
               };
 
               // Only persist seed data if the database record is completely fresh/empty

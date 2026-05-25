@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useEffect, useRef, useMemo } from "react";
 import { useAppStore } from "../store";
 import { PageHeader, Card, Btn, Modal, Field, SField, Pagination, ConfirmModal, DateField, ImageUpload, MultiSelect, Badge, StatusBadge, Skeleton, SearchSelect, MultipleImageUpload, Th, Td } from "../components/ui";
-import { SearchFilter, DateFilter, SelectFilter, FilterRow } from "../components/ui/Filters";
+import { SearchFilter, DateRangePicker, SelectFilter, FilterRow } from "../components/ui/Filters";
 import { Plus, Search, Camera, Image as ImageIcon, AlertTriangle, AlertCircle, Eye, Edit2, Trash2, Download, ArrowRightLeft, ArrowUpRight, ArrowDownLeft, History, Loader2, X, FileText, Package } from "lucide-react";
 import { TableVirtuoso } from "react-virtuoso";
 import { Transaction, TransactionItem, TransactionType } from "../types";
@@ -642,15 +642,12 @@ export const TransactionsPage = ({ type }: { type?: TransactionType }) => {
             placeholder={type === "Inward" ? "Search SKU, Name, Supplier, Challan..." : type === "Outward" ? "Search records..." : "Search by ID, Item, Project..."}
             className="flex-1 min-w-[200px]"
           />
-          <DateFilter
-            value={startDate}
-            onChange={setStartDate}
-            placeholder="Start Date"
-          />
-          <DateFilter
-            value={endDate}
-            onChange={setEndDate}
-            placeholder="End Date"
+          <DateRangePicker
+            value={{ start: startDate, end: endDate }}
+            onChange={(v) => {
+              setStartDate(v.start);
+              setEndDate(v.end);
+            }}
           />
           <SelectFilter
             value={filterProject}

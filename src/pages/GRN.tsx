@@ -23,7 +23,7 @@ import {
 } from "../components/ui";
 import { Plus, Camera, FileUp, X, Eye, Edit2, Trash2, Download, Package, CheckCircle, Loader2, AlertTriangle, FileText, Search } from "lucide-react";
 import { TableVirtuoso } from "react-virtuoso";
-import { SearchFilter, DateFilter, SelectFilter, FilterRow } from "../components/ui/Filters";
+import { SearchFilter, DateRangePicker, SelectFilter, FilterRow } from "../components/ui/Filters";
 import { GRN, GRNItem, Inward } from "../types";
 import { genId, todayStr, scrollToError, formatDateTime, safeStr } from "../utils";
 import { cn } from "../lib/utils";
@@ -364,15 +364,12 @@ export const GRNPage = () => {
             placeholder="Search by GRN ID, PO No, Supplier or Project..."
             className="flex-1 min-w-[240px]"
           />
-          <DateFilter
-            value={startDate}
-            onChange={setStartDate}
-            placeholder="Start Date"
-          />
-          <DateFilter
-            value={endDate}
-            onChange={setEndDate}
-            placeholder="End Date"
+          <DateRangePicker
+            value={{ start: startDate, end: endDate }}
+            onChange={(v) => {
+              setStartDate(v.start);
+              setEndDate(v.end);
+            }}
           />
           <SelectFilter
             value={filterProject}

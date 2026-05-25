@@ -15,7 +15,8 @@ import {
   Archive,
   Globe,
   IndianRupee,
-  TrendingUp
+  TrendingUp,
+  Settings
 } from "lucide-react";
 import { Role } from "./types";
 
@@ -199,6 +200,13 @@ export const ROUTES: RouteConfig[] = [
     label: "My Profile",
     icon: Users,
     roles: ALL_ROLES,
+  },
+  {
+    id: "settings",
+    label: "System Settings",
+    icon: Settings,
+    roles: ["admin", "Super Admin", "Director", "AGM"],
+    permission: "MANAGE_USERS",
   },
   {
     id: "archive",

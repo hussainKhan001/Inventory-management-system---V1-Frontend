@@ -165,67 +165,44 @@ export const DateRangePicker = React.memo(({
   return (
     <div ref={containerRef} className={cn("relative inline-flex items-center gap-2", className)}>
 
-      {/* Start input */}
+      {/* Combined Date Range Input */}
       <button
         type="button"
         onClick={() => openFor("start")}
         className={cn(
-          "flex items-center gap-2 h-[40px] px-3 min-w-[138px] rounded-xl border text-[13px] transition-all duration-200 cursor-pointer",
-          "bg-[#0F172A] text-[#F1F5F9]",
-          open && selecting === "start"
-            ? "border-[#F97316] ring-2 ring-[#F97316]/30"
-            : "border-gray-700 hover:border-gray-500",
+          "flex items-center gap-2 h-[40px] px-3 min-w-[220px] rounded-xl border text-[13px] transition-all duration-200 cursor-pointer",
+          "bg-white dark:bg-[#0F172A] text-[#1A1A2E] dark:text-[#F1F5F9]",
+          open
+            ? "border-[#F97316] ring-4 ring-[#F97316]/20"
+            : "border-gray-200/50 dark:border-gray-800 hover:border-gray-300 dark:hover:border-gray-700",
         )}
       >
         <Calendar className="w-4 h-4 text-gray-400 shrink-0" />
-        <span className={cn("flex-1 text-left", !value.start && "text-gray-500")}>
-          {value.start ? formatDisplay(value.start) : "mm/dd/yy"}
+        <span className={cn("flex-1 text-left whitespace-nowrap", (!value.start && !value.end) && "text-gray-500")}>
+          {value.start || value.end ? (
+            <>
+              {value.start ? formatDisplay(value.start) : ""}
+              {value.end ? ` - ${formatDisplay(value.end)}` : (value.start ? " -" : "")}
+            </>
+          ) : (
+            "Select Date Range"
+          )}
         </span>
-        {value.start && (
+        {(value.start || value.end) && (
           <span
             role="button"
             tabIndex={-1}
             onClick={(e) => { e.stopPropagation(); onChange({ start: "", end: "" }); }}
-            className="text-gray-500 hover:text-gray-300 transition-colors"
+            className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors ml-1 p-0.5"
           >
-            <X className="w-3 h-3" />
-          </span>
-        )}
-      </button>
-
-      <span className="text-[11px] text-gray-600 select-none">to</span>
-
-      {/* End input */}
-      <button
-        type="button"
-        onClick={() => openFor("end")}
-        className={cn(
-          "flex items-center gap-2 h-[40px] px-3 min-w-[138px] rounded-xl border text-[13px] transition-all duration-200 cursor-pointer",
-          "bg-[#0F172A] text-[#F1F5F9]",
-          open && selecting === "end"
-            ? "border-[#F97316] ring-2 ring-[#F97316]/30"
-            : "border-gray-700 hover:border-gray-500",
-        )}
-      >
-        <Calendar className="w-4 h-4 text-gray-400 shrink-0" />
-        <span className={cn("flex-1 text-left", !value.end && "text-gray-500")}>
-          {value.end ? formatDisplay(value.end) : "mm/dd/yy"}
-        </span>
-        {value.end && (
-          <span
-            role="button"
-            tabIndex={-1}
-            onClick={(e) => { e.stopPropagation(); onChange({ ...value, end: "" }); }}
-            className="text-gray-500 hover:text-gray-300 transition-colors"
-          >
-            <X className="w-3 h-3" />
+            <X className="w-3.5 h-3.5" />
           </span>
         )}
       </button>
 
       {/* Calendar dropdown */}
       {open && (
-        <div className="absolute top-[calc(100%+8px)] left-0 z-50 w-[272px] bg-[#0F172A] border border-gray-700/80 rounded-2xl shadow-2xl shadow-black/60 p-4 select-none">
+        <div className="absolute top-[calc(100%+8px)] left-0 z-50 w-[272px] bg-white dark:bg-[#0F172A] border border-gray-200 dark:border-gray-700/80 rounded-2xl shadow-xl dark:shadow-2xl dark:shadow-black/60 p-4 select-none">
 
           {/* Month navigation */}
           <div className="flex items-center justify-between mb-4">
@@ -236,7 +213,7 @@ export const DateRangePicker = React.memo(({
             >
               <ChevronLeft className="w-4 h-4" />
             </button>
-            <span className="text-[13px] font-semibold text-[#F1F5F9] tracking-wide">
+            <span className="text-[13px] font-semibold text-gray-900 dark:text-[#F1F5F9] tracking-wide">
               {MONTHS[viewMonth]} {viewYear}
             </span>
             <button
@@ -279,7 +256,7 @@ export const DateRangePicker = React.memo(({
           </div>
 
           {/* Footer */}
-          <div className="mt-4 pt-3 border-t border-gray-800 flex items-center justify-between">
+          <div className="mt-4 pt-3 border-t border-gray-100 dark:border-gray-800 flex items-center justify-between">
             <span className="text-[11px] text-gray-500">
               {selecting === "start" ? "Pick start date" : "Pick end date"}
             </span>

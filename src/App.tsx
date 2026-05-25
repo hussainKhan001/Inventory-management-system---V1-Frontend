@@ -32,10 +32,69 @@ import { Archive } from "./pages/Archive";
 import { AuditLogs } from "./pages/AuditLogs";
 import { AccountsPage } from "./pages/AccountsPage";
 import { TrackingPage } from "./pages/Tracking";
+import { SettingsPage } from "./pages/Settings";
 import { ROUTES } from "./routes";
 
+const hexToRgb = (hex: string) => {
+  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+  return result ? {
+    r: parseInt(result[1], 16),
+    g: parseInt(result[2], 16),
+    b: parseInt(result[3], 16)
+  } : null;
+};
+
 const AppContent = () => {
-  const { isAuthenticated, role, isAuthLoading, hasPermission } = useAppStore();
+  const { isAuthenticated, role, isAuthLoading, hasPermission, settings } = useAppStore();
+
+  // Apply dynamic settings (theme color, font family, favicon, title)
+  useEffect(() => {
+    if (settings) {
+      // 1. App Title
+      if (settings.appName) {
+        document.title = settings.appName;
+      }
+
+      // 2. Primary Theme Color
+      if (settings.themeColor) {
+        document.documentElement.style.setProperty('--color-primary', settings.themeColor);
+        const rgb = hexToRgb(settings.themeColor);
+        if (rgb) {
+          document.documentElement.style.setProperty('--color-primary-rgb', `${rgb.r}, ${rgb.g}, ${rgb.b}`);
+        }
+      }
+
+      // 3. Font Family
+      if (settings.fontFamily) {
+        const fontId = 'dynamic-google-font';
+        let link = document.getElementById(fontId) as HTMLLinkElement;
+        if (!link) {
+          link = document.createElement('link');
+          link.id = fontId;
+          link.rel = 'stylesheet';
+          document.head.appendChild(link);
+        }
+        link.href = `https://fonts.googleapis.com/css2?family=${settings.fontFamily.replace(/\s+/g, '+')}:wght@300;400;500;600;700;800;900&display=swap`;
+        document.documentElement.style.setProperty('--font-sans', `"${settings.fontFamily}", ui-sans-serif, system-ui, sans-serif`);
+      }
+
+      // 4. Favicon
+      if (settings.faviconUrl) {
+        let link = document.querySelector("link[rel~='icon']") as HTMLLinkElement;
+        if (!link) {
+          link = document.createElement('link');
+          link.rel = 'icon';
+          document.head.appendChild(link);
+        }
+        const fullUrl = settings.faviconUrl.startsWith('/') && !settings.faviconUrl.startsWith('/uploads')
+          ? settings.faviconUrl 
+          : settings.faviconUrl.startsWith('/uploads') 
+            ? `${window.location.protocol}//${window.location.hostname}:5000${settings.faviconUrl}`
+            : settings.faviconUrl;
+        link.href = fullUrl;
+      }
+    }
+  }, [settings]);
   const getHash = () => {
     const h = window.location.hash.replace("#", "");
     return h.split("?")[0] || "dashboard";
@@ -223,6 +282,8 @@ const AppContent = () => {
         return <ProjectReports />;
       case "profile":
         return <Profile />;
+      case "settings":
+        return <SettingsPage />;
       case "archive":
         return <Archive />;
       case "tracking":

@@ -21,7 +21,7 @@ import { MaterialRequirement, MaterialRequirementItem } from "../types";
 import { genId, todayStr, scrollToError, formatDateTime, formatDate, safeStr, isNewItem } from "../utils";
 import { toast } from "react-hot-toast";
 import { cn } from "../lib/utils";
-import { SearchFilter, DateFilter, SelectFilter, FilterRow } from "../components/ui/Filters";
+import { SearchFilter, DateRangePicker, SelectFilter, FilterRow } from "../components/ui/Filters";
 
 export const MaterialRequirementPage = () => {
   const { 
@@ -652,15 +652,12 @@ export const MaterialRequirementPage = () => {
             placeholder="Search by ID, Requester, Project, or Material name..."
             className="flex-1 min-w-[240px]"
           />
-          <DateFilter
-            value={startDate}
-            onChange={setStartDate}
-            placeholder="Start Date"
-          />
-          <DateFilter
-            value={endDate}
-            onChange={setEndDate}
-            placeholder="End Date"
+          <DateRangePicker
+            value={{ start: startDate, end: endDate }}
+            onChange={(v) => {
+              setStartDate(v.start);
+              setEndDate(v.end);
+            }}
           />
           <SelectFilter
             value={filterProject}

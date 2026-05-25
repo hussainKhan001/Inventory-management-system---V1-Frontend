@@ -33,7 +33,7 @@ import {
   Download,
   TrendingUp,
 } from "lucide-react";
-import { SearchFilter, DateFilter, SelectFilter, FilterRow } from "../components/ui/Filters";
+import { SearchFilter, DateRangePicker, SelectFilter, FilterRow } from "../components/ui/Filters";
 import { PurchaseOrder, POLineItem, MaterialRequirement, Quotation } from "../types";
 import { fmtCur, genId, todayStr, scrollToError, formatDateTime, formatAccountNo, safeStr, calculatePriceComparison, isNewItem } from "../utils";
 import { generatePOPDF } from "../utils/pdfGenerator";
@@ -145,6 +145,10 @@ export const PurchaseOrders = () => {
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [loadingQuotes, setLoadingQuotes] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  // Cancel PO modal state
+  const [cancelModal, setCancelModal] = useState(false);
+  const [cancelNoteText, setCancelNoteText] = useState('');
+  const [cancelTargetId, setCancelTargetId] = useState<string | null>(null);
 
   useEffect(() => {
     if (Object.keys(errors).length > 0) {
@@ -435,9 +439,21 @@ export const PurchaseOrders = () => {
         if (m.approvals && m.approvals.length > 0) {
           m.approvals.forEach(app => {
             const category = app.category || 'General';
-            // Check if a PO already exists for this MR and this category
+            
+            // Find supplier ID/Name to match with PO supplier
+            const supplierObj = (suppliers || []).find(s => 
+              s.companyName === app.supplierName || 
+              s.name === app.supplierName || 
+              s.id === app.supplierId || 
+              (s as any)._id === app.supplierId
+            );
+            const supplierId = supplierObj?.id || app.supplierId || app.supplierName;
+            const supplierName = supplierObj?.companyName || supplierObj?.name || app.supplierName;
+
+            // Check if a PO already exists for this MR and this supplier
             const poExists = pos.some(po => 
               po.mrId === m.id && 
+              (po.supplier === supplierId || po.supplier === supplierName || po.supplier === app.supplierName) &&
               (po.workType === category || (category === 'General' && !po.workType)) &&
               po.status !== 'Rejected' && po.status !== 'Blocked'
             );
@@ -461,7 +477,7 @@ export const PurchaseOrders = () => {
       }
     });
     return list;
-  }, [materialRequirements, pos]);
+  }, [materialRequirements, pos, suppliers]);
 
   const handleCreate = async () => {
     if (!validateForm(newPO)) {
@@ -629,6 +645,45 @@ export const PurchaseOrders = () => {
       toast.success("PO rejected successfully");
     } catch (error: any) {
       toast.error(`Rejection failed: ${error.message}`);
+    } finally {
+      setProcessingId(null);
+    }
+  };
+
+  // Open the cancel-note modal (AGM cancels an already-Approved PO)
+  const handleCancelApproved = (id: string) => {
+    setCancelTargetId(id);
+    setCancelNoteText('');
+    setCancelModal(true);
+  };
+
+  const handleConfirmCancel = async () => {
+    if (!cancelTargetId || !cancelNoteText.trim()) {
+      toast.error('Please enter a cancellation reason');
+      return;
+    }
+    setProcessingId(`cancel-${cancelTargetId}`);
+    try {
+      const res = await api.putSimple(`pos/${cancelTargetId}/cancel`, { cancelNote: cancelNoteText.trim() });
+      if (!res.success) throw new Error(res.message || 'Cancel failed');
+
+      const now = new Date().toISOString();
+      const patch = {
+        status: 'Cancelled' as PurchaseOrder['status'],
+        cancelNote: cancelNoteText.trim(),
+        cancelledAt: now,
+      };
+      if (selectedPO && selectedPO.id === cancelTargetId) {
+        setSelectedPO({ ...selectedPO, ...patch });
+      }
+      await fetchResource('pos', 1, 50, true);
+      await fetchResource('quotations', 1, 50, true);
+      toast.success(res.message || 'PO cancelled. Linked quotation reset to Pending.');
+      setCancelModal(false);
+      setCancelTargetId(null);
+      setCancelNoteText('');
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to cancel PO');
     } finally {
       setProcessingId(null);
     }
@@ -819,15 +874,12 @@ export const PurchaseOrders = () => {
             placeholder="Search POs..."
             className="flex-1 min-w-[200px]"
           />
-          <DateFilter
-            value={startDate}
-            onChange={setStartDate}
-            placeholder="Start Date"
-          />
-          <DateFilter
-            value={endDate}
-            onChange={setEndDate}
-            placeholder="End Date"
+          <DateRangePicker
+            value={{ start: startDate, end: endDate }}
+            onChange={(v) => {
+              setStartDate(v.start);
+              setEndDate(v.end);
+            }}
           />
           <SelectFilter
             value={filterProject}
@@ -1244,8 +1296,11 @@ export const PurchaseOrders = () => {
                             const approvedQuotation = categoryQuotes.find(q => (q.id === approvedQuoteId || (q as any)._id === approvedQuoteId)) || categoryQuotes[0];
                             const displayQuotations = categoryQuotes.length > 0 ? categoryQuotes : (approvedQuotation ? [approvedQuotation] : [{ supplierName: "Vendor 1", items: [] }]);
 
+                            const approvedQuotationItems = (approvedQuotation?.items || []).filter(item => item.approved);
+                            const itemsToUse = approvedQuotationItems.length > 0 ? approvedQuotationItems : (approvedQuotation?.items || []);
+
                             const pItemsRaw: POLineItem[] = await Promise.all(
-                              (approvedQuotation?.items || []).map(async (qItem) => {
+                              itemsToUse.map(async (qItem) => {
                                 const searchName = (qItem.materialName || "").trim();
                                 const rate = qItem.rate;
                                 const gstPct = (qItem as any)?.gstPct || 18;
@@ -1288,7 +1343,7 @@ export const PurchaseOrders = () => {
                             const pItems = pItemsRaw.filter(it => it.rate > 0);
 
                             // Price comparison only for items in this category quotation
-                            const priceComparisonItemsRaw = (approvedQuotation?.items || []).map(qItem => {
+                            const priceComparisonItemsRaw = itemsToUse.map(qItem => {
                               const mName = (qItem.materialName || "").trim();
                               return {
                                 materialName: qItem.materialName,
@@ -2420,6 +2475,29 @@ export const PurchaseOrders = () => {
             return (
               <>
                 <div id="printable-po" className="p-1 sm:p-2 bg-white dark:bg-gray-900 text-[#1A365D] dark:text-gray-200 font-sans">
+                  {/* Cancellation Banner — shown only when PO is Cancelled */}
+                  {selectedPO.status === "Cancelled" && (
+                    <div className="no-print mb-5 p-4 bg-red-50 dark:bg-red-950/40 border border-red-300 dark:border-red-800 rounded-xl flex items-start gap-3">
+                      <X className="w-5 h-5 text-red-500 mt-0.5 flex-shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-bold text-red-700 dark:text-red-400">Purchase Order Cancelled</p>
+                        {selectedPO.cancelNote && (
+                          <p className="text-xs text-red-600 dark:text-red-400 mt-1">
+                            <span className="font-semibold">Reason: </span>{selectedPO.cancelNote}
+                          </p>
+                        )}
+                        {(selectedPO.cancelledBy || selectedPO.cancelledAt) && (
+                          <p className="text-[11px] text-red-500 dark:text-red-500 mt-1 opacity-80">
+                            Cancelled{selectedPO.cancelledBy ? ` by ${selectedPO.cancelledBy}` : ''}
+                            {selectedPO.cancelledAt ? ` on ${formatDateTime(selectedPO.cancelledAt)}` : ''}
+                          </p>
+                        )}
+                        <p className="text-[11px] text-red-500 dark:text-red-500 mt-1 opacity-70">
+                          The linked Quotation has been reset to Pending — suppliers may re-submit quotes.
+                        </p>
+                      </div>
+                    </div>
+                  )}
                   {/* Company & Vendor Combined Header */}
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-0 border border-[#1A365D] mb-6 rounded-lg overflow-hidden shadow-sm">
                     {/* Left Side: Company Info */}
@@ -2828,6 +2906,16 @@ export const PurchaseOrders = () => {
               ) && (
                 <Btn label="Reject PO" color="red" onClick={() => handleReject(selectedPO.id)} loading={processingId === `reject-${selectedPO.id}`} />
               )}
+              {/* AGM Cancel button — only for Approved POs */}
+              {selectedPO.status === "Approved" && (role === "AGM" || role === "Super Admin" || role === "admin" || role === "superadmin") && (
+                <Btn
+                  label="Cancel PO"
+                  color="red"
+                  icon={X}
+                  onClick={() => handleCancelApproved(selectedPO.id)}
+                  loading={processingId === `cancel-${selectedPO.id}`}
+                />
+              )}
               <Btn label="Download PO PDF" icon={Download} onClick={() => downloadPDF(selectedPO)} className="bg-orange-500 hover:bg-orange-600 text-white border-none shadow-lg shadow-orange-500/20 font-bold" />
               <Btn label="Close" outline onClick={() => { setViewModal(false); setSelectedPO(null); }} className="px-8 border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800" />
           </div>
@@ -2851,6 +2939,59 @@ export const PurchaseOrders = () => {
           onCancel={() => setDeleteConfirm(null)}
           loading={actionLoading}
         />
+      )}
+
+      {/* Cancel PO Modal — AGM fills in a cancellation reason */}
+      {cancelModal && (
+        <Modal
+          title="Cancel Purchase Order"
+          onClose={() => { setCancelModal(false); setCancelNoteText(''); setCancelTargetId(null); }}
+        >
+          <div className="space-y-5">
+            {/* Warning banner */}
+            <div className="flex items-start gap-3 p-4 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 rounded-xl">
+              <AlertTriangle className="w-5 h-5 text-red-500 mt-0.5 flex-shrink-0" />
+              <div>
+                <p className="text-sm font-bold text-red-700 dark:text-red-400">This action cannot be undone</p>
+                <p className="text-xs text-red-600 dark:text-red-500 mt-1">
+                  Cancelling this PO will also reset the linked Quotation back to <strong>Pending</strong>, allowing suppliers to re-submit their quotes.
+                </p>
+              </div>
+            </div>
+
+            {/* Note input */}
+            <div className="space-y-1.5">
+              <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300">
+                Cancellation Reason <span className="text-red-500">*</span>
+              </label>
+              <textarea
+                className="w-full px-3 py-2.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-sm text-gray-800 dark:text-gray-200 placeholder-gray-400 dark:placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-red-500/40 focus:border-red-500 min-h-[110px] resize-y transition"
+                placeholder="Enter the reason for cancelling this Purchase Order…"
+                value={cancelNoteText}
+                onChange={(e) => setCancelNoteText(e.target.value)}
+                autoFocus
+              />
+              <p className="text-[11px] text-gray-400">This note will be visible to all users viewing this PO.</p>
+            </div>
+
+            {/* Actions */}
+            <div className="flex justify-end gap-3 pt-1">
+              <Btn
+                label="Go Back"
+                outline
+                onClick={() => { setCancelModal(false); setCancelNoteText(''); setCancelTargetId(null); }}
+              />
+              <Btn
+                label="Confirm Cancellation"
+                color="red"
+                icon={X}
+                onClick={handleConfirmCancel}
+                loading={processingId === `cancel-${cancelTargetId}`}
+                disabled={!cancelNoteText.trim()}
+              />
+            </div>
+          </div>
+        </Modal>
       )}
     </div>
   );
