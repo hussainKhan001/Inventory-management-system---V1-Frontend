@@ -21,6 +21,7 @@ import { MaterialRequirement, MaterialRequirementItem } from "../types";
 import { genId, todayStr, scrollToError, formatDateTime, formatDate, safeStr, isNewItem } from "../utils";
 import { toast } from "react-hot-toast";
 import { cn } from "../lib/utils";
+import { SearchFilter, DateFilter, SelectFilter, FilterRow } from "../components/ui/Filters";
 
 export const MaterialRequirementPage = () => {
   const { 
@@ -55,6 +56,21 @@ export const MaterialRequirementPage = () => {
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
 
+  const [filterProject, setFilterProject] = useState("");
+  const [filterRequester, setFilterRequester] = useState("");
+  const [filterWorkType, setFilterWorkType] = useState("");
+  const [filterStatus, setFilterStatus] = useState("");
+
+  const statusOptions = React.useMemo(() => [
+    { label: "Store Pending", value: "Store Pending" },
+    { label: "Approved by Store", value: "Approved by Store" },
+    { label: "Quotation Phase", value: "Quotation Phase" },
+    { label: "PO Phase", value: "PO Phase" },
+    { label: "Partially Inwarded", value: "Partially Inwarded" },
+    { label: "Inwarded", value: "Inwarded" },
+    { label: "Cancelled", value: "Cancelled" }
+  ], []);
+
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedSearch(search), 500);
     return () => clearTimeout(timer);
@@ -62,10 +78,18 @@ export const MaterialRequirementPage = () => {
 
   useEffect(() => {
     const isInitialLoad = materialRequirements.length === 0;
+    const filterObj: any = {};
+    if (filterProject) filterObj.project = filterProject;
+    if (filterRequester) filterObj.requesterName = filterRequester;
+    if (filterWorkType) filterObj.workType = filterWorkType;
+    if (filterStatus) filterObj.status = filterStatus;
+
+    const finalFilter = Object.keys(filterObj).length > 0 ? filterObj : null;
+
     if (activeTab === 'requirements') {
-      fetchResource('material-requirements', 1, 50, !isInitialLoad, debouncedSearch, null, false, false, startDate, endDate);
+      fetchResource('material-requirements', 1, 50, !isInitialLoad, debouncedSearch, finalFilter, false, false, startDate, endDate);
     } else {
-      fetchResource('mr-allocations', 1, 1000, true, debouncedSearch, null, false, false, startDate, endDate);
+      fetchResource('mr-allocations', 1, 1000, true, debouncedSearch, finalFilter, false, false, startDate, endDate);
     }
     
     if (pos.length === 0) {
@@ -78,7 +102,7 @@ export const MaterialRequirementPage = () => {
     if (catalogue.length < 500) {
       fetchResource('catalogue', 1, 2000, true);
     }
-  }, [fetchResource, debouncedSearch, activeTab, startDate, endDate]);
+  }, [fetchResource, debouncedSearch, activeTab, startDate, endDate, filterProject, filterRequester, filterWorkType, filterStatus]);
 
   useEffect(() => {
     // Background fetches for dependencies
@@ -90,6 +114,13 @@ export const MaterialRequirementPage = () => {
   const [successModal, setSuccessModal] = useState<string | null>(null);
   const [viewModal, setViewModal] = useState(false);
   const [selectedRequirement, setSelectedRequirement] = useState<MaterialRequirement | null>(null);
+
+  const allItemsMapped = selectedRequirement
+    ? (selectedRequirement.items && selectedRequirement.items.length > 0 && selectedRequirement.items.every(
+        (i: any) => i.sku && i.sku !== "N/A" && i.sku !== ""
+      ))
+    : true;
+
   const [isEditing, setIsEditing] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [otherRequester, setOtherRequester] = useState("");
@@ -579,7 +610,7 @@ export const MaterialRequirementPage = () => {
         }
       />
 
-      <div className="sticky top-0 z-20 bg-gray-50 dark:bg-gray-900 pb-4 pt-1 space-y-4">
+      <div className="sticky top-0 z-30 will-change-transform bg-gray-50 dark:bg-gray-950 -mx-4 sm:-mx-6 md:-mx-8 px-4 sm:px-6 md:px-8 pt-3 pb-4 border-b border-gray-200 dark:border-gray-800 mb-6 space-y-3">
         <div className="flex items-center gap-1 p-1 bg-gray-100 dark:bg-gray-800 rounded-xl w-fit">
           <button
             onClick={() => setActiveTab('requirements')}
@@ -603,41 +634,59 @@ export const MaterialRequirementPage = () => {
           </button>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          <Field
-            small
-            label="Search MRs"
-            icon={Search}
-            placeholder="Search by MR ID, Requester, Project, or Material name..."
+        <FilterRow 
+          showClear={!!(search || startDate || endDate || filterProject || filterRequester || filterWorkType || filterStatus)} 
+          onClearAll={() => { 
+            setSearch(""); 
+            setStartDate(""); 
+            setEndDate(""); 
+            setFilterProject(""); 
+            setFilterRequester(""); 
+            setFilterWorkType(""); 
+            setFilterStatus(""); 
+          }}
+        >
+          <SearchFilter
             value={search}
-            onChange={(e: any) => setSearch(e.target.value)}
-            className="mb-0"
+            onChange={setSearch}
+            placeholder="Search by ID, Requester, Project, or Material name..."
+            className="flex-1 min-w-[240px]"
           />
-          <div className="flex gap-2">
-            <DateField
-              small
-              label="Start Date"
-              value={startDate}
-              onChange={(e: any) => setStartDate(e.target.value)}
-              className="flex-1 mb-0"
-            />
-            <DateField
-              small
-              label="End Date"
-              value={endDate}
-              onChange={(e: any) => setEndDate(e.target.value)}
-              className="flex-1 mb-0"
-            />
-            { (startDate || endDate) && (
-              <button 
-                onClick={() => { setStartDate(""); setEndDate(""); }}
-                className="px-3 py-2 text-xs font-medium text-gray-500 hover:text-red-500"
-              >
-                Clear
-              </button>
-            )}
-          </div>
-        </div>
+          <DateFilter
+            value={startDate}
+            onChange={setStartDate}
+            placeholder="Start Date"
+          />
+          <DateFilter
+            value={endDate}
+            onChange={setEndDate}
+            placeholder="End Date"
+          />
+          <SelectFilter
+            value={filterProject}
+            onChange={setFilterProject}
+            options={PROJECTS}
+            placeholder="All Projects"
+          />
+          <SelectFilter
+            value={filterRequester}
+            onChange={setFilterRequester}
+            options={REQUESTERS}
+            placeholder="All Requesters"
+          />
+          <SelectFilter
+            value={filterWorkType}
+            onChange={setFilterWorkType}
+            options={WORK_TYPES}
+            placeholder="All Work Types"
+          />
+          <SelectFilter
+            value={filterStatus}
+            onChange={setFilterStatus}
+            options={statusOptions}
+            placeholder="All Statuses"
+          />
+        </FilterRow>
       </div>
 
       <div className="space-y-4 min-h-[400px]">
@@ -988,6 +1037,15 @@ export const MaterialRequirementPage = () => {
               </div>
             </div>
           )}
+          {!allItemsMapped && (
+            <div className="mb-6 p-4 bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900/30 rounded-xl flex items-center gap-3">
+              <AlertTriangle className="w-5 h-5 text-red-500 flex-shrink-0" />
+              <div>
+                <p className="text-[13px] font-bold text-red-900 dark:text-red-400 font-sans">Inventory Mapping Required</p>
+                <p className="text-[11px] text-red-700 dark:text-red-450 font-sans">Some items are not linked to inventory stock SKU. All action buttons (Save & Close, Get Quotation Link, Recheck, Approve by Store, Reject Requirement) are disabled until you map each item.</p>
+              </div>
+            </div>
+          )}
           <div className="space-y-6">
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
               <div>
@@ -1101,9 +1159,9 @@ export const MaterialRequirementPage = () => {
                                     setLinkSearch(item.materialName);
                                     setLinkingIdx(idx);
                                   }}
-                                  className="text-[10px] text-primary hover:bg-primary/5 px-2 py-1 rounded border border-primary/20 font-bold flex items-center gap-1 transition-colors group/link disabled:opacity-50 disabled:cursor-not-allowed"
+                                  className="text-[10px] text-primary hover:bg-primary/5 px-2 py-1 rounded border border-primary/20 font-bold flex items-center gap-1 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                                 >
-                                  <Link2 className="w-3 h-3 group-hover/link:rotate-45 transition-transform" />
+                                  <Link2 className="w-3 h-3" />
                                   Manual Link
                                 </button>
                                 <button
@@ -1507,7 +1565,7 @@ export const MaterialRequirementPage = () => {
             <div className="flex flex-wrap gap-3 justify-between items-center pt-4 border-t border-gray-100 dark:border-gray-800">
               <div className="flex flex-wrap gap-2">
                 <button
-                  disabled={isMRLocked(selectedRequirement.id)}
+                  disabled={isMRLocked(selectedRequirement.id) || !allItemsMapped}
                   onClick={async () => {
                     if (!selectedRequirement) return;
                     try {
@@ -1531,43 +1589,47 @@ export const MaterialRequirementPage = () => {
                 {hasPermission("GET_QUOTATION_LINK") && (
                   <div className="relative group">
                     <button
-                      className="flex items-center gap-2 px-4 py-2.5 bg-orange-50 dark:bg-orange-900/20 text-orange-600 dark:text-orange-400 rounded-xl text-xs font-bold hover:bg-orange-100 dark:hover:bg-orange-900/40 transition-all tracking-widest peer"
+                      disabled={!allItemsMapped}
+                      className="flex items-center gap-2 px-4 py-2.5 bg-orange-50 dark:bg-orange-900/20 text-orange-600 dark:text-orange-400 rounded-xl text-xs font-bold hover:bg-orange-100 dark:hover:bg-orange-900/40 transition-all tracking-widest peer disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       <Link2 className="w-4 h-4" />
                       Get quotation link
                     </button>
-                    <div className="absolute bottom-full left-0 mb-2 w-56 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-xl p-2 hidden group-hover:block transition-all z-50">
-                      <p className="text-[10px] font-bold text-gray-400 px-3 py-1 uppercase tracking-wider">Select Category</p>
-                      <button
-                        onClick={() => {
-                          const url = `${window.location.origin}${window.location.pathname}#public-quotation?mrId=${selectedRequirement.id}`;
-                          navigator.clipboard.writeText(url);
-                          toast.success("All items link copied!");
-                        }}
-                        className="w-full text-left px-3 py-2 text-[12px] font-medium text-gray-700 dark:text-gray-300 hover:bg-orange-50 dark:hover:bg-orange-900/20 rounded-lg transition-colors"
-                      >
-                        All Categories
-                      </button>
-                      {Array.from(new Set(selectedRequirement.items.map(i => i.category).filter(Boolean))).map((cat: any) => (
+                    {allItemsMapped && (
+                      <div className="absolute bottom-full left-0 mb-2 w-56 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-xl p-2 hidden group-hover:block transition-all z-50">
+                        <p className="text-[10px] font-bold text-gray-400 px-3 py-1 uppercase tracking-wider">Select Category</p>
                         <button
-                          key={cat}
                           onClick={() => {
-                            const url = `${window.location.origin}${window.location.pathname}#public-quotation?mrId=${selectedRequirement.id}&category=${encodeURIComponent(String(cat))}`;
+                            const url = `${window.location.origin}${window.location.pathname}#public-quotation?mrId=${selectedRequirement.id}`;
                             navigator.clipboard.writeText(url);
-                            toast.success(`${cat} link copied!`);
+                            toast.success("All items link copied!");
                           }}
                           className="w-full text-left px-3 py-2 text-[12px] font-medium text-gray-700 dark:text-gray-300 hover:bg-orange-50 dark:hover:bg-orange-900/20 rounded-lg transition-colors"
                         >
-                          {cat}
+                          All Categories
                         </button>
-                      ))}
-                    </div>
+                        {Array.from(new Set(selectedRequirement.items.map(i => i.category).filter(Boolean))).map((cat: any) => (
+                          <button
+                            key={cat}
+                            onClick={() => {
+                              const url = `${window.location.origin}${window.location.pathname}#public-quotation?mrId=${selectedRequirement.id}&category=${encodeURIComponent(String(cat))}`;
+                              navigator.clipboard.writeText(url);
+                              toast.success(`${cat} link copied!`);
+                            }}
+                            className="w-full text-left px-3 py-2 text-[12px] font-medium text-gray-700 dark:text-gray-300 hover:bg-orange-50 dark:hover:bg-orange-900/20 rounded-lg transition-colors"
+                          >
+                            {cat}
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 )}
                 {selectedRequirement.status === "Store Pending" && !isMRLocked(selectedRequirement.id) && (
                   <button
+                    disabled={!allItemsMapped}
                     onClick={() => handleRecheck(selectedRequirement)}
-                    className="flex items-center gap-2 px-4 py-2.5 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 rounded-xl text-xs font-bold hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-all tracking-widest"
+                    className="flex items-center gap-2 px-4 py-2.5 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 rounded-xl text-xs font-bold hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-all tracking-widest disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <RefreshCw className={`w-4 h-4 ${actionLoading ? 'animate-spin' : ''}`} />
                     Recheck
@@ -1595,8 +1657,8 @@ export const MaterialRequirementPage = () => {
                        <div className="flex gap-2">
                          <button
                           onClick={async () => {
-                            if (!canApprove) {
-                              toast.error("Inventory check failed. Please ensure items are either in stock, linked to inventory, or marked for purchase.");
+                            if (!canApprove || !allItemsMapped) {
+                              toast.error("Inventory check failed. Please ensure items are mapped to inventory and either in stock, linked, or marked for purchase.");
                               return;
                             }
                             try {
@@ -1609,9 +1671,9 @@ export const MaterialRequirementPage = () => {
                               toast.error("Failed to approve: " + e.message);
                             }
                           }}
-                          disabled={!canApprove}
+                          disabled={!canApprove || !allItemsMapped}
                           className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all tracking-widest ${
-                            canApprove 
+                            (canApprove && allItemsMapped) 
                               ? "bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400 hover:bg-green-100 dark:hover:bg-green-900/40" 
                               : "bg-gray-100 dark:bg-gray-800 text-gray-400 cursor-not-allowed"
                           }`}
@@ -1680,6 +1742,7 @@ export const MaterialRequirementPage = () => {
                       setRejectingId(selectedRequirement.id);
                     }}
                     loading={actionLoading}
+                    disabled={!allItemsMapped}
                   />
                 )}
               </div>

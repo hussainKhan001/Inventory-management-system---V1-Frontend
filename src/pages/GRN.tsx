@@ -23,6 +23,7 @@ import {
 } from "../components/ui";
 import { Plus, Camera, FileUp, X, Eye, Edit2, Trash2, Download, Package, CheckCircle, Loader2, AlertTriangle, FileText, Search } from "lucide-react";
 import { TableVirtuoso } from "react-virtuoso";
+import { SearchFilter, DateFilter, SelectFilter, FilterRow } from "../components/ui/Filters";
 import { GRN, GRNItem, Inward } from "../types";
 import { genId, todayStr, scrollToError, formatDateTime, safeStr } from "../utils";
 import { cn } from "../lib/utils";
@@ -47,13 +48,34 @@ export const GRNPage = () => {
     suppliers,
     loading,
     actionLoading,
-    hasPermission
+    hasPermission,
+    settings
   } = useAppStore();
+
+  const { projects: PROJECTS = [] } = settings;
 
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
+
+  const [filterProject, setFilterProject] = useState("");
+  const [filterSupplier, setFilterSupplier] = useState("");
+  const [filterStatus, setFilterStatus] = useState("");
+
+  const supplierOptions = React.useMemo(() => {
+    const list = new Set<string>();
+    suppliers.forEach(s => list.add(s.companyName || s.name || s.id));
+    grns.forEach(g => {
+      if (g.supplier) list.add(g.supplier);
+    });
+    return Array.from(list).filter(Boolean).sort();
+  }, [suppliers, grns]);
+
+  const statusOptions = React.useMemo(() => [
+    { label: "Draft", value: "Draft" },
+    { label: "Confirmed", value: "Confirmed" }
+  ], []);
 
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedSearch(search), 500);
@@ -65,15 +87,21 @@ export const GRNPage = () => {
 
   useEffect(() => {
     setPage(1);
-  }, [debouncedSearch, startDate, endDate]);
+  }, [debouncedSearch, startDate, endDate, filterProject, filterSupplier, filterStatus]);
 
   useEffect(() => {
     const isInitialLoad = grns.length === 0;
-    fetchResource('grn', page, 50, !isInitialLoad || page > 1, debouncedSearch, null, page > 1, false, startDate, endDate);
+    const filterObj: any = {};
+    if (filterProject) filterObj.project = filterProject;
+    if (filterSupplier) filterObj.supplier = filterSupplier;
+    if (filterStatus) filterObj.status = filterStatus;
+    const finalFilter = Object.keys(filterObj).length > 0 ? filterObj : null;
+
+    fetchResource('grn', page, 50, !isInitialLoad || page > 1, debouncedSearch, finalFilter, page > 1, false, startDate, endDate);
     fetchResource('pos', 1, 500, true);
     fetchResource('inventory', 1, 1000, true);
     fetchResource('suppliers', 1, 1000, true);
-  }, [fetchResource, page, debouncedSearch, startDate, endDate]);
+  }, [fetchResource, page, debouncedSearch, startDate, endDate, filterProject, filterSupplier, filterStatus]);
 
   useEffect(() => {
     const observer = (() => {
@@ -318,40 +346,53 @@ export const GRNPage = () => {
         }
       />
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-6">
-          <Field
-            small
-            label="Quick Search"
-            icon={Search}
-            placeholder="Search by GRN ID, PO No, Supplier or Project..."
+      <div className="sticky top-0 z-30 will-change-transform bg-gray-50 dark:bg-gray-950 -mx-4 sm:-mx-6 md:-mx-8 px-4 sm:px-6 md:px-8 py-4 border-b border-gray-200 dark:border-gray-800 mb-6">
+        <FilterRow 
+          showClear={!!(search || startDate || endDate || filterProject || filterSupplier || filterStatus)} 
+          onClearAll={() => { 
+            setSearch(""); 
+            setStartDate(""); 
+            setEndDate(""); 
+            setFilterProject(""); 
+            setFilterSupplier(""); 
+            setFilterStatus(""); 
+          }}
+        >
+          <SearchFilter
             value={search}
-            onChange={(e: any) => setSearch(e.target.value)}
-            className="mb-0"
+            onChange={setSearch}
+            placeholder="Search by GRN ID, PO No, Supplier or Project..."
+            className="flex-1 min-w-[240px]"
           />
-          <div className="flex gap-2">
-          <DateField
-            small
-            label="Start Date"
+          <DateFilter
             value={startDate}
-            onChange={(e: any) => setStartDate(e.target.value)}
-            className="flex-1 mb-0"
+            onChange={setStartDate}
+            placeholder="Start Date"
           />
-          <DateField
-            small
-            label="End Date"
+          <DateFilter
             value={endDate}
-            onChange={(e: any) => setEndDate(e.target.value)}
-            className="flex-1 mb-0"
+            onChange={setEndDate}
+            placeholder="End Date"
           />
-          { (startDate || endDate) && (
-            <button 
-              onClick={() => { setStartDate(""); setEndDate(""); }}
-              className="px-3 py-2 text-xs font-medium text-gray-500 hover:text-red-500"
-            >
-              Clear
-            </button>
-          )}
-        </div>
+          <SelectFilter
+            value={filterProject}
+            onChange={setFilterProject}
+            options={PROJECTS}
+            placeholder="All Projects"
+          />
+          <SelectFilter
+            value={filterSupplier}
+            onChange={setFilterSupplier}
+            options={supplierOptions}
+            placeholder="All Suppliers"
+          />
+          <SelectFilter
+            value={filterStatus}
+            onChange={setFilterStatus}
+            options={statusOptions}
+            placeholder="All Statuses"
+          />
+        </FilterRow>
       </div>
 
       <Card className="p-0 overflow-hidden bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-800">

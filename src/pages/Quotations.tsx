@@ -10,6 +10,7 @@ import {
   Skeleton,
   DateField
 } from "../components/ui";
+import { SearchFilter, DateFilter, SelectFilter, FilterRow } from "../components/ui/Filters";
 import { 
   FileText, 
   Eye, 
@@ -47,13 +48,32 @@ export const Quotations = () => {
     addNotification,
     loading,
     role,
-    hasPermission
+    hasPermission,
+    settings
   } = useAppStore();
   
+  const { projects: PROJECTS = [], categories: CATEGORIES = [] } = settings;
+
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
+
+  const [filterProject, setFilterProject] = useState("");
+  const [filterCategory, setFilterCategory] = useState("");
+  const [filterSupplier, setFilterSupplier] = useState("");
+  const [filterStatus, setFilterStatus] = useState("");
+
+  const supplierOptions = React.useMemo(() => {
+    const uniqueSuppliers = Array.from(new Set(quotations.map(q => q.supplierName).filter(Boolean)));
+    return uniqueSuppliers.sort();
+  }, [quotations]);
+
+  const statusOptions = React.useMemo(() => [
+    { label: "Pending", value: "Pending" },
+    { label: "Approved", value: "Approved" },
+    { label: "Rejected", value: "Rejected" }
+  ], []);
 
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedSearch(search), 500);
@@ -61,10 +81,16 @@ export const Quotations = () => {
   }, [search]);
 
   useEffect(() => {
-    fetchResource("quotations", 1, 1000, true, debouncedSearch, null, false, false, startDate, endDate);
+    const filterObj: any = {};
+    if (filterCategory) filterObj.category = filterCategory;
+    if (filterSupplier) filterObj.supplierName = filterSupplier;
+    if (filterStatus) filterObj.status = filterStatus;
+    const finalFilter = Object.keys(filterObj).length > 0 ? filterObj : null;
+
+    fetchResource("quotations", 1, 1000, true, debouncedSearch, finalFilter, false, false, startDate, endDate);
     fetchResource("material-requirements", 1, 1000, true);
     fetchResource("pos", 1, 1000, true);
-  }, [fetchResource, debouncedSearch, startDate, endDate]);
+  }, [fetchResource, debouncedSearch, startDate, endDate, filterCategory, filterSupplier, filterStatus]);
 
   const [viewModal, setViewModal] = useState(false);
   const [editModal, setEditModal] = useState(false);
@@ -141,22 +167,44 @@ export const Quotations = () => {
   };
 
   // Group quotations by MR ID and Category for comparison
-  const groupedQuotations = quotations.reduce((acc, q) => {
-    const mr = materialRequirements.find(m => m.id === q.mrId);
-    
-    // Role-based visibility for quotations
-    if (hasPermission('APPROVE_MR_AGM')) {
-      // AGM only sees quotations for MRs that have passed Store Incharge stage
-      if (mr && !["Approved by Store", "Approved by AGM", "Closed", "Approved", "Quotation Phase"].includes(mr.status)) {
+  const groupedQuotations = React.useMemo(() => {
+    return quotations.reduce((acc, q) => {
+      const mr = materialRequirements.find(m => m.id === q.mrId);
+      
+      // Role-based visibility for quotations
+      if (hasPermission('APPROVE_MR_AGM')) {
+        // AGM only sees quotations for MRs that have passed Store Incharge stage
+        if (mr && !["Approved by Store", "Approved by AGM", "Closed", "Approved", "Quotation Phase"].includes(mr.status)) {
+          return acc;
+        }
+      }
+
+      // Filter by Project
+      if (filterProject && mr && mr.project !== filterProject) {
         return acc;
       }
-    }
 
-    const key = q.category ? `${q.mrId}|${q.category}` : q.mrId;
-    if (!acc[key]) acc[key] = [];
-    acc[key].push(q);
-    return acc;
-  }, {} as Record<string, Quotation[]>);
+      // Filter by Category
+      if (filterCategory && q.category !== filterCategory) {
+        return acc;
+      }
+
+      // Filter by Supplier
+      if (filterSupplier && q.supplierName !== filterSupplier) {
+        return acc;
+      }
+
+      // Filter by Status
+      if (filterStatus && q.status !== filterStatus) {
+        return acc;
+      }
+
+      const key = q.category ? `${q.mrId}|${q.category}` : q.mrId;
+      if (!acc[key]) acc[key] = [];
+      acc[key].push(q);
+      return acc;
+    }, {} as Record<string, Quotation[]>);
+  }, [quotations, materialRequirements, hasPermission, filterProject, filterCategory, filterSupplier, filterStatus]);
 
   const getMrDetails = (mrId: string) => {
     return materialRequirements.find(m => m.id === mrId);
@@ -173,41 +221,60 @@ export const Quotations = () => {
         subtitle="Manage and compare supplier quotations separately for each category" 
       />
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-          <input
-            type="text"
-            placeholder="Search by MR ID, Category or Supplier Name..."
+      <div className="sticky top-0 z-30 will-change-transform bg-gray-50 dark:bg-gray-950 -mx-4 sm:-mx-6 md:-mx-8 px-4 sm:px-6 md:px-8 py-4 border-b border-gray-200 dark:border-gray-800">
+        <FilterRow
+          showClear={!!(search || startDate || endDate || filterProject || filterCategory || filterSupplier || filterStatus)}
+          onClearAll={() => {
+            setSearch("");
+            setStartDate("");
+            setEndDate("");
+            setFilterProject("");
+            setFilterCategory("");
+            setFilterSupplier("");
+            setFilterStatus("");
+          }}
+        >
+          <SearchFilter
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl text-[13px] focus:outline-none focus:ring-2 focus:ring-[#F97316]/20 focus:border-[#F97316] transition-all"
+            onChange={setSearch}
+            placeholder="Search by MR ID, Category or Supplier Name..."
+            className="flex-1 min-w-[240px]"
           />
-        </div>
-        <div className="flex gap-2">
-          <DateField
-            small
-            label="From"
+          <DateFilter
             value={startDate}
-            onChange={(e: any) => setStartDate(e.target.value)}
-            className="flex-1 mb-0"
+            onChange={setStartDate}
+            placeholder="From"
           />
-          <DateField
-            small
-            label="To"
+          <DateFilter
             value={endDate}
-            onChange={(e: any) => setEndDate(e.target.value)}
-            className="flex-1 mb-0"
+            onChange={setEndDate}
+            placeholder="To"
           />
-          {(startDate || endDate) && (
-            <button
-              onClick={() => { setStartDate(""); setEndDate(""); }}
-              className="px-3 py-2 text-xs font-medium text-gray-500 hover:text-red-500"
-            >
-              Clear
-            </button>
-          )}
-        </div>
+          <SelectFilter
+            value={filterProject}
+            onChange={setFilterProject}
+            options={PROJECTS}
+            placeholder="All Projects"
+          />
+          <SelectFilter
+            value={filterCategory}
+            onChange={setFilterCategory}
+            options={CATEGORIES}
+            placeholder="All Categories"
+          />
+          <SelectFilter
+            value={filterSupplier}
+            onChange={setFilterSupplier}
+            options={supplierOptions}
+            placeholder="All Suppliers"
+          />
+          <SelectFilter
+            value={filterStatus}
+            onChange={setFilterStatus}
+            options={statusOptions}
+            placeholder="All Statuses"
+          />
+        </FilterRow>
       </div>
 
       <div className="flex-1 min-h-[500px]">
@@ -543,6 +610,38 @@ export const Quotations = () => {
               </div>
             </div>
 
+            {(selectedQuotation.freightAmount || selectedQuotation.loadingAmount || selectedQuotation.unloadingAmount) ? (
+              <div className="space-y-4 pt-4 border-t border-gray-100 dark:border-gray-800">
+                <h4 className="text-[11px] font-black text-gray-400 tracking-widest flex items-center gap-2 px-2">
+                  <IndianRupee className="w-4 h-4" />
+                  Other Charges
+                </h4>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  {selectedQuotation.freightAmount ? (
+                    <div className="p-4 bg-gray-50 dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700">
+                      <p className="text-[10px] font-bold text-gray-400 tracking-widest uppercase">Freight Charges</p>
+                      <p className="text-sm font-black text-gray-900 dark:text-white mt-1">₹ {fmt(selectedQuotation.freightAmount)}</p>
+                      <p className="text-[10px] text-orange-500 font-bold mt-1">{selectedQuotation.freightGstPct}% GST ({selectedQuotation.freightGstType})</p>
+                    </div>
+                  ) : null}
+                  {selectedQuotation.loadingAmount ? (
+                    <div className="p-4 bg-gray-50 dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700">
+                      <p className="text-[10px] font-bold text-gray-400 tracking-widest uppercase">Loading Charges</p>
+                      <p className="text-sm font-black text-gray-900 dark:text-white mt-1">₹ {fmt(selectedQuotation.loadingAmount)}</p>
+                      <p className="text-[10px] text-orange-500 font-bold mt-1">{selectedQuotation.loadingGstPct}% GST ({selectedQuotation.loadingGstType})</p>
+                    </div>
+                  ) : null}
+                  {selectedQuotation.unloadingAmount ? (
+                    <div className="p-4 bg-gray-50 dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700">
+                      <p className="text-[10px] font-bold text-gray-400 tracking-widest uppercase">Unloading Charges</p>
+                      <p className="text-sm font-black text-gray-900 dark:text-white mt-1">₹ {fmt(selectedQuotation.unloadingAmount)}</p>
+                      <p className="text-[10px] text-orange-500 font-bold mt-1">{selectedQuotation.unloadingGstPct}% GST ({selectedQuotation.unloadingGstType})</p>
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+            ) : null}
+
             {selectedQuotation.remarks && (
                <div className="p-5 bg-orange-50/50 dark:bg-orange-900/10 rounded-2xl border border-orange-100/50 dark:border-orange-900/20">
                  <p className="text-[10px] font-black text-orange-500 tracking-widest mb-1">Remarks</p>
@@ -701,18 +800,46 @@ const QuotationForm = ({ initialData, onClose, onSave }: QuotationFormProps) => 
   const [formData, setFormData] = useState<Partial<Quotation>>({ ...initialData });
   const [loading, setLoading] = useState(false);
 
+  const calculateChargeTotal = (amount: number, gstPct: number, gstType: string) => {
+    if (!amount) return 0;
+    if (gstType === "Exclusive") {
+      return amount + (amount * gstPct / 100);
+    }
+    return amount;
+  };
+
   const handleItemChange = (idx: number, field: string, value: any) => {
     const newItems = [...(formData.items || [])];
     newItems[idx] = { ...newItems[idx], [field]: value };
     
     // Recalculate total if needed
-    const total = newItems.reduce((sum, item) => {
+    const itemsTotal = newItems.reduce((sum, item) => {
       const base = item.qty * item.rate;
       const gst = item.gstType === "Exclusive" ? (base * (item.gstPct || 0) / 100) : 0;
       return sum + (item.gstType === "Exclusive" ? base + gst : base);
     }, 0);
 
-    setFormData({ ...formData, items: newItems, totalAmount: total });
+    const freightTotal = calculateChargeTotal(formData.freightAmount || 0, formData.freightGstPct || 0, formData.freightGstType || "Exclusive");
+    const loadingTotal = calculateChargeTotal(formData.loadingAmount || 0, formData.loadingGstPct || 0, formData.loadingGstType || "Exclusive");
+    const unloadingTotal = calculateChargeTotal(formData.unloadingAmount || 0, formData.unloadingGstPct || 0, formData.unloadingGstType || "Exclusive");
+
+    setFormData({ ...formData, items: newItems, totalAmount: itemsTotal + freightTotal + loadingTotal + unloadingTotal });
+  };
+
+  const handleChargeChange = (field: string, value: any) => {
+    const newFormData = { ...formData, [field]: value };
+    
+    const itemsTotal = (newFormData.items || []).reduce((sum, item) => {
+      const base = item.qty * item.rate;
+      const gst = item.gstType === "Exclusive" ? (base * (item.gstPct || 0) / 100) : 0;
+      return sum + (item.gstType === "Exclusive" ? base + gst : base);
+    }, 0);
+
+    const freightTotal = calculateChargeTotal(newFormData.freightAmount || 0, newFormData.freightGstPct || 0, newFormData.freightGstType || "Exclusive");
+    const loadingTotal = calculateChargeTotal(newFormData.loadingAmount || 0, newFormData.loadingGstPct || 0, newFormData.loadingGstType || "Exclusive");
+    const unloadingTotal = calculateChargeTotal(newFormData.unloadingAmount || 0, newFormData.unloadingGstPct || 0, newFormData.unloadingGstType || "Exclusive");
+
+    setFormData({ ...newFormData, totalAmount: itemsTotal + freightTotal + loadingTotal + unloadingTotal });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -786,6 +913,51 @@ const QuotationForm = ({ initialData, onClose, onSave }: QuotationFormProps) => 
               </div>
             </div>
           ))}
+        </div>
+      </div>
+
+      <div className="space-y-4">
+        <h4 className="text-[11px] font-black text-gray-400 tracking-widest uppercase">Other Charges</h4>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="p-4 bg-gray-50 dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 space-y-3">
+            <Field label="Freight" type="number" value={formData.freightAmount || ""} onChange={(e: any) => handleChargeChange('freightAmount', Number(e.target.value))} small />
+            <div className="grid grid-cols-2 gap-2">
+              <Field label="GST %" type="number" value={formData.freightGstPct || ""} onChange={(e: any) => handleChargeChange('freightGstPct', Number(e.target.value))} small />
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-gray-500 uppercase">GST Type</label>
+                <select value={formData.freightGstType || "Exclusive"} onChange={(e) => handleChargeChange('freightGstType', e.target.value)} className="w-full bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-1.5 text-xs">
+                  <option value="Exclusive">Exclusive</option>
+                  <option value="Inclusive">Inclusive</option>
+                </select>
+              </div>
+            </div>
+          </div>
+          <div className="p-4 bg-gray-50 dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 space-y-3">
+            <Field label="Loading" type="number" value={formData.loadingAmount || ""} onChange={(e: any) => handleChargeChange('loadingAmount', Number(e.target.value))} small />
+            <div className="grid grid-cols-2 gap-2">
+              <Field label="GST %" type="number" value={formData.loadingGstPct || ""} onChange={(e: any) => handleChargeChange('loadingGstPct', Number(e.target.value))} small />
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-gray-500 uppercase">GST Type</label>
+                <select value={formData.loadingGstType || "Exclusive"} onChange={(e) => handleChargeChange('loadingGstType', e.target.value)} className="w-full bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-1.5 text-xs">
+                  <option value="Exclusive">Exclusive</option>
+                  <option value="Inclusive">Inclusive</option>
+                </select>
+              </div>
+            </div>
+          </div>
+          <div className="p-4 bg-gray-50 dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 space-y-3">
+            <Field label="Unloading" type="number" value={formData.unloadingAmount || ""} onChange={(e: any) => handleChargeChange('unloadingAmount', Number(e.target.value))} small />
+            <div className="grid grid-cols-2 gap-2">
+              <Field label="GST %" type="number" value={formData.unloadingGstPct || ""} onChange={(e: any) => handleChargeChange('unloadingGstPct', Number(e.target.value))} small />
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-gray-500 uppercase">GST Type</label>
+                <select value={formData.unloadingGstType || "Exclusive"} onChange={(e) => handleChargeChange('unloadingGstType', e.target.value)} className="w-full bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-1.5 text-xs">
+                  <option value="Exclusive">Exclusive</option>
+                  <option value="Inclusive">Inclusive</option>
+                </select>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 

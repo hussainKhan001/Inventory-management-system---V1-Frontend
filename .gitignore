@@ -4,3 +4,9 @@ build/
 coverage/
 .DS_Store
 *.log
+
+# Environment files — keep secrets out of git
+.env
+.env.local
+.env.*.local
+# .env.example is intentionally NOT ignored (safe template)

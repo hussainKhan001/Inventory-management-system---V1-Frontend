@@ -8,6 +8,7 @@ export default defineConfig(({mode}) => {
   return {
     plugins: [react(), tailwindcss()],
     define: {
+      // Expose GEMINI_API_KEY to the app via process.env (used in geminiService.ts)
       'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY),
     },
     resolve: {
@@ -17,11 +18,13 @@ export default defineConfig(({mode}) => {
     },
     server: {
       // HMR is disabled in AI Studio via DISABLE_HMR env var.
-      // Do not modifyâfile watching is disabled to prevent flickering during agent edits.
+      // Do not modify — file watching is disabled to prevent flickering during agent edits.
       hmr: process.env.DISABLE_HMR !== 'true',
       proxy: {
+        // Proxy /api/* to the backend server (dev-only, avoids CORS in local dev)
+        // Target is read from VITE_BACKEND_URL in .env (default: http://localhost:5000)
         '/api': {
-          target: 'http://localhost:5000',
+          target: env.VITE_BACKEND_URL || 'http://localhost:5000',
           changeOrigin: true,
         },
       },

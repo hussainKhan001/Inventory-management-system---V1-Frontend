@@ -27,6 +27,19 @@ export const PublicQuotation = () => {
   const [items, setItems] = useState<QuotationItem[]>([]);
   const [quotationId, setQuotationId] = useState("");
 
+  // Other Charges
+  const [freightAmount, setFreightAmount] = useState<number>(0);
+  const [freightGstPct, setFreightGstPct] = useState<number>(18);
+  const [freightGstType, setFreightGstType] = useState<"Inclusive" | "Exclusive">("Exclusive");
+
+  const [loadingAmount, setLoadingAmount] = useState<number>(0);
+  const [loadingGstPct, setLoadingGstPct] = useState<number>(18);
+  const [loadingGstType, setLoadingGstType] = useState<"Inclusive" | "Exclusive">("Exclusive");
+
+  const [unloadingAmount, setUnloadingAmount] = useState<number>(0);
+  const [unloadingGstPct, setUnloadingGstPct] = useState<number>(18);
+  const [unloadingGstType, setUnloadingGstType] = useState<"Inclusive" | "Exclusive">("Exclusive");
+
   const params = new URLSearchParams(window.location.hash.split("?")[1]);
   const mrId = params.get("mrId");
   const categoryFilter = params.get("category");
@@ -141,8 +154,20 @@ export const PublicQuotation = () => {
     return base; // Inclusive means GST is already in the rate
   };
 
+  const calculateChargeTotal = (amount: number, gstPct: number, gstType: "Inclusive" | "Exclusive") => {
+    if (!amount) return 0;
+    if (gstType === "Exclusive") {
+      return amount + (amount * gstPct / 100);
+    }
+    return amount;
+  };
+
   const calculateGrandTotal = () => {
-    return items.reduce((sum, item) => sum + calculateItemTotal(item), 0);
+    const itemsTotal = items.reduce((sum, item) => sum + calculateItemTotal(item), 0);
+    const freightTotal = calculateChargeTotal(freightAmount, freightGstPct, freightGstType);
+    const loadingTotal = calculateChargeTotal(loadingAmount, loadingGstPct, loadingGstType);
+    const unloadingTotal = calculateChargeTotal(unloadingAmount, unloadingGstPct, unloadingGstType);
+    return itemsTotal + freightTotal + loadingTotal + unloadingTotal;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -174,6 +199,15 @@ export const PublicQuotation = () => {
         deliveryDate,
         remarks,
         gstNumber,
+        freightAmount,
+        freightGstPct,
+        freightGstType,
+        loadingAmount,
+        loadingGstPct,
+        loadingGstType,
+        unloadingAmount,
+        unloadingGstPct,
+        unloadingGstType,
         totalAmount: grandTotal
       });
       if (res.success) {
@@ -451,14 +485,14 @@ export const PublicQuotation = () => {
                           <select
                             value={item.gstPct}
                             onChange={(e: any) => handleGstPctChange(idx, parseInt(e.target.value))}
-                            className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl text-[13px] font-medium text-gray-900 dark:text-gray-100 px-3 py-2 h-11 outline-none focus:border-orange-500 transition-all cursor-pointer box-border"
+                            className="bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-700 rounded-xl text-[13px] font-medium text-gray-900 dark:text-gray-100 px-3 py-2 h-11 outline-none focus:border-orange-500 transition-all cursor-pointer box-border"
                           >
                             {GST_RATES.map(r => <option key={r} value={r}>{r}% GST</option>)}
                           </select>
                           <select
                             value={item.gstType}
                             onChange={(e: any) => handleGstTypeChange(idx, e.target.value as any)}
-                            className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl text-[11px] font-semibold text-gray-900 dark:text-gray-100 px-3 py-2 h-11 outline-none focus:border-orange-500 transition-all cursor-pointer box-border"
+                            className="bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-700 rounded-xl text-[11px] font-semibold text-gray-900 dark:text-gray-100 px-3 py-2 h-11 outline-none focus:border-orange-500 transition-all cursor-pointer box-border"
                           >
                             {GST_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
                           </select>
@@ -509,7 +543,7 @@ export const PublicQuotation = () => {
                       <select
                         value={item.gstPct}
                         onChange={(e: any) => handleGstPctChange(idx, parseInt(e.target.value))}
-                        className="w-full bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl text-sm font-medium text-gray-900 dark:text-gray-100 px-3 h-11 outline-none focus:border-orange-500 transition-all cursor-pointer box-border"
+                        className="w-full bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-700 rounded-xl text-sm font-medium text-gray-900 dark:text-gray-100 px-3 h-11 outline-none focus:border-orange-500 transition-all cursor-pointer box-border"
                       >
                         {GST_RATES.map(r => <option key={r} value={r}>{r}%</option>)}
                       </select>
@@ -519,7 +553,7 @@ export const PublicQuotation = () => {
                       <select
                         value={item.gstType}
                         onChange={(e: any) => handleGstTypeChange(idx, e.target.value as any)}
-                        className="w-full bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl text-sm font-medium text-gray-900 dark:text-gray-100 px-3 h-11 outline-none focus:border-orange-500 transition-all cursor-pointer box-border"
+                        className="w-full bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-700 rounded-xl text-sm font-medium text-gray-900 dark:text-gray-100 px-3 h-11 outline-none focus:border-orange-500 transition-all cursor-pointer box-border"
                       >
                         {GST_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
                       </select>
@@ -529,11 +563,135 @@ export const PublicQuotation = () => {
               ))}
             </div>
 
-            <div className="bg-gray-50/80 dark:bg-gray-800 p-6 sm:px-8 border-t border-gray-100 dark:border-gray-800 flex justify-between items-center sm:justify-end sm:gap-12">
-              <p className="font-bold text-gray-400 tracking-widest text-[10px]">Estimated grand total</p>
-              <span className="text-2xl font-bold text-orange-500">₹ {fmt(calculateGrandTotal())}</span>
+            <div className="bg-[#1a2332] dark:bg-[#1a2332] p-6 sm:px-8 border-t border-gray-100 dark:border-gray-800/50 space-y-3">
+              <div className="flex justify-between items-center text-[13px] font-medium text-gray-500 dark:text-gray-400">
+                <span>Items Subtotal:</span>
+                <span className="font-bold text-gray-700 dark:text-gray-300">₹ {fmt(items.reduce((sum, item) => sum + calculateItemTotal(item), 0))}</span>
+              </div>
+              
+              {freightAmount > 0 && (
+                <div className="flex justify-between items-center text-[13px] font-medium text-gray-500 dark:text-gray-400">
+                  <span>Freight Charges ({freightGstPct}% GST {freightGstType}):</span>
+                  <span className="font-bold text-gray-700 dark:text-gray-300">₹ {fmt(calculateChargeTotal(freightAmount, freightGstPct, freightGstType))}</span>
+                </div>
+              )}
+              
+              {loadingAmount > 0 && (
+                <div className="flex justify-between items-center text-[13px] font-medium text-gray-500 dark:text-gray-400">
+                  <span>Loading Charges ({loadingGstPct}% GST {loadingGstType}):</span>
+                  <span className="font-bold text-gray-700 dark:text-gray-300">₹ {fmt(calculateChargeTotal(loadingAmount, loadingGstPct, loadingGstType))}</span>
+                </div>
+              )}
+
+              {unloadingAmount > 0 && (
+                <div className="flex justify-between items-center text-[13px] font-medium text-gray-500 dark:text-gray-400">
+                  <span>Unloading Charges ({unloadingGstPct}% GST {unloadingGstType}):</span>
+                  <span className="font-bold text-gray-700 dark:text-gray-300">₹ {fmt(calculateChargeTotal(unloadingAmount, unloadingGstPct, unloadingGstType))}</span>
+                </div>
+              )}
+
+              <div className="h-px bg-gray-200 dark:bg-gray-800/80 my-4" />
+
+              <div className="flex justify-between items-center mt-2">
+                <p className="font-bold text-gray-900 dark:text-white tracking-wide text-sm">Estimated Grand Total</p>
+                <span className="text-3xl font-black text-orange-500 tracking-tight">₹ {fmt(calculateGrandTotal())}</span>
+              </div>
             </div>
 
+          </Card>
+
+          {/* Other Charges */}
+          <Card className="p-6 sm:p-8 bg-gray-50/30 dark:bg-[#1E293B]">
+            <div className="mb-6 flex items-center gap-4">
+              <div className="w-1.5 h-6 bg-orange-500 rounded-full" />
+              <h3 className="text-sm font-bold text-gray-900 dark:text-white tracking-widest">Other Charges</h3>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {/* Freight */}
+              <div className="space-y-3">
+                <label className="text-[11px] font-bold text-gray-400 tracking-widest">Freight Charges (₹)</label>
+                <input
+                  type="number"
+                  placeholder="0.00"
+                  value={freightAmount || ""}
+                  onChange={(e) => setFreightAmount(parseFloat(e.target.value) || 0)}
+                  className="w-full bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-700 rounded-xl text-sm font-medium text-gray-900 dark:text-gray-100 px-4 h-12 outline-none focus:border-orange-500 transition-all box-border"
+                />
+                <div className="grid grid-cols-2 gap-3">
+                  <select
+                    value={freightGstPct}
+                    onChange={(e) => setFreightGstPct(parseInt(e.target.value))}
+                    className="w-full bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-700 rounded-xl text-[13px] font-bold text-gray-900 dark:text-gray-100 px-3 h-11 outline-none focus:border-orange-500 transition-all cursor-pointer box-border"
+                  >
+                    {GST_RATES.map(r => <option key={r} value={r}>{r}% GST</option>)}
+                  </select>
+                  <select
+                    value={freightGstType}
+                    onChange={(e) => setFreightGstType(e.target.value as any)}
+                    className="w-full bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-700 rounded-xl text-[12px] font-bold text-gray-900 dark:text-gray-100 px-3 h-11 outline-none focus:border-orange-500 transition-all cursor-pointer box-border"
+                  >
+                    {GST_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                  </select>
+                </div>
+              </div>
+
+              {/* Loading */}
+              <div className="space-y-3">
+                <label className="text-[11px] font-bold text-gray-400 tracking-widest">Loading Charges (₹)</label>
+                <input
+                  type="number"
+                  placeholder="0.00"
+                  value={loadingAmount || ""}
+                  onChange={(e) => setLoadingAmount(parseFloat(e.target.value) || 0)}
+                  className="w-full bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-700 rounded-xl text-sm font-medium text-gray-900 dark:text-gray-100 px-4 h-12 outline-none focus:border-orange-500 transition-all box-border"
+                />
+                <div className="grid grid-cols-2 gap-3">
+                  <select
+                    value={loadingGstPct}
+                    onChange={(e) => setLoadingGstPct(parseInt(e.target.value))}
+                    className="w-full bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-700 rounded-xl text-[13px] font-bold text-gray-900 dark:text-gray-100 px-3 h-11 outline-none focus:border-orange-500 transition-all cursor-pointer box-border"
+                  >
+                    {GST_RATES.map(r => <option key={r} value={r}>{r}% GST</option>)}
+                  </select>
+                  <select
+                    value={loadingGstType}
+                    onChange={(e) => setLoadingGstType(e.target.value as any)}
+                    className="w-full bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-700 rounded-xl text-[12px] font-bold text-gray-900 dark:text-gray-100 px-3 h-11 outline-none focus:border-orange-500 transition-all cursor-pointer box-border"
+                  >
+                    {GST_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                  </select>
+                </div>
+              </div>
+
+              {/* Unloading */}
+              <div className="space-y-3">
+                <label className="text-[11px] font-bold text-gray-400 tracking-widest">Unloading Charges (₹)</label>
+                <input
+                  type="number"
+                  placeholder="0.00"
+                  value={unloadingAmount || ""}
+                  onChange={(e) => setUnloadingAmount(parseFloat(e.target.value) || 0)}
+                  className="w-full bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-700 rounded-xl text-sm font-medium text-gray-900 dark:text-gray-100 px-4 h-12 outline-none focus:border-orange-500 transition-all box-border"
+                />
+                <div className="grid grid-cols-2 gap-3">
+                  <select
+                    value={unloadingGstPct}
+                    onChange={(e) => setUnloadingGstPct(parseInt(e.target.value))}
+                    className="w-full bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-700 rounded-xl text-[13px] font-bold text-gray-900 dark:text-gray-100 px-3 h-11 outline-none focus:border-orange-500 transition-all cursor-pointer box-border"
+                  >
+                    {GST_RATES.map(r => <option key={r} value={r}>{r}% GST</option>)}
+                  </select>
+                  <select
+                    value={unloadingGstType}
+                    onChange={(e) => setUnloadingGstType(e.target.value as any)}
+                    className="w-full bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-700 rounded-xl text-[12px] font-bold text-gray-900 dark:text-gray-100 px-3 h-11 outline-none focus:border-orange-500 transition-all cursor-pointer box-border"
+                  >
+                    {GST_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                  </select>
+                </div>
+              </div>
+            </div>
           </Card>
 
           {/* Remarks */}

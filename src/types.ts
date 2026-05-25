@@ -536,6 +536,15 @@ export interface Quotation {
   remarks?: string;
   status: "Pending" | "Approved" | "Rejected";
   totalAmount?: number;
+  freightAmount?: number;
+  freightGstPct?: number;
+  freightGstType?: "Inclusive" | "Exclusive";
+  loadingAmount?: number;
+  loadingGstPct?: number;
+  loadingGstType?: "Inclusive" | "Exclusive";
+  unloadingAmount?: number;
+  unloadingGstPct?: number;
+  unloadingGstType?: "Inclusive" | "Exclusive";
   createdAt?: string;
   updatedAt?: string;
 }

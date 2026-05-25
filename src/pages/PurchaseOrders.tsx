@@ -33,6 +33,7 @@ import {
   Download,
   TrendingUp,
 } from "lucide-react";
+import { SearchFilter, DateFilter, SelectFilter, FilterRow } from "../components/ui/Filters";
 import { PurchaseOrder, POLineItem, MaterialRequirement, Quotation } from "../types";
 import { fmtCur, genId, todayStr, scrollToError, formatDateTime, formatAccountNo, safeStr, calculatePriceComparison, isNewItem } from "../utils";
 import { generatePOPDF } from "../utils/pdfGenerator";
@@ -106,6 +107,31 @@ export const PurchaseOrders = () => {
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
 
+  const [filterProject, setFilterProject] = useState("");
+  const [filterSupplier, setFilterSupplier] = useState("");
+  const [filterStatus, setFilterStatus] = useState("");
+
+  const supplierOptions = React.useMemo(() => {
+    const list = new Set<string>();
+    suppliers.forEach(s => list.add(s.companyName || s.name || s.id));
+    pos.forEach(po => {
+      if (po.supplier) list.add(po.supplier);
+    });
+    return Array.from(list).filter(Boolean).sort();
+  }, [suppliers, pos]);
+
+  const statusOptions = React.useMemo(() => [
+    { label: "Pending L1", value: "Pending L1" },
+    { label: "Pending L2", value: "Pending L2" },
+    { label: "Pending L3", value: "Pending L3" },
+    { label: "Approved", value: "Approved" },
+    { label: "GRN Pending", value: "GRN Pending" },
+    { label: "GRN Fulfilled", value: "GRN Fulfilled" },
+    { label: "Ready for Payment", value: "Ready for Payment" },
+    { label: "paid", value: "paid" },
+    { label: "rejected", value: "rejected" }
+  ], []);
+
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedSearch(search), 500);
     return () => clearTimeout(timer);
@@ -167,18 +193,24 @@ export const PurchaseOrders = () => {
 
   useEffect(() => {
     setPage(1);
-  }, [debouncedSearch, startDate, endDate]);
+  }, [debouncedSearch, startDate, endDate, filterProject, filterSupplier, filterStatus]);
 
   useEffect(() => {
     // Only show skeleton if we have no data
     const isInitialLoad = (pos?.length || 0) === 0;
-    fetchResource('pos', page, 50, !isInitialLoad || page > 1, debouncedSearch, null, page > 1, false, startDate, endDate);
+    const filterObj: any = {};
+    if (filterProject) filterObj.project = filterProject;
+    if (filterSupplier) filterObj.supplier = filterSupplier;
+    if (filterStatus) filterObj.status = filterStatus;
+    const finalFilter = Object.keys(filterObj).length > 0 ? filterObj : null;
+
+    fetchResource('pos', page, 50, !isInitialLoad || page > 1, debouncedSearch, finalFilter, page > 1, false, startDate, endDate);
     fetchResource('suppliers', 1, 1000, true);
     fetchResource('inventory', 1, 1000, true);
     fetchResource('catalogue', 1, 1000, true);
     fetchResource('material-requirements', 1, 100, true, '', null, false, false);
     fetchResource('quotations', 1, 1000, true);
-  }, [fetchResource, page, debouncedSearch, startDate, endDate]);
+  }, [fetchResource, page, debouncedSearch, startDate, endDate, filterProject, filterSupplier, filterStatus]);
 
   const loadMore = useCallback(() => {
     if (posPagination && page < posPagination.pages && !loading) {
@@ -769,42 +801,53 @@ export const PurchaseOrders = () => {
         }
       />
 
-      <div className="sticky top-0 z-10 bg-gray-50 dark:bg-gray-900 pb-4 sm:pb-6 pt-1">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          <Field
-            small
-            label="Filter POs"
-            icon={Search}
-            placeholder="Search POs..."
+      <div className="sticky top-0 z-30 will-change-transform bg-gray-50 dark:bg-gray-950 -mx-4 sm:-mx-6 md:-mx-8 px-4 sm:px-6 md:px-8 py-4 border-b border-gray-200 dark:border-gray-800 mb-6">
+        <FilterRow 
+          showClear={!!(search || startDate || endDate || filterProject || filterSupplier || filterStatus)} 
+          onClearAll={() => { 
+            setSearch(""); 
+            setStartDate(""); 
+            setEndDate(""); 
+            setFilterProject(""); 
+            setFilterSupplier(""); 
+            setFilterStatus(""); 
+          }}
+        >
+          <SearchFilter
             value={search}
-            onChange={(e: any) => setSearch(e.target.value)}
-            className="mb-0"
+            onChange={setSearch}
+            placeholder="Search POs..."
+            className="flex-1 min-w-[200px]"
           />
-          <div className="flex gap-2">
-            <DateField
-              small
-              label="Start Date"
-              value={startDate}
-              onChange={(e: any) => setStartDate(e.target.value)}
-              className="flex-1 mb-0"
-            />
-            <DateField
-              small
-              label="End Date"
-              value={endDate}
-              onChange={(e: any) => setEndDate(e.target.value)}
-              className="flex-1 mb-0"
-            />
-            { (startDate || endDate) && (
-              <button 
-                onClick={() => { setStartDate(""); setEndDate(""); }}
-                className="px-3 py-2 text-xs font-medium text-gray-500 hover:text-red-500"
-              >
-                Clear
-              </button>
-            )}
-          </div>
-        </div>
+          <DateFilter
+            value={startDate}
+            onChange={setStartDate}
+            placeholder="Start Date"
+          />
+          <DateFilter
+            value={endDate}
+            onChange={setEndDate}
+            placeholder="End Date"
+          />
+          <SelectFilter
+            value={filterProject}
+            onChange={setFilterProject}
+            options={PROJECTS}
+            placeholder="All Projects"
+          />
+          <SelectFilter
+            value={filterSupplier}
+            onChange={setFilterSupplier}
+            options={supplierOptions}
+            placeholder="All Suppliers"
+          />
+          <SelectFilter
+            value={filterStatus}
+            onChange={setFilterStatus}
+            options={statusOptions}
+            placeholder="All Statuses"
+          />
+        </FilterRow>
       </div>
 
       <Card className="p-0 overflow-hidden border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 flex-1 min-h-[600px]">

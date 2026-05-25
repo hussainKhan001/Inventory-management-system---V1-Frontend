@@ -257,10 +257,10 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     setNotifications(prev => {
       // Deduplicate by ID
       if (prev.some(n => n.id === notification.id)) return prev;
-      
+
       // Ensure it has a read property
       const newNotif = { ...notification, read: notification.read ?? false };
-      
+
       // Add to notifications
       return [newNotif, ...prev].slice(0, 100);
     });
@@ -334,13 +334,13 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
 
   const hasPermission = useCallback((permission: string) => {
     if (!user) return false;
-    
+
     // Super Admin and superadmin always have full access
     if (user.role === 'Super Admin' || user.role === 'superadmin') return true;
-    
+
     // Check if user has specific permission directly (overrides)
     if (user.permissions?.includes(permission)) return true;
-    
+
     // Check current rolePermissions state for real-time updates (primary source)
     const rp = rolePermissions.find(p => p.role === user.role);
     if (rp) {
@@ -349,7 +349,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
 
     // Check role-based permissions from user object (fallback if RolePermissions list not loaded)
     if (user.rolePermissions?.includes(permission)) return true;
-    
+
     return false;
   }, [user, rolePermissions]);
 
@@ -562,7 +562,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
 
   const fetchResource = useCallback(async (resource: string, page = 1, limit = 100, silent = false, search = '', filter = null, append = false, unused = false, startDate = '', endDate = '', force = false) => {
     if (!isAuthenticated && !resource.startsWith('public')) return;
-    
+
     // Prevent redundant fetches within 10 seconds unless forced
     const cacheKey = `${resource}-${page}-${limit}-${search}-${JSON.stringify(filter)}-${unused}-${startDate}-${endDate}`;
     const now = Date.now();
@@ -604,7 +604,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
               if (prev.length > 50 && res.data.length <= 100 && !search && !filter) {
                 const updatedSkus = new Set(res.data.map((i: any) => i.sku || i._id));
                 const filteredPrev = prev.filter(item => !updatedSkus.has(item.sku || (item as any)._id));
-                
+
                 // Prepend new/updated items to the top (assuming they are most relevant)
                 return [...res.data, ...filteredPrev];
               }
@@ -647,7 +647,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
           case 'settings':
           case 'public-settings': {
             const serverData = (res.data || res) || {};
-            
+
             setSettings(prev => {
               const updated: ISettings = {
                 poThreshold: serverData.poThreshold ?? prev.poThreshold ?? 50000,
@@ -662,13 +662,13 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
               };
 
               // Only persist seed data if the database record is completely fresh/empty
-              const isEmpty = !serverData.projects?.length && 
-                              !serverData.requesters?.length && 
-                              !serverData.categories?.length && 
-                              !serverData.units?.length && 
-                              !serverData.workTypes?.length &&
-                              !serverData.companies?.length;
-              
+              const isEmpty = !serverData.projects?.length &&
+                !serverData.requesters?.length &&
+                !serverData.categories?.length &&
+                !serverData.units?.length &&
+                !serverData.workTypes?.length &&
+                !serverData.companies?.length;
+
               if (resource === 'settings' && isEmpty) {
                 console.log('[STORE] Settings missing from server, initializing with defaults...');
                 api.putSimple('settings', updated).catch(err => console.error('[STORE] Failed to initialize settings:', err));
@@ -749,7 +749,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const refreshData = useCallback(async () => {
     if (!isAuthenticated) return;
     console.log('Refreshing initial dashboard data...');
-    
+
     // Everyone needs role permissions for correct UI state logic
     const essentialResources = [
       () => fetchStats(),
@@ -1349,7 +1349,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       toast.error(error.message || "Failed to delete transaction");
     }
   };
-  
+
   const uploadImage = async (file: File) => {
     return await api.upload(file);
   };
@@ -1427,7 +1427,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       if (window.location.port === '5173') {
         wsUrl = `${protocol}//${window.location.hostname}:5000`;
       }
-      
+
       try {
         // Defensive check for WebSocket existence and constructor status
         const WS = (window as any).WebSocket || (globalThis as any).WebSocket;
@@ -1435,7 +1435,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
           console.warn("WebSocket not supported in this environment");
           return;
         }
-        
+
         socket = new WS(wsUrl);
 
         socket.onopen = () => {
@@ -1458,7 +1458,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
           if (data.type === 'DATA_UPDATED') {
             const isAuth = authRef.current;
             console.log('Data updated remotely, refreshing...', data.path);
-            
+
             if (data.path === 'all') {
               // Refresh essential dashboard data
               if (isAuth) refreshDataRef.current();
@@ -1477,7 +1477,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
                 'stock-check': 'stock-check-reports'
               };
               const resourceName = resourceMap[data.path] || data.path;
-              
+
               // For unauthenticated users (Public Portal), map 'settings' update to 'public-settings'
               const finalResourceName = (!isAuth && resourceName === 'settings') ? 'public-settings' : resourceName;
 
@@ -1485,7 +1485,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
               // FIX: remote sync should replace data, not append
               const limit = ['inventory', 'catalogue', 'quotations', 'material-requirements'].includes(finalResourceName) ? 1000 : 100;
               fetchResourceRef.current(finalResourceName, 1, limit, false, '', null, false, false, '', '', true);
-              
+
               // If inventory is updated, also update stats as they are highly linked
               if (isAuth && resourceName === 'inventory') {
                 fetchStatsRef.current();
@@ -1494,7 +1494,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
           } else if (data.type === 'NOTIFICATION') {
             if (!authRef.current) return; // Guests don't get regular notifications
             const { message, severity, path, senderId, id: notifId } = data;
-            
+
             // Add to notifications list
             const newNotification: AppNotification = {
               id: notifId || `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
@@ -1503,16 +1503,16 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
               timestamp: new Date().toISOString(),
               read: false,
               senderId,
-              path: path || ((message?.toLowerCase() || "").includes('po') || (message?.toLowerCase() || "").includes('purchase order') ? 'pos' : 
-                     (message?.toLowerCase() || "").includes('grn') ? 'grn' : 
-                     (message?.toLowerCase() || "").includes('inventory') ? 'inventory' : 
-                     (message?.toLowerCase() || "").includes('stock check') ? 'stock-check-reports' : 'dashboard')
+              path: path || ((message?.toLowerCase() || "").includes('po') || (message?.toLowerCase() || "").includes('purchase order') ? 'pos' :
+                (message?.toLowerCase() || "").includes('grn') ? 'grn' :
+                  (message?.toLowerCase() || "").includes('inventory') ? 'inventory' :
+                    (message?.toLowerCase() || "").includes('stock check') ? 'stock-check-reports' : 'dashboard')
             };
-            
+
             addNotificationRef.current(newNotification);
 
             const currentUserId = userRef.current?.id || userRef.current?._id;
-            
+
             // Only show toast if it's not from the current user
             // (Current user already gets a local success toast from the action)
             // Use a small delay to ensure user state is available

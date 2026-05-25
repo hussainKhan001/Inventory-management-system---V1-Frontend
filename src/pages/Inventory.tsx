@@ -220,6 +220,8 @@ const INITIAL_ITEM: InventoryItem = {
   lastProject: "",
 };
 
+import { SearchFilter, SelectFilter, FilterRow } from "../components/ui/Filters";
+
 const SearchControls = memo(({ 
   search, 
   setSearch, 
@@ -230,35 +232,29 @@ const SearchControls = memo(({
 }: any) => {
   const { settings } = useAppStore();
   const { projects: PROJECTS, categories: CATEGORIES } = settings;
+  const showClear = !!(search || filterProject || filterCategory);
+
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-      <div className="relative sm:col-span-2">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-        <input
-          type="text"
-          placeholder="Search by SKU, Name, Category..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="w-full pl-10 pr-4 py-2 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl text-[13px] focus:outline-none focus:ring-2 focus:ring-[#F97316]/20 focus:border-[#F97316] transition-all"
-        />
-      </div>
-      <select
+    <FilterRow showClear={showClear} onClearAll={() => { setSearch(""); setFilterProject(""); setFilterCategory(""); }}>
+      <SearchFilter
+        value={search}
+        onChange={setSearch}
+        placeholder="Search by SKU, Name, Category..."
+        className="lg:flex-[2]"
+      />
+      <SelectFilter
         value={filterProject}
-        onChange={(e) => setFilterProject(e.target.value)}
-        className="w-full px-4 py-2 bg-white dark:bg-gray-900 border border-gray-200/50 dark:border-gray-800 rounded-xl text-[13px] focus:outline-none focus:ring-4 focus:ring-primary/5 focus:border-primary transition-all"
-      >
-        <option value="">All Projects</option>
-        {PROJECTS.map(p => <option key={p} value={p}>{p}</option>)}
-      </select>
-      <select
+        onChange={setFilterProject}
+        options={PROJECTS}
+        placeholder="All Projects"
+      />
+      <SelectFilter
         value={filterCategory}
-        onChange={(e) => setFilterCategory(e.target.value)}
-        className="w-full px-4 py-2 bg-white dark:bg-gray-900 border border-gray-200/50 dark:border-gray-800 rounded-xl text-[13px] focus:outline-none focus:ring-4 focus:ring-primary/5 focus:border-primary transition-all"
-      >
-        <option value="">All Categories</option>
-        {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
-      </select>
-    </div>
+        onChange={setFilterCategory}
+        options={CATEGORIES}
+        placeholder="All Categories"
+      />
+    </FilterRow>
   );
 });
 
@@ -515,7 +511,7 @@ export const Inventory = () => {
         </Card>
       </div>
 
-      <div className="sticky top-0 z-20 bg-gray-50/95 dark:bg-gray-950/95 backdrop-blur-sm pt-4 pb-4 -mx-4 px-4 border-b border-gray-200 dark:border-gray-800">
+      <div className="sticky top-0 z-30 will-change-transform bg-gray-50 dark:bg-gray-950 -mx-4 sm:-mx-6 md:-mx-8 px-4 sm:px-6 md:px-8 py-4 border-b border-gray-200 dark:border-gray-800 mb-6">
         <SearchControls
           search={search}
           setSearch={setSearch}

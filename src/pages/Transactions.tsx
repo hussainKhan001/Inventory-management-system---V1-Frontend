@@ -1,6 +1,7 @@
 import React, { useState, useCallback, useEffect, useRef, useMemo } from "react";
 import { useAppStore } from "../store";
 import { PageHeader, Card, Btn, Modal, Field, SField, Pagination, ConfirmModal, DateField, ImageUpload, MultiSelect, Badge, StatusBadge, Skeleton, SearchSelect, MultipleImageUpload, Th, Td } from "../components/ui";
+import { SearchFilter, DateFilter, SelectFilter, FilterRow } from "../components/ui/Filters";
 import { Plus, Search, Camera, Image as ImageIcon, AlertTriangle, AlertCircle, Eye, Edit2, Trash2, Download, ArrowRightLeft, ArrowUpRight, ArrowDownLeft, History, Loader2, X, FileText, Package } from "lucide-react";
 import { TableVirtuoso } from "react-virtuoso";
 import { Transaction, TransactionItem, TransactionType } from "../types";
@@ -97,6 +98,19 @@ export const TransactionsPage = ({ type }: { type?: TransactionType }) => {
   const [filterProject, setFilterProject] = useState("");
   const [filterType, setFilterType] = useState(type || "");
   const [page, setPage] = useState(1);
+
+  const filterTypeOptions = useMemo(() => [
+    { label: "Inward", value: "Inward" },
+    { label: "Outward", value: "Outward" },
+    { label: "Inward Return", value: "Inward Return" },
+    { label: "Outward Return", value: "Outward Return" },
+    { label: "Transfer Inward", value: "Transfer Inward" },
+    { label: "Transfer Outward", value: "Transfer Outward" },
+    { label: "Public Inward", value: "Public Inward" },
+    { label: "Public Outward", value: "Public Outward" },
+    { label: "Public Transfer Inward", value: "Public Transfer Inward" },
+    { label: "Public Transfer Outward", value: "Public Transfer Outward" }
+  ], []);
 
   useEffect(() => {
     setPage(1);
@@ -586,7 +600,7 @@ export const TransactionsPage = ({ type }: { type?: TransactionType }) => {
         }
       />
 
-      <div className="sticky top-0 z-20 bg-gray-50/95 dark:bg-gray-950/95 backdrop-blur-sm pt-4 pb-4 -mx-4 px-4 border-b border-gray-200 dark:border-gray-800 flex flex-col gap-4">
+      <div className="sticky top-0 z-30 will-change-transform bg-gray-50 dark:bg-gray-950 -mx-4 sm:-mx-6 md:-mx-8 px-4 sm:px-6 md:px-8 py-4 border-b border-gray-200 dark:border-gray-800 mb-6 flex flex-col gap-3">
         {type === "Outward" && (
           <div className="flex gap-1 p-1 bg-gray-100 dark:bg-gray-800 rounded-xl w-fit">
             <button
@@ -612,72 +626,47 @@ export const TransactionsPage = ({ type }: { type?: TransactionType }) => {
             </button>
           </div>
         )}
-        <div className="flex flex-col md:flex-row gap-4">
-          <Field
-            small
-            label="Quick Search"
-            icon={Search}
-            placeholder={type === "Inward" ? "Search by SKU, Name, Supplier, Challan..." : type === "Outward" ? "Search records..." : "Search by ID, Item, Project..."}
+        <FilterRow 
+          showClear={!!(searchQuery || startDate || endDate || filterProject || (!type && filterType))} 
+          onClearAll={() => { 
+            setSearchQuery(""); 
+            setStartDate(""); 
+            setEndDate(""); 
+            setFilterProject(""); 
+            if (!type) setFilterType(""); 
+          }}
+        >
+          <SearchFilter
             value={searchQuery}
-            onChange={(e: any) => setSearchQuery(e.target.value)}
-            className="flex-1 mb-0"
+            onChange={setSearchQuery}
+            placeholder={type === "Inward" ? "Search SKU, Name, Supplier, Challan..." : type === "Outward" ? "Search records..." : "Search by ID, Item, Project..."}
+            className="flex-1 min-w-[200px]"
           />
-          <div className="flex gap-2 w-full md:w-auto">
-            <DateField
-              small
-              label="Start Date"
-              value={startDate}
-              onChange={(e: any) => setStartDate(e.target.value)}
-              className="flex-1 md:w-32 mb-0"
-            />
-            <DateField
-              small
-              label="End Date"
-              value={endDate}
-              onChange={(e: any) => setEndDate(e.target.value)}
-              className="flex-1 md:w-32 mb-0"
-            />
-            { (startDate || endDate) && (
-              <button 
-                onClick={() => { setStartDate(""); setEndDate(""); }}
-                className="px-2 py-2 text-[10px] font-bold text-gray-400 hover:text-red-500 uppercase tracking-wider"
-              >
-                Clear
-              </button>
-            )}
-          </div>
-          <div className="w-full md:w-64">
-            <select
-              value={filterProject}
-              onChange={(e) => setFilterProject(e.target.value)}
-              className="w-full px-4 py-2 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl text-[13px] focus:outline-none focus:ring-2 focus:ring-[#F97316]/20 focus:border-[#F97316] transition-all"
-            >
-              <option value="">All Projects</option>
-              {PROJECTS.map(p => <option key={p} value={p}>{p}</option>)}
-            </select>
-          </div>
+          <DateFilter
+            value={startDate}
+            onChange={setStartDate}
+            placeholder="Start Date"
+          />
+          <DateFilter
+            value={endDate}
+            onChange={setEndDate}
+            placeholder="End Date"
+          />
+          <SelectFilter
+            value={filterProject}
+            onChange={setFilterProject}
+            options={PROJECTS}
+            placeholder="All Projects"
+          />
           {!type && (
-            <div className="w-full md:w-64">
-              <select
-                value={filterType}
-                onChange={(e) => setFilterType(e.target.value)}
-                className="w-full px-4 py-2 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl text-[13px] focus:outline-none focus:ring-2 focus:ring-[#F97316]/20 focus:border-[#F97316] transition-all"
-              >
-                <option value="">All Types</option>
-                <option value="Inward">Inward</option>
-                <option value="Outward">Outward</option>
-                <option value="Inward Return">Inward Return</option>
-                <option value="Outward Return">Outward Return</option>
-                <option value="Transfer Inward">Transfer Inward</option>
-                <option value="Transfer Outward">Transfer Outward</option>
-                <option value="Public Inward">Public Inward</option>
-                <option value="Public Outward">Public Outward</option>
-                <option value="Public Transfer Inward">Public Transfer Inward</option>
-                <option value="Public Transfer Outward">Public Transfer Outward</option>
-              </select>
-            </div>
+            <SelectFilter
+              value={filterType}
+              onChange={setFilterType}
+              options={filterTypeOptions}
+              placeholder="All Types"
+            />
           )}
-        </div>
+        </FilterRow>
       </div>
 
       <Card className="p-0 overflow-hidden border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 flex-1">
@@ -1319,7 +1308,7 @@ export const TransactionsPage = ({ type }: { type?: TransactionType }) => {
           components={{
              Table: (props) => <table {...props} className="w-full text-left border-collapse" />,
              TableBody: React.forwardRef((props, ref) => <tbody {...props} ref={ref as any} className="divide-y divide-[#E8ECF0] dark:divide-gray-800" />),
-             TableRow: (props) => <tr {...props} className={cn("hover:bg-gray-50/50 dark:hover:bg-gray-800/30 transition-colors", props.className)} />,
+             TableRow: (props: any) => <tr {...props} className={cn("hover:bg-gray-50/50 dark:hover:bg-gray-800/30 transition-colors", props.className)} />,
           }}
         />
       ) : (
@@ -1403,7 +1392,7 @@ export const TransactionsPage = ({ type }: { type?: TransactionType }) => {
             components={{
               Table: (props) => <table {...props} className="w-full text-left border-collapse" />,
               TableBody: React.forwardRef((props, ref) => <tbody {...props} ref={ref as any} className="divide-y divide-gray-100 dark:divide-gray-800" />),
-              TableRow: (props) => <tr {...props} className={cn("hover:bg-gray-50/50 dark:hover:bg-gray-800/30 transition-all", props.className)} />
+              TableRow: (props: any) => <tr {...props} className={cn("hover:bg-gray-50/50 dark:hover:bg-gray-800/30 transition-all", props.className)} />
             }}
           />
           {mrAllocations.filter(alc => alc.remainingQty > 0).length === 0 && !loading && (

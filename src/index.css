@@ -1,3 +1,4 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
 @import "tailwindcss";
 
 @theme {
@@ -115,5 +116,24 @@
     top: 0;
     z-index: 11;
     @apply backdrop-blur-md bg-white/90 dark:bg-gray-900/90;
+  }
+}
+
+@media print {
+  @page {
+    size: A4;
+    margin: 10mm;
+  }
+  body {
+    background-color: white !important;
+    color: black !important;
+  }
+  /* Optional: Ensure the PO printable area takes up the A4 page nicely */
+  #printable-po {
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    box-shadow: none !important;
   }
 }
