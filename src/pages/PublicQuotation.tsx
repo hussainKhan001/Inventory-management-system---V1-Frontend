@@ -260,15 +260,15 @@ export const PublicQuotation = () => {
     );
   }
 
-  if (mr.status === "Approved" || mr.status === "Approved by AGM") {
+  if (mr.quotationLinkActive === false) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-[#0F172A] p-4 text-center">
         <div className="max-w-md w-full bg-white dark:bg-[#1E293B] p-8 rounded-3xl shadow-xl border border-gray-100 dark:border-gray-800">
-          <div className="w-20 h-20 bg-orange-50 dark:bg-orange-900/20 text-orange-500 rounded-full flex items-center justify-center mx-auto mb-6">
-            <CheckCircle2 className="w-10 h-10" />
+          <div className="w-20 h-20 bg-red-50 dark:bg-red-900/20 text-red-500 rounded-full flex items-center justify-center mx-auto mb-6">
+            <Clock className="w-10 h-10" />
           </div>
-          <h2 className="text-2xl font-black text-gray-900 dark:text-white mb-2">Requirement Finalized</h2>
-          <p className="text-gray-500 dark:text-gray-400">A quotation has already been approved for this requirement, and it is now closed for new submissions.</p>
+          <h2 className="text-2xl font-black text-gray-900 dark:text-white mb-2">Link Deactivated</h2>
+          <p className="text-gray-500 dark:text-gray-400">This quotation submission link has been deactivated by the AGM and is no longer accepting responses.</p>
         </div>
       </div>
     );

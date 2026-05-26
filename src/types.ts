@@ -258,6 +258,17 @@ export interface PurchaseOrder {
   companyAddress?: string;
   vendorContact?: string;
   vendorAddress?: string;
+
+  // Other Charges (Freight / Loading / Unloading)
+  freightAmount?: number;
+  freightGstPct?: number;
+  freightGstType?: "Inclusive" | "Exclusive";
+  loadingAmount?: number;
+  loadingGstPct?: number;
+  loadingGstType?: "Inclusive" | "Exclusive";
+  unloadingAmount?: number;
+  unloadingGstPct?: number;
+  unloadingGstType?: "Inclusive" | "Exclusive";
 }
 
 export interface PlanLineItem {
@@ -496,6 +507,7 @@ export interface MaterialRequirement {
   }[];
   createdAt?: string;
   updatedAt?: string;
+  quotationLinkActive?: boolean;
 }
 
 export interface MRAllocation {

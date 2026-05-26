@@ -67,12 +67,12 @@ const InventoryRow = memo(
         <Td className="hidden md:table-cell px-4 py-3 text-[13px] font-mono text-gray-500 dark:text-gray-400">
           {safeStr(item.sku)}
         </Td>
-        <Td className="hidden md:table-cell px-4 py-3 text-[13px] font-medium text-gray-900 dark:text-white">
-          <div className="flex items-center gap-2">
+        <Td className="hidden md:table-cell px-4 py-3 text-[13px] font-medium text-gray-900 dark:text-white max-w-[200px]">
+          <div className="flex items-center gap-2 truncate" title={safeStr(item.itemName)}>
             {safeStr(item.itemName) || <span className="text-gray-400 italic">Unnamed Item</span>}
           </div>
         </Td>
-        <Td className="hidden md:table-cell px-4 py-3 text-[13px] text-gray-500 dark:text-gray-400">
+        <Td className="hidden md:table-cell px-4 py-3 text-[13px] text-gray-500 dark:text-gray-400 max-w-[150px] truncate" title={`${safeStr(item.category)} / ${safeStr(item.subCategory)}`}>
           {safeStr(item.category)} / {safeStr(item.subCategory)}
         </Td>
         <Td className="hidden md:table-cell px-4 py-3 text-right">
@@ -511,7 +511,7 @@ export const Inventory = () => {
         </Card>
       </div>
 
-      <div className="sticky top-0 z-30 will-change-transform bg-gray-50 dark:bg-gray-950 -mx-4 sm:-mx-6 md:-mx-8 px-4 sm:px-6 md:px-8 py-4 border-b border-gray-200 dark:border-gray-800 mb-6">
+      <div className="mb-6">
         <SearchControls
           search={search}
           setSearch={setSearch}
@@ -528,34 +528,37 @@ export const Inventory = () => {
           data={inventory}
           endReached={loadMore}
           increaseViewportBy={300}
-          fixedHeaderContent={() => (
-            <tr className="bg-gray-50/90 dark:bg-gray-800/90 backdrop-blur-md border-b border-gray-200 dark:border-gray-800">
-              <Th className="md:hidden px-4 py-3 text-[11px] font-bold text-gray-500 dark:text-gray-400 sticky top-0 z-10 sticky-th">
-                Inventory details
-              </Th>
-              <Th className="hidden md:table-cell px-4 py-3 text-[11px] font-bold text-gray-500 dark:text-gray-400 w-16 text-center sticky top-0 z-10 sticky-th">
-                Photo
-              </Th>
-              <Th className="hidden md:table-cell px-4 py-3 text-[11px] font-bold text-gray-500 dark:text-gray-400 w-[120px] sticky top-0 z-10 sticky-th">
-                SKU
-              </Th>
-              <Th className="hidden md:table-cell px-4 py-3 text-[11px] font-bold text-gray-500 dark:text-gray-400 sticky top-0 z-10 sticky-th">
-                Item name
-              </Th>
-              <Th className="hidden md:table-cell px-4 py-3 text-[11px] font-bold text-gray-500 dark:text-gray-400 w-[150px] sticky top-0 z-10 sticky-th">
-                Category
-              </Th>
-              <Th className="hidden md:table-cell px-4 py-3 text-[11px] font-bold text-gray-500 dark:text-gray-400 text-right w-[150px] sticky top-0 z-10 sticky-th">
-                Stock (Avail | Alc | Isu)
-              </Th>
-              <Th className="hidden md:table-cell px-4 py-3 text-[11px] font-bold text-gray-500 dark:text-gray-400 w-[100px] text-center sticky top-0 z-10 sticky-th">
-                Condition
-              </Th>
-              <Th className="hidden md:table-cell px-4 py-3 text-[11px] font-bold text-gray-500 dark:text-gray-400 text-right w-[120px] sticky top-0 z-10 sticky-th">
-                Actions
-              </Th>
-            </tr>
-          )}
+          fixedHeaderContent={() => {
+            const headerClass = "px-4 py-3 text-[11px] font-bold text-[#6B7280] dark:text-gray-400 uppercase tracking-wider sticky top-0 z-10 sticky-th";
+            return (
+              <tr className="bg-gray-50/90 dark:bg-gray-800/90 backdrop-blur-md border-b border-[#E8ECF0] dark:border-gray-800">
+                <th className={cn(headerClass, "md:hidden")}>
+                  Inventory details
+                </th>
+                <th className={cn(headerClass, "hidden md:table-cell w-16 text-center")}>
+                  Photo
+                </th>
+                <th className={cn(headerClass, "hidden md:table-cell w-[120px]")}>
+                  SKU
+                </th>
+                <th className={cn(headerClass, "hidden md:table-cell")}>
+                  Item name
+                </th>
+                <th className={cn(headerClass, "hidden md:table-cell w-[150px]")}>
+                  Category
+                </th>
+                <th className={cn(headerClass, "hidden md:table-cell text-right w-[150px]")}>
+                  Stock (Avail | Alc | Isu)
+                </th>
+                <th className={cn(headerClass, "hidden md:table-cell w-[100px] text-center")}>
+                  Condition
+                </th>
+                <th className={cn(headerClass, "hidden md:table-cell text-right w-[120px]")}>
+                  Actions
+                </th>
+              </tr>
+            );
+          }}
           itemContent={(_index, item) => (
             <InventoryRow
               item={item}
@@ -569,9 +572,7 @@ export const Inventory = () => {
           )}
           components={{
             Table: (props) => (
-              <div className="w-full overflow-x-auto no-scrollbar-lg">
-                <table {...props} className="w-full text-left border-collapse min-w-[800px] md:min-w-0" />
-              </div>
+              <table {...props} className="w-full text-left border-collapse min-w-[800px] md:min-w-0" />
             ),
             TableBody: React.forwardRef((props, ref) => <tbody {...props} ref={ref as any} className="divide-y divide-gray-200 dark:divide-gray-800" />),
             TableRow: (props) => {

@@ -49,7 +49,8 @@ const PERMISSION_GROUPS = [
       'ALLOCATE_MR',
       'APPROVE_MR_STORE',
       'APPROVE_MR_AGM',
-      'GET_QUOTATION_LINK'
+      'GET_QUOTATION_LINK',
+      'TOGGLE_QUOTATION_LINK'
     ]
   },
   {

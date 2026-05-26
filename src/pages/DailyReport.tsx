@@ -175,17 +175,20 @@ export const DailyReport = () => {
                 TableRow: (props) => <tr {...props} className="hover:bg-gray-50/50 dark:hover:bg-gray-800/30 transition-colors divide-x divide-gray-100 dark:divide-gray-800" />,
                 TableHead: React.forwardRef((props, ref) => <thead {...props} ref={ref} className="z-10" />)
               }}
-              fixedHeaderContent={() => (
-                <tr className="bg-gray-100/90 dark:bg-gray-800/90 backdrop-blur-md border-b border-gray-200 dark:border-gray-700">
-                  <th className="md:hidden px-4 py-3 font-black text-[10px] text-gray-500 dark:text-gray-400 uppercase tracking-wider sticky top-0 z-10 sticky-th">Movement Details</th>
-                  <th className="hidden md:table-cell px-4 py-3 font-black text-[10px] text-gray-500 dark:text-gray-400 uppercase tracking-wider sticky top-0 z-10 sticky-th">SKU</th>
-                  <th className="hidden md:table-cell px-4 py-3 font-black text-[10px] text-gray-500 dark:text-gray-400 uppercase tracking-wider sticky top-0 z-10 sticky-th">Item Name</th>
-                  <th className="hidden md:table-cell px-4 py-3 font-black text-[10px] text-gray-500 dark:text-gray-400 uppercase tracking-wider sticky top-0 z-10 sticky-th">Category</th>
-                  <th className="hidden md:table-cell px-4 py-3 font-black text-[10px] text-gray-500 dark:text-gray-400 uppercase tracking-wider text-right sticky top-0 z-10 sticky-th">Inward</th>
-                  <th className="hidden md:table-cell px-4 py-3 font-black text-[10px] text-gray-500 dark:text-gray-400 uppercase tracking-wider text-right sticky top-0 z-10 sticky-th">Outward</th>
-                  <th className="hidden md:table-cell px-4 py-3 font-black text-[10px] text-gray-500 dark:text-gray-400 uppercase tracking-wider text-right sticky top-0 z-10 sticky-th">Live Stock</th>
-                </tr>
-              )}
+              fixedHeaderContent={() => {
+                const headerClass = "px-4 py-3 text-[11px] font-bold text-[#6B7280] dark:text-gray-400 uppercase tracking-wider sticky top-0 z-10 sticky-th";
+                return (
+                  <tr className="bg-gray-50/90 dark:bg-gray-800/90 backdrop-blur-md border-b border-[#E8ECF0] dark:border-gray-800">
+                    <th className={`${headerClass} md:hidden`}>Movement Details</th>
+                    <th className={`${headerClass} hidden md:table-cell`}>SKU</th>
+                    <th className={`${headerClass} hidden md:table-cell`}>Item Name</th>
+                    <th className={`${headerClass} hidden md:table-cell`}>Category</th>
+                    <th className={`${headerClass} hidden md:table-cell text-right`}>Inward</th>
+                    <th className={`${headerClass} hidden md:table-cell text-right`}>Outward</th>
+                    <th className={`${headerClass} hidden md:table-cell text-right`}>Live Stock</th>
+                  </tr>
+                );
+              }}
               itemContent={(_index, row) => (
                 <>
                   <td className="w-full md:w-auto block md:table-cell p-0 md:p-0">
@@ -237,14 +240,14 @@ export const DailyReport = () => {
           ) : (
             <div className="h-full flex flex-col">
               <table className="w-full text-left text-[13px] border-collapse sticky top-0 z-10">
-                <thead className="bg-gray-100 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+                <thead className="bg-gray-50/90 dark:bg-gray-800/90 backdrop-blur-md border-b border-[#E8ECF0] dark:border-gray-800">
                   <tr>
-                    <th className="px-4 py-3 font-black text-[10px] text-gray-500 dark:text-gray-400 uppercase tracking-wider">SKU</th>
-                    <th className="px-4 py-3 font-black text-[10px] text-gray-500 dark:text-gray-400 uppercase tracking-wider">Item Name</th>
-                    <th className="px-4 py-3 font-black text-[10px] text-gray-500 dark:text-gray-400 uppercase tracking-wider">Category</th>
-                    <th className="px-4 py-3 font-black text-[10px] text-gray-500 dark:text-gray-400 uppercase tracking-wider text-right">Inward</th>
-                    <th className="px-4 py-3 font-black text-[10px] text-gray-500 dark:text-gray-400 uppercase tracking-wider text-right">Outward</th>
-                    <th className="px-4 py-3 font-black text-[10px] text-gray-500 dark:text-gray-400 uppercase tracking-wider text-right">Live Stock</th>
+                    <th className="px-4 py-3 text-[11px] font-bold text-[#6B7280] dark:text-gray-400 uppercase tracking-wider">SKU</th>
+                    <th className="px-4 py-3 text-[11px] font-bold text-[#6B7280] dark:text-gray-400 uppercase tracking-wider">Item Name</th>
+                    <th className="px-4 py-3 text-[11px] font-bold text-[#6B7280] dark:text-gray-400 uppercase tracking-wider">Category</th>
+                    <th className="px-4 py-3 text-[11px] font-bold text-[#6B7280] dark:text-gray-400 uppercase tracking-wider text-right">Inward</th>
+                    <th className="px-4 py-3 text-[11px] font-bold text-[#6B7280] dark:text-gray-400 uppercase tracking-wider text-right">Outward</th>
+                    <th className="px-4 py-3 text-[11px] font-bold text-[#6B7280] dark:text-gray-400 uppercase tracking-wider text-right">Live Stock</th>
                   </tr>
                 </thead>
               </table>

@@ -15,7 +15,7 @@ import {
   DateField,
   Field,
 } from "../components/ui";
-import { Plus, Search, Eye, Edit2, Trash2, User, MapPin, Building, Package, Check, Link2, Copy, RefreshCw, CheckCircle, TrendingUp, AlertTriangle } from "lucide-react";
+import { Plus, Search, Eye, Edit2, Trash2, User, MapPin, Building, Package, Check, Link2, Copy, RefreshCw, CheckCircle, TrendingUp, AlertTriangle, Calendar, Activity, ShieldAlert } from "lucide-react";
 import { Virtuoso } from "react-virtuoso";
 import { MaterialRequirement, MaterialRequirementItem } from "../types";
 import { genId, todayStr, scrollToError, formatDateTime, formatDate, safeStr, isNewItem } from "../utils";
@@ -114,6 +114,25 @@ export const MaterialRequirementPage = () => {
   const [successModal, setSuccessModal] = useState<string | null>(null);
   const [viewModal, setViewModal] = useState(false);
   const [selectedRequirement, setSelectedRequirement] = useState<MaterialRequirement | null>(null);
+  const [showQuotationDropdown, setShowQuotationDropdown] = useState(false);
+
+  useEffect(() => {
+    if (!showQuotationDropdown) return;
+    const handleOutsideClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (!target.closest(".quotation-dropdown-container")) {
+        setShowQuotationDropdown(false);
+      }
+    };
+    document.addEventListener("mousedown", handleOutsideClick);
+    return () => document.removeEventListener("mousedown", handleOutsideClick);
+  }, [showQuotationDropdown]);
+
+  useEffect(() => {
+    if (!viewModal) {
+      setShowQuotationDropdown(false);
+    }
+  }, [viewModal]);
 
   const allItemsMapped = selectedRequirement
     ? (selectedRequirement.items && selectedRequirement.items.length > 0 && selectedRequirement.items.every(
@@ -610,7 +629,7 @@ export const MaterialRequirementPage = () => {
         }
       />
 
-      <div className="sticky top-0 z-30 will-change-transform bg-gray-50 dark:bg-gray-950 -mx-4 sm:-mx-6 md:-mx-8 px-4 sm:px-6 md:px-8 pt-3 pb-4 border-b border-gray-200 dark:border-gray-800 mb-6 space-y-3">
+      <div className="mb-6 space-y-3">
         <div className="flex items-center gap-1 p-1 bg-gray-100 dark:bg-gray-800 rounded-xl w-fit">
           <button
             onClick={() => setActiveTab('requirements')}
@@ -1026,111 +1045,227 @@ export const MaterialRequirementPage = () => {
           onClose={() => setViewModal(false)}
         >
           {isMRLocked(selectedRequirement.id) && (
-            <div className="mb-6 p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl flex items-center gap-3">
+            <div className="mb-6 p-4 bg-amber-500/5 border border-amber-500/20 dark:border-amber-500/30 rounded-xl flex items-center gap-3">
               <AlertTriangle className="w-5 h-5 text-amber-500" />
               <div>
-                <p className="text-[13px] font-bold text-amber-900 dark:text-amber-400">Locked for Editing</p>
-                <p className="text-[11px] text-amber-700 dark:text-amber-500">This requirement has an associated Purchase Order and cannot be modified.</p>
+                <p className="text-[13px] font-bold text-amber-900 dark:text-amber-450">Locked for Editing</p>
+                <p className="text-[11px] text-amber-700 dark:text-amber-550">This requirement has an associated Purchase Order and cannot be modified.</p>
               </div>
             </div>
           )}
           {!allItemsMapped && (
-            <div className="mb-6 p-4 bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900/30 rounded-xl flex items-center gap-3">
+            <div className="mb-6 p-4 bg-rose-500/5 border border-rose-500/20 dark:border-rose-500/30 rounded-xl flex items-center gap-3">
               <AlertTriangle className="w-5 h-5 text-red-500 flex-shrink-0" />
               <div>
-                <p className="text-[13px] font-bold text-red-900 dark:text-red-400 font-sans">Inventory Mapping Required</p>
+                <p className="text-[13px] font-bold text-red-900 dark:text-red-450 font-sans">Inventory Mapping Required</p>
                 <p className="text-[11px] text-red-700 dark:text-red-450 font-sans">Some items are not linked to inventory stock SKU. All action buttons (Save & Close, Get Quotation Link, Recheck, Approve by Store, Reject Requirement) are disabled until you map each item.</p>
               </div>
             </div>
           )}
           <div className="space-y-6">
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
-              <div>
-                <p className="text-[11px] font-bold text-gray-500">Requester</p>
-                <p className="text-[13px] font-medium text-gray-900 dark:text-white">{safeStr(selectedRequirement.requesterName || (selectedRequirement as any).requester || (selectedRequirement as any).createdBy) || "N/A"}</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 p-4 bg-gray-50/25 dark:bg-[#0F172A]/40 border border-gray-150/60 dark:border-gray-850/50 rounded-2xl">
+              <div className="flex items-center gap-3 p-3 bg-white/40 dark:bg-[#0F172A]/30 rounded-xl border border-gray-200/50 dark:border-gray-800/80 shadow-xs">
+                <div className="w-9 h-9 rounded-lg bg-orange-50 dark:bg-orange-950/30 flex items-center justify-center text-orange-600 dark:text-orange-400 shrink-0">
+                  <User className="w-5 h-5" />
+                </div>
+                <div className="overflow-hidden">
+                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest leading-none">Requester</p>
+                  <p className="text-[13px] font-black text-gray-800 dark:text-white truncate mt-1">
+                    {safeStr(selectedRequirement.requesterName || (selectedRequirement as any).requester || (selectedRequirement as any).createdBy) || "N/A"}
+                  </p>
+                </div>
               </div>
-              <div>
-                <p className="text-[11px] font-bold text-gray-500">Request date</p>
-                <p className="text-[13px] font-medium text-gray-900 dark:text-white">{formatDateTime(selectedRequirement.date)}</p>
+              <div className="flex items-center gap-3 p-3 bg-white/40 dark:bg-[#0F172A]/30 rounded-xl border border-gray-200/50 dark:border-gray-800/80 shadow-xs">
+                <div className="w-9 h-9 rounded-lg bg-orange-50 dark:bg-orange-950/30 flex items-center justify-center text-orange-600 dark:text-orange-400 shrink-0">
+                  <Calendar className="w-5 h-5" />
+                </div>
+                <div className="overflow-hidden">
+                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest leading-none">Request Date</p>
+                  <p className="text-[13px] font-black text-gray-800 dark:text-white truncate mt-1">
+                    {formatDateTime(selectedRequirement.date)}
+                  </p>
+                </div>
               </div>
-              <div>
-                <p className="text-[11px] font-bold text-gray-500">Required date</p>
-                <p className="text-[13px] font-medium text-gray-900 dark:text-white">{formatDate(selectedRequirement.requirementDate || (selectedRequirement as any).requiredDate || "")}</p>
+              <div className="flex items-center gap-3 p-3 bg-white/40 dark:bg-[#0F172A]/30 rounded-xl border border-gray-200/50 dark:border-gray-800/80 shadow-xs">
+                <div className="w-9 h-9 rounded-lg bg-orange-50 dark:bg-orange-950/30 flex items-center justify-center text-orange-600 dark:text-orange-400 shrink-0">
+                  <Calendar className="w-5 h-5" />
+                </div>
+                <div className="overflow-hidden">
+                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest leading-none">Required Date</p>
+                  <p className="text-[13px] font-black text-gray-800 dark:text-white truncate mt-1">
+                    {formatDate(selectedRequirement.requirementDate || (selectedRequirement as any).requiredDate || "")}
+                  </p>
+                </div>
               </div>
-              <div>
-                <p className="text-[11px] font-bold text-gray-500">Project</p>
-                <p className="text-[13px] font-medium text-gray-900 dark:text-white">{safeStr(selectedRequirement.project || (selectedRequirement as any).projectName) || "N/A"}</p>
+              <div className="flex items-center gap-3 p-3 bg-white/40 dark:bg-[#0F172A]/30 rounded-xl border border-gray-200/50 dark:border-gray-800/80 shadow-xs">
+                <div className="w-9 h-9 rounded-lg bg-orange-50 dark:bg-orange-950/30 flex items-center justify-center text-orange-600 dark:text-orange-400 shrink-0">
+                  <Building className="w-5 h-5" />
+                </div>
+                <div className="overflow-hidden">
+                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest leading-none">Project</p>
+                  <p className="text-[13px] font-black text-gray-800 dark:text-white truncate mt-1">
+                    {safeStr(selectedRequirement.project || (selectedRequirement as any).projectName) || "N/A"}
+                  </p>
+                </div>
               </div>
-              <div>
-                <p className="text-[11px] font-bold text-gray-500">Location</p>
-                <p className="text-[13px] font-medium text-gray-900 dark:text-white">{safeStr(selectedRequirement.location || (selectedRequirement as any).site || (selectedRequirement as any).address) || "N/A"}</p>
+              <div className="flex items-center gap-3 p-3 bg-white/40 dark:bg-[#0F172A]/30 rounded-xl border border-gray-200/50 dark:border-gray-800/80 shadow-xs">
+                <div className="w-9 h-9 rounded-lg bg-orange-50 dark:bg-orange-950/30 flex items-center justify-center text-orange-600 dark:text-orange-400 shrink-0">
+                  <MapPin className="w-5 h-5" />
+                </div>
+                <div className="overflow-hidden">
+                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest leading-none">Location</p>
+                  <p className="text-[13px] font-black text-gray-800 dark:text-white truncate mt-1">
+                    {safeStr(selectedRequirement.location || (selectedRequirement as any).site || (selectedRequirement as any).address) || "N/A"}
+                  </p>
+                </div>
               </div>
-              <div>
-                <p className="text-[11px] font-bold text-gray-500">Work type</p>
-                <p className="text-[13px] font-medium text-gray-900 dark:text-white">{safeStr(selectedRequirement.workType) || "N/A"}</p>
+              <div className="flex items-center gap-3 p-3 bg-white/40 dark:bg-[#0F172A]/30 rounded-xl border border-gray-200/50 dark:border-gray-800/80 shadow-xs">
+                <div className="w-9 h-9 rounded-lg bg-orange-50 dark:bg-orange-950/30 flex items-center justify-center text-orange-600 dark:text-orange-400 shrink-0">
+                  <Activity className="w-5 h-5" />
+                </div>
+                <div className="overflow-hidden">
+                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest leading-none">Work Type</p>
+                  <p className="text-[13px] font-black text-gray-800 dark:text-white truncate mt-1">
+                    {safeStr(selectedRequirement.workType) || "N/A"}
+                  </p>
+                </div>
               </div>
-              {selectedRequirement.approvals?.length ? (
-                <div className="col-span-1 md:col-span-2 lg:col-span-3 mt-2 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+              
+              <div className="flex items-center gap-3 p-3 bg-white/40 dark:bg-[#0F172A]/30 rounded-xl border border-gray-200/50 dark:border-gray-800/80 shadow-xs">
+                <div className="w-9 h-9 rounded-lg bg-orange-50 dark:bg-orange-950/30 flex items-center justify-center text-orange-600 dark:text-orange-400 shrink-0">
+                  <Link2 className="w-5 h-5" />
+                </div>
+                <div className="overflow-hidden flex-1 flex flex-col justify-center">
+                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest leading-none mb-1">Quotation Link</p>
+                  <div className="flex items-center gap-2">
+                    <span className={cn(
+                      "text-[10px] font-bold px-2 py-0.5 rounded-full border leading-none",
+                      selectedRequirement.quotationLinkActive !== false
+                        ? "bg-green-50/80 dark:bg-green-950/20 text-green-600 dark:text-green-400 border-green-200/50 dark:border-green-800/30"
+                        : "bg-red-50/80 dark:bg-red-950/20 text-red-600 dark:text-red-400 border-red-200/50 dark:border-red-800/30"
+                    )}>
+                      {selectedRequirement.quotationLinkActive !== false ? "Active" : "Deactivated"}
+                    </span>
+                    {hasPermission("TOGGLE_QUOTATION_LINK") && (
+                      <button
+                        onClick={async () => {
+                          try {
+                            const nextState = selectedRequirement.quotationLinkActive === false;
+                            await updateMaterialRequirement(selectedRequirement.id, {
+                              quotationLinkActive: nextState
+                            });
+                            setSelectedRequirement({
+                              ...selectedRequirement,
+                              quotationLinkActive: nextState
+                            });
+                            toast.success(`Quotation link ${nextState ? "activated" : "deactivated"} successfully`);
+                          } catch (err: any) {
+                            toast.error(err.message || "Failed to update link status");
+                          }
+                        }}
+                        className="text-[9px] font-extrabold text-orange-500 hover:text-orange-600 hover:underline transition-all uppercase tracking-wider shrink-0 cursor-pointer"
+                      >
+                        {selectedRequirement.quotationLinkActive !== false ? "Deactivate" : "Activate"}
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3 p-3 bg-white/40 dark:bg-[#0F172A]/30 rounded-xl border border-gray-200/50 dark:border-gray-800/80 shadow-xs">
+                <div className="w-9 h-9 rounded-lg bg-orange-50 dark:bg-orange-950/30 flex items-center justify-center text-orange-600 dark:text-orange-400 shrink-0">
+                  <ShieldAlert className="w-5 h-5" />
+                </div>
+                <div className="overflow-hidden">
+                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest leading-none">Status</p>
+                  <div className="mt-1">
+                    <StatusBadge status={selectedRequirement.status} />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {selectedRequirement.approvals?.length ? (
+              <div className="mt-4 p-4 bg-emerald-500/5 border border-emerald-500/20 dark:border-emerald-500/30 rounded-2xl">
+                <h5 className="text-[10px] font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-widest mb-3">Approved Supplier Quotations</h5>
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
                   {selectedRequirement.approvals.map((app, idx) => (
-                    <div key={idx} className="bg-green-50 dark:bg-green-900/10 border border-green-100 dark:border-green-800 p-3 rounded-xl">
-                      <p className="text-[10px] font-black text-green-600 dark:text-green-400 uppercase tracking-widest leading-none mb-1">
-                        Approved {app.category || "All"}
-                      </p>
-                      <p className="text-xs font-bold text-gray-900 dark:text-white truncate">
-                        {app.supplierName}
-                      </p>
-                      <p className="text-[9px] text-gray-500 mt-0.5">{app.quotationId}</p>
+                    <div key={idx} className="bg-emerald-500/5 border border-emerald-500/20 dark:border-emerald-800/40 p-3 rounded-xl shadow-xs flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-lg bg-emerald-50 dark:bg-emerald-950/30 flex items-center justify-center text-emerald-600 dark:text-emerald-400 shrink-0">
+                        <CheckCircle className="w-4.5 h-4.5" />
+                      </div>
+                      <div className="overflow-hidden">
+                        <p className="text-[9px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-widest leading-none mb-1">
+                          {app.category || "All Items"}
+                        </p>
+                        <p className="text-xs font-black text-gray-800 dark:text-white truncate">
+                          {app.supplierName}
+                        </p>
+                        <p className="text-[9px] text-gray-400 font-mono mt-0.5">{app.quotationId}</p>
+                      </div>
                     </div>
                   ))}
                 </div>
-              ) : (
-                <>
+              </div>
+            ) : (
+              (selectedRequirement.approvedSupplier || selectedRequirement.approvedQuotationId) && (
+                <div className="mt-4 p-4 bg-emerald-50/30 dark:bg-emerald-950/10 border border-emerald-100/50 dark:border-emerald-900/30 rounded-2xl flex flex-wrap gap-6">
                   {selectedRequirement.approvedSupplier && (
-                    <div>
-                      <p className="text-[11px] font-bold text-green-600">Approved Supplier</p>
-                      <p className="text-[13px] font-black text-green-700 dark:text-green-400">{safeStr(selectedRequirement.approvedSupplier)}</p>
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-lg bg-emerald-50 dark:bg-emerald-950/30 flex items-center justify-center text-emerald-600 dark:text-emerald-400 shrink-0">
+                        <CheckCircle className="w-4.5 h-4.5" />
+                      </div>
+                      <div>
+                        <p className="text-[9px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-widest leading-none mb-1">Approved Supplier</p>
+                        <p className="text-xs font-black text-gray-800 dark:text-white">{safeStr(selectedRequirement.approvedSupplier)}</p>
+                      </div>
                     </div>
                   )}
                   {selectedRequirement.approvedQuotationId && (
-                    <div>
-                      <p className="text-[11px] font-bold text-green-600">Approved Quotation</p>
-                      <p className="text-[13px] font-black text-green-700 dark:text-green-400">{safeStr(selectedRequirement.approvedQuotationId)}</p>
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-lg bg-emerald-50 dark:bg-emerald-950/30 flex items-center justify-center text-emerald-600 dark:text-emerald-400 shrink-0">
+                        <CheckCircle className="w-4.5 h-4.5" />
+                      </div>
+                      <div>
+                        <p className="text-[9px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-widest leading-none mb-1">Approved Quotation ID</p>
+                        <p className="text-xs font-black text-gray-800 dark:text-white font-mono">{safeStr(selectedRequirement.approvedQuotationId)}</p>
+                      </div>
                     </div>
                   )}
-                </>
-              )}
-            </div>
+                </div>
+              )
+            )}
 
             <div className="space-y-4">
               <h4 className="text-[11px] font-bold text-gray-500 tracking-wider px-2">Requested items</h4>
 
               {/* Desktop view table */}
-              <div className="hidden md:block border border-gray-100 dark:border-gray-800 rounded-xl overflow-x-auto shadow-sm">
+              <div className="hidden md:block border border-gray-150/60 dark:border-gray-800/80 rounded-2xl overflow-x-auto shadow-xs bg-gray-50/25 dark:bg-[#0F172A]/40">
                 <table className="w-full min-w-[1000px] text-left border-collapse">
-                  <thead className="bg-gray-50 dark:bg-gray-800/50">
+                  <thead className="bg-gray-50/10 dark:bg-[#0F172A]/40 backdrop-blur-md">
                     <tr>
-                      <th className="px-4 py-3 text-[11px] font-bold text-gray-500 dark:text-gray-400 tracking-wider">Material name</th>
-                      <th className="px-4 py-3 text-[11px] font-bold text-gray-500 dark:text-gray-400 tracking-wider text-center">Category</th>
-                      <th className="px-4 py-3 text-[11px] font-bold text-gray-500 dark:text-gray-400 tracking-wider text-center">Condition</th>
-                      <th className="px-4 py-3 text-[11px] font-bold text-gray-500 dark:text-gray-400 tracking-wider text-right">Qty</th>
-                      <th className="px-4 py-3 text-[11px] font-bold text-gray-500 dark:text-gray-400 tracking-wider text-right">In stock</th>
-                      <th className="px-4 py-3 text-[11px] font-bold text-gray-500 dark:text-gray-400 tracking-wider text-right">Purchase</th>
-                      <th className="px-4 py-3 text-[11px] font-bold text-gray-500 dark:text-gray-400 tracking-wider text-center">Status</th>
-                      <th className="px-4 py-3 text-[11px] font-bold text-gray-500 dark:text-gray-400 tracking-wider text-right">Actions</th>
+                      <th className="px-4 py-3.5 text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest border-b border-gray-100 dark:border-gray-800">Material name</th>
+                      <th className="px-4 py-3.5 text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest text-center border-b border-gray-100 dark:border-gray-800">Category</th>
+                      <th className="px-4 py-3.5 text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest text-center border-b border-gray-100 dark:border-gray-800">Condition</th>
+                      <th className="px-4 py-3.5 text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest text-right border-b border-gray-100 dark:border-gray-800">Qty</th>
+                      <th className="px-4 py-3.5 text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest text-right border-b border-gray-100 dark:border-gray-800">In stock</th>
+                      <th className="px-4 py-3.5 text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest text-right border-b border-gray-100 dark:border-gray-800">Purchase</th>
+                      <th className="px-4 py-3.5 text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest text-center border-b border-gray-100 dark:border-gray-800">Status</th>
+                      <th className="px-4 py-3.5 text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest text-right border-b border-gray-100 dark:border-gray-800">Actions</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-100 dark:divide-gray-800 bg-white dark:bg-gray-900">
+                  <tbody className="divide-y divide-gray-100/50 dark:divide-gray-800/80 bg-transparent">
                     {selectedRequirement.items.map((item, idx) => (
-                      <tr key={idx} className="hover:bg-gray-50/50 dark:hover:bg-gray-800/30 transition-colors">
-                        <td className="px-4 py-3 align-middle">
+                      <tr key={idx} className="transition-all duration-200">
+                        <td className="px-4 py-4 align-middle">
                           <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 rounded-lg bg-orange-50 dark:bg-orange-900/20 flex items-center justify-center">
+                            <div className="w-8.5 h-8.5 rounded-xl bg-orange-50 dark:bg-orange-950/20 flex items-center justify-center border border-orange-100/50 dark:border-orange-900/10 shrink-0">
                               <Package className="w-4 h-4 text-orange-600 dark:text-orange-400" />
                             </div>
                             <div className="flex-1">
-                               <input 
+                              <input 
                                 disabled={isMRLocked(selectedRequirement.id)}
-                                className="text-[14px] font-bold text-gray-900 dark:text-white block bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700 focus:ring-1 focus:ring-primary rounded px-2 py-1 w-full disabled:opacity-50"
+                                className="text-[13px] font-bold text-gray-900 dark:text-white block bg-white/40 dark:bg-[#0F172A]/30 border border-gray-200/50 dark:border-gray-800/80 focus:border-primary focus:ring-1 focus:ring-primary rounded-xl px-3 py-1.5 w-full outline-none transition-all disabled:opacity-60 disabled:cursor-not-allowed shadow-inner"
                                 value={item.materialName}
                                 onChange={(e) => {
                                   const newItems = [...selectedRequirement.items];
@@ -1139,15 +1274,15 @@ export const MaterialRequirementPage = () => {
                                 }}
                                 placeholder="Edit material name..."
                               />
-                               <div className="flex items-center gap-2 mt-2">
+                              <div className="flex items-center gap-2 mt-2">
                                 {item.sku && item.sku !== 'N/A' ? (
-                                  <div className="flex items-center gap-1.5 px-2 py-0.5 bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400 rounded-md border border-green-100 dark:border-green-800/30">
-                                    <Check className="w-3 h-3" />
-                                    <span className="text-[10px] font-bold tracking-tight">{safeStr(item.sku)}</span>
+                                  <div className="flex items-center gap-1 px-2.5 py-0.5 bg-green-50/80 dark:bg-green-950/20 text-green-600 dark:text-green-400 rounded-lg border border-green-200/50 dark:border-green-800/30 shadow-xs shrink-0">
+                                    <Check className="w-3 h-3 shrink-0" />
+                                    <span className="text-[10px] font-black tracking-tight">{safeStr(item.sku)}</span>
                                   </div>
                                 ) : (
-                                  <div className="flex items-center gap-1.5 px-2 py-0.5 bg-red-50 dark:bg-red-900/20 text-red-500 dark:text-red-400 rounded-md border border-red-100 dark:border-red-800/30">
-                                    <span className="text-[9px] font-bold tracking-tighter italic">Not linked</span>
+                                  <div className="flex items-center gap-1 px-2.5 py-0.5 bg-red-50/80 dark:bg-red-950/20 text-red-500 dark:text-red-400 rounded-lg border border-red-200/50 dark:border-red-800/30 shadow-xs shrink-0">
+                                    <span className="text-[9px] font-extrabold tracking-widest uppercase italic">Not Linked</span>
                                   </div>
                                 )}
                                 <button
@@ -1156,12 +1291,13 @@ export const MaterialRequirementPage = () => {
                                     setLinkSearch(item.materialName);
                                     setLinkingIdx(idx);
                                   }}
-                                  className="text-[10px] text-primary hover:bg-primary/5 px-2 py-1 rounded border border-primary/20 font-bold flex items-center gap-1 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                  className="text-[9px] text-primary hover:text-white bg-primary/10 hover:bg-primary border border-primary/25 rounded-lg px-2.5 py-1 font-bold flex items-center gap-1 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-xs shrink-0 cursor-pointer"
                                 >
                                   <Link2 className="w-3 h-3" />
                                   Manual Link
                                 </button>
                                 <button
+                                  disabled={isMRLocked(selectedRequirement.id)}
                                   onClick={() => {
                                     const searchTerm = item.materialName.toLowerCase().trim();
                                     const bestMatch = inventory.find(i => 
@@ -1178,7 +1314,7 @@ export const MaterialRequirementPage = () => {
                                       let status: MaterialRequirementItem['status'] = "Needs Purchase";
                                       if (available >= requested) status = "In Stock";
                                       else if (available > 0) status = "Partial";
-
+ 
                                       newItems[idx] = {
                                         ...newItems[idx],
                                         sku: bestMatch.sku,
@@ -1195,7 +1331,7 @@ export const MaterialRequirementPage = () => {
                                       toast.error("No exact match. Use manual link.");
                                     }
                                   }}
-                                  className="text-[10px] text-gray-500 hover:text-primary font-bold flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
+                                  className="text-[9px] text-gray-500 hover:text-primary dark:text-gray-400 dark:hover:text-primary bg-white/40 dark:bg-[#0F172A]/30 border border-gray-200/50 dark:border-gray-800/80 hover:border-primary/25 rounded-lg px-2.5 py-1 font-bold flex items-center gap-1 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-xs shrink-0 cursor-pointer"
                                 >
                                   Auto Match
                                 </button>
@@ -1203,86 +1339,114 @@ export const MaterialRequirementPage = () => {
                             </div>
                           </div>
                         </td>
-                        <td className="px-4 py-3 align-middle text-center">
-                          <SField
+                        <td className="px-4 py-4 align-middle text-center">
+                          <select
                             disabled={isMRLocked(selectedRequirement.id)}
-                            className="bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700 focus:ring-1 focus:ring-primary rounded px-2 py-1 w-full text-[12px] min-w-[120px]"
+                            className="text-[12px] font-bold bg-white/40 dark:bg-[#0F172A]/30 border border-gray-200/50 dark:border-gray-800/80 focus:border-primary focus:ring-1 focus:ring-primary rounded-xl px-3 py-1.5 cursor-pointer text-gray-700 dark:text-gray-300 transition-all outline-none disabled:opacity-50 shadow-inner appearance-none pr-8 min-w-[130px]"
                             value={item.category || ""}
-                            onChange={(e: any) => {
+                            onChange={(e) => {
                               const newItems = [...selectedRequirement.items];
                               newItems[idx].category = e.target.value;
                               setSelectedRequirement({ ...selectedRequirement, items: newItems });
                             }}
-                            options={categoryOptions}
-                          />
+                            style={{
+                              backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%236B7280'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E")`,
+                              backgroundRepeat: 'no-repeat',
+                              backgroundPosition: 'right 0.75rem center',
+                              backgroundSize: '1em'
+                            }}
+                          >
+                            <option value="" className="bg-white dark:bg-[#1E293B] text-gray-700 dark:text-gray-300">Select Category</option>
+                            {categoryOptions.map((cat: any) => (
+                              <option key={cat} value={cat} className="bg-white dark:bg-[#1E293B] text-gray-700 dark:text-gray-300">
+                                {cat}
+                              </option>
+                            ))}
+                          </select>
                         </td>
-                        <td className="px-4 py-3 align-middle text-center">
+                        <td className="px-4 py-4 align-middle text-center">
                           <select
                             disabled={isMRLocked(selectedRequirement.id)}
-                            className="text-[12px] font-bold bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 focus:ring-1 focus:ring-primary rounded-lg px-2 py-1.5 cursor-pointer text-gray-700 dark:text-gray-300 transition-all outline-none disabled:opacity-50"
+                            className="text-[12px] font-bold bg-white/40 dark:bg-[#0F172A]/30 border border-gray-200/50 dark:border-gray-800/80 focus:border-primary focus:ring-1 focus:ring-primary rounded-xl px-3 py-1.5 cursor-pointer text-gray-700 dark:text-gray-300 transition-all outline-none disabled:opacity-50 shadow-inner appearance-none pr-8"
                             value={item.condition || "New"}
                             onChange={(e) => {
                               const newItems = [...selectedRequirement.items];
                               newItems[idx].condition = e.target.value as any;
                               setSelectedRequirement({ ...selectedRequirement, items: newItems });
                             }}
+                            style={{
+                              backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%236B7280'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E")`,
+                              backgroundRepeat: 'no-repeat',
+                              backgroundPosition: 'right 0.75rem center',
+                              backgroundSize: '1em'
+                            }}
                           >
-                            <option value="New">New</option>
-                            <option value="Old">Old</option>
+                            <option value="New" className="bg-white dark:bg-[#1E293B] text-gray-700 dark:text-gray-300">New</option>
+                            <option value="Old" className="bg-white dark:bg-[#1E293B] text-gray-700 dark:text-gray-300">Old</option>
                           </select>
                         </td>
-                        <td className="px-4 py-3 align-middle text-right">
-                          <div className="flex flex-col items-end gap-1">
-                            <input 
-                              disabled={isMRLocked(selectedRequirement.id)}
-                              type="number"
-                              className="w-20 text-right text-[13px] font-bold bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700 focus:ring-1 focus:ring-primary rounded px-2 py-1 shadow-sm transition-colors text-gray-900 dark:text-white disabled:opacity-50"
-                              value={item.qty}
-                              onChange={(e) => {
-                                const newItems = [...selectedRequirement.items];
-                                const qty = Number(e.target.value);
-                                const inv = inventory.find(i => i.sku === item.sku);
-                                
-                                let status = item.status;
-                                let availableInStock = item.availableInStock || 0;
-                                
-                                if (inv) {
-                                  const available = inv.liveStock || 0;
-                                  if (available >= qty) status = "In Stock";
-                                  else if (available > 0) status = "Partial";
-                                  else status = "Needs Purchase";
-                                  availableInStock = Math.min(qty, available);
-                                }
-
-                                newItems[idx] = { 
-                                  ...newItems[idx], 
-                                  qty, 
-                                  status, 
-                                  availableInStock,
-                                  remainingQty: Math.max(0, qty - availableInStock)
-                                };
-                                setSelectedRequirement({ ...selectedRequirement, items: newItems });
-                              }}
-                            />
-                             <select
-                              className="text-[11px] font-bold bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700 focus:ring-1 focus:ring-primary rounded px-2 py-0.5 cursor-pointer text-gray-700 dark:text-gray-300 transition-colors"
-                              value={item.unit}
-                              onChange={(e) => {
-                                const newItems = [...selectedRequirement.items];
-                                newItems[idx].unit = e.target.value;
-                                setSelectedRequirement({ ...selectedRequirement, items: newItems });
-                              }}
-                            >
-                              <option value="">Unit</option>
-                              {UNITS.map(u => <option key={u} value={u} className="bg-white dark:bg-gray-800">{u}</option>)}
-                            </select>
+                        <td className="px-4 py-4 align-middle text-right">
+                          <div className="flex items-center justify-end">
+                            <div className="flex items-center bg-white/40 dark:bg-[#0F172A]/30 border border-gray-200/50 dark:border-gray-800/80 rounded-xl focus-within:border-primary focus-within:ring-1 focus-within:ring-primary overflow-hidden shadow-inner w-32 shrink-0">
+                              <input 
+                                disabled={isMRLocked(selectedRequirement.id)}
+                                type="number"
+                                className="w-16 bg-transparent text-right text-[13px] font-black text-gray-900 dark:text-white outline-none border-none py-1.5 pl-2 pr-1 disabled:opacity-60 disabled:cursor-not-allowed"
+                                value={item.qty}
+                                onChange={(e) => {
+                                  const newItems = [...selectedRequirement.items];
+                                  const qty = Number(e.target.value);
+                                  const inv = inventory.find(i => i.sku === item.sku);
+                                  
+                                  let status = item.status;
+                                  let availableInStock = item.availableInStock || 0;
+                                  
+                                  if (inv) {
+                                    const available = inv.liveStock || 0;
+                                    if (available >= qty) status = "In Stock";
+                                    else if (available > 0) status = "Partial";
+                                    else status = "Needs Purchase";
+                                    availableInStock = Math.min(qty, available);
+                                  }
+ 
+                                  newItems[idx] = { 
+                                    ...newItems[idx], 
+                                    qty, 
+                                    status, 
+                                    availableInStock,
+                                    remainingQty: Math.max(0, qty - availableInStock)
+                                  };
+                                  setSelectedRequirement({ ...selectedRequirement, items: newItems });
+                                }}
+                              />
+                              <span className="text-gray-300 dark:text-gray-600 font-light select-none px-0.5">|</span>
+                              <select
+                                disabled={isMRLocked(selectedRequirement.id)}
+                                className="flex-1 bg-transparent text-[11px] font-bold text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300 cursor-pointer outline-none border-none py-1.5 pl-1 pr-4 appearance-none"
+                                value={item.unit}
+                                onChange={(e) => {
+                                  const newItems = [...selectedRequirement.items];
+                                  newItems[idx].unit = e.target.value;
+                                  setSelectedRequirement({ ...selectedRequirement, items: newItems });
+                                }}
+                                style={{
+                                  backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%2394A3B8'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E")`,
+                                  backgroundRepeat: 'no-repeat',
+                                  backgroundPosition: 'right 0.25rem center',
+                                  backgroundSize: '0.8em'
+                                }}
+                              >
+                                <option value="">Unit</option>
+                                {UNITS.map(u => <option key={u} value={u} className="bg-white dark:bg-gray-800 text-gray-900 dark:text-white">{u}</option>)}
+                              </select>
+                            </div>
                           </div>
                         </td>
-                        <td className="px-4 py-3 align-middle text-right">
+                        <td className="px-4 py-4 align-middle text-right">
                           {hasPermission("ALLOCATE_MR") && !isMRLocked(selectedRequirement.id) ? (
                             <input
                               type="number"
-                              className="w-20 text-right text-[13px] font-bold bg-green-50 dark:bg-green-900/10 border border-green-200 dark:border-green-800 rounded px-2 py-1 shadow-sm text-green-700 dark:text-green-400 focus:ring-1 focus:ring-green-500 outline-none"
+                              className="w-20 text-right text-[13px] font-bold bg-emerald-500/5 border border-emerald-500/20 dark:border-emerald-500/30 rounded-xl px-3 py-1.5 shadow-inner text-emerald-600 dark:text-emerald-400 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 outline-none transition-all"
                               value={item.availableInStock || 0}
                               max={item.qty}
                               onChange={(e) => {
@@ -1293,7 +1457,7 @@ export const MaterialRequirementPage = () => {
                                 let status: MaterialRequirementItem['status'] = "Needs Purchase";
                                 if (val >= requested) status = "In Stock";
                                 else if (val > 0) status = "Partial";
-
+ 
                                 newItems[idx] = { 
                                   ...newItems[idx], 
                                   availableInStock: val,
@@ -1304,19 +1468,21 @@ export const MaterialRequirementPage = () => {
                               }}
                             />
                           ) : (
-                            <span className="text-[13px] font-bold text-green-600 dark:text-green-400">
-                              {(() => {
-                                const inv = inventory.find(i => i.sku === item.sku);
-                                return inv ? (inv.liveStock || 0) : (item.availableInStock || 0);
-                              })()}
-                            </span>
+                            <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-500/5 text-emerald-600 dark:text-emerald-400 rounded-xl border border-emerald-500/20 dark:border-emerald-500/30 shadow-xs shrink-0">
+                              <span className="text-[12px] font-black leading-none">
+                                {(() => {
+                                  const inv = inventory.find(i => i.sku === item.sku);
+                                  return inv ? (inv.liveStock || 0) : (item.availableInStock || 0);
+                                })()}
+                              </span>
+                            </div>
                           )}
                         </td>
-                        <td className="px-4 py-3 align-middle text-right">
+                        <td className="px-4 py-4 align-middle text-right">
                           {hasPermission("ALLOCATE_MR") && !isMRLocked(selectedRequirement.id) ? (
                             <input
                               type="number"
-                              className="w-20 text-right text-[13px] font-bold bg-red-50 dark:bg-red-900/10 border border-red-200 dark:border-red-800 rounded px-2 py-1 shadow-sm text-red-700 dark:text-red-400 focus:ring-1 focus:ring-red-500 outline-none"
+                              className="w-20 text-right text-[13px] font-bold bg-rose-500/5 border border-rose-500/20 dark:border-rose-500/30 rounded-xl px-3 py-1.5 shadow-inner text-rose-600 dark:text-rose-450 focus:border-rose-500 focus:ring-1 focus:ring-rose-500 outline-none transition-all"
                               value={item.remainingQty || 0}
                               max={item.qty}
                               onChange={(e) => {
@@ -1328,7 +1494,7 @@ export const MaterialRequirementPage = () => {
                                 let status: MaterialRequirementItem['status'] = "Needs Purchase";
                                 if (allocated >= requested) status = "In Stock";
                                 else if (allocated > 0) status = "Partial";
-
+ 
                                 newItems[idx] = { 
                                   ...newItems[idx], 
                                   remainingQty: val,
@@ -1339,21 +1505,23 @@ export const MaterialRequirementPage = () => {
                               }}
                             />
                           ) : (
-                            <span className="text-[13px] font-bold text-red-600 dark:text-red-400">
-                              {(() => {
-                                const inv = inventory.find(i => i.sku === item.sku);
-                                const liveStock = inv ? (inv.liveStock || 0) : (item.availableInStock || 0);
-                                return Math.max(0, (item.qty || 0) - liveStock);
-                              })()}
-                            </span>
+                            <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-rose-500/5 text-rose-600 dark:text-rose-450 rounded-xl border border-rose-500/20 dark:border-rose-500/30 shadow-xs shrink-0">
+                              <span className="text-[12px] font-black leading-none">
+                                {(() => {
+                                  const inv = inventory.find(i => i.sku === item.sku);
+                                  const liveStock = inv ? (inv.liveStock || 0) : (item.availableInStock || 0);
+                                  return Math.max(0, (item.qty || 0) - liveStock);
+                                })()}
+                              </span>
+                            </div>
                           )}
                         </td>
-                        <td className="px-5 py-3 align-middle text-center">
-                           <StatusBadge 
-                             status={item.status || "Check Required"}
-                           />
+                        <td className="px-5 py-4 align-middle text-center">
+                          <StatusBadge 
+                            status={item.status || "Check Required"}
+                          />
                         </td>
-                        <td className="px-4 py-3 align-middle text-center">
+                        <td className="px-4 py-4 align-middle text-right">
                           <button 
                             disabled={isMRLocked(selectedRequirement.id)}
                             onClick={async () => {
@@ -1374,7 +1542,7 @@ export const MaterialRequirementPage = () => {
                                     }
                                   });
                                 }
-
+ 
                                 await updateMaterialRequirement(selectedRequirement.id, {
                                   ...selectedRequirement,
                                   items: currentItems
@@ -1384,11 +1552,11 @@ export const MaterialRequirementPage = () => {
                                 toast.error("Update failed");
                               }
                             }}
-                            className="p-2 hover:bg-green-50 dark:hover:bg-green-900/10 text-green-600 rounded-xl border border-green-100 dark:border-green-800/30 transition-all flex items-center gap-1.5 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                            className="p-2.5 bg-emerald-500/10 hover:bg-emerald-600 hover:text-white text-emerald-600 dark:text-emerald-400 rounded-xl border border-emerald-500/20 dark:border-emerald-500/30 transition-all flex items-center justify-center gap-1 shadow-xs disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer shrink-0"
                             title={isMRLocked(selectedRequirement.id) ? "Locked: Purchase Order exists" : "Save changes to this item"}
                           >
-                             <Check className="w-4 h-4" />
-                             <span className="text-[10px] font-bold">Save</span>
+                            <Check className="w-4 h-4 shrink-0" />
+                            <span className="text-[10px] font-bold">Save</span>
                           </button>
                         </td>
                       </tr>
@@ -1400,11 +1568,11 @@ export const MaterialRequirementPage = () => {
               {/* Mobile view cards */}
               <div className="md:hidden space-y-3">
                 {selectedRequirement.items.map((item, idx) => (
-                  <Card key={idx} className="p-4 space-y-3 border-gray-100 dark:border-gray-800 shadow-sm">
+                  <Card key={idx} className="p-4 space-y-3 bg-gray-50/25 dark:bg-[#0F172A]/40 border border-gray-155/60 dark:border-gray-800/80 shadow-sm">
                     <div className="flex justify-between items-start">
                       <div className="flex-1 mr-2">
                         <input 
-                          className="text-sm font-bold text-gray-900 dark:text-white block bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700 focus:ring-1 focus:ring-primary rounded px-2 py-1 w-full"
+                          className="text-sm font-bold text-gray-900 dark:text-white block bg-white/40 dark:bg-[#0F172A]/30 border border-gray-200/50 dark:border-gray-800/80 focus:ring-1 focus:ring-primary rounded px-2 py-1 w-full"
                           value={item.materialName}
                           onChange={(e) => {
                             const newItems = [...selectedRequirement.items];
@@ -1445,7 +1613,7 @@ export const MaterialRequirementPage = () => {
                         <div className="flex items-center gap-2">
                            <input 
                             type="number"
-                            className="text-xs font-bold text-gray-700 dark:text-white bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded px-1.5 py-1 w-16"
+                            className="text-xs font-bold text-gray-700 dark:text-white bg-white/40 dark:bg-[#0F172A]/30 border border-gray-200/50 dark:border-gray-800/80 rounded px-1.5 py-1 w-16"
                             value={item.qty}
                             onChange={(e) => {
                               const newItems = [...selectedRequirement.items];
@@ -1473,7 +1641,7 @@ export const MaterialRequirementPage = () => {
                           {hasPermission("ALLOCATE_MR") && !isMRLocked(selectedRequirement.id) ? (
                             <input
                               type="number"
-                              className="text-xs font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/10 border border-emerald-200 dark:border-emerald-800 rounded px-1.5 py-0.5 w-full mt-1 outline-none focus:ring-1 focus:ring-emerald-500"
+                              className="text-xs font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/5 border border-emerald-500/20 dark:border-emerald-500/30 rounded px-1.5 py-0.5 w-full mt-1 outline-none focus:ring-1 focus:ring-emerald-500"
                               value={item.availableInStock || 0}
                               max={item.qty}
                               onChange={(e) => {
@@ -1501,7 +1669,7 @@ export const MaterialRequirementPage = () => {
                           {hasPermission("ALLOCATE_MR") && !isMRLocked(selectedRequirement.id) ? (
                             <input
                               type="number"
-                              className="text-xs font-bold text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-900/10 border border-orange-200 dark:border-orange-800 rounded px-1.5 py-0.5 w-full mt-1 outline-none focus:ring-1 focus:ring-orange-500"
+                              className="text-xs font-bold text-rose-600 dark:text-rose-450 bg-rose-500/5 border border-rose-500/20 dark:border-rose-500/30 rounded px-1.5 py-0.5 w-full mt-1 outline-none focus:ring-1 focus:ring-rose-500"
                               value={item.remainingQty || 0}
                               max={item.qty}
                               onChange={(e) => {
@@ -1549,7 +1717,7 @@ export const MaterialRequirementPage = () => {
                            toast.error("Failed");
                          }
                       }}
-                      className="w-full py-2 bg-green-50 dark:bg-green-900/10 text-green-600 dark:text-green-400 rounded-lg text-xs font-bold flex items-center justify-center gap-2 border border-green-100 dark:border-green-800/30"
+                      className="w-full py-2 bg-emerald-500/10 hover:bg-emerald-600 hover:text-white text-emerald-600 dark:text-emerald-400 rounded-lg text-xs font-bold flex items-center justify-center gap-2 border border-emerald-500/20 dark:border-emerald-500/30"
                     >
                       <Check className="w-3.5 h-3.5" />
                       Save item changes
@@ -1559,8 +1727,8 @@ export const MaterialRequirementPage = () => {
               </div>
             </div>
 
-            <div className="flex flex-wrap gap-3 justify-between items-center pt-4 border-t border-gray-100 dark:border-gray-800">
-              <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap gap-3 justify-between items-center pt-5 border-t border-gray-150/60 dark:border-gray-800/80 mt-2">
+              <div className="flex flex-wrap gap-2.5 items-center">
                 <button
                   disabled={isMRLocked(selectedRequirement.id) || !allItemsMapped}
                   onClick={async () => {
@@ -1578,30 +1746,38 @@ export const MaterialRequirementPage = () => {
                       toast.error("Save failed: " + e.message, { id: "save-mr" });
                     }
                   }}
-                  className="flex items-center gap-2 px-5 py-2.5 bg-green-600 text-white rounded-xl text-xs font-bold hover:bg-green-700 transition-all tracking-widest shadow-lg shadow-green-200 dark:shadow-none disabled:bg-gray-400 disabled:shadow-none disabled:cursor-not-allowed"
+                  className="flex items-center gap-2 px-5 py-2.5 bg-primary hover:bg-primary/90 hover:-translate-y-0.5 active:translate-y-0 text-white rounded-xl text-xs font-black transition-all tracking-wider shadow-lg shadow-orange-500/20 dark:shadow-none disabled:bg-gray-400 disabled:shadow-none disabled:cursor-not-allowed disabled:transform-none cursor-pointer"
                 >
                   <Check className="w-4 h-4" />
                   Save & close
                 </button>
                 {hasPermission("GET_QUOTATION_LINK") && (
-                  <div className="relative group">
+                  <div className="relative quotation-dropdown-container">
                     <button
-                      disabled={!allItemsMapped}
-                      className="flex items-center gap-2 px-4 py-2.5 bg-orange-50 dark:bg-orange-900/20 text-orange-600 dark:text-orange-400 rounded-xl text-xs font-bold hover:bg-orange-100 dark:hover:bg-orange-900/40 transition-all tracking-widest peer disabled:opacity-50 disabled:cursor-not-allowed"
+                      disabled={!allItemsMapped || selectedRequirement.quotationLinkActive === false}
+                      onClick={() => setShowQuotationDropdown(!showQuotationDropdown)}
+                      className={cn(
+                        "flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black transition-all tracking-wider disabled:opacity-50 disabled:cursor-not-allowed shrink-0 cursor-pointer border",
+                        showQuotationDropdown
+                          ? "bg-primary text-white border-primary"
+                          : "bg-orange-50/50 hover:bg-primary hover:text-white dark:bg-orange-950/15 dark:hover:bg-primary text-primary border-primary/20"
+                      )}
+                      title={selectedRequirement.quotationLinkActive === false ? "Link is deactivated by AGM" : ""}
                     >
                       <Link2 className="w-4 h-4" />
                       Get quotation link
                     </button>
-                    {allItemsMapped && (
-                      <div className="absolute bottom-full left-0 mb-2 w-56 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-xl p-2 hidden group-hover:block transition-all z-50">
+                    {allItemsMapped && selectedRequirement.quotationLinkActive !== false && showQuotationDropdown && (
+                      <div className="absolute bottom-full left-0 mb-2 w-56 bg-white dark:bg-[#1E293B] border border-gray-200 dark:border-gray-800 rounded-xl shadow-xl p-2 block transition-all z-50 animate-in fade-in slide-in-from-bottom-2 duration-200">
                         <p className="text-[10px] font-bold text-gray-400 px-3 py-1 uppercase tracking-wider">Select Category</p>
                         <button
                           onClick={() => {
                             const url = `${window.location.origin}${window.location.pathname}#public-quotation?mrId=${selectedRequirement.id}`;
                             navigator.clipboard.writeText(url);
                             toast.success("All items link copied!");
+                            setShowQuotationDropdown(false);
                           }}
-                          className="w-full text-left px-3 py-2 text-[12px] font-medium text-gray-700 dark:text-gray-300 hover:bg-orange-50 dark:hover:bg-orange-900/20 rounded-lg transition-colors"
+                          className="w-full text-left px-3 py-2 text-[12px] font-semibold text-gray-700 dark:text-gray-300 hover:bg-primary/10 dark:hover:bg-primary/20 rounded-lg transition-colors cursor-pointer"
                         >
                           All Categories
                         </button>
@@ -1612,8 +1788,9 @@ export const MaterialRequirementPage = () => {
                               const url = `${window.location.origin}${window.location.pathname}#public-quotation?mrId=${selectedRequirement.id}&category=${encodeURIComponent(String(cat))}`;
                               navigator.clipboard.writeText(url);
                               toast.success(`${cat} link copied!`);
+                              setShowQuotationDropdown(false);
                             }}
-                            className="w-full text-left px-3 py-2 text-[12px] font-medium text-gray-700 dark:text-gray-300 hover:bg-orange-50 dark:hover:bg-orange-900/20 rounded-lg transition-colors"
+                            className="w-full text-left px-3 py-2 text-[12px] font-semibold text-gray-700 dark:text-gray-300 hover:bg-primary/10 dark:hover:bg-primary/20 rounded-lg transition-colors cursor-pointer"
                           >
                             {cat}
                           </button>
@@ -1626,7 +1803,7 @@ export const MaterialRequirementPage = () => {
                   <button
                     disabled={!allItemsMapped}
                     onClick={() => handleRecheck(selectedRequirement)}
-                    className="flex items-center gap-2 px-4 py-2.5 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 rounded-xl text-xs font-bold hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-all tracking-widest disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="flex items-center gap-2 px-4 py-2.5 bg-blue-500/10 hover:bg-blue-600 hover:text-white dark:bg-blue-500/10 dark:hover:bg-blue-600 text-blue-600 dark:text-blue-400 rounded-xl text-xs font-black transition-all tracking-wider border border-blue-200/50 dark:border-blue-800/30 disabled:opacity-50 disabled:cursor-not-allowed shrink-0 cursor-pointer"
                   >
                     <RefreshCw className={`w-4 h-4 ${actionLoading ? 'animate-spin' : ''}`} />
                     Recheck
@@ -1639,20 +1816,21 @@ export const MaterialRequirementPage = () => {
                     return { ...item, liveStock, isAvailable: liveStock >= item.qty };
                   });
                   const allInStock = itemsWithStockStatus.every(i => i.isAvailable);
-                  const hasFinalQuotation = selectedRequirement.approvedQuotationId || selectedRequirement.approvedSupplier;
+                  const hasFinalQuotation = selectedRequirement.approvals?.length > 0 || selectedRequirement.approvedQuotationId || selectedRequirement.approvedSupplier;
                   const someAllocated = selectedRequirement.items.some(i => (i.allocatedQty || 0) > 0);
                   const hasPurchaseItems = itemsWithStockStatus.some(i => i.status === "Needs Purchase" || i.status === "Purchase Required");
                   const canApprove = allInStock || hasFinalQuotation || someAllocated || hasPurchaseItems;
 
                   return (selectedRequirement.status === "Store Pending" || selectedRequirement.status === "Allocated" || selectedRequirement.status === "Partially Allocated") && (hasPermission("APPROVE_MR_STORE") || hasPermission("MANAGE_INVENTORY")) ? (
-                    <div className="flex flex-col items-end gap-2">
-                       {!canApprove && (
-                         <p className="text-[10px] text-amber-500 font-bold italic animate-pulse">
-                           Inventory unavailable: Please allocate stock, link inventory, or mark for purchase before approving.
-                         </p>
-                       )}
-                       <div className="flex gap-2">
-                         <button
+                    <div className="flex flex-col items-end gap-2 shrink-0">
+                      {!canApprove && (
+                        <div className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-500/5 border border-amber-500/20 rounded-xl text-amber-600 dark:text-amber-455 animate-pulse text-[10px] font-bold">
+                          <AlertTriangle className="w-3.5 h-3.5" />
+                          Inventory unavailable: Please allocate stock, link inventory, or mark for purchase before approving.
+                        </div>
+                      )}
+                      <div className="flex gap-2">
+                        <button
                           onClick={async () => {
                             if (!canApprove || !allItemsMapped) {
                               toast.error("Inventory check failed. Please ensure items are mapped to inventory and either in stock, linked, or marked for purchase.");
@@ -1669,11 +1847,7 @@ export const MaterialRequirementPage = () => {
                             }
                           }}
                           disabled={!canApprove || !allItemsMapped}
-                          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all tracking-widest ${
-                            (canApprove && allItemsMapped) 
-                              ? "bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400 hover:bg-green-100 dark:hover:bg-green-900/40" 
-                              : "bg-gray-100 dark:bg-gray-800 text-gray-400 cursor-not-allowed"
-                          }`}
+                          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black transition-all tracking-wider border shrink-0 cursor-pointer ${(canApprove && allItemsMapped) ? "bg-emerald-500/10 hover:bg-emerald-600 hover:text-white dark:bg-emerald-500/10 dark:hover:bg-emerald-600 text-emerald-600 dark:text-emerald-400 border-emerald-500/25 dark:border-emerald-800/40" : "bg-gray-100 dark:bg-gray-800 text-gray-400 border-gray-250 dark:border-gray-700 cursor-not-allowed"}`}
                         >
                           <CheckCircle className="w-4 h-4" />
                           Approve by store
@@ -1681,22 +1855,28 @@ export const MaterialRequirementPage = () => {
                       </div>
                     </div>
                   ) : selectedRequirement.status === "Quotation Phase" ? (
-                    <div className="flex flex-col items-end gap-2">
-                       <div className="flex gap-2">
-                         {hasPermission("VIEW_QUOTATIONS") && (
-                           <button
-                             onClick={() => {
-                               window.location.hash = "quotations";
-                               setViewModal(false);
-                             }}
-                             className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all tracking-widest bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/40"
-                           >
-                             <TrendingUp className="w-4 h-4" />
-                             Compare Quotations
-                           </button>
-                         )}
-                         {hasPermission("APPROVE_MR_AGM") && (
-                           <button
+                    <div className="flex flex-col sm:flex-row items-center gap-3 shrink-0">
+                      {hasPermission("VIEW_QUOTATIONS") && (
+                        <button
+                          onClick={() => {
+                            window.location.hash = "quotations";
+                            setViewModal(false);
+                          }}
+                          className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black transition-all tracking-wider bg-blue-500/10 hover:bg-blue-600 hover:text-white dark:bg-blue-500/10 dark:hover:bg-blue-600 text-blue-600 dark:text-blue-400 border border-blue-200/50 dark:border-blue-800/30 shrink-0 cursor-pointer"
+                        >
+                          <TrendingUp className="w-4 h-4" />
+                          Compare Quotations
+                        </button>
+                      )}
+                      {hasPermission("APPROVE_MR_AGM") && (
+                        <div className="flex flex-col sm:flex-row items-center gap-2">
+                          {!hasFinalQuotation && (
+                            <div className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-500/5 border border-amber-500/20 rounded-xl text-amber-600 dark:text-amber-450 animate-pulse text-[10px] font-bold">
+                              <AlertTriangle className="w-3.5 h-3.5" />
+                              No quotation finalized: Please finalize a quotation before AGM approval.
+                            </div>
+                          )}
+                          <button
                             onClick={async () => {
                               if (!hasFinalQuotation) {
                                 toast.error("No quotation finalized yet.");
@@ -1711,21 +1891,16 @@ export const MaterialRequirementPage = () => {
                               }
                             }}
                             disabled={!hasFinalQuotation}
-                            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all tracking-widest ${
+                            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black transition-all tracking-wider shrink-0 cursor-pointer border ${
                               hasFinalQuotation 
-                                ? "bg-[#F97316] text-white shadow-lg shadow-orange-500/20" 
-                                : "bg-gray-100 dark:bg-gray-800 text-gray-400 cursor-not-allowed"
+                                ? "bg-primary hover:bg-primary/95 text-white border-primary/20 shadow-lg shadow-orange-500/10 hover:-translate-y-0.5 active:translate-y-0 duration-200" 
+                                : "bg-gray-100 dark:bg-gray-800 text-gray-400 border-gray-200 dark:border-gray-700 cursor-not-allowed"
                             }`}
                           >
                             <CheckCircle className="w-4 h-4" />
                             Final Approve by AGM
                           </button>
-                         )}
-                      </div>
-                      {!hasFinalQuotation && hasPermission("APPROVE_MR_AGM") && (
-                        <p className="text-[10px] text-amber-500 font-bold italic animate-pulse">
-                          No quotation finalized: Please finalize a quotation before AGM approval.
-                        </p>
+                        </div>
                       )}
                     </div>
                   ) : null;
@@ -1740,10 +1915,11 @@ export const MaterialRequirementPage = () => {
                     }}
                     loading={actionLoading}
                     disabled={!allItemsMapped}
+                    className="rounded-xl bg-rose-500/10 hover:bg-rose-600 hover:text-white text-rose-600 dark:text-rose-450 border border-rose-500/25 dark:border-rose-500/30 transition-all duration-200 font-black tracking-wider text-xs px-4 py-2.5 cursor-pointer shrink-0"
                   />
                 )}
               </div>
-              <Btn label="Cancel" outline onClick={() => setViewModal(false)} />
+              <Btn label="Cancel" outline onClick={() => setViewModal(false)} className="rounded-xl font-black text-xs px-5 py-2.5 cursor-pointer shrink-0" />
             </div>
           </div>
         </Modal>

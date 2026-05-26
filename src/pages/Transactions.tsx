@@ -155,11 +155,10 @@ export const TransactionsPage = ({ type }: { type?: TransactionType }) => {
       filter.type = { $in: ["Inward", "Public Inward", "GRN", "Manual"] };
     } else if (type === "Outward") {
       filter.type = { $in: ["Outward", "Public Outward", "Manual"] };
-    } else if (type === "Inward Return") {
-      filter.type = { $in: ["Inward Return", "Public Inward Return"] };
-    } else if (type === "Outward Return") {
-      filter.type = { $in: ["Outward Return", "Public Outward Return"] };
     }
+    // Note: "Inward Return" and "Outward Return" fetch from their own collections
+    // which do not have a 'type' field, so we omit filtering by type here.
+    
     
     // Only add type filter if we are on the "All Transactions" page
     if (!type && filterType) {
@@ -549,23 +548,25 @@ export const TransactionsPage = ({ type }: { type?: TransactionType }) => {
     return false;
   };
 
-  const getEditPermission = (trxType: string) => {
-    if (trxType.includes("Inward Return")) return "EDIT_INWARD_RETURN";
-    if (trxType.includes("Outward Return")) return "EDIT_OUTWARD_RETURN";
-    if (trxType.includes("Transfer Inward")) return "EDIT_TRANSFER_INWARD";
-    if (trxType.includes("Transfer Outward")) return "EDIT_TRANSFER_OUTWARD";
-    if (trxType.includes("Inward") || trxType === "GRN" || trxType === "Manual") return "EDIT_INWARD";
-    if (trxType.includes("Outward") || trxType === "Manual") return "EDIT_OUTWARD";
+  const getEditPermission = (trxType?: string) => {
+    const t = trxType || type || "";
+    if (t.includes("Inward Return")) return "EDIT_INWARD_RETURN";
+    if (t.includes("Outward Return")) return "EDIT_OUTWARD_RETURN";
+    if (t.includes("Transfer Inward")) return "EDIT_TRANSFER_INWARD";
+    if (t.includes("Transfer Outward")) return "EDIT_TRANSFER_OUTWARD";
+    if (t.includes("Inward") || t === "GRN" || t === "Manual") return "EDIT_INWARD";
+    if (t.includes("Outward") || t === "Manual") return "EDIT_OUTWARD";
     return "";
   };
 
-  const getDeletePermission = (trxType: string) => {
-    if (trxType.includes("Inward Return")) return "DELETE_INWARD_RETURN";
-    if (trxType.includes("Outward Return")) return "DELETE_OUTWARD_RETURN";
-    if (trxType.includes("Transfer Inward")) return "DELETE_TRANSFER_INWARD";
-    if (trxType.includes("Transfer Outward")) return "DELETE_TRANSFER_OUTWARD";
-    if (trxType.includes("Inward") || trxType === "GRN" || trxType === "Manual") return "DELETE_INWARD";
-    if (trxType.includes("Outward") || trxType === "Manual") return "DELETE_OUTWARD";
+  const getDeletePermission = (trxType?: string) => {
+    const t = trxType || type || "";
+    if (t.includes("Inward Return")) return "DELETE_INWARD_RETURN";
+    if (t.includes("Outward Return")) return "DELETE_OUTWARD_RETURN";
+    if (t.includes("Transfer Inward")) return "DELETE_TRANSFER_INWARD";
+    if (t.includes("Transfer Outward")) return "DELETE_TRANSFER_OUTWARD";
+    if (t.includes("Inward") || t === "GRN" || t === "Manual") return "DELETE_INWARD";
+    if (t.includes("Outward") || t === "Manual") return "DELETE_OUTWARD";
     return "";
   };
 
@@ -600,7 +601,7 @@ export const TransactionsPage = ({ type }: { type?: TransactionType }) => {
         }
       />
 
-      <div className="sticky top-0 z-30 will-change-transform bg-gray-50 dark:bg-gray-950 -mx-4 sm:-mx-6 md:-mx-8 px-4 sm:px-6 md:px-8 py-4 border-b border-gray-200 dark:border-gray-800 mb-6 flex flex-col gap-3">
+      <div className="mb-6 flex flex-col gap-3">
         {type === "Outward" && (
           <div className="flex gap-1 p-1 bg-gray-100 dark:bg-gray-800 rounded-xl w-fit">
             <button
@@ -787,14 +788,14 @@ export const TransactionsPage = ({ type }: { type?: TransactionType }) => {
                         {formatDateTime(trx.date)}
                       </div>
                     </td>
-                    <td className="hidden md:table-cell px-4 py-3 text-[13px] font-bold text-gray-900 dark:text-white">{trx.project}</td>
-                    <td className="hidden md:table-cell px-4 py-3 text-[13px] font-bold text-gray-900 dark:text-white">{trx.destinationProject || "N/A"}</td>
+                    <td className="hidden md:table-cell px-4 py-3 text-[13px] font-bold text-gray-900 dark:text-white max-w-[150px] truncate" title={trx.project}>{trx.project}</td>
+                    <td className="hidden md:table-cell px-4 py-3 text-[13px] font-bold text-gray-900 dark:text-white max-w-[150px] truncate" title={trx.destinationProject || ""}>{trx.destinationProject || "N/A"}</td>
                     <td className="hidden md:table-cell px-4 py-3">
-                      <div className="flex flex-col">
-                        <span className="text-[13px] font-bold text-gray-900 dark:text-white">
-                          {trx.itemName || trx.items?.[0]?.itemName || currentInventory.find(i => i.sku === (trx.sku || trx.items?.[0]?.sku))?.itemName || catalogue.find(c => c.sku === (trx.sku || trx.items?.[0]?.sku))?.itemName || trx.sku || "N/A"}
+                      <div className="flex flex-col max-w-[200px]">
+                        <span className="text-[13px] font-bold text-gray-900 dark:text-white truncate" title={trx.itemName || trx.items?.[0]?.itemName || inventory.find(i => i.sku === (trx.sku || trx.items?.[0]?.sku))?.itemName || catalogue.find(c => c.sku === (trx.sku || trx.items?.[0]?.sku))?.itemName || trx.sku || "N/A"}>
+                          {trx.itemName || trx.items?.[0]?.itemName || inventory.find(i => i.sku === (trx.sku || trx.items?.[0]?.sku))?.itemName || catalogue.find(c => c.sku === (trx.sku || trx.items?.[0]?.sku))?.itemName || trx.sku || "N/A"}
                         </span>
-                        <span className="text-[11px] text-gray-500 font-mono">{trx.sku || trx.items?.[0]?.sku}</span>
+                        <span className="text-[11px] text-gray-500 font-mono truncate">{trx.sku || trx.items?.[0]?.sku}</span>
                       </div>
                     </td>
                     <td className="hidden md:table-cell px-4 py-3 text-right">
@@ -807,9 +808,9 @@ export const TransactionsPage = ({ type }: { type?: TransactionType }) => {
                         </span>
                       </div>
                     </td>
-                    <td className="hidden md:table-cell px-4 py-3 text-[13px] text-gray-600 dark:text-gray-400 font-bold">{trx.gatePassNo || "N/A"}</td>
-                    <td className="hidden md:table-cell px-4 py-3 text-[13px] text-gray-600 dark:text-gray-400">
-                      <p className="font-bold">{trx.personName || trx.handoverTo || "N/A"}</p>
+                    <td className="hidden md:table-cell px-4 py-3 text-[13px] text-gray-600 dark:text-gray-400 font-bold max-w-[150px] truncate" title={trx.gatePassNo || ""}>{trx.gatePassNo || "N/A"}</td>
+                    <td className="hidden md:table-cell px-4 py-3 text-[13px] text-gray-600 dark:text-gray-400 max-w-[150px]">
+                      <p className="font-bold truncate" title={trx.personName || trx.handoverTo || ""}>{trx.personName || trx.handoverTo || "N/A"}</p>
                       {(trx.personPhotoUrl || trx.personImageUrl || (trx.personPhotos && trx.personPhotos.length > 0)) && (
                         <img 
                           src={trx.personPhotoUrl || trx.personImageUrl || trx.personPhotos![0]} 
@@ -924,11 +925,11 @@ export const TransactionsPage = ({ type }: { type?: TransactionType }) => {
                        </div>
                     </td>
                     <td className="hidden md:table-cell px-4 py-3">
-                      <div className="flex flex-col">
-                        <span className="text-[13px] font-bold text-gray-900 dark:text-white">
-                          {trx.itemName || trx.items?.[0]?.itemName || inventory.find(i => i.sku === (trx.sku || trx.items?.[0]?.sku))?.itemName || catalogue.find(c => c.sku === (trx.sku || trx.items?.[0]?.sku))?.itemName || trx.sku || "N/A"}
+                      <div className="flex flex-col max-w-[200px]">
+                        <span className="text-[13px] font-bold text-gray-900 dark:text-white truncate" title={trx.item || trx.items?.[0]?.name || inventory.find(i => i.sku === (trx.sku || trx.items?.[0]?.sku))?.itemName || catalogue.find(c => c.sku === (trx.sku || trx.items?.[0]?.sku))?.itemName || "N/A"}>
+                          {trx.item || trx.items?.[0]?.name || inventory.find(i => i.sku === (trx.sku || trx.items?.[0]?.sku))?.itemName || catalogue.find(c => c.sku === (trx.sku || trx.items?.[0]?.sku))?.itemName || "N/A"}
                         </span>
-                        <span className="text-[11px] text-gray-500 font-mono">{trx.sku || trx.items?.[0]?.sku}</span>
+                        <span className="text-[11px] text-gray-500 font-mono truncate">{trx.sku || trx.items?.[0]?.sku}</span>
                       </div>
                     </td>
                     <td className="hidden md:table-cell px-4 py-3 text-right">
@@ -937,10 +938,10 @@ export const TransactionsPage = ({ type }: { type?: TransactionType }) => {
                         <span className="text-[11px] font-bold text-emerald-500 uppercase">{trx.unit || trx.items?.[0]?.unit}</span>
                       </div>
                     </td>
-                    <td className="hidden md:table-cell px-4 py-3 text-[13px] text-gray-600 dark:text-gray-400">{trx.supplier || trx.vendor}</td>
-                    <td className="hidden md:table-cell px-4 py-3 text-[13px] text-gray-600 dark:text-gray-400">
-                      <p>{trx.challanNo || trx.challan} / {trx.mrNo}</p>
-                      <p className="text-[11px] font-bold text-orange-600">{trx.condition || trx.items?.[0]?.condition || "Good"}</p>
+                    <td className="hidden md:table-cell px-4 py-3 text-[13px] text-gray-600 dark:text-gray-400 max-w-[180px] truncate" title={trx.supplier || trx.vendor || ""}>{trx.supplier || trx.vendor}</td>
+                    <td className="hidden md:table-cell px-4 py-3 text-[13px] text-gray-600 dark:text-gray-400 max-w-[250px]">
+                      <p className="truncate" title={`${trx.challanNo || trx.challan || ""} / ${trx.mrNo || ""}`}>{trx.challanNo || trx.challan} / {trx.mrNo}</p>
+                      <p className="text-[11px] font-bold text-orange-600 truncate">{trx.condition || trx.items?.[0]?.condition || "Good"}</p>
                     </td>
                     <td className="hidden md:table-cell px-4 py-3">
                       <div className="flex -space-x-2">
@@ -1099,16 +1100,16 @@ export const TransactionsPage = ({ type }: { type?: TransactionType }) => {
                        <div className="hidden md:block text-[11px] font-mono text-gray-500 font-bold">{trx.id}</div>
                     </td>
                     <td className="hidden md:table-cell px-4 py-3 text-[13px] text-gray-600 dark:text-gray-400">{formatDateTime(trx.date)}</td>
-                    <td className="hidden md:table-cell px-4 py-3 text-[13px] text-gray-600 dark:text-gray-400">{trx.project || trx.sourceSite}</td>
+                    <td className="hidden md:table-cell px-4 py-3 text-[13px] text-gray-600 dark:text-gray-400 max-w-[150px] truncate" title={trx.project || trx.sourceSite || ""}>{trx.project || trx.sourceSite}</td>
                     <td className="hidden md:table-cell px-4 py-3 text-[13px] text-gray-600 dark:text-gray-400">
                       {currentInventory.find(i => (i.sku === (trx.sku || trx.items?.[0]?.sku)))?.category || "Hardware"}
                     </td>
                     <td className="hidden md:table-cell px-4 py-3">
-                      <div className="flex flex-col">
-                        <span className="text-[13px] font-bold text-gray-900 dark:text-white">
-                          {trx.itemName || trx.items?.[0]?.itemName || currentInventory.find(i => i.sku === (trx.sku || trx.items?.[0]?.sku))?.itemName || catalogue.find(c => c.sku === (trx.sku || trx.items?.[0]?.sku))?.itemName || trx.sku || "N/A"}
+                      <div className="flex flex-col max-w-[200px]">
+                        <span className="text-[13px] font-bold text-gray-900 dark:text-white truncate" title={trx.itemName || trx.items?.[0]?.itemName || inventory.find(i => i.sku === (trx.sku || trx.items?.[0]?.sku))?.itemName || catalogue.find(c => c.sku === (trx.sku || trx.items?.[0]?.sku))?.itemName || trx.sku || "N/A"}>
+                          {trx.itemName || trx.items?.[0]?.itemName || inventory.find(i => i.sku === (trx.sku || trx.items?.[0]?.sku))?.itemName || catalogue.find(c => c.sku === (trx.sku || trx.items?.[0]?.sku))?.itemName || trx.sku || "N/A"}
                         </span>
-                        <span className="text-[11px] text-gray-500 font-mono">{trx.sku || trx.items?.[0]?.sku}</span>
+                        <span className="text-[11px] text-gray-500 font-mono truncate">{trx.sku || trx.items?.[0]?.sku}</span>
                       </div>
                     </td>
                     <td className="hidden md:table-cell px-4 py-3 text-right">
@@ -1117,8 +1118,8 @@ export const TransactionsPage = ({ type }: { type?: TransactionType }) => {
                         <span className="text-[11px] font-bold text-red-500 uppercase">{trx.unit || trx.items?.[0]?.unit}</span>
                       </div>
                     </td>
-                    <td className="hidden md:table-cell px-4 py-3 text-[13px] text-gray-600 dark:text-gray-400">{trx.location || "Site"}</td>
-                    <td className="hidden md:table-cell px-4 py-3 text-[13px] text-gray-600 dark:text-gray-400">{trx.personName || trx.handoverTo || trx.handoverFrom}</td>
+                    <td className="hidden md:table-cell px-4 py-3 text-[13px] text-gray-600 dark:text-gray-400 max-w-[150px] truncate" title={trx.location || "Site"}>{trx.location || "Site"}</td>
+                    <td className="hidden md:table-cell px-4 py-3 text-[13px] text-gray-600 dark:text-gray-400 max-w-[150px] truncate" title={trx.personName || trx.handoverTo || trx.handoverFrom || ""}>{trx.personName || trx.handoverTo || trx.handoverFrom}</td>
                     <td className="hidden md:table-cell px-4 py-3">
                       <div className="flex -space-x-2">
                         {(trx.materialPhotoUrl || trx.materialImageUrl) && (
@@ -1236,8 +1237,8 @@ export const TransactionsPage = ({ type }: { type?: TransactionType }) => {
                         <span className="text-[12px] font-medium text-gray-700 dark:text-gray-300">{trx.type}</span>
                       </div>
                     </td>
-                    <td className="hidden md:table-cell px-4 py-3 text-[13px] text-gray-600 dark:text-gray-400">{trx.project}</td>
-                    <td className="hidden md:table-cell px-4 py-3 text-[13px] font-bold text-gray-900 dark:text-white font-mono">{trx.gatePassNo || "-"}</td>
+                    <td className="hidden md:table-cell px-4 py-3 text-[13px] text-gray-600 dark:text-gray-400 max-w-[150px] truncate" title={trx.project || ""}>{trx.project}</td>
+                    <td className="hidden md:table-cell px-4 py-3 text-[13px] font-bold text-gray-900 dark:text-white font-mono max-w-[150px] truncate" title={trx.gatePassNo || "-"}>{trx.gatePassNo || "-"}</td>
                     <td className="hidden md:table-cell px-4 py-3">
                       <div className="flex flex-wrap gap-1">
                         {trx.items?.slice(0, 2).map((item : any, i : number) => (

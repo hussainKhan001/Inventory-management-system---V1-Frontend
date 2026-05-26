@@ -223,7 +223,7 @@ export const Quotations = () => {
         subtitle="Manage and compare supplier quotations separately for each category" 
       />
 
-      <div className="sticky top-0 z-30 will-change-transform bg-gray-50 dark:bg-gray-950 -mx-4 sm:-mx-6 md:-mx-8 px-4 sm:px-6 md:px-8 py-4 border-b border-gray-200 dark:border-gray-800">
+      <div className="mb-6">
         <FilterRow
           showClear={!!(search || startDate || endDate || filterProject || filterCategory || filterSupplier || filterStatus)}
           onClearAll={() => {

@@ -401,7 +401,7 @@ export const Layout = ({ children }: { children: React.ReactNode }) => {
         </header>
 
         <main className="flex-1 overflow-y-auto px-4 py-6 sm:px-6 md:px-8 bg-gray-50 dark:bg-gray-950">
-          <div className="max-w-7xl mx-auto w-full">
+          <div className="mx-auto w-full">
             {children}
           </div>
         </main>

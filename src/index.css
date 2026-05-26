@@ -115,7 +115,7 @@
     position: sticky;
     top: 0;
     z-index: 11;
-    @apply backdrop-blur-md bg-white/90 dark:bg-gray-900/90;
+    @apply backdrop-blur-md bg-white/90 dark:bg-[#1E293B]/95;
   }
 }
 

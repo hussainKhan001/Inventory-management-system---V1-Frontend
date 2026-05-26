@@ -140,6 +140,8 @@ export const PurchaseOrders = () => {
   const [modal, setModal] = useState(false);
   const [viewModal, setViewModal] = useState(false);
   const [selectedPO, setSelectedPO] = useState<PurchaseOrder | null>(null);
+  const [editTimelines, setEditTimelines] = useState(false);
+  const [draftTimelines, setDraftTimelines] = useState<any[]>([]);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [processingId, setProcessingId] = useState<string | null>(null);
@@ -253,10 +255,19 @@ export const PurchaseOrders = () => {
       items: [],
       remarks: ""
     },
+    freightAmount: 0,
+    freightGstPct: 0,
+    freightGstType: "Exclusive" as "Exclusive",
+    loadingAmount: 0,
+    loadingGstPct: 0,
+    loadingGstType: "Exclusive" as "Exclusive",
+    unloadingAmount: 0,
+    unloadingGstPct: 0,
+    unloadingGstType: "Exclusive" as "Exclusive",
     paymentTimelines: [
       { date: todayStr(), type: "Advance", mode: "Bank Transfer", amount: 0, gstPct: "Inclusive", ifPayable: 0 },
-      { date: todayStr(), type: "Progress", mode: "Bank Transfer", amount: 0, gstPct: "Inclusive", ifPayable: 0 },
-      { date: todayStr(), type: "Final Balance", mode: "Bank Transfer", amount: 0, gstPct: "Inclusive", ifPayable: 0 },
+      { date: todayStr(), type: "On Delivery", mode: "Bank Transfer", amount: 0, gstPct: "-", ifPayable: 0 },
+      { date: (() => { const d = new Date(todayStr()); d.setDate(d.getDate() + 10); return d.toISOString().split('T')[0]; })(), type: "After 10 Days of Delivery", mode: "Bank Transfer", amount: 0, gstPct: "Inclusive", ifPayable: 0 },
     ],
   };
 
@@ -278,36 +289,52 @@ export const PurchaseOrders = () => {
 
   const [newPO, setNewPO] = useState<Partial<PurchaseOrder>>(initialPO);
 
-  // Auto-fill payment timelines when total changes
+  // Auto-fill payment timelines when total changes (includes freight/loading/unloading)
   useEffect(() => {
     if (!modal || isEditing) return;
-    
-    // Calculate total base and total with GST for exactness
+
+    // Items total
     let totalBase = 0;
-    let totalWithGST = 0;
-    
+    let itemsTotalWithGST = 0;
     newPO.items?.forEach(item => {
       totalBase += (item.qty * item.rate) || 0;
-      totalWithGST += item.totalWithGST || 0;
+      itemsTotalWithGST += item.totalWithGST || 0;
     });
-    
-    // Only auto-fill if timelines are at default (all 0)
+
+    // Add other charges (freight / loading / unloading)
+    const freightTotal = calcChargeTotal(newPO.freightAmount || 0, newPO.freightGstPct || 0, newPO.freightGstType || "Exclusive");
+    const loadingTotal = calcChargeTotal(newPO.loadingAmount || 0, newPO.loadingGstPct || 0, newPO.loadingGstType || "Exclusive");
+    const unloadingTotal = calcChargeTotal(newPO.unloadingAmount || 0, newPO.unloadingGstPct || 0, newPO.unloadingGstType || "Exclusive");
+    const chargesTotal = freightTotal + loadingTotal + unloadingTotal;
+
+    // True grand total = items + all charges
+    const grandTotal = itemsTotalWithGST + chargesTotal;
+    const grandBase = totalBase + chargesTotal;
+
+    // Only auto-fill if timelines are still at default (all 0)
     const isDefault = newPO.paymentTimelines?.every(pt => pt.amount === 0 && pt.ifPayable === 0);
-    
-    if (totalWithGST > 0 && isDefault) {
+
+    if (grandTotal > 0 && isDefault) {
       const pts = [...(newPO.paymentTimelines || [])];
       if (pts.length >= 3) {
-        // Set Final Balance to 100% as default
+        // Row 1 (Advance) and Row 2 (On Delivery) stay 0 by default
         pts[0].amount = 0;
         pts[0].ifPayable = 0;
         pts[1].amount = 0;
         pts[1].ifPayable = 0;
-        pts[2].amount = totalBase;
-        pts[2].ifPayable = totalWithGST;
-        setNewPO(prev => ({ ...prev, paymentTimelines: pts, totalAmount: totalWithGST }));
+        // Row 3 (After 10 Days) gets the full grand total
+        pts[2].amount = Math.round(grandBase * 100) / 100;
+        pts[2].ifPayable = Math.round(grandTotal * 100) / 100;
+        setNewPO(prev => ({ ...prev, paymentTimelines: pts, totalAmount: grandTotal }));
       }
     }
-  }, [newPO.items, modal, isEditing]);
+  }, [
+    newPO.items,
+    newPO.freightAmount, newPO.freightGstPct, newPO.freightGstType,
+    newPO.loadingAmount, newPO.loadingGstPct, newPO.loadingGstType,
+    newPO.unloadingAmount, newPO.unloadingGstPct, newPO.unloadingGstType,
+    modal, isEditing
+  ]);
 
   // Auto-fill vendor and company details if they are missing but supplier/company is selected
   useEffect(() => {
@@ -479,14 +506,43 @@ export const PurchaseOrders = () => {
     return list;
   }, [materialRequirements, pos, suppliers]);
 
+  // Normalize old payment timeline type names to new names
+  const normalizeTimelineType = (type: string): string => {
+    if (type === "Progress") return "On Delivery";
+    if (type === "Final Balance") return "After 10 Days of Delivery";
+    return type || "";
+  };
+
+  // Compute correct timeline dates from PO metadata:
+  // [0] = PO creation date, [1] = delivery date, [2] = delivery + 10 days
+  const computeTimelineDates = (po: PurchaseOrder): string[] => {
+    const poDate = po.date ? po.date.split('T')[0] : todayStr();
+    const rawDelivery = po.deliveryDetails?.deliveryDate;
+    const delivDate = (rawDelivery && rawDelivery !== 'NA' && rawDelivery !== '')
+      ? rawDelivery.split('T')[0]
+      : poDate;
+    const d10 = new Date(delivDate);
+    d10.setDate(d10.getDate() + 10);
+    const plus10 = d10.toISOString().split('T')[0];
+    return [poDate, delivDate, plus10];
+  };
+
+  const calcChargeTotal = (amount: number, gstPct: number, gstType: string) => {
+    if (!amount) return 0;
+    return gstType === "Exclusive" ? amount * (1 + gstPct / 100) : amount;
+  };
+
   const handleCreate = async () => {
     if (!validateForm(newPO)) {
       toast.error("Please fix the errors in the form");
       return;
     }
 
-    const totalValue =
-      newPO.items?.reduce((sum, item) => sum + item.totalWithGST, 0) || 0;
+    const itemsTotal = newPO.items?.reduce((sum, item) => sum + item.totalWithGST, 0) || 0;
+    const freightTotal = calcChargeTotal(newPO.freightAmount || 0, newPO.freightGstPct || 0, newPO.freightGstType || "Exclusive");
+    const loadingTotal = calcChargeTotal(newPO.loadingAmount || 0, newPO.loadingGstPct || 0, newPO.loadingGstType || "Exclusive");
+    const unloadingTotal = calcChargeTotal(newPO.unloadingAmount || 0, newPO.unloadingGstPct || 0, newPO.unloadingGstType || "Exclusive");
+    const totalValue = itemsTotal + freightTotal + loadingTotal + unloadingTotal;
     const isAutoApproved = totalValue <= settings.poThreshold;
 
     if (isEditing && newPO.id) {
@@ -556,6 +612,15 @@ export const PurchaseOrders = () => {
       vendorContact: newPO.vendorContact,
       vendorEmail: newPO.vendorEmail,
       vendorAddress: newPO.vendorAddress,
+      freightAmount: newPO.freightAmount,
+      freightGstPct: newPO.freightGstPct,
+      freightGstType: newPO.freightGstType,
+      loadingAmount: newPO.loadingAmount,
+      loadingGstPct: newPO.loadingGstPct,
+      loadingGstType: newPO.loadingGstType,
+      unloadingAmount: newPO.unloadingAmount,
+      unloadingGstPct: newPO.unloadingGstPct,
+      unloadingGstType: newPO.unloadingGstType,
     };
 
       try {
@@ -579,6 +644,18 @@ export const PurchaseOrders = () => {
       setDeleteConfirm(null);
     } catch (error: any) {
       toast.error(`Failed to delete PO: ${error.message}`);
+    }
+  };
+
+  const handleSaveTimelines = async () => {
+    if (!selectedPO) return;
+    try {
+      await updatePO(selectedPO.id, { paymentTimelines: draftTimelines });
+      setSelectedPO({ ...selectedPO, paymentTimelines: draftTimelines });
+      setEditTimelines(false);
+      toast.success("Payment timelines updated");
+    } catch (error: any) {
+      toast.error("Failed to update timelines");
     }
   };
 
@@ -856,7 +933,7 @@ export const PurchaseOrders = () => {
         }
       />
 
-      <div className="sticky top-0 z-30 will-change-transform bg-gray-50 dark:bg-gray-950 -mx-4 sm:-mx-6 md:-mx-8 px-4 sm:px-6 md:px-8 py-4 border-b border-gray-200 dark:border-gray-800 mb-6">
+      <div className="mb-6">
         <FilterRow 
           showClear={!!(search || startDate || endDate || filterProject || filterSupplier || filterStatus)} 
           onClearAll={() => { 
@@ -902,43 +979,46 @@ export const PurchaseOrders = () => {
         </FilterRow>
       </div>
 
-      <Card className="p-0 overflow-hidden border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 flex-1 min-h-[600px]">
+      <Card className="p-0 overflow-hidden border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 flex-1 min-h-[400px]">
         <TableVirtuoso
-          style={{ height: 'calc(100vh - 350px)', minHeight: '600px' }}
+          style={{ height: 'calc(100vh - 350px)', minHeight: '400px' }}
           data={pos || []}
           context={{ suppliers }}
           endReached={loadMore}
-          fixedHeaderContent={() => (
-            <tr className="bg-gray-50/90 dark:bg-gray-800/90 backdrop-blur-md border-b border-gray-200 dark:border-gray-800 text-left">
-              <Th className="lg:hidden px-4 py-3 text-[11px] font-bold text-gray-500 dark:text-gray-400 tracking-wider sticky top-0 z-10 sticky-th">
-                Po details
-              </Th>
-              <Th className="hidden lg:table-cell px-4 py-3 text-[11px] font-bold text-gray-500 dark:text-gray-400 tracking-wider sticky top-0 z-10 sticky-th">
-                Po no.
-              </Th>
-              <Th className="hidden lg:table-cell px-4 py-3 text-[11px] font-bold text-gray-500 dark:text-gray-400 tracking-wider sticky top-0 z-10 sticky-th">
-                Mr no.
-              </Th>
-              <Th className="hidden lg:table-cell px-4 py-3 text-[11px] font-bold text-gray-500 dark:text-gray-400 tracking-wider whitespace-nowrap sticky top-0 z-10 sticky-th">
-                Date
-              </Th>
-              <Th className="hidden lg:table-cell px-4 py-3 text-[11px] font-bold text-gray-500 dark:text-gray-400 tracking-wider sticky top-0 z-10 sticky-th">
-                Project
-              </Th>
-              <Th className="hidden lg:table-cell px-4 py-3 text-[11px] font-bold text-gray-500 dark:text-gray-400 tracking-wider sticky top-0 z-10 sticky-th">
-                Supplier
-              </Th>
-              <Th className="hidden lg:table-cell px-4 py-3 text-[11px] font-bold text-gray-500 dark:text-gray-400 tracking-wider text-right sticky top-0 z-10 sticky-th">
-                Value
-              </Th>
-              <Th className="hidden lg:table-cell px-4 py-3 text-[11px] font-bold text-gray-500 dark:text-gray-400 tracking-wider sticky top-0 z-10 sticky-th">
-                Status
-              </Th>
-              <Th className="hidden lg:table-cell px-4 py-3 text-[11px] font-bold text-gray-500 dark:text-gray-400 tracking-wider text-right sticky top-0 z-10 sticky-th">
-                Actions
-              </Th>
-            </tr>
-          )}
+          fixedHeaderContent={() => {
+            const headerClass = "px-4 py-3 text-[11px] font-bold text-[#6B7280] dark:text-gray-400 uppercase tracking-wider sticky top-0 z-10 sticky-th";
+            return (
+              <tr className="bg-gray-50/90 dark:bg-gray-800/90 backdrop-blur-md border-b border-[#E8ECF0] dark:border-gray-800 text-left">
+                <th className={cn(headerClass, "lg:hidden")}>
+                  Po details
+                </th>
+                <th className={cn(headerClass, "hidden lg:table-cell")}>
+                  Po no.
+                </th>
+                <th className={cn(headerClass, "hidden lg:table-cell")}>
+                  Mr no.
+                </th>
+                <th className={cn(headerClass, "hidden lg:table-cell whitespace-nowrap")}>
+                  Date
+                </th>
+                <th className={cn(headerClass, "hidden lg:table-cell")}>
+                  Project
+                </th>
+                <th className={cn(headerClass, "hidden lg:table-cell")}>
+                  Supplier
+                </th>
+                <th className={cn(headerClass, "hidden lg:table-cell text-right")}>
+                  Value
+                </th>
+                <th className={cn(headerClass, "hidden lg:table-cell")}>
+                  Status
+                </th>
+                <th className={cn(headerClass, "hidden lg:table-cell text-right")}>
+                  Actions
+                </th>
+              </tr>
+            );
+          }}
           itemContent={(_index, po, { suppliers: currentSuppliers }) => {
             const isPending = po.status?.startsWith('Pending');
             const isNew = isNewItem(po.createdAt);
@@ -1088,9 +1168,7 @@ export const PurchaseOrders = () => {
           }}
           components={{
             Table: (props) => (
-              <div className="w-full overflow-x-auto no-scrollbar-lg">
-                <table {...props} className="w-full text-left border-collapse min-w-[800px] lg:min-w-0" />
-              </div>
+              <table {...props} className="w-full text-left border-collapse min-w-[800px] lg:min-w-0" />
             ),
             TableBody: React.forwardRef((props, ref) => <tbody {...props} ref={ref as any} className="divide-y divide-gray-200 dark:divide-gray-800" />),
             TableRow: (props: any) => {
@@ -1400,10 +1478,34 @@ export const PurchaseOrders = () => {
                                 })),
                                 items: priceComparisonItems,
                                 remarks: ""
-                              }
+                              },
+                              // Carry over other charges from approved quotation
+                              freightAmount: approvedQuotation?.freightAmount || 0,
+                              freightGstPct: approvedQuotation?.freightGstPct ?? 18,
+                              freightGstType: approvedQuotation?.freightGstType || "Exclusive",
+                              loadingAmount: approvedQuotation?.loadingAmount || 0,
+                              loadingGstPct: approvedQuotation?.loadingGstPct ?? 18,
+                              loadingGstType: approvedQuotation?.loadingGstType || "Exclusive",
+                              unloadingAmount: approvedQuotation?.unloadingAmount || 0,
+                              unloadingGstPct: approvedQuotation?.unloadingGstPct ?? 18,
+                              unloadingGstType: approvedQuotation?.unloadingGstType || "Exclusive",
                             };
 
-                            if ((approvedQuotation as any)?.paymentTimelines) (updatedPOBase as any).paymentTimelines = (approvedQuotation as any).paymentTimelines;
+                            // Smart payment timeline dates
+                            {
+                              const poDate = todayStr();
+                              const rawDelivery = approvedQuotation?.deliveryDate;
+                              const deliveryDate = rawDelivery ? rawDelivery.split('T')[0] : poDate;
+                              const d10 = new Date(deliveryDate);
+                              d10.setDate(d10.getDate() + 10);
+                              const deliveryPlus10 = d10.toISOString().split('T')[0];
+                              const existing = newPO.paymentTimelines || [];
+                              (updatedPOBase as any).paymentTimelines = [
+                                { date: poDate, type: "Advance", mode: existing[0]?.mode || "Bank Transfer", amount: existing[0]?.amount || 0, gstPct: existing[0]?.gstPct || "Inclusive", ifPayable: existing[0]?.ifPayable || 0 },
+                                { date: deliveryDate, type: "On Delivery", mode: existing[1]?.mode || "Bank Transfer", amount: existing[1]?.amount || 0, gstPct: existing[1]?.gstPct || "-", ifPayable: existing[1]?.ifPayable || 0 },
+                                { date: deliveryPlus10, type: "After 10 Days of Delivery", mode: existing[2]?.mode || "Bank Transfer", amount: existing[2]?.amount || 0, gstPct: existing[2]?.gstPct || "Inclusive", ifPayable: existing[2]?.ifPayable || 0 },
+                              ];
+                            }
 
                             setNewPO(updatedPOBase);
                             toast.success(`Category ${selectedCategory} links successful`, { id: "linking" });
@@ -2061,9 +2163,54 @@ export const PurchaseOrders = () => {
                     </tbody>
                     <tfoot className="border-t-2 border-gray-100 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-800/30">
                       <tr>
-                        <td colSpan={7} className="px-2 py-3 text-right text-[11px] font-bold text-gray-500 tracking-widest">Grand total (Incl. GST)</td>
-                        <td className="px-2 py-3 text-right text-[15px] font-black text-orange-600 dark:text-orange-400">
+                        <td colSpan={9} className="px-2 py-2 text-right text-[10px] font-bold text-gray-400 tracking-widest">Items Subtotal (Incl. GST)</td>
+                        <td className="px-2 py-2 text-right text-[13px] font-bold text-gray-700 dark:text-gray-300">
                           {fmtCur(newPO.items?.reduce((sum, it) => sum + (it.totalWithGST || 0), 0) || 0)}
+                        </td>
+                        <td></td>
+                      </tr>
+                      {(newPO.freightAmount || 0) > 0 && (
+                        <tr>
+                          <td colSpan={9} className="px-2 py-1 text-right text-[10px] font-bold text-gray-400">
+                            Freight Charges ({newPO.freightGstPct || 18}% GST · {newPO.freightGstType || "Exclusive"})
+                          </td>
+                          <td className="px-2 py-1 text-right text-[12px] font-bold text-gray-600 dark:text-gray-400">
+                            {fmtCur(calcChargeTotal(newPO.freightAmount || 0, newPO.freightGstPct || 0, newPO.freightGstType || "Exclusive"))}
+                          </td>
+                          <td></td>
+                        </tr>
+                      )}
+                      {(newPO.loadingAmount || 0) > 0 && (
+                        <tr>
+                          <td colSpan={9} className="px-2 py-1 text-right text-[10px] font-bold text-gray-400">
+                            Loading Charges ({newPO.loadingGstPct || 18}% GST · {newPO.loadingGstType || "Exclusive"})
+                          </td>
+                          <td className="px-2 py-1 text-right text-[12px] font-bold text-gray-600 dark:text-gray-400">
+                            {fmtCur(calcChargeTotal(newPO.loadingAmount || 0, newPO.loadingGstPct || 0, newPO.loadingGstType || "Exclusive"))}
+                          </td>
+                          <td></td>
+                        </tr>
+                      )}
+                      {(newPO.unloadingAmount || 0) > 0 && (
+                        <tr>
+                          <td colSpan={9} className="px-2 py-1 text-right text-[10px] font-bold text-gray-400">
+                            Unloading Charges ({newPO.unloadingGstPct || 18}% GST · {newPO.unloadingGstType || "Exclusive"})
+                          </td>
+                          <td className="px-2 py-1 text-right text-[12px] font-bold text-gray-600 dark:text-gray-400">
+                            {fmtCur(calcChargeTotal(newPO.unloadingAmount || 0, newPO.unloadingGstPct || 0, newPO.unloadingGstType || "Exclusive"))}
+                          </td>
+                          <td></td>
+                        </tr>
+                      )}
+                      <tr className="border-t border-gray-200 dark:border-gray-700">
+                        <td colSpan={9} className="px-2 py-3 text-right text-[11px] font-black text-gray-600 dark:text-gray-300 tracking-widest">Grand Total (Incl. GST + Charges)</td>
+                        <td className="px-2 py-3 text-right text-[15px] font-black text-orange-600 dark:text-orange-400">
+                          {fmtCur(
+                            (newPO.items?.reduce((sum, it) => sum + (it.totalWithGST || 0), 0) || 0) +
+                            calcChargeTotal(newPO.freightAmount || 0, newPO.freightGstPct || 0, newPO.freightGstType || "Exclusive") +
+                            calcChargeTotal(newPO.loadingAmount || 0, newPO.loadingGstPct || 0, newPO.loadingGstType || "Exclusive") +
+                            calcChargeTotal(newPO.unloadingAmount || 0, newPO.unloadingGstPct || 0, newPO.unloadingGstType || "Exclusive")
+                          )}
                         </td>
                         <td></td>
                       </tr>
@@ -2101,6 +2248,127 @@ export const PurchaseOrders = () => {
               </div>
             )}
           </div>
+
+              {/* Other Charges Section */}
+              <div className="mt-6 p-4 bg-gray-50/50 dark:bg-gray-800/50 rounded-xl border border-gray-100 dark:border-gray-700">
+                <div className="flex items-center gap-2 mb-4">
+                  <div className="w-1 h-5 bg-orange-500 rounded-full"></div>
+                  <h4 className="text-[11px] font-black text-gray-400 tracking-widest uppercase">Other Charges</h4>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {/* Freight */}
+                  <div className="p-3 bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 space-y-3">
+                    <Field
+                      label="Freight Charges (₹)"
+                      type="number"
+                      value={newPO.freightAmount ?? ""}
+                      onChange={(e: any) => setNewPO({ ...newPO, freightAmount: Number(e.target.value) || 0 })}
+                      placeholder="0"
+                    />
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="space-y-1">
+                        <label className="block text-[11px] font-bold text-[#6B7280] dark:text-[#94A3B8] mb-1.5">GST %</label>
+                        <select
+                          value={newPO.freightGstPct ?? 18}
+                          onChange={(e) => setNewPO({ ...newPO, freightGstPct: Number(e.target.value) })}
+                          className="w-full px-3 py-2 bg-white dark:bg-[#0F172A] border border-[#E8ECF0] dark:border-[#334155] rounded-lg text-[13px] text-gray-900 dark:text-white"
+                        >
+                          <option value={0}>0%</option>
+                          <option value={5}>5%</option>
+                          <option value={12}>12%</option>
+                          <option value={18}>18%</option>
+                          <option value={28}>28%</option>
+                        </select>
+                      </div>
+                      <div className="space-y-1">
+                        <label className="block text-[11px] font-bold text-[#6B7280] dark:text-[#94A3B8] mb-1.5">GST Type</label>
+                        <select
+                          value={newPO.freightGstType || "Exclusive"}
+                          onChange={(e) => setNewPO({ ...newPO, freightGstType: e.target.value as "Inclusive" | "Exclusive" })}
+                          className="w-full px-3 py-2 bg-white dark:bg-[#0F172A] border border-[#E8ECF0] dark:border-[#334155] rounded-lg text-[13px] text-gray-900 dark:text-white"
+                        >
+                          <option value="Exclusive">Exclusive</option>
+                          <option value="Inclusive">Inclusive</option>
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+                  {/* Loading */}
+                  <div className="p-3 bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 space-y-3">
+                    <Field
+                      label="Loading Charges (₹)"
+                      type="number"
+                      value={newPO.loadingAmount ?? ""}
+                      onChange={(e: any) => setNewPO({ ...newPO, loadingAmount: Number(e.target.value) || 0 })}
+                      placeholder="0"
+                    />
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="space-y-1">
+                        <label className="block text-[11px] font-bold text-[#6B7280] dark:text-[#94A3B8] mb-1.5">GST %</label>
+                        <select
+                          value={newPO.loadingGstPct ?? 18}
+                          onChange={(e) => setNewPO({ ...newPO, loadingGstPct: Number(e.target.value) })}
+                          className="w-full px-3 py-2 bg-white dark:bg-[#0F172A] border border-[#E8ECF0] dark:border-[#334155] rounded-lg text-[13px] text-gray-900 dark:text-white"
+                        >
+                          <option value={0}>0%</option>
+                          <option value={5}>5%</option>
+                          <option value={12}>12%</option>
+                          <option value={18}>18%</option>
+                          <option value={28}>28%</option>
+                        </select>
+                      </div>
+                      <div className="space-y-1">
+                        <label className="block text-[11px] font-bold text-[#6B7280] dark:text-[#94A3B8] mb-1.5">GST Type</label>
+                        <select
+                          value={newPO.loadingGstType || "Exclusive"}
+                          onChange={(e) => setNewPO({ ...newPO, loadingGstType: e.target.value as "Inclusive" | "Exclusive" })}
+                          className="w-full px-3 py-2 bg-white dark:bg-[#0F172A] border border-[#E8ECF0] dark:border-[#334155] rounded-lg text-[13px] text-gray-900 dark:text-white"
+                        >
+                          <option value="Exclusive">Exclusive</option>
+                          <option value="Inclusive">Inclusive</option>
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+                  {/* Unloading */}
+                  <div className="p-3 bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 space-y-3">
+                    <Field
+                      label="Unloading Charges (₹)"
+                      type="number"
+                      value={newPO.unloadingAmount ?? ""}
+                      onChange={(e: any) => setNewPO({ ...newPO, unloadingAmount: Number(e.target.value) || 0 })}
+                      placeholder="0"
+                    />
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="space-y-1">
+                        <label className="block text-[11px] font-bold text-[#6B7280] dark:text-[#94A3B8] mb-1.5">GST %</label>
+                        <select
+                          value={newPO.unloadingGstPct ?? 18}
+                          onChange={(e) => setNewPO({ ...newPO, unloadingGstPct: Number(e.target.value) })}
+                          className="w-full px-3 py-2 bg-white dark:bg-[#0F172A] border border-[#E8ECF0] dark:border-[#334155] rounded-lg text-[13px] text-gray-900 dark:text-white"
+                        >
+                          <option value={0}>0%</option>
+                          <option value={5}>5%</option>
+                          <option value={12}>12%</option>
+                          <option value={18}>18%</option>
+                          <option value={28}>28%</option>
+                        </select>
+                      </div>
+                      <div className="space-y-1">
+                        <label className="block text-[11px] font-bold text-[#6B7280] dark:text-[#94A3B8] mb-1.5">GST Type</label>
+                        <select
+                          value={newPO.unloadingGstType || "Exclusive"}
+                          onChange={(e) => setNewPO({ ...newPO, unloadingGstType: e.target.value as "Inclusive" | "Exclusive" })}
+                          className="w-full px-3 py-2 bg-white dark:bg-[#0F172A] border border-[#E8ECF0] dark:border-[#334155] rounded-lg text-[13px] text-gray-900 dark:text-white"
+                        >
+                          <option value="Exclusive">Exclusive</option>
+                          <option value="Inclusive">Inclusive</option>
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6 p-4 bg-gray-50/50 dark:bg-gray-800/50 rounded-xl border border-gray-100 dark:border-gray-700">
                 <div className="space-y-4">
@@ -2165,84 +2433,102 @@ export const PurchaseOrders = () => {
                 </div>
               </div>
 
-              <div className="mt-6">
-                    <div className="flex items-center justify-between mb-2">
-                      <h4 className="text-[11px] font-black text-gray-400">Payment timelines</h4>
-                  <Btn label="Add Row" small icon={Plus} onClick={() => {
-                    const pts = [...(newPO.paymentTimelines || [])];
-                    pts.push({ date: todayStr(), type: "Milestone", mode: "Bank Transfer", amount: 0, gstPct: "Inclusive", ifPayable: 0 });
-                    setNewPO({ ...newPO, paymentTimelines: pts });
-                  }} />
+              {/* Payment Timelines — same style as View Modal */}
+              <div className="mt-6 border border-[#1A365D] rounded-lg overflow-hidden">
+                <div className="bg-[#1A365D] h-8 flex items-center justify-between px-4">
+                  <p className="text-white font-black text-[10px] tracking-widest">Payment Timelines</p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const pts = [...(newPO.paymentTimelines || [])];
+                      pts.push({ date: todayStr(), type: "Milestone", mode: "Bank Transfer", amount: 0, gstPct: "Inclusive", ifPayable: 0 });
+                      setNewPO({ ...newPO, paymentTimelines: pts });
+                    }}
+                    className="text-white text-[9px] border border-white/40 px-2.5 py-0.5 rounded hover:bg-white/10 transition-colors flex items-center gap-1"
+                  >
+                    <Plus className="w-3 h-3" /> Add Row
+                  </button>
                 </div>
-                <div className="overflow-x-auto border border-gray-100 dark:border-gray-700 rounded-lg">
+                <div className="overflow-x-auto">
                   <table className="w-full text-[11px]">
-                    <thead className="bg-gray-50 dark:bg-gray-800 text-gray-500 dark:text-gray-400">
-                      <tr>
-                        <th className="p-2 text-left">Type</th>
-                        <th className="p-2 text-left">Date</th>
-                        <th className="p-2 text-left">Mode</th>
-                        <th className="p-2 text-left">Amount</th>
-                        <th className="p-2 text-left">GST %</th>
-                        <th className="p-2 text-left">If Payable</th>
-                        <th className="p-2 w-10"></th>
+                    <thead>
+                      <tr className="bg-[#1A365D]/10 dark:bg-[#1A365D]/30 text-[9px] font-black text-gray-500 uppercase tracking-wide">
+                        <th className="p-2 text-left border-r border-[#1A365D]/30">Date</th>
+                        <th className="p-2 text-left border-r border-[#1A365D]/30">Type</th>
+                        <th className="p-2 text-left border-r border-[#1A365D]/30">Mode</th>
+                        <th className="p-2 text-right border-r border-[#1A365D]/30">Amount</th>
+                        <th className="p-2 text-center border-r border-[#1A365D]/30">GST %</th>
+                        <th className="p-2 text-right border-r border-[#1A365D]/30">If Payable</th>
+                        <th className="p-2 w-8"></th>
                       </tr>
                     </thead>
                     <tbody>
                       {newPO.paymentTimelines?.map((pt, idx) => (
-                        <tr key={idx} className="border-t border-gray-100 dark:border-gray-700">
-                          <td className="p-1">
-                            <input className="w-full bg-transparent p-1 outline-none border border-gray-200 dark:border-gray-600 rounded text-gray-900 dark:text-white" value={pt.type} onChange={(e) => {
-                              const pts = [...(newPO.paymentTimelines || [])];
-                              pts[idx].type = e.target.value;
-                              setNewPO({ ...newPO, paymentTimelines: pts });
-                            }} />
+                        <tr key={idx} className="border-t border-[#1A365D]/20 hover:bg-[#1A365D]/5 transition-colors">
+                          <td className="p-1.5 border-r border-[#1A365D]/20">
+                            <input type="date"
+                              className="w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded px-1.5 py-1 text-xs [color-scheme:light] dark:[color-scheme:dark]"
+                              value={pt.date || ""}
+                              onChange={(e) => { const pts = [...(newPO.paymentTimelines || [])]; pts[idx] = {...pts[idx], date: e.target.value}; setNewPO({ ...newPO, paymentTimelines: pts }); }}
+                            />
                           </td>
-                          <td className="p-1">
-                             <input type="date" className="w-full bg-transparent p-1 outline-none border border-gray-200 dark:border-gray-600 rounded text-gray-900 dark:text-white [color-scheme:light] dark:[color-scheme:dark]" value={pt.date} onChange={(e) => {
-                              const pts = [...(newPO.paymentTimelines || [])];
-                              pts[idx].date = e.target.value;
-                              setNewPO({ ...newPO, paymentTimelines: pts });
-                            }} />
+                          <td className="p-1.5 border-r border-[#1A365D]/20">
+                            <input
+                              className="w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded px-1.5 py-1 text-xs"
+                              value={normalizeTimelineType(pt.type)}
+                              onChange={(e) => { const pts = [...(newPO.paymentTimelines || [])]; pts[idx] = {...pts[idx], type: e.target.value}; setNewPO({ ...newPO, paymentTimelines: pts }); }}
+                            />
                           </td>
-                          <td className="p-1">
-                             <input className="w-full bg-transparent p-1 outline-none border border-gray-200 dark:border-gray-600 rounded text-gray-900 dark:text-white" value={pt.mode} onChange={(e) => {
-                              const pts = [...(newPO.paymentTimelines || [])];
-                              pts[idx].mode = e.target.value;
-                              setNewPO({ ...newPO, paymentTimelines: pts });
-                            }} />
+                          <td className="p-1.5 border-r border-[#1A365D]/20">
+                            <input
+                              className="w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded px-1.5 py-1 text-xs"
+                              value={pt.mode || ""}
+                              onChange={(e) => { const pts = [...(newPO.paymentTimelines || [])]; pts[idx] = {...pts[idx], mode: e.target.value}; setNewPO({ ...newPO, paymentTimelines: pts }); }}
+                            />
                           </td>
-                          <td className="p-1">
-                             <input type="number" className="w-full bg-transparent p-1 outline-none border border-gray-200 dark:border-gray-600 rounded text-gray-900 dark:text-white" value={pt.amount} onChange={(e) => {
-                              const pts = [...(newPO.paymentTimelines || [])];
-                              pts[idx].amount = Number(e.target.value);
-                              setNewPO({ ...newPO, paymentTimelines: pts });
-                            }} />
+                          <td className="p-1.5 border-r border-[#1A365D]/20">
+                            <input type="number"
+                              className="w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded px-1.5 py-1 text-xs text-right"
+                              value={pt.amount ?? 0}
+                              onChange={(e) => { const pts = [...(newPO.paymentTimelines || [])]; pts[idx] = {...pts[idx], amount: Number(e.target.value)}; setNewPO({ ...newPO, paymentTimelines: pts }); }}
+                            />
                           </td>
-                          <td className="p-1">
-                             <input className="w-full bg-transparent p-1 outline-none border border-gray-200 dark:border-gray-600 rounded text-gray-900 dark:text-white" value={pt.gstPct} onChange={(e) => {
-                              const pts = [...(newPO.paymentTimelines || [])];
-                              pts[idx].gstPct = e.target.value;
-                              setNewPO({ ...newPO, paymentTimelines: pts });
-                            }} />
+                          <td className="p-1.5 border-r border-[#1A365D]/20">
+                            <input
+                              className="w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded px-1.5 py-1 text-xs text-center"
+                              value={pt.gstPct || ""}
+                              onChange={(e) => { const pts = [...(newPO.paymentTimelines || [])]; pts[idx] = {...pts[idx], gstPct: e.target.value}; setNewPO({ ...newPO, paymentTimelines: pts }); }}
+                            />
                           </td>
-                          <td className="p-1">
-                             <input type="number" className="w-full bg-transparent p-1 outline-none border border-gray-200 dark:border-gray-600 rounded font-bold text-gray-900 dark:text-white" value={pt.ifPayable} onChange={(e) => {
-                              const pts = [...(newPO.paymentTimelines || [])];
-                              pts[idx].ifPayable = Number(e.target.value);
-                              setNewPO({ ...newPO, paymentTimelines: pts });
-                            }} />
+                          <td className="p-1.5 border-r border-[#1A365D]/20">
+                            <input type="number"
+                              className="w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded px-1.5 py-1 text-xs text-right font-bold"
+                              value={pt.ifPayable ?? 0}
+                              onChange={(e) => { const pts = [...(newPO.paymentTimelines || [])]; pts[idx] = {...pts[idx], ifPayable: Number(e.target.value)}; setNewPO({ ...newPO, paymentTimelines: pts }); }}
+                            />
                           </td>
-                          <td className="p-1">
-                            <button onClick={() => {
-                              const pts = newPO.paymentTimelines?.filter((_, i) => i !== idx);
-                              setNewPO({ ...newPO, paymentTimelines: pts });
-                            }} className="p-1 hover:bg-red-50 dark:hover:bg-red-900/10 rounded transition-colors">
-                              <X className="w-4 h-4 text-red-500" />
+                          <td className="p-1.5 text-center">
+                            <button type="button" onClick={() => { const pts = newPO.paymentTimelines?.filter((_, i) => i !== idx); setNewPO({ ...newPO, paymentTimelines: pts }); }}
+                              className="p-1 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors">
+                              <X className="w-3.5 h-3.5 text-red-500" />
                             </button>
                           </td>
                         </tr>
                       ))}
                     </tbody>
+                    <tfoot>
+                      <tr className="bg-[#1A365D] text-white">
+                        <td colSpan={6} className="p-2 text-right text-[10px] font-black tracking-wide">Grand Total</td>
+                        <td className="p-2 text-right text-[13px] font-black pr-3">
+                          {fmtCur(
+                            (newPO.items?.reduce((s, it) => s + (it.totalWithGST || 0), 0) || 0) +
+                            calcChargeTotal(newPO.freightAmount || 0, newPO.freightGstPct || 0, newPO.freightGstType || "Exclusive") +
+                            calcChargeTotal(newPO.loadingAmount || 0, newPO.loadingGstPct || 0, newPO.loadingGstType || "Exclusive") +
+                            calcChargeTotal(newPO.unloadingAmount || 0, newPO.unloadingGstPct || 0, newPO.unloadingGstType || "Exclusive")
+                          )}
+                        </td>
+                      </tr>
+                    </tfoot>
                   </table>
                 </div>
               </div>
@@ -2453,6 +2739,7 @@ export const PurchaseOrders = () => {
           onClose={() => {
             setViewModal(false);
             setSelectedPO(null);
+            setEditTimelines(false);
           }}
         >
           {(() => {
@@ -2607,23 +2894,68 @@ export const PurchaseOrders = () => {
                         ))}
                       </tbody>
                       <tfoot>
+                         {/* Items Subtotal */}
                          <tr className="bg-white dark:bg-gray-900 border-b border-[#1A365D]">
                            <td colSpan={4} className="border-x border-[#1A365D] p-1.5"></td>
-                           <td className="border border-[#1A365D] p-1.5 text-right text-[10px] font-black bg-gray-50/50 dark:bg-slate-800/40">Total (Rs)</td>
+                           <td className="border border-[#1A365D] p-1.5 text-right text-[10px] font-black bg-gray-50/50 dark:bg-slate-800/40">Items Subtotal (Rs)</td>
                            <td className="border border-[#1A365D] p-1.5 text-right text-[11px] font-black text-slate-800 dark:text-slate-200">
                              {fmtCur(selectedPO.items.reduce((s, it) => s + (it.total || (it.qty * it.rate)), 0))}
                            </td>
                          </tr>
+                         {/* GST Row */}
                          <tr className="bg-white dark:bg-gray-900 border-b border-[#1A365D]">
                            <td colSpan={4} className="border-x border-[#1A365D] p-1.5"></td>
-                            <td className="border border-[#1A365D] p-1.5 text-right text-[10px] font-black bg-gray-50/50 dark:bg-slate-800/40">Gst {selectedPO.items[0]?.gstPct || 18}%</td>
-                            <td className="border border-[#1A365D] p-1.5 text-right text-[11px] font-black italic text-slate-500 dark:text-slate-400">
-                               {selectedPO.items[0]?.gstType || (selectedPO.totalValue > selectedPO.items.reduce((s, it) => s + (it.qty * it.rate), 0) + 0.5 ? "Exclusive" : "Inclusive")}
-                             </td>
+                           <td className="border border-[#1A365D] p-1.5 text-right text-[10px] font-black bg-gray-50/50 dark:bg-slate-800/40">
+                             Gst {selectedPO.items[0]?.gstPct || 18}% (Items)
+                           </td>
+                           <td className="border border-[#1A365D] p-1.5 text-right text-[11px] font-black text-slate-700 dark:text-slate-300">
+                             {fmtCur(
+                               selectedPO.items.reduce((s, it) => {
+                                 const base = it.total || (it.qty * it.rate);
+                                 const gstPct = it.gstPct || selectedPO.items[0]?.gstPct || 18;
+                                 const gstType = it.gstType || selectedPO.items[0]?.gstType || "Exclusive";
+                                 return s + (gstType === "Exclusive" ? base * gstPct / 100 : 0);
+                               }, 0)
+                             )}
+                             <span className="ml-1 text-[9px] italic text-slate-400 font-normal">
+                               ({selectedPO.items[0]?.gstType || "Exclusive"})
+                             </span>
+                           </td>
                          </tr>
+                         {/* Freight — always shown */}
+                         <tr className="bg-white dark:bg-gray-900 border-b border-[#1A365D]">
+                           <td colSpan={4} className="border-x border-[#1A365D] p-1.5"></td>
+                           <td className="border border-[#1A365D] p-1.5 text-right text-[10px] font-black bg-gray-50/50 dark:bg-slate-800/40">
+                             Freight Charges ({selectedPO.freightGstPct ?? 18}% GST · {selectedPO.freightGstType || "Exclusive"})
+                           </td>
+                           <td className="border border-[#1A365D] p-1.5 text-right text-[11px] font-bold text-slate-700 dark:text-slate-300">
+                             {fmtCur(calcChargeTotal(selectedPO.freightAmount || 0, selectedPO.freightGstPct || 0, selectedPO.freightGstType || "Exclusive"))}
+                           </td>
+                         </tr>
+                         {/* Loading — always shown */}
+                         <tr className="bg-white dark:bg-gray-900 border-b border-[#1A365D]">
+                           <td colSpan={4} className="border-x border-[#1A365D] p-1.5"></td>
+                           <td className="border border-[#1A365D] p-1.5 text-right text-[10px] font-black bg-gray-50/50 dark:bg-slate-800/40">
+                             Loading Charges ({selectedPO.loadingGstPct ?? 18}% GST · {selectedPO.loadingGstType || "Exclusive"})
+                           </td>
+                           <td className="border border-[#1A365D] p-1.5 text-right text-[11px] font-bold text-slate-700 dark:text-slate-300">
+                             {fmtCur(calcChargeTotal(selectedPO.loadingAmount || 0, selectedPO.loadingGstPct || 0, selectedPO.loadingGstType || "Exclusive"))}
+                           </td>
+                         </tr>
+                         {/* Unloading — always shown */}
+                         <tr className="bg-white dark:bg-gray-900 border-b border-[#1A365D]">
+                           <td colSpan={4} className="border-x border-[#1A365D] p-1.5"></td>
+                           <td className="border border-[#1A365D] p-1.5 text-right text-[10px] font-black bg-gray-50/50 dark:bg-slate-800/40">
+                             Unloading Charges ({selectedPO.unloadingGstPct ?? 18}% GST · {selectedPO.unloadingGstType || "Exclusive"})
+                           </td>
+                           <td className="border border-[#1A365D] p-1.5 text-right text-[11px] font-bold text-slate-700 dark:text-slate-300">
+                             {fmtCur(calcChargeTotal(selectedPO.unloadingAmount || 0, selectedPO.unloadingGstPct || 0, selectedPO.unloadingGstType || "Exclusive"))}
+                           </td>
+                         </tr>
+                         {/* Grand Total */}
                          <tr className="bg-gray-100 dark:bg-gray-800 text-[#1A365D] dark:text-blue-400 font-black">
                            <td colSpan={4} className="border-x border-b border-[#1A365D] p-1.5"></td>
-                           <td className="border border-[#1A365D] p-1.5 text-right text-[11px] font-black bg-[#1A365D] text-white">Grand total (Rs)</td>
+                           <td className="border border-[#1A365D] p-1.5 text-right text-[11px] font-black bg-[#1A365D] text-white">Grand Total (Rs)</td>
                            <td className="border border-[#1A365D] p-2 text-right text-[14px] bg-[#1A365D] text-white">{fmtCur(selectedPO.totalValue)}</td>
                          </tr>
                       </tfoot>
@@ -2678,6 +3010,94 @@ export const PurchaseOrders = () => {
                           <div className="col-span-8 p-2 font-bold text-[11px]">{selectedPO.vendorContact || "9109104035"}</div>
                         </div>
                       </div>
+                    </div>
+                  </div>
+
+                  {/* Payment Timelines Table */}
+                  <div className="mt-4 border border-[#1A365D] rounded-lg overflow-hidden">
+                    <div className="bg-[#1A365D] h-8 flex items-center justify-between px-4">
+                      <p className="text-white font-black text-[10px] tracking-widest">Payment Timelines</p>
+                      {!editTimelines ? (
+                        <button
+                          onClick={() => {
+                            const dates = computeTimelineDates(selectedPO);
+                            setDraftTimelines((selectedPO.paymentTimelines || []).map((pt: any, i: number) => ({
+                              ...pt,
+                              type: normalizeTimelineType(pt.type),
+                              date: i < 3 ? dates[i] : pt.date  // Recalculate first 3 row dates
+                            })));
+                            setEditTimelines(true);
+                          }}
+                          className="text-white text-[9px] border border-white/40 px-2.5 py-0.5 rounded hover:bg-white/10 transition-colors"
+                        >Edit</button>
+                      ) : (
+                        <div className="flex gap-2">
+                          <button onClick={handleSaveTimelines} className="text-white text-[9px] bg-green-600/30 border border-green-400/50 px-2.5 py-0.5 rounded hover:bg-green-600/50 transition-colors">Save</button>
+                          <button onClick={() => setEditTimelines(false)} className="text-white text-[9px] border border-white/30 px-2.5 py-0.5 rounded hover:bg-white/10 transition-colors">Cancel</button>
+                        </div>
+                      )}
+                    </div>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-[11px]">
+                        <thead>
+                          <tr className="bg-[#1A365D]/10 dark:bg-[#1A365D]/30 text-[9px] font-black text-gray-500 uppercase tracking-wide">
+                            <th className="p-2 text-left border-r border-[#1A365D]/30">Date</th>
+                            <th className="p-2 text-left border-r border-[#1A365D]/30">Type</th>
+                            <th className="p-2 text-left border-r border-[#1A365D]/30">Mode</th>
+                            <th className="p-2 text-right border-r border-[#1A365D]/30">Amount</th>
+                            <th className="p-2 text-center border-r border-[#1A365D]/30">GST %</th>
+                            <th className="p-2 text-right">If Payable</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {(editTimelines ? draftTimelines : (selectedPO.paymentTimelines || [])).map((pt: any, idx: number) => (
+                            <tr key={idx} className="border-t border-[#1A365D]/20 hover:bg-[#1A365D]/5 transition-colors">
+                              {editTimelines ? (
+                                <>
+                                  <td className="p-1.5 border-r border-[#1A365D]/20">
+                                    <input type="date" value={pt.date || ""} onChange={(e) => { const ts=[...draftTimelines]; ts[idx]={...ts[idx],date:e.target.value}; setDraftTimelines(ts); }} className="w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded px-1.5 py-1 text-xs [color-scheme:light] dark:[color-scheme:dark]" />
+                                  </td>
+                                  <td className="p-1.5 border-r border-[#1A365D]/20">
+                                    <input value={pt.type || ""} onChange={(e) => { const ts=[...draftTimelines]; ts[idx]={...ts[idx],type:e.target.value}; setDraftTimelines(ts); }} className="w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded px-1.5 py-1 text-xs" />
+                                  </td>
+                                  <td className="p-1.5 border-r border-[#1A365D]/20">
+                                    <input value={pt.mode || ""} onChange={(e) => { const ts=[...draftTimelines]; ts[idx]={...ts[idx],mode:e.target.value}; setDraftTimelines(ts); }} className="w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded px-1.5 py-1 text-xs" />
+                                  </td>
+                                  <td className="p-1.5 border-r border-[#1A365D]/20">
+                                    <input type="number" value={pt.amount ?? 0} onChange={(e) => { const ts=[...draftTimelines]; ts[idx]={...ts[idx],amount:Number(e.target.value)}; setDraftTimelines(ts); }} className="w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded px-1.5 py-1 text-xs text-right" />
+                                  </td>
+                                  <td className="p-1.5 border-r border-[#1A365D]/20">
+                                    <input value={pt.gstPct || ""} onChange={(e) => { const ts=[...draftTimelines]; ts[idx]={...ts[idx],gstPct:e.target.value}; setDraftTimelines(ts); }} className="w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded px-1.5 py-1 text-xs text-center" />
+                                  </td>
+                                  <td className="p-1.5">
+                                    <input type="number" value={pt.ifPayable ?? 0} onChange={(e) => { const ts=[...draftTimelines]; ts[idx]={...ts[idx],ifPayable:Number(e.target.value)}; setDraftTimelines(ts); }} className="w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded px-1.5 py-1 text-xs text-right font-bold" />
+                                  </td>
+                                </>
+                              ) : (
+                                <>
+                                  <td className="p-2 border-r border-[#1A365D]/20">
+                                    {formatPrettyDate(idx < 3 ? computeTimelineDates(selectedPO)[idx] : pt.date)}
+                                  </td>
+                                  <td className="p-2 border-r border-[#1A365D]/20 font-medium">{normalizeTimelineType(pt.type)}</td>
+                                  <td className="p-2 border-r border-[#1A365D]/20">{pt.mode}</td>
+                                  <td className="p-2 border-r border-[#1A365D]/20 text-right">{(pt.amount || 0) > 0 ? fmtCur(pt.amount) : <span className="text-gray-400">—</span>}</td>
+                                  <td className="p-2 border-r border-[#1A365D]/20 text-center">{pt.gstPct && pt.gstPct !== "-" ? pt.gstPct : <span className="text-gray-400">—</span>}</td>
+                                  <td className="p-2 text-right font-bold text-[#1A365D] dark:text-blue-400">{(pt.ifPayable || 0) > 0 ? fmtCur(pt.ifPayable) : <span className="text-gray-400 font-normal">0.00</span>}</td>
+                                </>
+                              )}
+                            </tr>
+                          ))}
+                        </tbody>
+                        <tfoot>
+                          <tr className="bg-[#1A365D] text-white">
+                            <td colSpan={5} className="p-2 text-right text-[10px] font-black tracking-wide">Grand Total</td>
+                            <td className="p-2 text-right text-[13px] font-black">
+                              {/* Always show the PO's actual totalValue (matches Order Details Grand Total) */}
+                              {fmtCur(selectedPO.totalValue)}
+                            </td>
+                          </tr>
+                        </tfoot>
+                      </table>
                     </div>
                   </div>
 
@@ -2917,7 +3337,7 @@ export const PurchaseOrders = () => {
                 />
               )}
               <Btn label="Download PO PDF" icon={Download} onClick={() => downloadPDF(selectedPO)} className="bg-orange-500 hover:bg-orange-600 text-white border-none shadow-lg shadow-orange-500/20 font-bold" />
-              <Btn label="Close" outline onClick={() => { setViewModal(false); setSelectedPO(null); }} className="px-8 border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800" />
+              <Btn label="Close" outline onClick={() => { setViewModal(false); setSelectedPO(null); setEditTimelines(false); }} className="px-8 border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800" />
           </div>
 
           <style dangerouslySetInnerHTML={{ __html: `

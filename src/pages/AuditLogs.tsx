@@ -43,13 +43,16 @@ export const AuditLogs = () => {
         <TableVirtuoso
           style={{ height: 'calc(100vh - 350px)', minHeight: '600px' }}
           data={auditLogs || []}
-          fixedHeaderContent={() => (
-            <tr className="bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-800">
-              <th className="px-6 py-4 text-[11px] font-bold text-gray-500">Audit details</th>
-              <th className="hidden md:table-cell px-6 py-4 text-[11px] font-bold text-gray-500">Action</th>
-              <th className="hidden md:table-cell px-6 py-4 text-[11px] font-bold text-gray-500 text-right">Details</th>
-            </tr>
-          )}
+          fixedHeaderContent={() => {
+            const headerClass = "px-6 py-4 text-[11px] font-bold text-[#6B7280] dark:text-gray-400 uppercase tracking-wider sticky top-0 z-10 sticky-th";
+            return (
+              <tr className="bg-gray-50/90 dark:bg-gray-800/90 backdrop-blur-md border-b border-[#E8ECF0] dark:border-gray-800">
+                <th className={headerClass}>Audit details</th>
+                <th className={`${headerClass} hidden md:table-cell`}>Action</th>
+                <th className={`${headerClass} hidden md:table-cell text-right`}>Details</th>
+              </tr>
+            );
+          }}
           itemContent={(_index, log) => (
             <>
               <td className="px-6 py-4">

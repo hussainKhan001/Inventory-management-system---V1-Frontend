@@ -257,17 +257,20 @@ export const Suppliers = () => {
               TableRow: (props) => <tr {...props} className="hover:bg-gray-50/50 dark:hover:bg-gray-800/30 transition-colors border-b border-[#E8ECF0] dark:border-gray-800" />,
               TableHead: React.forwardRef((props, ref) => <thead {...props} ref={ref} className="sticky top-0 z-10 bg-gray-50 dark:bg-gray-800/50" />)
             }}
-            fixedHeaderContent={() => (
-              <tr className="bg-gray-50 dark:bg-gray-800/50 border-b border-[#E8ECF0] dark:border-gray-800">
-                <th className="px-4 py-3 text-[11px] font-bold text-[#6B7280] dark:text-gray-400">Id</th>
-                <th className="px-4 py-3 text-[11px] font-bold text-[#6B7280] dark:text-gray-400">Company</th>
-                <th className="hidden md:table-cell px-4 py-3 text-[11px] font-bold text-[#6B7280] dark:text-gray-400">Owner</th>
-                <th className="hidden md:table-cell px-4 py-3 text-[11px] font-bold text-[#6B7280] dark:text-gray-400">Mobile</th>
-                <th className="hidden lg:table-cell px-4 py-3 text-[11px] font-bold text-[#6B7280] dark:text-gray-400">Products</th>
-                <th className="px-4 py-3 text-[11px] font-bold text-[#6B7280] dark:text-gray-400">Status</th>
-                <th className="px-4 py-3 text-[11px] font-bold text-[#6B7280] dark:text-gray-400 text-right">Actions</th>
-              </tr>
-            )}
+            fixedHeaderContent={() => {
+              const headerClass = "px-4 py-3 text-[11px] font-bold text-[#6B7280] dark:text-gray-400 uppercase tracking-wider sticky top-0 z-10 sticky-th";
+              return (
+                <tr className="bg-gray-50/90 dark:bg-gray-800/90 backdrop-blur-md border-b border-[#E8ECF0] dark:border-gray-800">
+                  <th className={headerClass}>Id</th>
+                  <th className={headerClass}>Company</th>
+                  <th className={`${headerClass} hidden md:table-cell`}>Owner</th>
+                  <th className={`${headerClass} hidden md:table-cell`}>Mobile</th>
+                  <th className={`${headerClass} hidden lg:table-cell`}>Products</th>
+                  <th className={headerClass}>Status</th>
+                  <th className={`${headerClass} text-right`}>Actions</th>
+                </tr>
+              );
+            }}
             itemContent={(_index, v) => (
               <>
                 <td className="px-4 py-3 text-[13px] font-mono text-[#6B7280] dark:text-gray-400">{v.id}</td>

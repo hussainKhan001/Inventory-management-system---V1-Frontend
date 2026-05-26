@@ -346,7 +346,7 @@ export const GRNPage = () => {
         }
       />
 
-      <div className="sticky top-0 z-30 will-change-transform bg-gray-50 dark:bg-gray-950 -mx-4 sm:-mx-6 md:-mx-8 px-4 sm:px-6 md:px-8 py-4 border-b border-gray-200 dark:border-gray-800 mb-6">
+      <div className="mb-6">
         <FilterRow 
           showClear={!!(search || startDate || endDate || filterProject || filterSupplier || filterStatus)} 
           onClearAll={() => { 
@@ -392,40 +392,43 @@ export const GRNPage = () => {
         </FilterRow>
       </div>
 
-      <Card className="p-0 overflow-hidden bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-800">
+      <Card className="p-0 overflow-hidden border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 flex-1 min-h-[400px]">
         <TableVirtuoso
-          style={{ height: 'calc(100vh - 350px)', minHeight: '600px' }}
+          style={{ height: 'calc(100vh - 350px)', minHeight: '400px' }}
           data={grns || []}
           endReached={() => {
             if (grnsPagination && page < grnsPagination.pages && !loading) {
               setPage((prev) => prev + 1);
             }
           }}
-          fixedHeaderContent={() => (
-            <tr className="bg-gray-50/90 dark:bg-gray-800/90 backdrop-blur-md border-b border-[#E8ECF0] dark:border-gray-800">
-              <Th className="px-4 py-3 text-[11px] font-bold text-[#6B7280] dark:text-gray-400 sticky top-0 z-10 sticky-th">
-                Grn details
-              </Th>
-              <Th className="hidden md:table-cell px-4 py-3 text-[11px] font-bold text-[#6B7280] dark:text-gray-400 sticky top-0 z-10 sticky-th">
-                Date
-              </Th>
-              <Th className="hidden md:table-cell px-4 py-3 text-[11px] font-bold text-[#6B7280] dark:text-gray-400 sticky top-0 z-10 sticky-th">
-                Project / supplier
-              </Th>
-              <Th className="hidden md:table-cell px-4 py-3 text-[11px] font-bold text-[#6B7280] dark:text-gray-400 sticky top-0 z-10 sticky-th">
-                Challan / mr
-              </Th>
-              <Th className="hidden md:table-cell px-4 py-3 text-[11px] font-bold text-[#6B7280] dark:text-gray-400 sticky top-0 z-10 sticky-th">
-                Photos
-              </Th>
-              <Th className="hidden md:table-cell px-4 py-3 text-[11px] font-bold text-[#6B7280] dark:text-gray-400 sticky top-0 z-10 sticky-th">
-                Status
-              </Th>
-              <Th className="px-4 py-3 text-[11px] font-bold text-[#6B7280] dark:text-gray-400 text-right sticky top-0 z-10 sticky-th">
-                Actions
-              </Th>
-            </tr>
-          )}
+          fixedHeaderContent={() => {
+            const headerClass = "px-4 py-3 text-[11px] font-bold text-[#6B7280] dark:text-gray-400 uppercase tracking-wider sticky top-0 z-10 sticky-th";
+            return (
+              <tr className="bg-gray-50/90 dark:bg-gray-800/90 backdrop-blur-md border-b border-[#E8ECF0] dark:border-gray-800">
+                <th className={headerClass}>
+                  Grn details
+                </th>
+                <th className={cn(headerClass, "hidden md:table-cell")}>
+                  Date
+                </th>
+                <th className={cn(headerClass, "hidden md:table-cell")}>
+                  Project / supplier
+                </th>
+                <th className={cn(headerClass, "hidden md:table-cell")}>
+                  Challan / mr
+                </th>
+                <th className={cn(headerClass, "hidden md:table-cell")}>
+                  Photos
+                </th>
+                <th className={cn(headerClass, "hidden md:table-cell")}>
+                  Status
+                </th>
+                <th className={cn(headerClass, "text-right")}>
+                  Actions
+                </th>
+              </tr>
+            );
+          }}
           itemContent={(_index, grn) => (
             <>
               <Td className="md:px-4 md:py-3 py-1">
@@ -468,22 +471,22 @@ export const GRNPage = () => {
               <Td className="hidden md:table-cell px-4 py-3 text-[13px] text-gray-600 dark:text-gray-400">
                 {formatDateTime(grn.date)}
               </Td>
-              <Td className="hidden md:table-cell px-4 py-3">
+              <Td className="hidden md:table-cell px-4 py-3 max-w-[150px]">
                 <div className="flex flex-col">
-                  <span className="text-[13px] font-medium text-gray-900 dark:text-white">
+                  <span className="text-[13px] font-medium text-gray-900 dark:text-white truncate" title={safeStr(grn.project)}>
                     {safeStr(grn.project)}
                   </span>
-                  <span className="text-[11px] text-gray-500">
+                  <span className="text-[11px] text-gray-500 truncate" title={safeStr(grn.vendor || grn.supplier)}>
                     {safeStr(grn.vendor || grn.supplier)}
                   </span>
                 </div>
               </Td>
-              <Td className="hidden md:table-cell px-4 py-3">
+              <Td className="hidden md:table-cell px-4 py-3 max-w-[150px]">
                 <div className="flex flex-col">
-                  <p className="text-[13px] text-gray-600 dark:text-gray-400">
+                  <p className="text-[13px] text-gray-600 dark:text-gray-400 truncate" title={`Inv: ${safeStr(grn.challan)}`}>
                     Inv: {safeStr(grn.challan)}
                   </p>
-                  <p className="text-[11px] text-gray-500">
+                  <p className="text-[11px] text-gray-500 truncate" title={`MR: ${safeStr(grn.mrNo)}`}>
                     MR: {safeStr(grn.mrNo)}
                   </p>
                 </div>
@@ -555,9 +558,7 @@ export const GRNPage = () => {
           )}
           components={{
             Table: (props) => (
-              <div className="w-full overflow-x-auto no-scrollbar">
-                <table {...props} className="w-full text-left border-collapse min-w-[800px] md:min-w-0" />
-              </div>
+              <table {...props} className="w-full text-left border-collapse min-w-[800px] md:min-w-0" />
             ),
             TableBody: React.forwardRef((props, ref) => <tbody {...props} ref={ref as any} className="divide-y divide-[#E8ECF0] dark:divide-gray-800" />),
             TableRow: (props) => <tr {...props} className={cn("hover:bg-gray-50/50 dark:hover:bg-gray-800/20 transition-colors", props.className)} />
@@ -692,13 +693,13 @@ export const GRNPage = () => {
                 <div className="overflow-x-auto">
                   <table className="w-full text-left border-collapse">
                     <thead>
-                      <tr className="bg-gray-50 dark:bg-gray-800/50 border-b border-gray-100 dark:border-gray-800">
-                        <th className="px-5 py-3 text-[11px] font-bold text-gray-500 italic">Material description</th>
-                        <th className="px-5 py-3 text-[11px] font-bold text-gray-500 text-center">Ordered</th>
-                        <th className="px-5 py-3 text-[11px] font-bold text-gray-500 text-center">Received</th>
-                        <th className="px-5 py-3 text-[11px] font-bold text-gray-500 text-center">Variance</th>
-                        <th className="px-5 py-3 text-[11px] font-bold text-gray-500 text-center">Unit</th>
-                        <th className="px-5 py-3 text-[11px] font-bold text-gray-500">Photos</th>
+                      <tr className="bg-gray-50/90 dark:bg-gray-800/90 backdrop-blur-md border-b border-[#E8ECF0] dark:border-gray-800">
+                        <th className="px-5 py-3 text-[11px] font-bold text-[#6B7280] dark:text-gray-400 uppercase tracking-wider">Material description</th>
+                        <th className="px-5 py-3 text-[11px] font-bold text-[#6B7280] dark:text-gray-400 uppercase tracking-wider text-center">Ordered</th>
+                        <th className="px-5 py-3 text-[11px] font-bold text-[#6B7280] dark:text-gray-400 uppercase tracking-wider text-center">Received</th>
+                        <th className="px-5 py-3 text-[11px] font-bold text-[#6B7280] dark:text-gray-400 uppercase tracking-wider text-center">Variance</th>
+                        <th className="px-5 py-3 text-[11px] font-bold text-[#6B7280] dark:text-gray-400 uppercase tracking-wider text-center">Unit</th>
+                        <th className="px-5 py-3 text-[11px] font-bold text-[#6B7280] dark:text-gray-400 uppercase tracking-wider">Photos</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-50 dark:divide-gray-800">

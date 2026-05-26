@@ -208,15 +208,6 @@ export const FilterRow = React.memo(({
   return (
     <div className={cn("flex flex-wrap items-center gap-3 sm:gap-4 w-full", className)}>
       {children}
-      {showClear && onClearAll && (
-        <button
-          type="button"
-          onClick={onClearAll}
-          className="px-3 h-[40px] text-xs font-bold text-gray-400 hover:text-red-500 transition-colors uppercase tracking-wider whitespace-nowrap"
-        >
-          Clear Filters
-        </button>
-      )}
     </div>
   );
 });
