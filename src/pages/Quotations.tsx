@@ -8,7 +8,8 @@ import {
   Modal, 
   Pagination,
   Skeleton,
-  DateField
+  DateField,
+  Checkbox
 } from "../components/ui";
 import { SearchFilter, DateRangePicker, SelectFilter, FilterRow } from "../components/ui/Filters";
 import { 
@@ -580,8 +581,7 @@ export const Quotations = () => {
                             return (
                               <tr key={idx} className="hover:bg-gray-50/60 dark:hover:bg-gray-800/30 transition-colors">
                                 <td className="px-4 py-4 text-center">
-                                  <input 
-                                    type="checkbox"
+                                  <Checkbox
                                     checked={selectedApprovedItems.includes(item.materialName)}
                                     disabled={!hasPermission("APPROVE_QUOTATION") || hasLinkedPO(selectedQuotation)}
                                     onChange={(e) => {
@@ -591,7 +591,6 @@ export const Quotations = () => {
                                         setSelectedApprovedItems(selectedApprovedItems.filter(name => name !== item.materialName));
                                       }
                                     }}
-                                    className="w-4 h-4 text-orange-600 border-gray-300 rounded focus:ring-orange-500 disabled:opacity-50"
                                   />
                                 </td>
                                 <td className="px-5 py-4">
@@ -667,8 +666,7 @@ export const Quotations = () => {
                           <div key={idx} className="p-4 bg-white dark:bg-gray-900/30">
                             <div className="flex justify-between items-start">
                               <div className="flex items-center gap-3">
-                                <input 
-                                  type="checkbox"
+                                <Checkbox
                                   checked={selectedApprovedItems.includes(item.materialName)}
                                   disabled={!hasPermission("APPROVE_QUOTATION") || hasLinkedPO(selectedQuotation)}
                                   onChange={(e) => {
@@ -678,7 +676,6 @@ export const Quotations = () => {
                                       setSelectedApprovedItems(selectedApprovedItems.filter(name => name !== item.materialName));
                                     }
                                   }}
-                                  className="w-4 h-4 text-orange-600 border-gray-300 rounded focus:ring-orange-500 disabled:opacity-50"
                                 />
                                 <div>
                                   <p className="text-sm font-bold text-gray-900 dark:text-white">{safeStr(item.materialName)}</p>

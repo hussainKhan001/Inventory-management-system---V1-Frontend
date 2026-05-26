@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useAppStore } from "../store";
-import { PageHeader, Card, Btn, StatusBadge, Field, Modal, DateField, ConfirmModal } from "../components/ui";
+import { PageHeader, Card, Btn, StatusBadge, Field, Modal, DateField, ConfirmModal, Checkbox } from "../components/ui";
 import { ShieldAlert, Settings, Users, FileText, UserPlus, Edit2, Trash2, Key, Check, X as CloseIcon, ArrowLeft, Eye, EyeOff, Plus, Search, Building } from "lucide-react";
 import { fmtCur } from "../utils";
 import { Role, Settings as ISettings } from "../types";
@@ -506,12 +506,10 @@ export const SuperAdmin = () => {
                       </div>
                       <div className="flex items-center gap-6" onClick={e => e.stopPropagation()}>
                         <label className="flex items-center gap-2 cursor-pointer group">
-                           <input 
-                              type="checkbox"
+                           <Checkbox
                               checked={allSelected}
                               ref={el => el && (el.indeterminate = someSelected)}
                               onChange={(e) => handleGroupSelectAll(group.perms, e.target.checked)}
-                              className="w-5 h-5 rounded-lg border-gray-300 text-primary focus:ring-primary/20 transition-all cursor-pointer"
                            />
                            <span className="text-[11px] font-black text-gray-500 tracking-widest group-hover:text-primary transition-colors">Select unit</span>
                         </label>
@@ -549,8 +547,7 @@ export const SuperAdmin = () => {
                                   </span>
                                 </div>
                               </div>
-                              <input 
-                                type="checkbox" 
+                              <Checkbox
                                 checked={isChecked}
                                 onChange={(e) => {
                                   const newPerms = e.target.checked 
@@ -558,7 +555,6 @@ export const SuperAdmin = () => {
                                     : currentRolePerms.filter((perm: string) => perm !== p);
                                   handleUpdateRolePermissions(selectedRole, newPerms);
                                 }}
-                                className="w-5 h-5 rounded-lg border-gray-300 text-primary focus:ring-primary/20 transition-all cursor-pointer ring-offset-2 hover:ring-2"
                               />
                             </label>
                           );

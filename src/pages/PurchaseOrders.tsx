@@ -2889,7 +2889,12 @@ export const PurchaseOrders = () => {
                             <td className="border border-[#1A365D] p-1.5 text-center font-bold text-gray-500">{safeStr(item.unit || "NOS")}</td>
                             <td className="border border-[#1A365D] p-1.5 text-center font-black text-gray-800 dark:text-slate-200">{item.qty}</td>
                             <td className="border border-[#1A365D] p-1.5 text-right font-medium text-slate-700 dark:text-slate-300">{fmtCur(item.rate)}</td>
-                            <td className="border border-[#1A365D] p-1.5 text-right font-black text-gray-800 dark:text-slate-200">{fmtCur(item.total)}</td>
+                            <td className="border border-[#1A365D] p-1.5 text-right font-black text-gray-800 dark:text-slate-200">
+                              {/* Amount = qty × rate (rate already includes GST for Inclusive; base price for Exclusive) */}
+                              {fmtCur((item.gstType || "Exclusive") === "Inclusive"
+                                ? (item.totalWithGST || (item.qty * item.rate))
+                                : (item.total || (item.qty * item.rate)))}
+                            </td>
                           </tr>
                         ))}
                       </tbody>
@@ -2899,7 +2904,11 @@ export const PurchaseOrders = () => {
                            <td colSpan={4} className="border-x border-[#1A365D] p-1.5"></td>
                            <td className="border border-[#1A365D] p-1.5 text-right text-[10px] font-black bg-gray-50/50 dark:bg-slate-800/40">Items Subtotal (Rs)</td>
                            <td className="border border-[#1A365D] p-1.5 text-right text-[11px] font-black text-slate-800 dark:text-slate-200">
-                             {fmtCur(selectedPO.items.reduce((s, it) => s + (it.total || (it.qty * it.rate)), 0))}
+                             {fmtCur(selectedPO.items.reduce((s, it) =>
+                               s + ((it.gstType || "Exclusive") === "Inclusive"
+                                 ? (it.totalWithGST || (it.qty * it.rate))
+                                 : (it.total || (it.qty * it.rate))),
+                             0))}
                            </td>
                          </tr>
                          {/* GST Row */}
@@ -2911,10 +2920,15 @@ export const PurchaseOrders = () => {
                            <td className="border border-[#1A365D] p-1.5 text-right text-[11px] font-black text-slate-700 dark:text-slate-300">
                              {fmtCur(
                                selectedPO.items.reduce((s, it) => {
-                                 const base = it.total || (it.qty * it.rate);
-                                 const gstPct = it.gstPct || selectedPO.items[0]?.gstPct || 18;
                                  const gstType = it.gstType || selectedPO.items[0]?.gstType || "Exclusive";
-                                 return s + (gstType === "Exclusive" ? base * gstPct / 100 : 0);
+                                 if (gstType === "Exclusive") {
+                                   // Exclusive: GST is added on top of base price
+                                   const base = it.total || (it.qty * it.rate);
+                                   const gstPct = it.gstPct || selectedPO.items[0]?.gstPct || 18;
+                                   return s + (base * gstPct / 100);
+                                 }
+                                 // Inclusive: GST is embedded in the rate — ₹0.00 additional GST
+                                 return s;
                                }, 0)
                              )}
                              <span className="ml-1 text-[9px] italic text-slate-400 font-normal">

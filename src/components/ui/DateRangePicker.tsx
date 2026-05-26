@@ -144,19 +144,19 @@ export const DateRangePicker = React.memo(({
     return {
       wrapper: cn(
         "relative h-8 w-full",
-        inRange && "bg-[#F97316]/15",
-        isStart && effEnd && "rounded-l-full bg-[#F97316]/15",
-        isEnd && effStart && "rounded-r-full bg-[#F97316]/15",
+        inRange && "bg-primary/15",
+        isStart && effEnd && "rounded-l-full bg-primary/15",
+        isEnd && effStart && "rounded-r-full bg-primary/15",
         !isEdge && !inRange && "rounded-full",
       ),
       inner: cn(
         "absolute inset-[1px] flex items-center justify-center rounded-full text-[12px] font-medium transition-colors duration-100",
         isEdge
-          ? "bg-[#F97316] text-white font-bold"
+          ? "bg-primary text-white font-bold"
           : inRange
-          ? "text-[#F97316]"
+          ? "text-primary"
           : isToday
-          ? "text-[#F97316] font-semibold"
+          ? "text-primary font-semibold"
           : "text-[#94A3B8] hover:bg-white/10 hover:text-white",
       ),
     };
@@ -173,7 +173,7 @@ export const DateRangePicker = React.memo(({
           "flex items-center gap-2 h-[40px] px-3 min-w-[220px] rounded-xl border text-[13px] transition-all duration-200 cursor-pointer",
           "bg-white dark:bg-[#0F172A] text-[#1A1A2E] dark:text-[#F1F5F9]",
           open
-            ? "border-[#F97316] ring-4 ring-[#F97316]/20"
+            ? "border-primary ring-4 ring-primary/20"
             : "border-gray-200/50 dark:border-gray-800 hover:border-gray-300 dark:hover:border-gray-700",
         )}
       >

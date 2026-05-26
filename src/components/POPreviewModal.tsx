@@ -176,7 +176,12 @@ export const POPreviewModal: React.FC<POPreviewModalProps> = ({
                     <td className="border border-[#1A365D] p-1.5 text-center font-bold text-gray-500 uppercase">{safeStr(item.unit || "NOS")}</td>
                     <td className="border border-[#1A365D] p-1.5 text-center font-black text-gray-800 dark:text-slate-200">{item.qty}</td>
                     <td className="border border-[#1A365D] p-1.5 text-right font-medium text-slate-700 dark:text-slate-300">{fmtCur(item.rate)}</td>
-                    <td className="border border-[#1A365D] p-1.5 text-right font-black text-gray-800 dark:text-slate-200">{fmtCur(item.total)}</td>
+                    <td className="border border-[#1A365D] p-1.5 text-right font-black text-gray-800 dark:text-slate-200">
+                      {/* Amount = qty × rate (rate already includes GST for Inclusive; base price for Exclusive) */}
+                      {fmtCur((item.gstType || "Exclusive") === "Inclusive"
+                        ? (item.totalWithGST || (item.qty * item.rate))
+                        : (item.total || (item.qty * item.rate)))}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -185,7 +190,11 @@ export const POPreviewModal: React.FC<POPreviewModalProps> = ({
                     <td colSpan={4} className="border-x border-[#1A365D] p-1.5"></td>
                     <td className="border border-[#1A365D] p-1.5 text-right text-[10px] font-black uppercase bg-gray-50/50 dark:bg-slate-800/40">Total (Rs)</td>
                     <td className="border border-[#1A365D] p-1.5 text-right text-[11px] font-black text-slate-800 dark:text-slate-200">
-                      {fmtCur(po.items.reduce((s, it) => s + (it.total || (it.qty * it.rate)), 0))}
+                      {fmtCur(po.items.reduce((s, it) =>
+                        s + ((it.gstType || "Exclusive") === "Inclusive"
+                          ? (it.totalWithGST || (it.qty * it.rate))
+                          : (it.total || (it.qty * it.rate))),
+                      0))}
                     </td>
                   </tr>
                   <tr className="bg-white dark:bg-gray-900 border-b border-[#1A365D]">

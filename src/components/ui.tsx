@@ -1,5 +1,5 @@
 import React from "react";
-import { X, Loader2, Sun, Moon, AlertCircle, Camera, Upload, Plus, Search, CheckCircle } from "lucide-react";
+import { X, Loader2, Sun, Moon, AlertCircle, Camera, Upload, Plus, Search, CheckCircle, Calendar } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { cn } from "../lib/utils";
 import { motion, AnimatePresence } from "motion/react";
@@ -252,45 +252,7 @@ export const Field = React.memo(({
   );
 });
 
-export const DateField = React.memo(({
-  label,
-  value,
-  onChange,
-  className,
-  required,
-  error,
-  small,
-  icon: Icon,
-  ...props
-}: any) => {
-  return (
-    <div className={cn(small ? "mb-2" : "mb-4", className)}>
-      {label && (
-        <label className={cn("block font-bold text-[#6B7280] dark:text-[#94A3B8] mb-1.5", small ? "text-[9px]" : "text-[11px] h-4")}>
-          {label} {required && <span className="text-red-500">*</span>}
-        </label>
-      )}
-      <div className="relative">
-        {Icon && (
-          <Icon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
-        )}
-        <input
-          type="date"
-          value={value && typeof value === 'string' && value.includes('T') ? value.split('T')[0] : (value || "")}
-          onChange={onChange}
-          {...props}
-          className={cn(
-            "w-full bg-white dark:bg-gray-950 border border-gray-200/50 dark:border-gray-800 rounded-xl text-[#1A1A2E] dark:text-[#F1F5F9] transition-all duration-200 focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/5 disabled:bg-gray-50 dark:disabled:bg-gray-900 disabled:text-gray-500 shadow-xs [color-scheme:light] dark:[color-scheme:dark]",
-            small ? "px-3 py-1.5 text-[12px]" : "px-4 py-2 h-[40px] text-[13px]",
-            Icon ? "pl-10" : "",
-            error && "border-red-500 focus:border-red-500 focus:ring-red-500/10"
-          )}
-        />
-      </div>
-      {error && <p className="text-[11px] text-red-500 mt-1 font-medium">{error}</p>}
-    </div>
-  );
-});
+export { DatePicker as DateField } from './ui/DatePicker';
 
 export const SField = React.memo(({
   label,
@@ -1194,3 +1156,5 @@ export const MultipleImageUpload = ({
     </div>
   );
 };
+
+export * from './ui/Checkbox';

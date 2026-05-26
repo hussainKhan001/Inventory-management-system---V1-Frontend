@@ -169,57 +169,67 @@ export const generatePOPDF = (po: PurchaseOrder, supplier?: Supplier) => {
 
   y = (doc as any).lastAutoTable.finalY + 2;
 
-  checkPage(40);
-  doc.setFontSize(9);
-  doc.setFont("helvetica", "bold");
+  checkPage(45);
 
-  // Items Subtotal
-  doc.setTextColor(100);
-  doc.text(`Items Subtotal (Excl. GST):`, 150, y, { align: "right" });
+  // ── Totals table (right-side, styled like the items table) ──────────────────
+  // For Inclusive: rate already embeds GST → subtotal labelled "Incl. GST"
+  // For Exclusive: rate is pre-GST base  → subtotal labelled "Excl. GST"
+  const subtotalLabel = `Items Subtotal (${gstType === "Inclusive" ? "Incl." : "Excl."} GST)`;
+  const gstLabel      = `GST on Items (${po.items[0]?.gstPct || 18}% · ${gstType})`;
+  const freightLabel  = `Freight Charges (${po.freightGstPct ?? 18}% GST · ${po.freightGstType || "Exclusive"})`;
+  const loadingLabel  = `Loading Charges (${po.loadingGstPct ?? 18}% GST · ${po.loadingGstType || "Exclusive"})`;
+  const unloadingLabel= `Unloading Charges (${po.unloadingGstPct ?? 18}% GST · ${po.unloadingGstType || "Exclusive"})`;
+
+  const darkColor = [40, 40, 40] as [number, number, number];
+  const rowBg     = [248, 250, 252] as [number, number, number];
+
+  const totalsBody: any[][] = [
+    [
+      { content: subtotalLabel,                    styles: { textColor: darkColor, fillColor: rowBg } },
+      { content: `Rs. ${fmtRs(subTotal)}`,         styles: { halign: 'right', fontStyle: 'bold', fillColor: rowBg, textColor: darkColor } }
+    ],
+    [
+      { content: gstLabel,                         styles: { textColor: darkColor } },
+      { content: `Rs. ${fmtRs(gstTotal)}`,         styles: { halign: 'right', textColor: darkColor } }
+    ],
+    [
+      { content: freightLabel,                     styles: { textColor: darkColor } },
+      { content: `Rs. ${fmtRs(freightTotal)}`,     styles: { halign: 'right', textColor: darkColor } }
+    ],
+    [
+      { content: loadingLabel,                     styles: { textColor: darkColor } },
+      { content: `Rs. ${fmtRs(loadingTotal)}`,     styles: { halign: 'right', textColor: darkColor } }
+    ],
+    [
+      { content: unloadingLabel,                   styles: { textColor: darkColor } },
+      { content: `Rs. ${fmtRs(unloadingTotal)}`,   styles: { halign: 'right', textColor: darkColor } }
+    ],
+    // Grand total row — dark-blue background
+    [
+      { content: 'TOTAL PAYABLE', styles: { fontStyle: 'bold', fontSize: 10.5, fillColor: primaryColor, textColor: [255, 255, 255] as [number,number,number] } },
+      { content: `Rs. ${fmtRs(po.totalValue)}`,    styles: { halign: 'right', fontStyle: 'bold', fontSize: 10.5, fillColor: primaryColor, textColor: [255, 255, 255] as [number,number,number] } }
+    ]
+  ];
+
+  autoTable(doc, {
+    startY: y + 1,
+    margin: { left: 100, right: 10 },   // Right-half of the page
+    theme: 'grid',
+    body: totalsBody,
+    styles: {
+      fontSize: 8.5,
+      cellPadding: { top: 2.2, bottom: 2.2, left: 3, right: 3 },
+      lineColor: [210, 215, 220],
+      lineWidth: 0.25,
+    },
+    columnStyles: {
+      0: { cellWidth: 70 },
+      1: { cellWidth: 30, halign: 'right', fontStyle: 'bold' },
+    },
+  });
+
+  y = (doc as any).lastAutoTable.finalY + 4;
   doc.setTextColor(0);
-  doc.text(`Rs. ${fmtRs(subTotal)}`, 197, y, { align: "right" });
-
-  // GST on Items
-  y += 5;
-  doc.setTextColor(100);
-  doc.text(`GST on Items (${po.items[0]?.gstPct || 18}% · ${gstType}):`, 150, y, { align: "right" });
-  doc.setTextColor(0);
-  doc.text(`Rs. ${fmtRs(gstTotal)}`, 197, y, { align: "right" });
-
-  // Freight Charges — always shown
-  y += 5;
-  doc.setTextColor(100);
-  doc.text(`Freight Charges (${po.freightGstPct ?? 18}% GST · ${po.freightGstType || "Exclusive"}):`, 150, y, { align: "right" });
-  doc.setTextColor(freightTotal > 0 ? 0 : 150);
-  doc.text(`Rs. ${fmtRs(freightTotal)}`, 197, y, { align: "right" });
-
-  // Loading Charges — always shown
-  y += 5;
-  doc.setTextColor(100);
-  doc.text(`Loading Charges (${po.loadingGstPct ?? 18}% GST · ${po.loadingGstType || "Exclusive"}):`, 150, y, { align: "right" });
-  doc.setTextColor(loadingTotal > 0 ? 0 : 150);
-  doc.text(`Rs. ${fmtRs(loadingTotal)}`, 197, y, { align: "right" });
-
-  // Unloading Charges — always shown
-  y += 5;
-  doc.setTextColor(100);
-  doc.text(`Unloading Charges (${po.unloadingGstPct ?? 18}% GST · ${po.unloadingGstType || "Exclusive"}):`, 150, y, { align: "right" });
-  doc.setTextColor(unloadingTotal > 0 ? 0 : 150);
-  doc.text(`Rs. ${fmtRs(unloadingTotal)}`, 197, y, { align: "right" });
-
-  y += 7;
-  doc.setDrawColor(primaryColor[0], primaryColor[1], primaryColor[2]);
-  doc.setLineWidth(0.4);
-  doc.line(135, y - 3.5, 197, y - 3.5);
-
-  doc.setFontSize(11);
-  doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
-  doc.text(`TOTAL PAYABLE:`, 150, y, { align: "right" });
-  doc.text(`Rs. ${fmtRs(po.totalValue)}`, 197, y, { align: "right" });
-
-  doc.setLineWidth(0.1);
-  doc.setTextColor(0);
-  y += 7;
 
   if (po.paymentTimelines && po.paymentTimelines.length > 0) {
     checkPage(16);
