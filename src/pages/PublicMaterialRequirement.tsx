@@ -39,7 +39,7 @@ export const PublicMaterialRequirement = () => {
     location: "",
     workType: "",
     requirementDate: todayStr(),
-    items: [{ materialName: "", sku: "", qty: 1, unit: "", condition: "New" }],
+    items: [{ materialName: "", sku: "", qty: 1, unit: "", condition: "New", category: "" }],
   });
   const [submittedId, setSubmittedId] = useState<string | null>(null);
 
@@ -179,7 +179,7 @@ export const PublicMaterialRequirement = () => {
   const addItem = () => {
     setForm({
       ...form,
-      items: [...form.items, { materialName: "", qty: 1, unit: "", condition: "New" }]
+      items: [...form.items, { materialName: "", sku: "", qty: 1, unit: "", condition: "New", category: "" }]
     });
   };
 
@@ -218,7 +218,9 @@ export const PublicMaterialRequirement = () => {
                 requesterName: "",
                 project: "",
                 location: "",
-                items: [{ materialName: "", qty: 1, unit: "" }],
+                workType: "",
+                requirementDate: todayStr(),
+                items: [{ materialName: "", sku: "", qty: 1, unit: "", condition: "New", category: "" }],
               });
               setOtherRequester("");
               setOtherProject("");

@@ -149,7 +149,7 @@ export const AccountsPage = () => {
     const pendingVerify = all.filter(p => {
       const accStatus = (p.accountStatus || "").toLowerCase();
       const poStatus = (p.status || "").toLowerCase();
-      return accStatus === "bill_verify" || (!accStatus && ["approved", "fulfilled", "pending grn", "grn fulfilled", "grn variance"].includes(poStatus));
+      return accStatus === "bill_verify" || (!accStatus && ["approved", "fulfilled", "grn pending", "grn fulfilled", "grn variance"].includes(poStatus));
     }).length;
     
     const paidThisMonth = all.filter(p => {
@@ -178,7 +178,7 @@ export const AccountsPage = () => {
       
       let status = accStatus;
       if (!status) {
-        if (["approved", "fulfilled", "pending grn", "grn fulfilled", "grn variance"].includes(poStatus)) {
+        if (["approved", "fulfilled", "grn pending", "grn fulfilled", "grn variance"].includes(poStatus)) {
           status = "bill_verify";
         } else {
           status = "other";
@@ -575,7 +575,7 @@ export const AccountsPage = () => {
                     <div className="hidden lg:flex items-center justify-center">
                       {["Fulfilled", "Partially Fulfilled"].includes(po.status) ? (
                         <span className="bg-green-50 text-green-600 dark:bg-[#064E3B] dark:text-[#34D399] px-2 py-0.5 rounded text-[9px] font-bold border border-green-100 dark:border-[#065F46] whitespace-nowrap">Full receive</span>
-                      ) : (po.status === "Pending GRN" || po.status === "Approved") ? (
+                      ) : (po.status === "GRN Pending" || po.status === "Approved") ? (
                         <span className="bg-amber-50 text-amber-600 dark:bg-amber-900/10 dark:text-amber-400 px-2 py-0.5 rounded text-[9px] font-bold border border-amber-100 dark:border-amber-900/20 whitespace-nowrap">Awaiting grn</span>
                       ) : (
                         <span className="bg-gray-50 text-gray-400 dark:bg-gray-800 dark:text-gray-500 px-2 py-0.5 rounded text-[9px] font-bold border border-gray-100 dark:border-gray-700 whitespace-nowrap">{po.status}</span>
@@ -684,7 +684,7 @@ export const AccountsPage = () => {
   suppliers
 }: any) => {
   const poStatus = (po.status || "").toLowerCase();
-  const status = po.accountStatus || (["approved", "fulfilled", "pending grn", "grn fulfilled", "grn variance"].includes(poStatus) ? "bill_verify" : "other");
+  const status = po.accountStatus || (["approved", "fulfilled", "grn pending", "grn fulfilled", "grn variance"].includes(poStatus) ? "bill_verify" : "other");
 
   const getSupplierName = (id: string) => {
     if (!id) return "Unknown Vendor";

@@ -508,7 +508,7 @@ export const SuperAdmin = () => {
                         <label className="flex items-center gap-2 cursor-pointer group">
                            <Checkbox
                               checked={allSelected}
-                              ref={el => el && (el.indeterminate = someSelected)}
+                              ref={el => { if (el) el.indeterminate = someSelected; }}
                               onChange={(e) => handleGroupSelectAll(group.perms, e.target.checked)}
                            />
                            <span className="text-[11px] font-black text-gray-500 tracking-widest group-hover:text-primary transition-colors">Select unit</span>

@@ -29,7 +29,6 @@ import { motion, AnimatePresence } from "motion/react";
 export const PublicPO = () => {
   const { 
     inventory, 
-    vendors: suppliers, 
     fetchPublicInventory,
     fetchPublicSuppliers,
     fetchPublicMRs,

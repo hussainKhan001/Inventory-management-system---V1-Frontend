@@ -61,6 +61,8 @@ export interface InventoryItem {
   condition: string;
   sourceSite?: string;
   lastProject?: string;
+  materialName?: string;
+  name?: string;
 }
 
 export interface CatalogueEntry {
@@ -160,10 +162,10 @@ export interface PurchaseOrder {
   supplier: string;
   items: POLineItem[];
   totalValue: number;
-  status: "Approved" | "Cancelled" | "Pending L1" | "Pending L2" | "Pending L3" | "Fulfilled" | "Blocked" | "Draft" | "bill_verify" | "payment_pending" | "paid" | "rejected" | "GRN Pending" | "GRN Fulfilled" | "GRN Variance" | "Ready for Payment" | "PO Closed";
-  approvalL1: "N/A" | "Pending" | "Approved";
-  approvalL2: "N/A" | "Pending" | "Approved";
-  approvalL3: "N/A" | "Pending" | "Approved";
+  status: string;
+  approvalL1: string;
+  approvalL2: string;
+  approvalL3: string;
   justification?: string;
   createdBy: string;
   date: string;
@@ -269,6 +271,13 @@ export interface PurchaseOrder {
   unloadingAmount?: number;
   unloadingGstPct?: number;
   unloadingGstType?: "Inclusive" | "Exclusive";
+  isApproved?: boolean;
+  totalAmount?: number;
+  createdAt?: string;
+  mr_id?: string;
+  mr_no?: string;
+  vendor?: string;
+  mrNo?: string;
 }
 
 export interface PlanLineItem {
@@ -282,6 +291,8 @@ export interface PlanLineItem {
   priority: "High" | "Medium" | "Low";
   delivery: string;
   activity: string;
+  materialName?: string;
+  name?: string;
 }
 
 export interface MaterialPlan {
@@ -303,6 +314,9 @@ export interface GRNItem {
   unit: string;
   condition?: string;
   images?: string[];
+  name?: string;
+  material?: string;
+  description?: string;
 }
 
 export interface GRN {
@@ -314,6 +328,7 @@ export interface GRN {
   date: string;
   challan: string;
   mrNo: string;
+  vendor?: string;
   gatePassNo?: string;
   docType:
     | "Challan"
@@ -351,6 +366,9 @@ export interface Inward {
   materialPhotoUrl?: string;
   challanPhotoUrl?: string;
   items?: TransactionItem[];
+  challanPhotos?: string[];
+  condition?: string;
+  otherProjectName?: string;
 }
 
 export interface Outward {
@@ -372,6 +390,7 @@ export interface Outward {
   personName?: string;
   items?: TransactionItem[];
   condition?: string;
+  otherProjectName?: string;
 }
 
 export interface InwardReturn {
@@ -434,15 +453,17 @@ export interface StockCheckReport {
   category: string;
   performedBy: string;
   items: StockCheckItem[];
-  status: "Completed";
+  status: string;
+  approvalReason?: string;
+  approvedBy?: string;
 }
 
 export interface AppNotification {
-  id: string;
+  id?: string;
   message: string;
   severity: "info" | "success" | "warning" | "error";
-  timestamp: string;
-  read: boolean;
+  timestamp?: string;
+  read?: boolean;
   path?: string;
   senderId?: string;
   targetRoles?: Role[];
@@ -481,7 +502,7 @@ export interface MaterialRequirementItem {
   issuedQty?: number;
   availableInStock?: number;
   remainingQty?: number;
-  status?: "In Stock" | "Needs Purchase" | "Partial" | "Allocated" | "Issued";
+  status?: string;
   condition?: string;
 }
 
@@ -498,13 +519,14 @@ export interface MaterialRequirement {
   requirementDate?: string;
   date: string;
   items: MaterialRequirementItem[];
-  status: "Draft" | "Pending" | "Rejected" | "Allocated" | "Partially Allocated" | "Partially Issued" | "Closed" | "Approved by Store" | "Approved by AGM" | "Store Pending" | "Quotation Phase";
+  status: string;
   approvedSupplier?: string;
   approvedQuotationId?: string;
   approvals?: {
     category?: string;
     quotationId: string;
     supplierName: string;
+    supplierId?: string;
     approvedAt?: string;
   }[];
   createdAt?: string;
@@ -555,6 +577,7 @@ export interface Quotation {
   remarks?: string;
   status: "Pending" | "Approved" | "Rejected";
   totalAmount?: number;
+  date?: string;
   freightAmount?: number;
   freightGstPct?: number;
   freightGstType?: "Inclusive" | "Exclusive";
@@ -589,6 +612,7 @@ export interface Transaction {
   remarks?: string;
   images?: string[];
   project?: string;
+  category?: string;
   destinationProject?: string;
   supplier?: string;
   challanNo?: string;

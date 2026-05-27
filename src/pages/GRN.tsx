@@ -560,7 +560,7 @@ export const GRNPage = () => {
               <table {...props} className="w-full text-left border-collapse table-fixed min-w-[800px] md:min-w-0" />
             ),
             TableBody: React.forwardRef((props, ref) => <tbody {...props} ref={ref as any} className="divide-y divide-[#E8ECF0] dark:divide-gray-800" />),
-            TableRow: (props) => <tr {...props} className={cn("hover:bg-gray-50/50 dark:hover:bg-gray-800/20 transition-colors", props.className)} />
+            TableRow: (props: any) => <tr {...props} className={cn("hover:bg-gray-50/50 dark:hover:bg-gray-800/20 transition-colors", props.className)} />
           }}
         />
 

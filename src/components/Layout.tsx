@@ -42,7 +42,7 @@ export const Layout = ({ children }: { children: React.ReactNode }) => {
     clearNotifications,
     inventoryPagination,
     cataloguePagination,
-    vendorsPagination: suppliersPagination,
+    suppliersPagination,
     posPagination,
     plansPagination,
     grnsPagination,

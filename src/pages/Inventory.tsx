@@ -526,7 +526,7 @@ export const Inventory = () => {
             Total Stock Units
           </p>
           <p className="text-2xl font-bold text-emerald-500 mt-1">
-            {stats.totalStock?.toLocaleString() || 0}
+            {stats.inStock?.toLocaleString() || 0}
           </p>
           <p className="text-[10px] text-gray-400 mt-1 font-bold tracking-tight">Physical items count</p>
         </Card>
@@ -614,7 +614,7 @@ export const Inventory = () => {
               <table {...props} className="w-full text-left border-collapse table-fixed min-w-[720px]" />
             ),
             TableBody: React.forwardRef((props, ref) => <tbody {...props} ref={ref as any} className="divide-y divide-gray-200 dark:divide-gray-800" />),
-            TableRow: (props) => {
+            TableRow: (props: any) => {
               return <Tr {...props} className={cn("cursor-pointer", props.className)} />;
             }
           }}

@@ -113,15 +113,15 @@ interface AppState {
   deletePlan: (id: string) => Promise<void>;
   materialRequirements: MaterialRequirement[];
   materialRequirementsPagination: PaginationInfo | null;
-  updateMaterialRequirement: (id: string, data: Partial<MaterialRequirement>) => Promise<void>;
-  addMaterialRequirement: (data: MaterialRequirement) => Promise<void>;
+  updateMaterialRequirement: (id: string, data: Partial<MaterialRequirement>) => Promise<any>;
+  addMaterialRequirement: (data: MaterialRequirement) => Promise<any>;
   deleteMaterialRequirement: (id: string) => Promise<void>;
   quotations: Quotation[];
   quotationsPagination: PaginationInfo | null;
-  updateQuotation: (id: string, data: Partial<Quotation>) => Promise<void>;
+  updateQuotation: (id: string, data: Partial<Quotation>) => Promise<any>;
   addQuotation: (data: Quotation) => Promise<void>;
   deleteQuotation: (id: string) => Promise<void>;
-  submitPublicMaterialRequirement: (data: any) => Promise<void>;
+  submitPublicMaterialRequirement: (data: any) => Promise<any>;
   submitPublicSupplierRegistration: (data: any) => Promise<void>;
   updateGRN: (id: string, data: Partial<GRN>) => Promise<void>;
   addGRN: (data: GRN) => Promise<void>;
@@ -151,7 +151,7 @@ interface AppState {
   addTransaction: (data: any) => Promise<void>;
   deleteTransaction: (id: string) => Promise<void>;
   uploadImage: (file: File) => Promise<{ url: string }>;
-  fetchPublicInventory: () => Promise<InventoryItem[]>;
+  fetchPublicInventory: (params?: any) => Promise<InventoryItem[]>;
   fetchPublicCatalogue: (params?: any) => Promise<any[]>;
   fetchPublicSuppliers: (params?: any) => Promise<Supplier[]>;
   fetchPublicMRs: (params?: any) => Promise<any[]>;
@@ -255,12 +255,19 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const unreadCount = (notifications || []).filter(n => !n.read).length;
 
   const addNotification = (notification: AppNotification) => {
+    const id = notification.id || Math.random().toString(36).substring(7);
+    const timestamp = notification.timestamp || new Date().toISOString();
     setNotifications(prev => {
       // Deduplicate by ID
-      if (prev.some(n => n.id === notification.id)) return prev;
+      if (prev.some(n => n.id === id)) return prev;
 
       // Ensure it has a read property
-      const newNotif = { ...notification, read: notification.read ?? false };
+      const newNotif = {
+        ...notification,
+        id,
+        timestamp,
+        read: notification.read ?? false
+      } as AppNotification;
 
       // Add to notifications
       return [newNotif, ...prev].slice(0, 100);
@@ -1470,7 +1477,12 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
 
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
       let wsUrl = `${protocol}//${window.location.host}`;
-      if (window.location.port === '5173') {
+      const apiBaseUrl = import.meta.env.VITE_API_BASE_URL;
+
+      if (apiBaseUrl && apiBaseUrl.startsWith('http')) {
+        const normalized = apiBaseUrl.replace(/\/api\/?$/, "");
+        wsUrl = normalized.replace(/^http/, "ws");
+      } else if (window.location.port === '5173') {
         wsUrl = `${protocol}//${window.location.hostname}:5000`;
       }
 
