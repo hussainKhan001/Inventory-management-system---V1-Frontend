@@ -112,11 +112,7 @@ export const TransactionsPage = ({ type }: { type?: TransactionType }) => {
     { label: "Public Transfer Outward", value: "Public Transfer Outward" }
   ], []);
 
-  useEffect(() => {
-    setPage(1);
-  }, [resourceName, type, debouncedSearch, filterProject, filterType]);
-
-  const data = resourceName === "inward" ? inwards : 
+  const data = resourceName === "inward" ? inwards :
                resourceName === "outward" ? outwards : 
                resourceName === "inward-returns" ? inwardReturns : 
                resourceName === "outward-returns" ? outwardReturns : 
@@ -131,6 +127,19 @@ export const TransactionsPage = ({ type }: { type?: TransactionType }) => {
   const [loadingField, setLoadingField] = useState<string | null>(null);
   const observerRef = useRef<HTMLDivElement>(null);
 
+  // Memoize TableVirtuoso components to prevent recreation on every render
+  const virtuosoTableComponents = useMemo(() => ({
+    Table: (props: any) => <table {...props} className="w-full text-left border-collapse table-fixed min-w-[800px] md:min-w-0" />,
+    TableBody: React.forwardRef((props: any, ref: any) => <tbody {...props} ref={ref} className="divide-y divide-[#E8ECF0] dark:divide-gray-800" />),
+    TableRow: (props: any) => <tr {...props} className={cn("hover:bg-gray-50/50 dark:hover:bg-gray-800/30 transition-colors", props.className)} />,
+  }), []);
+
+  const virtuosoMrTableComponents = useMemo(() => ({
+    Table: (props: any) => <table {...props} className="w-full text-left border-collapse table-fixed min-w-[600px]" />,
+    TableBody: React.forwardRef((props: any, ref: any) => <tbody {...props} ref={ref} className="divide-y divide-gray-100 dark:divide-gray-800" />),
+    TableRow: (props: any) => <tr {...props} className={cn("hover:bg-gray-50/50 dark:hover:bg-gray-800/30 transition-all", props.className)} />,
+  }), []);
+
   // Sync filterType with type prop
   useEffect(() => {
     setFilterType(type || "");
@@ -139,7 +148,7 @@ export const TransactionsPage = ({ type }: { type?: TransactionType }) => {
 
   useEffect(() => {
     setPage(1);
-  }, [debouncedSearch, filterProject, filterType, startDate, endDate]);
+  }, [resourceName, type, debouncedSearch, filterProject, filterType, startDate, endDate]);
 
   useEffect(() => {
     const isInitialLoad = (data?.length || 0) === 0;
@@ -202,12 +211,12 @@ export const TransactionsPage = ({ type }: { type?: TransactionType }) => {
       }
     })();
 
-    if (observerRef.current) {
+    if (observer && observerRef.current) {
       observer.observe(observerRef.current);
     }
 
-    return () => observer.disconnect();
-  }, [transactionsPagination, page, loading]);
+    return () => observer?.disconnect();
+  }, [pagination, page, loading]);
 
   const [modal, setModal] = useState(false);
   const [viewModal, setViewModal] = useState(false);
@@ -1295,11 +1304,7 @@ export const TransactionsPage = ({ type }: { type?: TransactionType }) => {
               </>
             );
           }}
-          components={{
-             Table: (props) => <table {...props} className="w-full text-left border-collapse table-fixed min-w-[800px] md:min-w-0" />,
-             TableBody: React.forwardRef((props, ref) => <tbody {...props} ref={ref as any} className="divide-y divide-[#E8ECF0] dark:divide-gray-800" />),
-             TableRow: (props: any) => <tr {...props} className={cn("hover:bg-gray-50/50 dark:hover:bg-gray-800/30 transition-colors", props.className)} />,
-          }}
+          components={virtuosoTableComponents}
         />
       ) : (
         <Card className="p-0 overflow-hidden border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 flex-1">
@@ -1379,11 +1384,7 @@ export const TransactionsPage = ({ type }: { type?: TransactionType }) => {
                 </Td>
               </>
             )}
-            components={{
-              Table: (props) => <table {...props} className="w-full text-left border-collapse table-fixed min-w-[600px]" />,
-              TableBody: React.forwardRef((props, ref) => <tbody {...props} ref={ref as any} className="divide-y divide-gray-100 dark:divide-gray-800" />),
-              TableRow: (props: any) => <tr {...props} className={cn("hover:bg-gray-50/50 dark:hover:bg-gray-800/30 transition-all", props.className)} />
-            }}
+            components={virtuosoMrTableComponents}
           />
           {mrAllocations.filter(alc => alc.remainingQty > 0).length === 0 && !loading && (
             <div className="px-4 py-12 text-center text-gray-500 italic text-[13px]">
@@ -2242,9 +2243,7 @@ export const TransactionsPage = ({ type }: { type?: TransactionType }) => {
               else if (type === "Inward Return") await deleteInwardReturn(deleteConfirm);
               else if (type === "Outward Return") await deleteOutwardReturn(deleteConfirm);
               else await deleteTransaction(deleteConfirm);
-              
               setDeleteConfirm(null);
-              toast.success("Transaction deleted");
             } catch (err: any) {
               toast.error(err.message || "Delete failed");
             }

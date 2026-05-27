@@ -170,7 +170,13 @@ export const Suppliers = () => {
 
     const supplierData: Supplier = {
       ...newSupplier as Supplier,
-      id: isEditing ? newSupplier.id! : `V${String(suppliers.length + 1).padStart(3, "0")}`,
+      id: isEditing ? newSupplier.id! : (() => {
+        const maxNum = suppliers.reduce((max, s) => {
+          const match = (s.id || "").match(/VND_(\d+)/i);
+          return match ? Math.max(max, parseInt(match[1], 10)) : max;
+        }, 0);
+        return `VND_${String(maxNum + 1).padStart(4, "0")}`;
+      })(),
       name: newSupplier.companyName!,
       contact: newSupplier.ownerName!,
       phone: newSupplier.mobile!,

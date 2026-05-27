@@ -304,11 +304,49 @@ export const Inventory = () => {
   const [viewModal, setViewModal] = useState<InventoryItem | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
+  const [isSkuManuallyEdited, setIsSkuManuallyEdited] = useState(false);
   const [filterProject, setFilterProject] = useState("");
   const [filterCategory, setFilterCategory] = useState("");
 
   const [newItem, setNewItem] = useState<InventoryItem>(INITIAL_ITEM);
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  const generateAutoSKU = (category: string, subCategory: string) => {
+    if (!category || !subCategory) return "";
+    const catCode = category.trim().replace(/[^a-zA-Z0-9]/g, "").slice(0, 3).toUpperCase();
+    const subCatCode = subCategory.trim().replace(/[^a-zA-Z0-9]/g, "").slice(0, 3).toUpperCase();
+    if (!catCode || !subCatCode) return "";
+    
+    const prefix = `${catCode}/${subCatCode}/`;
+    
+    const maxInvNum = inventory.reduce((max, item) => {
+      if (item.sku && item.sku.toUpperCase().startsWith(prefix)) {
+        const parts = item.sku.split("/");
+        const lastPart = parts[parts.length - 1];
+        const num = parseInt(lastPart, 10);
+        if (!isNaN(num)) {
+          return Math.max(max, num);
+        }
+      }
+      return max;
+    }, 0);
+
+    const maxCatNum = catalogue.reduce((max, item) => {
+      if (item.sku && item.sku.toUpperCase().startsWith(prefix)) {
+        const parts = item.sku.split("/");
+        const lastPart = parts[parts.length - 1];
+        const num = parseInt(lastPart, 10);
+        if (!isNaN(num)) {
+          return Math.max(max, num);
+        }
+      }
+      return max;
+    }, 0);
+
+    const maxNum = Math.max(maxInvNum, maxCatNum);
+    
+    return `${prefix}${String(maxNum + 1).padStart(4, "0")}`;
+  };
 
   useEffect(() => {
     if (Object.keys(errors).length > 0) {
@@ -387,6 +425,7 @@ export const Inventory = () => {
       setShowAddModal(false);
       setNewItem(INITIAL_ITEM);
       setIsEditing(false);
+      setIsSkuManuallyEdited(false);
       setErrors({});
     } catch (error: any) {
       toast.error(
@@ -413,7 +452,6 @@ export const Inventory = () => {
     if (!deleteConfirm) return;
     try {
       await deleteInventory(deleteConfirm);
-      toast.success("Item deleted successfully");
       setDeleteConfirm(null);
     } catch (error: any) {
       toast.error(`Failed to delete item: ${error.message}`);
@@ -464,6 +502,7 @@ export const Inventory = () => {
                 onClick={() => {
                   setIsEditing(false);
                   setNewItem(INITIAL_ITEM);
+                  setIsSkuManuallyEdited(false);
                   setShowAddModal(true);
                 }}
               />
@@ -671,6 +710,7 @@ export const Inventory = () => {
             setShowAddModal(false);
             setNewItem(INITIAL_ITEM);
             setIsEditing(false);
+            setIsSkuManuallyEdited(false);
             setErrors({});
           }}
         >
@@ -682,6 +722,7 @@ export const Inventory = () => {
                   value={newItem.sku}
                   onChange={(e: any) => {
                     const sku = e.target.value;
+                    setIsSkuManuallyEdited(true);
                     const catItem = catalogue.find(c => c.sku === sku);
                     if (catItem) {
                       setNewItem({
@@ -698,6 +739,7 @@ export const Inventory = () => {
                   }}
                   placeholder="e.g. ELE/CAB/0001"
                   required
+                  disabled={isEditing}
                   error={errors.sku}
                 />
                 <Field
@@ -715,9 +757,15 @@ export const Inventory = () => {
                 <SField
                   label="Category"
                   value={newItem.category}
-                  onChange={(e: any) =>
-                    setNewItem({ ...newItem, category: e.target.value })
-                  }
+                  onChange={(e: any) => {
+                    const category = e.target.value;
+                    const nextSku = !isEditing && !isSkuManuallyEdited ? generateAutoSKU(category, newItem.subCategory || "") : newItem.sku;
+                    setNewItem({
+                      ...newItem,
+                      category,
+                      sku: nextSku
+                    });
+                  }}
                   options={CATEGORIES}
                   required
                   error={errors.category}
@@ -725,9 +773,15 @@ export const Inventory = () => {
                 <Field
                   label="Sub-Category"
                   value={newItem.subCategory}
-                  onChange={(e: any) =>
-                    setNewItem({ ...newItem, subCategory: e.target.value })
-                  }
+                  onChange={(e: any) => {
+                    const subCategory = e.target.value;
+                    const nextSku = !isEditing && !isSkuManuallyEdited ? generateAutoSKU(newItem.category || "", subCategory) : newItem.sku;
+                    setNewItem({
+                      ...newItem,
+                      subCategory,
+                      sku: nextSku
+                    });
+                  }}
                   placeholder="e.g. Cables"
                   required
                   error={errors.subCategory}
@@ -806,6 +860,7 @@ export const Inventory = () => {
                   setShowAddModal(false);
                   setNewItem(INITIAL_ITEM);
                   setIsEditing(false);
+                  setIsSkuManuallyEdited(false);
                   setErrors({});
                 }}
               />

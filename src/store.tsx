@@ -39,8 +39,7 @@ interface PaginationInfo {
 interface AppState {
   user: User | null;
   isAuthenticated: boolean;
-  login: (email: string, password: string) => Promise<{ otpRequired: true; email: string } | boolean>;
-  verifyOtp: (email: string, otp: string) => Promise<boolean>;
+  login: (email: string, password: string) => Promise<boolean>;
   changePassword: (currentPassword: string, newPassword: string) => Promise<boolean>;
   logout: () => Promise<void>;
   checkAuth: () => Promise<void>;
@@ -153,6 +152,7 @@ interface AppState {
   deleteTransaction: (id: string) => Promise<void>;
   uploadImage: (file: File) => Promise<{ url: string }>;
   fetchPublicInventory: () => Promise<InventoryItem[]>;
+  fetchPublicCatalogue: (params?: any) => Promise<any[]>;
   fetchPublicSuppliers: (params?: any) => Promise<Supplier[]>;
   fetchPublicMRs: (params?: any) => Promise<any[]>;
   submitPublicInward: (data: any) => Promise<void>;
@@ -307,11 +307,11 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   });
 
   const saveSettings = async (data: ISettings) => {
-    console.log('[STORE] saving settings:', data);
+    // console.log('[STORE] saving settings:', data);
     setActionLoading(true);
     try {
       const res = await api.putSimple('settings', data);
-      console.log('[STORE] settings save response:', res);
+      // console.log('[STORE] settings save response:', res);
       // Ensure we extract the data correctly from the response
       const serverData = res.data || res;
       setSettings(serverData);
@@ -492,30 +492,10 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  // Step 1 – validate credentials; backend emails a 6-digit OTP
+  // Validate credentials → receive JWT and mark authenticated immediately
   const login = async (email: string, password: string) => {
     try {
       const res = await api.post('auth/login', { email, password });
-      // Backend returns { otpRequired: true, email } — no JWT yet
-      if (res.data?.otpRequired) {
-        return { otpRequired: true as const, email: res.data.email as string };
-      }
-      // Fallback: legacy direct login (shouldn't happen with current backend)
-      const { user: userData, token } = res.data;
-      localStorage.setItem('token', token);
-      setUser(userData);
-      setRole(userData.role);
-      setIsAuthenticated(true);
-      return true;
-    } catch (error: any) {
-      throw error;
-    }
-  };
-
-  // Step 2 – submit OTP → receive JWT and mark authenticated
-  const verifyOtp = async (email: string, otp: string) => {
-    try {
-      const res = await api.post('auth/verify-otp', { email, otp });
       const { user: userData, token } = res.data;
       localStorage.setItem('token', token);
       setUser(userData);
@@ -777,20 +757,20 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
 
   const refreshData = useCallback(async () => {
     if (!isAuthenticated) return;
-    console.log('Refreshing initial dashboard data...');
-
-    // Everyone needs role permissions for correct UI state logic
-    const essentialResources = [
-      () => fetchStats(),
-      () => fetchNotifications(),
-      () => fetchResource('pos', 1, 10, true),
-      () => fetchResource('settings', 1, 1, true),
-      () => fetchRolePermissions(),
-    ];
 
     try {
-      // Execute essential fetches in parallel - each of these functions catches its own errors
-      await Promise.all(essentialResources.map(fn => fn()));
+      // Critical — needed before the UI can render correctly (permissions + appearance)
+      await Promise.all([
+        fetchResource('settings', 1, 1, true),
+        fetchRolePermissions(),
+      ]);
+
+      // Deferred — fire after the page is interactive so they don't block first paint
+      setTimeout(() => {
+        fetchStats();
+        fetchNotifications();
+        fetchResource('pos', 1, 10, true);
+      }, 0);
 
       // If database is empty, seed it (soft check)
       try {
@@ -868,12 +848,15 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const deleteInventory = async (sku: string) => {
     const previousInventory = [...inventory];
     setInventory(prev => prev.filter(item => item.sku !== sku));
+    setActionLoading(true);
     try {
       await api.delete('inventory', sku);
       toast.success("Item deleted successfully");
     } catch (error: any) {
       setInventory(previousInventory);
       toast.error(error.message || "Failed to delete item");
+    } finally {
+      setActionLoading(false);
     }
   };
 
@@ -900,12 +883,15 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const deleteCatalogue = async (sku: string) => {
     const previousCatalogue = [...catalogue];
     setCatalogue(prev => prev.filter(item => item.sku !== sku));
+    setActionLoading(true);
     try {
       await api.delete('catalogue', sku);
       toast.success("Catalogue entry deleted");
     } catch (error: any) {
       setCatalogue(previousCatalogue);
       toast.error(error.message || "Failed to delete catalogue entry");
+    } finally {
+      setActionLoading(false);
     }
   };
 
@@ -932,12 +918,15 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const deleteSupplier = async (id: string) => {
     const previousSuppliers = [...suppliers];
     setSuppliers(prev => prev.filter(item => item.id === id ? false : (item as any)._id !== id));
+    setActionLoading(true);
     try {
       await api.delete('suppliers', id);
       toast.success("Supplier deleted");
     } catch (error: any) {
       setSuppliers(previousSuppliers);
       toast.error(error.message || "Failed to delete supplier");
+    } finally {
+      setActionLoading(false);
     }
   };
   const updatePO = async (id: string, data: Partial<PurchaseOrder>) => {
@@ -963,6 +952,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const deletePO = async (id: string) => {
     const previousPOs = [...pos];
     setPos(prev => prev.filter(item => item.id !== id));
+    setActionLoading(true);
     try {
       await api.delete('pos', id);
       toast.success("Purchase Order deleted");
@@ -972,6 +962,8 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     } catch (error: any) {
       setPos(previousPOs);
       toast.error(error.message || "Failed to delete PO");
+    } finally {
+      setActionLoading(false);
     }
   };
 
@@ -1122,12 +1114,15 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const deleteGRN = async (id: string) => {
     const previousGRNs = [...grns];
     setGrns(prev => prev.filter(item => item.id !== id));
+    setActionLoading(true);
     try {
       await api.delete('grn', id);
       toast.success("GRN deleted");
     } catch (error: any) {
       setGrns(previousGRNs);
       toast.error(error.message || "Failed to delete GRN");
+    } finally {
+      setActionLoading(false);
     }
   };
 
@@ -1158,6 +1153,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const deleteInward = async (id: string) => {
     const previousInwards = [...inwards];
     setInwards(prev => prev.filter(item => item.id !== id));
+    setActionLoading(true);
     try {
       await api.delete('inward', id);
       toast.success("Inward deleted");
@@ -1168,6 +1164,8 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     } catch (error: any) {
       setInwards(previousInwards);
       toast.error(error.message || "Failed to delete inward");
+    } finally {
+      setActionLoading(false);
     }
   };
 
@@ -1198,6 +1196,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const deleteOutward = async (id: string) => {
     const previousOutwards = [...outwards];
     setOutwards(prev => prev.filter(item => item.id !== id));
+    setActionLoading(true);
     try {
       await api.delete('outward', id);
       toast.success("Outward deleted");
@@ -1208,6 +1207,8 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     } catch (error: any) {
       setOutwards(previousOutwards);
       toast.error(error.message || "Failed to delete outward");
+    } finally {
+      setActionLoading(false);
     }
   };
 
@@ -1238,6 +1239,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const deleteInwardReturn = async (id: string) => {
     const previousReturns = [...inwardReturns];
     setInwardReturns(prev => prev.filter(item => item.id !== id));
+    setActionLoading(true);
     try {
       await api.delete('inward-returns', id);
       toast.success("Inward return deleted");
@@ -1245,6 +1247,8 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     } catch (error: any) {
       setInwardReturns(previousReturns);
       toast.error(error.message || "Failed to delete inward return");
+    } finally {
+      setActionLoading(false);
     }
   };
 
@@ -1275,6 +1279,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const deleteOutwardReturn = async (id: string) => {
     const previousReturns = [...outwardReturns];
     setOutwardReturns(prev => prev.filter(item => item.id !== id));
+    setActionLoading(true);
     try {
       await api.delete('outward-returns', id);
       toast.success("Outward return deleted");
@@ -1282,6 +1287,8 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     } catch (error: any) {
       setOutwardReturns(previousReturns);
       toast.error(error.message || "Failed to delete outward return");
+    } finally {
+      setActionLoading(false);
     }
   };
 
@@ -1369,6 +1376,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const deleteTransaction = async (id: string) => {
     const previousTransactions = [...transactions];
     setTransactions(prev => prev.filter(item => item.id !== id));
+    setActionLoading(true);
     try {
       await api.delete('transactions', id);
       toast.success("Transaction deleted");
@@ -1376,6 +1384,8 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     } catch (error: any) {
       setTransactions(previousTransactions);
       toast.error(error.message || "Failed to delete transaction");
+    } finally {
+      setActionLoading(false);
     }
   };
 
@@ -1550,7 +1560,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
 
             addNotificationRef.current(newNotification);
 
-            const currentUserId = userRef.current?.id || userRef.current?._id;
+            const currentUserId = (userRef.current as any)?._id || (userRef.current as any)?.id;
 
             // Only show toast if it's not from the current user
             // (Current user already gets a local success toast from the action)
@@ -1617,7 +1627,6 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         user,
         isAuthenticated,
         login,
-        verifyOtp,
         changePassword,
         logout,
         checkAuth,
@@ -1645,8 +1654,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         cataloguePagination,
         suppliers,
         suppliersPagination,
-        vendors: suppliers, // Alias for backward compatibility
-        vendorsPagination: suppliersPagination, // Alias for backward compatibility
+        // vendors / vendorsPagination removed — use suppliers / suppliersPagination directly
         pos,
         posPagination,
         plans,

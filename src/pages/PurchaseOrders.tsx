@@ -40,6 +40,7 @@ import { generatePOPDF } from "../utils/pdfGenerator";
 import { cn } from "../lib/utils";
 import { api } from "../services/api";
 import toast from "react-hot-toast";
+import { DatePicker } from "../components/ui/DatePicker";
 
 import { TableVirtuoso } from "react-virtuoso";
 
@@ -640,7 +641,6 @@ export const PurchaseOrders = () => {
     if (!deleteConfirm) return;
     try {
       await deletePO(deleteConfirm);
-      toast.success("Purchase Order deleted successfully");
       setDeleteConfirm(null);
     } catch (error: any) {
       toast.error(`Failed to delete PO: ${error.message}`);
@@ -1254,6 +1254,20 @@ export const PurchaseOrders = () => {
             setIsEditing(false);
             fetchResource('inventory', 1, 50, true);
           }}
+          footer={
+            <div className="flex justify-end gap-2 w-full">
+              <Btn label="Cancel" outline onClick={() => {
+                setModal(false);
+                setErrors({});
+              }} />
+              <Btn
+                label={isEditing ? "Update PO" : "Create PO"}
+                onClick={handleCreate}
+                loading={actionLoading}
+                disabled={false}
+              />
+            </div>
+          }
         >
           {isEditing && isPOLocked(newPO as PurchaseOrder) && (
             <div className="mb-6 p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl flex items-center gap-3">
@@ -1266,10 +1280,10 @@ export const PurchaseOrders = () => {
           )}
           <div className="space-y-8">
             {/* Structured Header - Matching Excel */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-0 border border-gray-200 dark:border-gray-800 rounded-xl overflow-hidden shadow-sm">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-0 border border-gray-200 dark:border-gray-800 rounded-xl overflow-visible shadow-sm">
               {/* Left Column: Company Details */}
-              <div className="divide-y divide-gray-100 dark:divide-gray-800 lg:border-r border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900">
-                <div className="bg-gray-50/50 dark:bg-gray-800/30 p-2 font-bold text-[10px] text-gray-500 flex items-center gap-2">
+              <div className="divide-y divide-gray-100 dark:divide-gray-800 lg:border-r border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 rounded-t-xl lg:rounded-tr-none lg:rounded-l-xl">
+                <div className="bg-gray-50/50 dark:bg-gray-800/30 p-2 font-bold text-[10px] text-gray-500 flex items-center gap-2 rounded-t-xl lg:rounded-tr-none lg:rounded-tl-xl">
                    <div className="w-1 h-3 bg-[#1A365D] rounded-full"></div>
                    Company details
                 </div>
@@ -1325,8 +1339,8 @@ export const PurchaseOrders = () => {
                       onChange={async (e: any) => {
                         const rawValue = e.target.value;
                         if (!rawValue) {
-                          setNewPO({ 
-                            ...newPO, 
+                          setNewPO({
+                            ...newPO,
                             mrId: "",
                             supplier: "",
                             project: "",
@@ -1354,40 +1368,39 @@ export const PurchaseOrders = () => {
                             return;
                           }
                           setAutoLinking(true);
-                          toast.loading(`Linking ${selectedCategory || ''} items...`, { id: "linking" });
-                          
+                          toast.loading(`Loading ${selectedCategory || ''} items...`, { id: "linking" });
+
                           try {
                             const qRes = await api.get('quotations', { filter: JSON.stringify({ mrId }), limit: 100 });
                             let mrQuotations = (qRes.success && Array.isArray(qRes.data)) ? qRes.data : [];
-                            
+
                             const storeQuotes = quotations.filter(q => q.mrId === mrId);
                             const allQuotes = [...mrQuotations];
                             storeQuotes.forEach(sq => {
                               if (!allQuotes.find(aq => aq.id === sq.id)) allQuotes.push(sq);
                             });
 
-                            // Only show quotations for the selected category
-                            const categoryQuotes = allQuotes.filter(q => 
+                            const categoryQuotes = allQuotes.filter(q =>
                               !selectedCategory || selectedCategory === "General" || q.category === selectedCategory
                             );
 
                             const approvedQuotation = categoryQuotes.find(q => (q.id === approvedQuoteId || (q as any)._id === approvedQuoteId)) || categoryQuotes[0];
                             const displayQuotations = categoryQuotes.length > 0 ? categoryQuotes : (approvedQuotation ? [approvedQuotation] : [{ supplierName: "Vendor 1", items: [] }]);
 
-                            const approvedQuotationItems = (approvedQuotation?.items || []).filter(item => item.approved);
+                            const approvedQuotationItems = (approvedQuotation?.items || []).filter((item: any) => item.approved);
                             const itemsToUse = approvedQuotationItems.length > 0 ? approvedQuotationItems : (approvedQuotation?.items || []);
 
                             const pItemsRaw: POLineItem[] = await Promise.all(
-                              itemsToUse.map(async (qItem) => {
+                              itemsToUse.map(async (qItem: any) => {
                                 const searchName = (qItem.materialName || "").trim();
                                 const rate = qItem.rate;
-                                const gstPct = (qItem as any)?.gstPct || 18;
-                                const gstType = (qItem as any)?.gstType || "Exclusive";
+                                const gstPct = qItem?.gstPct || 18;
+                                const gstType = qItem?.gstType || "Exclusive";
                                 const purchaseQty = qItem.qty;
 
                                 let invItem = inventory.find(i => (i.itemName || "").trim().toLowerCase() === searchName.toLowerCase() || (i.sku || "").trim().toLowerCase() === searchName.toLowerCase());
                                 if (!invItem) invItem = inventory.find(i => (i.itemName || "").toLowerCase().includes(searchName.toLowerCase()));
-                                
+
                                 if (!invItem) {
                                   try {
                                     const res = await api.get('inventory', { search: qItem.materialName, limit: 5 });
@@ -1398,56 +1411,57 @@ export const PurchaseOrders = () => {
                                 const rawTotal = (purchaseQty || 0) * rate;
                                 const totalWithGST = gstType === "Inclusive" ? rawTotal : rawTotal * (1 + gstPct / 100);
                                 const total = gstType === "Inclusive" ? totalWithGST / (1 + gstPct / 100) : rawTotal;
-                                
-                                const mrItem = mr.items.find(mi => mi.materialName === qItem.materialName);
+
+                                const mrItem = mr.items.find((mi: any) => mi.materialName === qItem.materialName);
 
                                 return {
                                   sku: invItem?.sku || "N/A",
                                   itemName: (invItem?.itemName || qItem.materialName || ""),
                                   qty: purchaseQty,
                                   unit: qItem.unit || invItem?.unit || mrItem?.unit || "Nos",
-                                  rate: rate,
-                                  gstPct: gstPct,
+                                  rate,
+                                  gstPct,
                                   gstType,
                                   total,
                                   totalWithGST,
                                   currentStock: invItem?.liveStock || 0,
                                   category: invItem?.category || qItem.category || "General",
                                   requirementQty: mrItem?.qty || purchaseQty,
+                                  condition: "New",
                                 };
                               })
                             );
 
-                            const pItems = pItemsRaw.filter(it => it.rate > 0);
+                            // Show all items (including rate=0 ones) so user can edit them
+                            const pItems = pItemsRaw;
 
-                            // Price comparison only for items in this category quotation
-                            const priceComparisonItemsRaw = itemsToUse.map(qItem => {
+                            const priceComparisonItemsRaw = itemsToUse.map((qItem: any) => {
                               const mName = (qItem.materialName || "").trim();
                               return {
                                 materialName: qItem.materialName,
                                 unit: qItem.unit || "",
                                 qty: qItem.qty || 1,
-                                rates: displayQuotations.map(q => {
-                                  const qi = findBestItemMatch((q as any).items || [], mName);
+                                rates: displayQuotations.map((q: any) => {
+                                  const qi = findBestItemMatch(q.items || [], mName);
                                   return qi?.rate || 0;
                                 }),
-                                gstPcts: displayQuotations.map(q => {
-                                  const qi = findBestItemMatch((q as any).items || [], mName);
+                                gstPcts: displayQuotations.map((q: any) => {
+                                  const qi = findBestItemMatch(q.items || [], mName);
                                   return qi?.gstPct || 0;
                                 })
                               };
                             });
 
-                            const priceComparisonItems = priceComparisonItemsRaw.filter(it => it.rates.some(r => r > 0));
+                            const priceComparisonItems = priceComparisonItemsRaw.filter((it: any) => it.rates.some((r: number) => r > 0));
 
                             const linkedSupplierId = approvedQuotation?.supplierId || mr.approvedSupplier;
-                            const linkedSupplier = suppliers.find(s => 
-                              s.id === linkedSupplierId || 
-                              (s as any)._id === linkedSupplierId || 
+                            const linkedSupplier = suppliers.find(s =>
+                              s.id === linkedSupplierId ||
+                              (s as any)._id === linkedSupplierId ||
                               (s.companyName || s.name || "").toLowerCase() === (approvedQuotation?.supplierName || "").toLowerCase()
                             );
-                            
-                            const updatedPOBase = {
+
+                            const updatedPOBase: any = {
                               ...newPO,
                               mrId: rawValue,
                               supplier: linkedSupplier?.id || (linkedSupplier as any)?._id || linkedSupplierId || "",
@@ -1467,11 +1481,11 @@ export const PurchaseOrders = () => {
                                 accountNo: formatAccountNo(linkedSupplier.accountNumber) || "NA",
                                 branchIFSC: `${linkedSupplier.branch || ""}, ${linkedSupplier.ifscCode || ""}`.trim().replace(/^,/, "").replace(/,$/, "").trim() || "NA"
                               } : { accountHolder: "NA", bankName: "NA", accountNo: "NA", branchIFSC: "NA" },
-                              deliveryDetails: approvedQuotation?.deliveryDate 
-                                ? { ...(newPO.deliveryDetails || {location: "Garden city", contactPerson: "Nitin mittal", deliveryDate: "NA"}), deliveryDate: approvedQuotation.deliveryDate } 
+                              deliveryDetails: approvedQuotation?.deliveryDate
+                                ? { ...(newPO.deliveryDetails || { location: "Garden city", contactPerson: "Nitin mittal", deliveryDate: "NA" }), deliveryDate: approvedQuotation.deliveryDate }
                                 : { location: newPO.deliveryDetails?.location || "Garden city", contactPerson: newPO.deliveryDetails?.contactPerson || "Nitin mittal", deliveryDate: "NA" },
                               priceComparison: {
-                                vendors: displayQuotations.map(q => ({
+                                vendors: displayQuotations.map((q: any) => ({
                                   name: q.supplierName || "Vendor",
                                   gstType: q.items?.[0]?.gstType || "Exclusive",
                                   gstPct: q.items?.[0]?.gstPct || 0
@@ -1479,7 +1493,6 @@ export const PurchaseOrders = () => {
                                 items: priceComparisonItems,
                                 remarks: ""
                               },
-                              // Carry over other charges from approved quotation
                               freightAmount: approvedQuotation?.freightAmount || 0,
                               freightGstPct: approvedQuotation?.freightGstPct ?? 18,
                               freightGstType: approvedQuotation?.freightGstType || "Exclusive",
@@ -1500,7 +1513,7 @@ export const PurchaseOrders = () => {
                               d10.setDate(d10.getDate() + 10);
                               const deliveryPlus10 = d10.toISOString().split('T')[0];
                               const existing = newPO.paymentTimelines || [];
-                              (updatedPOBase as any).paymentTimelines = [
+                              updatedPOBase.paymentTimelines = [
                                 { date: poDate, type: "Advance", mode: existing[0]?.mode || "Bank Transfer", amount: existing[0]?.amount || 0, gstPct: existing[0]?.gstPct || "Inclusive", ifPayable: existing[0]?.ifPayable || 0 },
                                 { date: deliveryDate, type: "On Delivery", mode: existing[1]?.mode || "Bank Transfer", amount: existing[1]?.amount || 0, gstPct: existing[1]?.gstPct || "-", ifPayable: existing[1]?.ifPayable || 0 },
                                 { date: deliveryPlus10, type: "After 10 Days of Delivery", mode: existing[2]?.mode || "Bank Transfer", amount: existing[2]?.amount || 0, gstPct: existing[2]?.gstPct || "Inclusive", ifPayable: existing[2]?.ifPayable || 0 },
@@ -1508,15 +1521,15 @@ export const PurchaseOrders = () => {
                             }
 
                             setNewPO(updatedPOBase);
-                            toast.success(`Category ${selectedCategory} links successful`, { id: "linking" });
+                            toast.success(`Items loaded`, { id: "linking" });
                           } catch (error) {
-                            toast.error("Failed to link items", { id: "linking" });
+                            toast.error("Failed to load items", { id: "linking" });
                           } finally {
                             setAutoLinking(false);
                           }
                         } else {
-                          setNewPO({ 
-                            ...newPO, 
+                          setNewPO({
+                            ...newPO,
                             mrId: rawValue,
                             supplier: "",
                             project: "",
@@ -1557,8 +1570,8 @@ export const PurchaseOrders = () => {
               </div>
 
               {/* Right Column: Vendor Details */}
-              <div className="divide-y divide-gray-100 dark:divide-gray-800 bg-white dark:bg-gray-900">
-                <div className="bg-gray-50/50 dark:bg-gray-800/30 p-2 font-bold text-[10px] text-gray-500 flex items-center justify-between gap-2">
+              <div className="divide-y divide-gray-100 dark:divide-gray-800 bg-white dark:bg-gray-900 rounded-b-xl lg:rounded-bl-none lg:rounded-r-xl">
+                <div className="bg-gray-50/50 dark:bg-gray-800/30 p-2 font-bold text-[10px] text-gray-500 flex items-center justify-between gap-2 lg:rounded-tr-xl">
                    <div className="flex items-center gap-2">
                     <div className="w-1 h-3 bg-orange-500 rounded-full"></div>
                     Vendor details
@@ -1862,8 +1875,8 @@ export const PurchaseOrders = () => {
                             value={item.rate ?? 0}
                             onChange={(e) => updateItem(idx, "rate", Number(e.target.value))}
                             className="w-full px-2 py-1.5 border border-gray-200 dark:border-gray-800 rounded-lg text-[13px] bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white"
-                            readOnly={!!newPO.mrId}
-                            disabled={!!newPO.mrId}
+                            readOnly={false}
+                            disabled={false}
                           />
                         </div>
                       </div>
@@ -1889,7 +1902,7 @@ export const PurchaseOrders = () => {
                             value={item.gstPct}
                             onChange={(e) => updateItem(idx, "gstPct", Number(e.target.value))}
                             className="w-full px-2 py-1.5 border border-gray-200 dark:border-gray-800 rounded-lg text-[13px] bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white"
-                            disabled={!!newPO.mrId}
+                            disabled={false}
                           >
                             <option value={0}>0%</option>
                             <option value={5}>5%</option>
@@ -1906,7 +1919,7 @@ export const PurchaseOrders = () => {
                             value={item.gstType || "Exclusive"}
                             onChange={(e) => updateItem(idx, "gstType", e.target.value)}
                             className="w-full px-2 py-1.5 border border-gray-200 dark:border-gray-800 rounded-lg text-[13px] bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white font-bold"
-                            disabled={!!newPO.mrId}
+                            disabled={false}
                           >
                             <option value="Exclusive">Exclusive</option>
                             <option value="Inclusive">Inclusive</option>
@@ -2123,8 +2136,8 @@ export const PurchaseOrders = () => {
                               value={item.rate ?? 0}
                               onChange={(e) => updateItem(idx, "rate", Number(e.target.value))}
                               className="w-full px-2 py-1 border border-gray-200 dark:border-gray-800 rounded text-[13px] bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
-                              readOnly={!!newPO.mrId}
-                              disabled={!!newPO.mrId}
+                              readOnly={false}
+                              disabled={false}
                             />
                           </td>
                           <td className="px-2 py-2">
@@ -2132,7 +2145,7 @@ export const PurchaseOrders = () => {
                               value={item.gstPct}
                               onChange={(e) => updateItem(idx, "gstPct", Number(e.target.value))}
                               className="w-full px-2 py-1 border border-gray-200 dark:border-gray-800 rounded text-[13px] bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
-                              disabled={!!newPO.mrId}
+                              disabled={false}
                             >
                               <option value={0}>0%</option>
                               <option value={5}>5%</option>
@@ -2146,7 +2159,7 @@ export const PurchaseOrders = () => {
                               value={item.gstType || "Exclusive"}
                               onChange={(e) => updateItem(idx, "gstType", e.target.value)}
                               className="w-full px-1 py-1 border border-gray-200 dark:border-gray-800 rounded text-[11px] bg-white dark:bg-gray-900 text-gray-900 dark:text-white font-bold"
-                              disabled={!!newPO.mrId}
+                              disabled={false}
                             >
                               <option value="Exclusive">Exclusive</option>
                               <option value="Inclusive">Inclusive</option>
@@ -2434,7 +2447,7 @@ export const PurchaseOrders = () => {
               </div>
 
               {/* Payment Timelines — same style as View Modal */}
-              <div className="mt-6 border border-[#1A365D] rounded-lg overflow-hidden">
+              <div className="mt-6 border border-[#1A365D] rounded-lg overflow-visible">
                 <div className="bg-[#1A365D] h-8 flex items-center justify-between px-4">
                   <p className="text-white font-black text-[10px] tracking-widest">Payment Timelines</p>
                   <button
@@ -2466,10 +2479,10 @@ export const PurchaseOrders = () => {
                       {newPO.paymentTimelines?.map((pt, idx) => (
                         <tr key={idx} className="border-t border-[#1A365D]/20 hover:bg-[#1A365D]/5 transition-colors">
                           <td className="p-1.5 border-r border-[#1A365D]/20">
-                            <input type="date"
-                              className="w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded px-1.5 py-1 text-xs [color-scheme:light] dark:[color-scheme:dark]"
+                            <DatePicker
+                              small
                               value={pt.date || ""}
-                              onChange={(e) => { const pts = [...(newPO.paymentTimelines || [])]; pts[idx] = {...pts[idx], date: e.target.value}; setNewPO({ ...newPO, paymentTimelines: pts }); }}
+                              onChange={(e: any) => { const pts = [...(newPO.paymentTimelines || [])]; pts[idx] = {...pts[idx], date: e.target.value}; setNewPO({ ...newPO, paymentTimelines: pts }); }}
                             />
                           </td>
                           <td className="p-1.5 border-r border-[#1A365D]/20">
@@ -2716,19 +2729,8 @@ export const PurchaseOrders = () => {
                 </div>
               </div>
             </div>
-
-            <div className="flex justify-end gap-2 pt-4 border-t border-gray-200 dark:border-gray-800 sticky bottom-0 bg-white dark:bg-[#1E293B] z-10 mt-6">
-            <Btn label="Cancel" outline onClick={() => {
-              setModal(false);
-              setErrors({});
-            }} />
-            <Btn
-              label={isEditing ? "Update PO" : "Create PO"}
-              onClick={handleCreate}
-              loading={actionLoading}
-              disabled={false}
-            />
-          </div>
+            {/* Spacer to allow DatePicker popups to drop down without getting clipped by the bottom edge */}
+            <div className="h-48 shrink-0"></div>
         </Modal>
       )}
 
@@ -2741,6 +2743,38 @@ export const PurchaseOrders = () => {
             setSelectedPO(null);
             setEditTimelines(false);
           }}
+          footer={
+            <div className="flex justify-end gap-3 w-full">
+              {selectedPO?.status === "Pending L1" && hasPermission("APPROVE_PURCHASE_ORDER_L1") && (
+                <Btn label="Approve L1" color="green" onClick={() => handleApproveL1(selectedPO.id)} loading={processingId === `approve-${selectedPO.id}`} />
+              )}
+              {selectedPO?.status === "Pending L2" && hasPermission("APPROVE_PURCHASE_ORDER_L2") && (
+                <Btn label="Approve L2" color="green" onClick={() => handleApproveL2(selectedPO.id)} loading={processingId === `approve-${selectedPO.id}`} />
+              )}
+              {selectedPO?.status === "Pending L3" && hasPermission("APPROVE_PURCHASE_ORDER_L3") && (
+                <Btn label="Approve L3 (Director)" color="green" onClick={() => handleApproveL3(selectedPO.id)} loading={processingId === `approve-${selectedPO.id}`} />
+              )}
+              {["Pending L1", "Pending L2", "Pending L3"].includes(selectedPO?.status || "") && (
+                hasPermission("REJECT_PURCHASE_ORDER") || 
+                (selectedPO?.status === "Pending L1" && hasPermission("APPROVE_PURCHASE_ORDER_L1")) ||
+                (selectedPO?.status === "Pending L2" && hasPermission("APPROVE_PURCHASE_ORDER_L2")) ||
+                (selectedPO?.status === "Pending L3" && hasPermission("APPROVE_PURCHASE_ORDER_L3"))
+              ) && (
+                <Btn label="Reject PO" color="red" onClick={() => handleReject(selectedPO.id)} loading={processingId === `reject-${selectedPO.id}`} />
+              )}
+              {selectedPO?.status === "Approved" && (role === "AGM" || role === "Super Admin" || role === "admin" || role === "superadmin") && (
+                <Btn
+                  label="Cancel PO"
+                  color="red"
+                  icon={X}
+                  onClick={() => handleCancelApproved(selectedPO.id)}
+                  loading={processingId === `cancel-${selectedPO.id}`}
+                />
+              )}
+              <Btn label="Download PO PDF" icon={Download} onClick={() => downloadPDF(selectedPO!)} className="bg-orange-500 hover:bg-orange-600 text-white border-none shadow-lg shadow-orange-500/20 font-bold" />
+              <Btn label="Close" outline onClick={() => { setViewModal(false); setSelectedPO(null); setEditTimelines(false); }} className="px-8 border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800" />
+            </div>
+          }
         >
           {(() => {
             if (!selectedPO) return null;
@@ -3069,7 +3103,7 @@ export const PurchaseOrders = () => {
                               {editTimelines ? (
                                 <>
                                   <td className="p-1.5 border-r border-[#1A365D]/20">
-                                    <input type="date" value={pt.date || ""} onChange={(e) => { const ts=[...draftTimelines]; ts[idx]={...ts[idx],date:e.target.value}; setDraftTimelines(ts); }} className="w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded px-1.5 py-1 text-xs [color-scheme:light] dark:[color-scheme:dark]" />
+                                    <DatePicker small value={pt.date || ""} onChange={(e: any) => { const ts=[...draftTimelines]; ts[idx]={...ts[idx],date:e.target.value}; setDraftTimelines(ts); }} />
                                   </td>
                                   <td className="p-1.5 border-r border-[#1A365D]/20">
                                     <input value={pt.type || ""} onChange={(e) => { const ts=[...draftTimelines]; ts[idx]={...ts[idx],type:e.target.value}; setDraftTimelines(ts); }} className="w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded px-1.5 py-1 text-xs" />
@@ -3321,38 +3355,6 @@ export const PurchaseOrders = () => {
             </>
           );
         })()}
-
-          <div className="flex justify-end gap-3 pt-6 no-print border-t border-gray-100 dark:border-gray-800 mt-6 bg-white dark:bg-[#1E293B] sticky bottom-[-24px] z-[60] px-6 pb-4 rounded-b-xl shadow-[0_-10px_15px_-3px_rgba(0,0,0,0.1)]">
-              {selectedPO.status === "Pending L1" && hasPermission("APPROVE_PURCHASE_ORDER_L1") && (
-                <Btn label="Approve L1" color="green" onClick={() => handleApproveL1(selectedPO.id)} loading={processingId === `approve-${selectedPO.id}`} />
-              )}
-              {selectedPO.status === "Pending L2" && hasPermission("APPROVE_PURCHASE_ORDER_L2") && (
-                <Btn label="Approve L2" color="green" onClick={() => handleApproveL2(selectedPO.id)} loading={processingId === `approve-${selectedPO.id}`} />
-              )}
-              {selectedPO.status === "Pending L3" && hasPermission("APPROVE_PURCHASE_ORDER_L3") && (
-                <Btn label="Approve L3 (Director)" color="green" onClick={() => handleApproveL3(selectedPO.id)} loading={processingId === `approve-${selectedPO.id}`} />
-              )}
-              {["Pending L1", "Pending L2", "Pending L3"].includes(selectedPO.status || "") && (
-                hasPermission("REJECT_PURCHASE_ORDER") || 
-                (selectedPO.status === "Pending L1" && hasPermission("APPROVE_PURCHASE_ORDER_L1")) ||
-                (selectedPO.status === "Pending L2" && hasPermission("APPROVE_PURCHASE_ORDER_L2")) ||
-                (selectedPO.status === "Pending L3" && hasPermission("APPROVE_PURCHASE_ORDER_L3"))
-              ) && (
-                <Btn label="Reject PO" color="red" onClick={() => handleReject(selectedPO.id)} loading={processingId === `reject-${selectedPO.id}`} />
-              )}
-              {/* AGM Cancel button — only for Approved POs */}
-              {selectedPO.status === "Approved" && (role === "AGM" || role === "Super Admin" || role === "admin" || role === "superadmin") && (
-                <Btn
-                  label="Cancel PO"
-                  color="red"
-                  icon={X}
-                  onClick={() => handleCancelApproved(selectedPO.id)}
-                  loading={processingId === `cancel-${selectedPO.id}`}
-                />
-              )}
-              <Btn label="Download PO PDF" icon={Download} onClick={() => downloadPDF(selectedPO)} className="bg-orange-500 hover:bg-orange-600 text-white border-none shadow-lg shadow-orange-500/20 font-bold" />
-              <Btn label="Close" outline onClick={() => { setViewModal(false); setSelectedPO(null); setEditTimelines(false); }} className="px-8 border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800" />
-          </div>
 
           <style dangerouslySetInnerHTML={{ __html: `
             @media print {

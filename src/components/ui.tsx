@@ -403,17 +403,15 @@ export const SField = React.memo(({
   );
 });
 
-export const Modal = ({ title, onClose, wide, extraWide, ultraWide, children }: any) => (
+export const Modal = ({ title, onClose, wide, extraWide, ultraWide, children, footer }: any) => (
   <motion.div
     initial={{ opacity: 0 }}
     animate={{ opacity: 1 }}
-    exit={{ opacity: 0 }}
     className="fixed inset-0 z-[60] flex items-center justify-center p-2 sm:p-4 bg-[#0F172A]/80 backdrop-blur-sm"
   >
     <motion.div
       initial={{ scale: 0.95, opacity: 0 }}
       animate={{ scale: 1, opacity: 1 }}
-      exit={{ scale: 0.95, opacity: 0 }}
       className={cn(
         "bg-white dark:bg-[#1E293B] rounded-2xl shadow-2xl w-full max-h-[98vh] sm:max-h-[90vh] flex flex-col transition-colors duration-200",
         ultraWide ? "max-w-[1400px]" : extraWide ? "max-w-6xl" : wide ? "max-w-4xl" : "max-w-xl"
@@ -428,7 +426,12 @@ export const Modal = ({ title, onClose, wide, extraWide, ultraWide, children }: 
           <X className="w-5 h-5" />
         </button>
       </div>
-      <div className="p-3 sm:p-6 overflow-y-auto">{children}</div>
+      <div className="p-3 sm:p-6 overflow-y-auto flex-1">{children}</div>
+      {footer && (
+        <div className="px-3 sm:px-6 py-3 sm:py-4 border-t border-[#E8ECF0] dark:border-[#334155] bg-gray-50 dark:bg-[#0B1120] rounded-b-2xl shrink-0">
+          {footer}
+        </div>
+      )}
     </motion.div>
   </motion.div>
 );

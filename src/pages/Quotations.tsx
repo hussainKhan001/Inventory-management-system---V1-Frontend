@@ -35,6 +35,7 @@ import { formatDateTime, formatDate, fmt, safeStr, isNewItem } from "../utils";
 import { toast } from "react-hot-toast";
 import { cn } from "../lib/utils";
 import { Virtuoso } from "react-virtuoso";
+import { DatePicker } from "../components/ui/DatePicker";
 
 export const Quotations = () => {
   const { 
@@ -943,11 +944,9 @@ const QuotationForm = ({ initialData, onClose, onSave }: QuotationFormProps) => 
         </div>
         <div className="space-y-1">
           <label className="text-[10px] font-black text-gray-400 tracking-widest ml-1">Delivery Date</label>
-          <input
-            type="date"
+          <DatePicker
             value={formData.deliveryDate ? formData.deliveryDate.split('T')[0] : ""}
-            onChange={(e) => setFormData({ ...formData, deliveryDate: e.target.value })}
-            className="w-full bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-orange-500/20 transition-all font-bold"
+            onChange={(e: any) => setFormData({ ...formData, deliveryDate: e.target.value })}
           />
         </div>
       </div>

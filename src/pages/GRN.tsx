@@ -120,11 +120,11 @@ export const GRNPage = () => {
       }
     })();
 
-    if (observerRef.current) {
+    if (observer && observerRef.current) {
       observer.observe(observerRef.current);
     }
 
-    return () => observer.disconnect();
+    return () => observer?.disconnect();
   }, [grnsPagination, page, loading]);
 
   const [modal, setModal] = useState(false);
@@ -172,7 +172,6 @@ export const GRNPage = () => {
     if (!deleteConfirm) return;
     try {
       await deleteGRN(deleteConfirm);
-      toast.success("GRN deleted successfully");
       setDeleteConfirm(null);
     } catch (error: any) {
       toast.error(`Failed to delete GRN: ${error.message}`);

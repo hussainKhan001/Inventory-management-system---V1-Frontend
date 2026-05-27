@@ -39,6 +39,7 @@ import { POPreviewModal } from "../components/POPreviewModal";
 import { api } from "../services/api";
 import { toast } from "react-hot-toast";
 import emailjs from '@emailjs/browser';
+import { DatePicker } from "../components/ui/DatePicker";
 
 // TODO: Replace with actual EmailJS credentials
 const EMAILJS_PUBLIC_KEY = "YOUR_PUBLIC_KEY";
@@ -968,11 +969,9 @@ export const AccountsPage = () => {
             <div className="bg-white dark:bg-[#1E293B] p-4 sm:p-6 rounded-2xl border border-gray-100 dark:border-[#334155] shadow-sm space-y-6">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <FormGroup label="Payment Date *" hint="ERP Tally Date">
-                  <input 
-                    type="date" 
+                  <DatePicker
                     value={paymentForm.date} 
-                    onChange={e => setPaymentForm({...paymentForm, date: e.target.value})}
-                    className="w-full bg-gray-50 dark:bg-[#0F172A] border border-gray-200 dark:border-[#334155] p-3 rounded-xl text-sm outline-none focus:ring-4 ring-blue-500/10 font-bold text-gray-900 dark:text-[#F1F5F9] transition-all"
+                    onChange={(e: any) => setPaymentForm({...paymentForm, date: e.target.value})}
                   />
                 </FormGroup>
                 <FormGroup label="Payment Mode *">
@@ -1046,11 +1045,9 @@ export const AccountsPage = () => {
                     />
                   </FormGroup>
                   <FormGroup label="Cheque Date *">
-                    <input 
-                      type="date" 
+                    <DatePicker
                       value={paymentForm.chequeDate}
-                      onChange={e => setPaymentForm({...paymentForm, chequeDate: e.target.value})}
-                      className="w-full bg-gray-50 dark:bg-[#0F172A] border border-gray-200 dark:border-[#334155] p-3 rounded-xl text-sm outline-none focus:ring-4 ring-blue-500/10 font-bold text-gray-900 dark:text-[#F1F5F9] transition-all"
+                      onChange={(e: any) => setPaymentForm({...paymentForm, chequeDate: e.target.value})}
                     />
                   </FormGroup>
                 </div>

@@ -127,7 +127,7 @@ export const DatePicker = React.memo(({
         </label>
       )}
       
-      <div className="relative">
+      <div className={cn("relative", open ? "z-[60]" : "z-10")}>
         <DatePickerTrigger
           onClick={openCalendar}
           onClear={clearDate}
