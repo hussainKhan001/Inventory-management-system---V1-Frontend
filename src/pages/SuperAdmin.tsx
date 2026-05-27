@@ -584,12 +584,12 @@ export const SuperAdmin = () => {
             </button>
             <div>
               <h2 className="text-xl font-black text-gray-900 dark:text-white tracking-tight">Access Control Protocol</h2>
-              <p className="text-xs text-gray-500 font-mono uppercase tracking-widest">Editing: {selectedUser.name}</p>
+              <p className="text-xs text-gray-500 font-mono tracking-widest">Editing: {selectedUser.name}</p>
             </div>
           </div>
           <div className="flex items-center gap-2 px-4 py-2 bg-primary/5 border border-primary/10 rounded-full h-fit">
              <ShieldAlert className="w-4 h-4 text-primary" />
-             <span className="text-[11px] font-bold text-primary uppercase tracking-wider">{selectedUser.role} Profile</span>
+             <span className="text-[11px] font-bold text-primary tracking-wider">{selectedUser.role} Profile</span>
           </div>
         </div>
 
@@ -615,14 +615,14 @@ export const SuperAdmin = () => {
                 <div className="flex items-center gap-3">
                   <div className={`px-4 py-2 rounded-xl border-2 flex items-center gap-2 ${selectedUser.isActive ? 'bg-green-50 border-green-100 text-green-700' : 'bg-red-50 border-red-100 text-red-700'}`}>
                     <div className={`w-2 h-2 rounded-full ${selectedUser.isActive ? 'bg-green-500' : 'bg-red-500'} animate-pulse`} />
-                    <span className="text-xs font-black uppercase tracking-widest">{selectedUser.isActive ? 'Active Node' : 'Deactivated'}</span>
+                    <span className="text-xs font-black tracking-widest">{selectedUser.isActive ? 'Active Node' : 'Deactivated'}</span>
                   </div>
                 </div>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div className="space-y-1">
-                  <label className="text-[11px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest ml-1">Full Name</label>
+                  <label className="text-[11px] font-bold text-gray-400 dark:text-gray-500 tracking-widest ml-1">Full Name</label>
                   <input 
                     type="text"
                     value={selectedUser.name}
@@ -632,7 +632,7 @@ export const SuperAdmin = () => {
                 </div>
 
                 <div className="space-y-1">
-                  <label className="text-[11px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest ml-1">Account Role</label>
+                  <label className="text-[11px] font-bold text-gray-400 dark:text-gray-500 tracking-widest ml-1">Account Role</label>
                   <select 
                     className="w-full bg-gray-50/50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-xl px-4 py-3 text-[13px] outline-none focus:ring-2 focus:ring-primary/20 transition-all font-medium text-gray-900 dark:text-white [color-scheme:light] dark:[color-scheme:dark]"
                     value={selectedUser?.role}
@@ -646,7 +646,7 @@ export const SuperAdmin = () => {
                 </div>
 
                 <div className="space-y-1">
-                  <label className="text-[11px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest ml-1">Security Credential</label>
+                  <label className="text-[11px] font-bold text-gray-400 dark:text-gray-500 tracking-widest ml-1">Security Credential</label>
                   <div className="relative">
                     <input 
                       type={showPass ? "text" : "password"}
@@ -727,7 +727,7 @@ export const SuperAdmin = () => {
           <button
             key={t.id}
             onClick={() => setTab(t.id)}
-            className={`flex items-center gap-2.5 px-5 py-2.5 rounded-lg text-[13px] font-bold uppercase tracking-wider transition-all duration-200 whitespace-nowrap ${
+            className={`flex items-center gap-2.5 px-5 py-2.5 rounded-lg text-[13px] font-bold tracking-wider transition-all duration-200 whitespace-nowrap ${
               tab === t.id 
                 ? "bg-white dark:bg-gray-700 text-primary shadow-sm ring-1 ring-black/5 dark:ring-white/10" 
                 : "text-gray-500 hover:text-gray-900 dark:hover:text-white hover:bg-gray-200/50 dark:hover:bg-gray-700/30"
@@ -746,7 +746,7 @@ export const SuperAdmin = () => {
               <FileText className="w-24 h-24 -mr-8 -mt-8" />
             </div>
             <div className="p-6 relative z-10">
-              <h3 className="text-[12px] font-bold uppercase tracking-widest text-primary-foreground/70 mb-1">
+              <h3 className="text-[12px] font-bold tracking-widest text-primary-foreground/70 mb-1">
                 Total PO Value (All Projects)
               </h3>
               <p className="text-4xl font-black tracking-tight">{fmtCur(totalValue)}</p>
@@ -764,7 +764,7 @@ export const SuperAdmin = () => {
               </div>
               <StatusBadge status="Pending" />
             </div>
-            <h3 className="text-[12px] font-bold uppercase tracking-widest text-gray-500 dark:text-gray-400 mb-1">
+            <h3 className="text-[12px] font-bold tracking-widest text-gray-500 dark:text-gray-400 mb-1">
               Pending Approvals
             </h3>
             <p className="text-4xl font-black text-gray-900 dark:text-white tracking-tight">
@@ -779,7 +779,7 @@ export const SuperAdmin = () => {
               </div>
               <StatusBadge status="Configured" />
             </div>
-            <h3 className="text-[12px] font-bold uppercase tracking-widest text-gray-500 dark:text-gray-400 mb-1">
+            <h3 className="text-[12px] font-bold tracking-widest text-gray-500 dark:text-gray-400 mb-1">
               Auto-Approve Threshold
             </h3>
             <p className="text-4xl font-black text-gray-900 dark:text-white tracking-tight">
@@ -831,19 +831,19 @@ export const SuperAdmin = () => {
               <table className="w-full text-left border-collapse">
                 <thead>
                   <tr className="bg-gray-50/50 dark:bg-gray-800/50 border-b border-gray-100 dark:border-gray-800">
-                    <th className="px-6 py-4 text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest">
+                    <th className="px-6 py-4 text-[11px] font-bold text-gray-500 dark:text-gray-400 tracking-widest">
                       PO No.
                     </th>
-                    <th className="px-6 py-4 text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest">
+                    <th className="px-6 py-4 text-[11px] font-bold text-gray-500 dark:text-gray-400 tracking-widest">
                       Project Details
                     </th>
-                    <th className="px-6 py-4 text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest text-right">
+                    <th className="px-6 py-4 text-[11px] font-bold text-gray-500 dark:text-gray-400 tracking-widest text-right">
                       Total Value
                     </th>
-                    <th className="px-6 py-4 text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest">
+                    <th className="px-6 py-4 text-[11px] font-bold text-gray-500 dark:text-gray-400 tracking-widest">
                       Status
                     </th>
-                    <th className="px-6 py-4 text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest text-right">
+                    <th className="px-6 py-4 text-[11px] font-bold text-gray-500 dark:text-gray-400 tracking-widest text-right">
                       Management
                     </th>
                   </tr>
@@ -867,7 +867,7 @@ export const SuperAdmin = () => {
                         </td>
                         <td className="px-6 py-4">
                            <div className="text-[13px] font-medium text-gray-700 dark:text-gray-300">{po.project}</div>
-                           <div className="text-[10px] text-gray-400 uppercase tracking-tight">{po.supplier}</div>
+                           <div className="text-[10px] text-gray-400 tracking-tight">{po.supplier}</div>
                         </td>
                         <td className="px-6 py-4 text-[14px] font-black text-right dark:text-gray-300 tabular-nums">
                           {fmtCur(po.totalValue)}
@@ -959,11 +959,11 @@ export const SuperAdmin = () => {
                 <table className="w-full text-left">
                   <thead>
                     <tr className="bg-gray-50/50 dark:bg-gray-800/50 border-b border-gray-100 dark:border-gray-800">
-                      <th className="px-6 py-4 text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest text-nowrap">Identity</th>
-                      <th className="px-6 py-4 text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest text-nowrap">Contact Info</th>
-                      <th className="px-6 py-4 text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest text-nowrap">Department/Role</th>
-                      <th className="px-6 py-4 text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest text-nowrap">Account State</th>
-                      <th className="px-6 py-4 text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest text-nowrap text-right">Actions</th>
+                      <th className="px-6 py-4 text-[11px] font-bold text-gray-500 dark:text-gray-400 tracking-widest text-nowrap">Identity</th>
+                      <th className="px-6 py-4 text-[11px] font-bold text-gray-500 dark:text-gray-400 tracking-widest text-nowrap">Contact Info</th>
+                      <th className="px-6 py-4 text-[11px] font-bold text-gray-500 dark:text-gray-400 tracking-widest text-nowrap">Department/Role</th>
+                      <th className="px-6 py-4 text-[11px] font-bold text-gray-500 dark:text-gray-400 tracking-widest text-nowrap">Account State</th>
+                      <th className="px-6 py-4 text-[11px] font-bold text-gray-500 dark:text-gray-400 tracking-widest text-nowrap text-right">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-50 dark:divide-gray-800">
@@ -976,7 +976,7 @@ export const SuperAdmin = () => {
                             </div>
                             <div>
                               <span className="text-[14px] font-bold text-gray-900 dark:text-white block">{u.name}</span>
-                              <span className="text-[10px] text-gray-400 uppercase tracking-tight font-mono">UID: {u._id?.slice(-6)}</span>
+                              <span className="text-[10px] text-gray-400 tracking-tight font-mono">UID: {u._id?.slice(-6)}</span>
                             </div>
                           </div>
                         </td>
@@ -986,7 +986,7 @@ export const SuperAdmin = () => {
                         </td>
                         <td className="px-6 py-4">
                           <div className="flex flex-col gap-1">
-                            <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold uppercase tracking-wide ${
+                            <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold tracking-wide ${
                               u.role === 'Super Admin' || u.role === 'admin' || u.role === 'superadmin' ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300' :
                               u.role === 'Director' ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300' :
                               u.role === 'AGM' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300' :
@@ -1002,11 +1002,11 @@ export const SuperAdmin = () => {
                               {u.role}
                             </span>
                             <div className="flex items-center gap-2 mt-1">
-                              <span className="text-[9px] text-gray-400 font-bold uppercase tracking-tighter">
+                              <span className="text-[9px] text-gray-400 font-bold tracking-tighter">
                                 Role: {rolePermissions.find(rp => rp.role === u.role)?.permissions?.length || 0}
                               </span>
                               {u.permissions?.length > 0 && (
-                                <span className="text-[9px] text-indigo-500 font-bold uppercase tracking-tighter">
+                                <span className="text-[9px] text-indigo-500 font-bold tracking-tighter">
                                   Direct: {u.permissions.length}
                                 </span>
                               )}
@@ -1069,7 +1069,7 @@ export const SuperAdmin = () => {
                           <ShieldAlert className="w-5 h-5" />
                         </div>
                         <div className="flex items-center gap-3">
-                          <span className="text-[10px] font-mono text-gray-400 uppercase tracking-widest">{permsCount} Auth Nodes</span>
+                          <span className="text-[10px] font-mono text-gray-400 tracking-widest">{permsCount} Auth Nodes</span>
                           {r !== 'Super Admin' && r !== 'superadmin' && (
                           <div className="flex items-center gap-1">
                             <button 
@@ -1091,7 +1091,7 @@ export const SuperAdmin = () => {
                         </div>
                       </div>
                       <div>
-                        <h4 className="text-[15px] font-black text-gray-900 dark:text-white uppercase tracking-tight">{r}</h4>
+                        <h4 className="text-[15px] font-black text-gray-900 dark:text-white tracking-tight">{r}</h4>
                         <p className="text-xs text-gray-500 mt-1">Configure global access rights for this role type.</p>
                       </div>
                       <Btn 
@@ -1117,7 +1117,7 @@ export const SuperAdmin = () => {
                 <Field label="Email (neotericgrp.in)" type="email" value={newUser.email} onChange={(e: any) => setNewUser({...newUser, email: e.target.value})} required />
                 <Field label="Password" type="password" value={newUser.password} onChange={(e: any) => setNewUser({...newUser, password: e.target.value})} required />
                 <div className="space-y-1 text-gray-900 dark:text-white">
-                  <label className="text-[11px] font-bold text-gray-500 uppercase">Role</label>
+                  <label className="text-[11px] font-bold text-gray-500 ">Role</label>
                   <select 
                     className="w-full bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg px-4 py-2.5 text-[13px] outline-none focus:ring-2 focus:ring-primary/20 [color-scheme:light] dark:[color-scheme:dark]"
                     value={newUser.role}

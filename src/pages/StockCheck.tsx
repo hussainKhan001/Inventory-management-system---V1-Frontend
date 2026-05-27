@@ -133,17 +133,17 @@ export const StockCheck = () => {
 
       {category && (
         <Card className="p-0 overflow-hidden bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-800">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
+          <div className="overflow-x-auto no-scrollbar">
+            <table className="w-full text-left border-collapse table-fixed min-w-[480px]">
               <thead>
                 <tr className="bg-gray-50 dark:bg-gray-800/50 border-b border-[#E8ECF0] dark:border-gray-800">
-                  <th className="px-4 py-3 text-[11px] font-bold text-[#6B7280] dark:text-gray-400">
+                  <th className="px-3 py-3 text-[11px] font-bold text-[#6B7280] dark:text-gray-400 whitespace-nowrap w-[130px] overflow-hidden">
                     Sku
                   </th>
-                  <th className="px-4 py-3 text-[11px] font-bold text-[#6B7280] dark:text-gray-400">
+                  <th className="px-3 py-3 text-[11px] font-bold text-[#6B7280] dark:text-gray-400 whitespace-nowrap overflow-hidden">
                     Item name
                   </th>
-                  <th className="px-4 py-3 text-[11px] font-bold text-[#6B7280] dark:text-gray-400 text-right">
+                  <th className="px-3 py-3 text-[11px] font-bold text-[#6B7280] dark:text-gray-400 whitespace-nowrap text-right w-[150px] overflow-hidden">
                     Physical count
                   </th>
                 </tr>
@@ -152,11 +152,11 @@ export const StockCheck = () => {
                 {loading ? (
                   [...Array(5)].map((_, i) => (
                     <tr key={i}>
-                      <td className="px-4 py-3"><Skeleton className="h-8 w-16" /></td>
-                      <td className="px-4 py-3"><Skeleton className="h-8 w-40" /></td>
-                      <td className="px-4 py-3 text-right"><Skeleton className="h-8 w-24 ml-auto" /></td>
-                      <td className="px-4 py-3 text-right"><Skeleton className="h-8 w-24 ml-auto" /></td>
-                      <td className="px-4 py-3 text-right"><Skeleton className="h-8 w-16 ml-auto" /></td>
+                      <td className="px-3 py-2.5"><Skeleton className="h-8 w-16" /></td>
+                      <td className="px-3 py-2.5"><Skeleton className="h-8 w-40" /></td>
+                      <td className="px-3 py-2.5 text-right"><Skeleton className="h-8 w-24 ml-auto" /></td>
+                      <td className="px-3 py-2.5 text-right"><Skeleton className="h-8 w-24 ml-auto" /></td>
+                      <td className="px-3 py-2.5 text-right"><Skeleton className="h-8 w-16 ml-auto" /></td>
                     </tr>
                   ))
                 ) : (
@@ -168,13 +168,13 @@ export const StockCheck = () => {
 
                     return (
                       <tr key={`${item.sku}-${idx}`} className="hover:bg-gray-50/50 dark:hover:bg-gray-800/30">
-                        <td className="px-4 py-3 text-[13px] font-mono text-[#6B7280] dark:text-gray-400">
-                          {item.sku}
+                        <td className="px-3 py-2.5 overflow-hidden">
+                          <span className="block truncate text-[13px] font-mono text-[#6B7280] dark:text-gray-400" title={item.sku}>{item.sku}</span>
                         </td>
-                        <td className="px-4 py-3 text-[13px] font-medium text-[#1A1A2E] dark:text-white">
-                          {item.itemName}
+                        <td className="px-3 py-2.5 overflow-hidden">
+                          <span className="block truncate text-[13px] font-medium text-[#1A1A2E] dark:text-white" title={item.itemName}>{item.itemName}</span>
                         </td>
-                        <td className="px-4 py-3 text-right">
+                        <td className="px-3 py-2.5 text-right">
                           <input
                             type="number"
                             value={count}

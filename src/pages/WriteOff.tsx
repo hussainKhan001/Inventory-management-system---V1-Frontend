@@ -71,80 +71,47 @@ export const WriteOffPage = () => {
       />
 
       <Card className="p-0 overflow-hidden border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
+        <div className="overflow-x-auto no-scrollbar">
+          <table className="w-full text-left border-collapse table-fixed min-w-[750px]">
             <thead>
               <tr className="bg-gray-50 dark:bg-gray-800/50 border-b border-[#E8ECF0] dark:border-gray-800">
-                <th className="px-4 py-3 text-[11px] font-bold text-[#6B7280] dark:text-gray-400">
-                  Ref no.
-                </th>
-                <th className="px-4 py-3 text-[11px] font-bold text-[#6B7280] dark:text-gray-400">
-                  Date
-                </th>
-                <th className="px-4 py-3 text-[11px] font-bold text-[#6B7280] dark:text-gray-400">
-                  Item
-                </th>
-                <th className="px-4 py-3 text-[11px] font-bold text-[#6B7280] dark:text-gray-400 text-right">
-                  Qty
-                </th>
-                <th className="px-4 py-3 text-[11px] font-bold text-[#6B7280] dark:text-gray-400">
-                  Reason
-                </th>
-                <th className="px-4 py-3 text-[11px] font-bold text-[#6B7280] dark:text-gray-400">
-                  Requested by
-                </th>
-                <th className="px-4 py-3 text-[11px] font-bold text-[#6B7280] dark:text-gray-400">
-                  Status
-                </th>
-                <th className="px-4 py-3 text-[11px] font-bold text-[#6B7280] dark:text-gray-400 text-right">
-                  Actions
-                </th>
+                <th className="px-3 py-3 text-[11px] font-bold text-[#6B7280] dark:text-gray-400 whitespace-nowrap w-[120px] overflow-hidden">Ref no.</th>
+                <th className="px-3 py-3 text-[11px] font-bold text-[#6B7280] dark:text-gray-400 whitespace-nowrap w-[148px] overflow-hidden">Date</th>
+                <th className="px-3 py-3 text-[11px] font-bold text-[#6B7280] dark:text-gray-400 whitespace-nowrap overflow-hidden">Item</th>
+                <th className="px-3 py-3 text-[11px] font-bold text-[#6B7280] dark:text-gray-400 whitespace-nowrap text-right w-[80px] overflow-hidden">Qty</th>
+                <th className="px-3 py-3 text-[11px] font-bold text-[#6B7280] dark:text-gray-400 whitespace-nowrap w-[160px] overflow-hidden">Reason</th>
+                <th className="px-3 py-3 text-[11px] font-bold text-[#6B7280] dark:text-gray-400 whitespace-nowrap w-[130px] overflow-hidden">Requested by</th>
+                <th className="px-3 py-3 text-[11px] font-bold text-[#6B7280] dark:text-gray-400 whitespace-nowrap w-[90px] overflow-hidden">Status</th>
+                <th className="px-3 py-3 text-[11px] font-bold text-[#6B7280] dark:text-gray-400 whitespace-nowrap text-right w-[150px] overflow-hidden">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[#E8ECF0] dark:divide-gray-800">
               {loading && writeOffs.length === 0 ? (
                 [...Array(5)].map((_, i) => (
                   <tr key={i}>
-                    <td className="px-4 py-3"><Skeleton className="h-8 w-16" /></td>
-                    <td className="px-4 py-3"><Skeleton className="h-8 w-24" /></td>
-                    <td className="px-4 py-3"><Skeleton className="h-8 w-40" /></td>
-                    <td className="px-4 py-3 text-right"><Skeleton className="h-8 w-16 ml-auto" /></td>
-                    <td className="px-4 py-3"><Skeleton className="h-8 w-32" /></td>
-                    <td className="px-4 py-3"><Skeleton className="h-8 w-24" /></td>
-                    <td className="px-4 py-3"><Skeleton className="h-8 w-20" /></td>
-                    <td className="px-4 py-3 text-right"><Skeleton className="h-8 w-16 ml-auto" /></td>
+                    <td className="px-3 py-2.5"><Skeleton className="h-7 w-full" /></td>
+                    <td className="px-3 py-2.5"><Skeleton className="h-7 w-full" /></td>
+                    <td className="px-3 py-2.5"><Skeleton className="h-7 w-full" /></td>
+                    <td className="px-3 py-2.5 text-right"><Skeleton className="h-7 w-full ml-auto" /></td>
+                    <td className="px-3 py-2.5"><Skeleton className="h-7 w-full" /></td>
+                    <td className="px-3 py-2.5"><Skeleton className="h-7 w-full" /></td>
+                    <td className="px-3 py-2.5"><Skeleton className="h-7 w-full" /></td>
+                    <td className="px-3 py-2.5 text-right"><Skeleton className="h-7 w-full ml-auto" /></td>
                   </tr>
                 ))
               ) : (
                 writeOffs.map((wo) => (
                   <tr key={wo.id} className="hover:bg-gray-50/50 dark:hover:bg-gray-800/30 transition-colors">
-                    <td className="px-4 py-3 text-[13px] font-medium text-[#1A1A2E] dark:text-white">
-                      {wo.id}
+                    <td className="px-3 py-2.5 overflow-hidden"><span className="block truncate text-[13px] font-medium text-[#1A1A2E] dark:text-white" title={wo.id}>{wo.id}</span></td>
+                    <td className="px-3 py-2.5 text-[13px] text-[#6B7280] dark:text-gray-400 whitespace-nowrap overflow-hidden">{formatDateTime(wo.date)}</td>
+                    <td className="px-3 py-2.5 overflow-hidden">
+                      <span className="block truncate text-[13px] text-[#1A1A2E] dark:text-gray-300" title={wo.itemName}>{wo.itemName}</span>
+                      <span className="block truncate text-[11px] text-[#6B7280] dark:text-gray-500 font-mono">{wo.sku}</span>
                     </td>
-                    <td className="px-4 py-3 text-[13px] text-[#6B7280] dark:text-gray-400">
-                      {formatDateTime(wo.date)}
-                    </td>
-                    <td className="px-4 py-3 text-[13px] text-[#1A1A2E] dark:text-gray-300">
-                      {wo.itemName}{" "}
-                      <span className="text-[11px] text-[#6B7280] dark:text-gray-500 block font-mono">
-                        {wo.sku}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-[13px] font-bold text-right text-[#EF4444] dark:text-red-400">
-                      {wo.qty} {wo.unit}
-                    </td>
-                    <td
-                      className="px-4 py-3 text-[13px] text-[#6B7280] dark:text-gray-400 max-w-xs truncate"
-                      title={wo.reason}
-                    >
-                      {wo.reason}
-                    </td>
-                    <td className="px-4 py-3 text-[13px] text-[#6B7280] dark:text-gray-400">
-                      {wo.requestedBy}
-                    </td>
-                    <td className="px-4 py-3">
-                      <StatusBadge status={wo.status} />
-                    </td>
+                    <td className="px-3 py-2.5 text-[13px] font-bold text-right text-[#EF4444] dark:text-red-400 whitespace-nowrap overflow-hidden">{wo.qty} {wo.unit}</td>
+                    <td className="px-3 py-2.5 overflow-hidden"><span className="block truncate text-[13px] text-[#6B7280] dark:text-gray-400" title={wo.reason}>{wo.reason}</span></td>
+                    <td className="px-3 py-2.5 overflow-hidden"><span className="block truncate text-[13px] text-[#6B7280] dark:text-gray-400" title={wo.requestedBy}>{wo.requestedBy}</span></td>
+                    <td className="px-3 py-2.5"><StatusBadge status={wo.status} /></td>
                     <td className="px-4 py-3 text-right space-x-2">
                       {hasPermission("APPROVE_WRITE_OFF") &&
                         wo.status === "Pending" && (

@@ -58,7 +58,6 @@ export const MaterialRequirementPage = () => {
 
   const [filterProject, setFilterProject] = useState("");
   const [filterRequester, setFilterRequester] = useState("");
-  const [filterWorkType, setFilterWorkType] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
 
   const statusOptions = React.useMemo(() => [
@@ -81,7 +80,6 @@ export const MaterialRequirementPage = () => {
     const filterObj: any = {};
     if (filterProject) filterObj.project = filterProject;
     if (filterRequester) filterObj.requesterName = filterRequester;
-    if (filterWorkType) filterObj.workType = filterWorkType;
     if (filterStatus) filterObj.status = filterStatus;
 
     const finalFilter = Object.keys(filterObj).length > 0 ? filterObj : null;
@@ -102,7 +100,7 @@ export const MaterialRequirementPage = () => {
     if (catalogue.length < 500) {
       fetchResource('catalogue', 1, 2000, true);
     }
-  }, [fetchResource, debouncedSearch, activeTab, startDate, endDate, filterProject, filterRequester, filterWorkType, filterStatus]);
+  }, [fetchResource, debouncedSearch, activeTab, startDate, endDate, filterProject, filterRequester, filterStatus]);
 
   useEffect(() => {
     // Background fetches for dependencies
@@ -654,14 +652,13 @@ export const MaterialRequirementPage = () => {
         </div>
 
         <FilterRow 
-          showClear={!!(search || startDate || endDate || filterProject || filterRequester || filterWorkType || filterStatus)} 
+          showClear={!!(search || startDate || endDate || filterProject || filterRequester || filterStatus)} 
           onClearAll={() => { 
             setSearch(""); 
             setStartDate(""); 
             setEndDate(""); 
             setFilterProject(""); 
             setFilterRequester(""); 
-            setFilterWorkType(""); 
             setFilterStatus(""); 
           }}
         >
@@ -690,12 +687,7 @@ export const MaterialRequirementPage = () => {
             options={REQUESTERS}
             placeholder="All Requesters"
           />
-          <SelectFilter
-            value={filterWorkType}
-            onChange={setFilterWorkType}
-            options={WORK_TYPES}
-            placeholder="All Work Types"
-          />
+
           <SelectFilter
             value={filterStatus}
             onChange={setFilterStatus}
@@ -941,14 +933,14 @@ export const MaterialRequirementPage = () => {
         ) : (
           <Card className="p-0 overflow-hidden border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 h-[650px] flex flex-col">
             <div className="flex-1 overflow-x-auto no-scrollbar-lg relative">
-              <table className="w-full text-left border-collapse min-w-[800px] md:min-w-0">
+              <table className="w-full text-left border-collapse table-fixed min-w-[800px] md:min-w-0">
                 <thead className="hidden md:table-header-group sticky top-0 z-10">
                   <tr className="bg-gray-50/90 dark:bg-gray-800/90 backdrop-blur-md border-b border-gray-100 dark:border-gray-800">
-                    <th className="px-4 py-3 text-[11px] font-bold text-gray-500 dark:text-gray-400 tracking-wider sticky top-0 z-10 sticky-th">Engineer / Project</th>
-                    <th className="px-4 py-3 text-[11px] font-bold text-gray-500 dark:text-gray-400 tracking-wider sticky top-0 z-10 sticky-th">MR details</th>
-                    <th className="px-4 py-3 text-[11px] font-bold text-gray-500 dark:text-gray-400 tracking-wider sticky top-0 z-10 sticky-th">Allocated material</th>
-                    <th className="px-4 py-3 text-[11px] font-bold text-gray-500 dark:text-gray-400 tracking-wider text-center sticky top-0 z-10 sticky-th">Qty</th>
-                    <th className="px-4 py-3 text-[11px] font-bold text-gray-500 dark:text-gray-400 tracking-wider sticky top-0 z-10 sticky-th">Allocation date</th>
+                    <th className="px-3 py-3 text-[11px] font-bold text-gray-500 dark:text-gray-400 whitespace-nowrap overflow-hidden sticky top-0 z-10 sticky-th">Engineer / Project</th>
+                    <th className="px-3 py-3 text-[11px] font-bold text-gray-500 dark:text-gray-400 whitespace-nowrap overflow-hidden sticky top-0 z-10 sticky-th w-[130px]">MR details</th>
+                    <th className="px-3 py-3 text-[11px] font-bold text-gray-500 dark:text-gray-400 whitespace-nowrap overflow-hidden sticky top-0 z-10 sticky-th">Allocated material</th>
+                    <th className="px-3 py-3 text-[11px] font-bold text-gray-500 dark:text-gray-400 whitespace-nowrap text-center overflow-hidden sticky top-0 z-10 sticky-th w-[80px]">Qty</th>
+                    <th className="px-3 py-3 text-[11px] font-bold text-gray-500 dark:text-gray-400 whitespace-nowrap overflow-hidden sticky top-0 z-10 sticky-th w-[148px]">Allocation date</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
@@ -989,26 +981,26 @@ export const MaterialRequirementPage = () => {
                              <p className="text-[11px] font-mono font-bold text-primary">{alc.mrNumber || alc.mrId}</p>
                            </div>
                          </div>
-                         <div className="hidden md:flex flex-col">
-                           <span className="font-bold text-[#1A1A2E] dark:text-white text-[12px]">{alc.engineerName || "N/A"}</span>
-                           <span className="text-[11px] text-[#6B7280] dark:text-gray-400 italic">{alc.projectName || "N/A"}</span>
+                         <div className="hidden md:flex flex-col min-w-0">
+                           <span className="block truncate font-bold text-[#1A1A2E] dark:text-white text-[12px]" title={alc.engineerName || "N/A"}>{alc.engineerName || "N/A"}</span>
+                           <span className="block truncate text-[11px] text-[#6B7280] dark:text-gray-400 italic" title={alc.projectName || "N/A"}>{alc.projectName || "N/A"}</span>
                          </div>
                       </td>
-                      <td className="hidden md:table-cell px-4 py-3 font-mono text-[11px] text-[#6B7280]">
-                         {alc.mrNumber || alc.mrId}
+                      <td className="hidden md:table-cell px-3 py-2.5 overflow-hidden">
+                        <span className="block truncate font-mono text-[11px] text-[#6B7280]" title={alc.mrNumber || alc.mrId}>{alc.mrNumber || alc.mrId}</span>
                       </td>
-                      <td className="hidden md:table-cell px-4 py-3 font-medium text-gray-700 dark:text-gray-300">
-                        <div className="flex flex-col">
-                          <span className="text-[13px]">{alc.itemName}</span>
-                          <span className="text-[10px] text-gray-400 font-mono tracking-tight">{alc.sku}</span>
+                      <td className="hidden md:table-cell px-3 py-2.5 overflow-hidden">
+                        <div className="flex flex-col min-w-0">
+                          <span className="block truncate text-[13px] font-medium text-gray-700 dark:text-gray-300" title={alc.itemName}>{alc.itemName}</span>
+                          <span className="block truncate text-[10px] text-gray-400 font-mono tracking-tight" title={alc.sku}>{alc.sku}</span>
                         </div>
                       </td>
-                      <td className="hidden md:table-cell px-4 py-3 text-center">
+                      <td className="hidden md:table-cell px-3 py-2.5 text-center">
                          <span className="inline-flex items-center px-2 py-0.5 bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 rounded font-bold text-[12px] min-w-[30px] justify-center">
                            {alc.allocatedQty}
                          </span>
                       </td>
-                      <td className="hidden md:table-cell px-4 py-3 text-[#6B7280] dark:text-gray-500">
+                      <td className="hidden md:table-cell px-3 py-2.5 text-[#6B7280] dark:text-gray-500 whitespace-nowrap overflow-hidden">
                         {formatDateTime(alc.allocationDate)}
                       </td>
                     </tr>
@@ -1069,7 +1061,7 @@ export const MaterialRequirementPage = () => {
                   <User className="w-5 h-5" />
                 </div>
                 <div className="overflow-hidden">
-                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest leading-none">Requester</p>
+                  <p className="text-[10px] font-bold text-gray-400 tracking-widest leading-none">Requester</p>
                   <p className="text-[13px] font-black text-gray-800 dark:text-white truncate mt-1">
                     {safeStr(selectedRequirement.requesterName || (selectedRequirement as any).requester || (selectedRequirement as any).createdBy) || "N/A"}
                   </p>
@@ -1080,7 +1072,7 @@ export const MaterialRequirementPage = () => {
                   <Calendar className="w-5 h-5" />
                 </div>
                 <div className="overflow-hidden">
-                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest leading-none">Request Date</p>
+                  <p className="text-[10px] font-bold text-gray-400 tracking-widest leading-none">Request Date</p>
                   <p className="text-[13px] font-black text-gray-800 dark:text-white truncate mt-1">
                     {formatDateTime(selectedRequirement.date)}
                   </p>
@@ -1091,7 +1083,7 @@ export const MaterialRequirementPage = () => {
                   <Calendar className="w-5 h-5" />
                 </div>
                 <div className="overflow-hidden">
-                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest leading-none">Required Date</p>
+                  <p className="text-[10px] font-bold text-gray-400 tracking-widest leading-none">Required Date</p>
                   <p className="text-[13px] font-black text-gray-800 dark:text-white truncate mt-1">
                     {formatDate(selectedRequirement.requirementDate || (selectedRequirement as any).requiredDate || "")}
                   </p>
@@ -1102,7 +1094,7 @@ export const MaterialRequirementPage = () => {
                   <Building className="w-5 h-5" />
                 </div>
                 <div className="overflow-hidden">
-                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest leading-none">Project</p>
+                  <p className="text-[10px] font-bold text-gray-400 tracking-widest leading-none">Project</p>
                   <p className="text-[13px] font-black text-gray-800 dark:text-white truncate mt-1">
                     {safeStr(selectedRequirement.project || (selectedRequirement as any).projectName) || "N/A"}
                   </p>
@@ -1113,7 +1105,7 @@ export const MaterialRequirementPage = () => {
                   <MapPin className="w-5 h-5" />
                 </div>
                 <div className="overflow-hidden">
-                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest leading-none">Location</p>
+                  <p className="text-[10px] font-bold text-gray-400 tracking-widest leading-none">Location</p>
                   <p className="text-[13px] font-black text-gray-800 dark:text-white truncate mt-1">
                     {safeStr(selectedRequirement.location || (selectedRequirement as any).site || (selectedRequirement as any).address) || "N/A"}
                   </p>
@@ -1124,7 +1116,7 @@ export const MaterialRequirementPage = () => {
                   <Activity className="w-5 h-5" />
                 </div>
                 <div className="overflow-hidden">
-                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest leading-none">Work Type</p>
+                  <p className="text-[10px] font-bold text-gray-400 tracking-widest leading-none">Work Type</p>
                   <p className="text-[13px] font-black text-gray-800 dark:text-white truncate mt-1">
                     {safeStr(selectedRequirement.workType) || "N/A"}
                   </p>
@@ -1136,7 +1128,7 @@ export const MaterialRequirementPage = () => {
                   <Link2 className="w-5 h-5" />
                 </div>
                 <div className="overflow-hidden flex-1 flex flex-col justify-center">
-                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest leading-none mb-1">Quotation Link</p>
+                  <p className="text-[10px] font-bold text-gray-400 tracking-widest leading-none mb-1">Quotation Link</p>
                   <div className="flex items-center gap-2">
                     <span className={cn(
                       "text-[10px] font-bold px-2 py-0.5 rounded-full border leading-none",
@@ -1163,7 +1155,7 @@ export const MaterialRequirementPage = () => {
                             toast.error(err.message || "Failed to update link status");
                           }
                         }}
-                        className="text-[9px] font-extrabold text-orange-500 hover:text-orange-600 hover:underline transition-all uppercase tracking-wider shrink-0 cursor-pointer"
+                        className="text-[9px] font-extrabold text-orange-500 hover:text-orange-600 hover:underline transition-all tracking-wider shrink-0 cursor-pointer"
                       >
                         {selectedRequirement.quotationLinkActive !== false ? "Deactivate" : "Activate"}
                       </button>
@@ -1177,7 +1169,7 @@ export const MaterialRequirementPage = () => {
                   <ShieldAlert className="w-5 h-5" />
                 </div>
                 <div className="overflow-hidden">
-                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest leading-none">Status</p>
+                  <p className="text-[10px] font-bold text-gray-400 tracking-widest leading-none">Status</p>
                   <div className="mt-1">
                     <StatusBadge status={selectedRequirement.status} />
                   </div>
@@ -1187,7 +1179,7 @@ export const MaterialRequirementPage = () => {
 
             {selectedRequirement.approvals?.length ? (
               <div className="mt-4 p-4 bg-emerald-500/5 border border-emerald-500/20 dark:border-emerald-500/30 rounded-2xl">
-                <h5 className="text-[10px] font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-widest mb-3">Approved Supplier Quotations</h5>
+                <h5 className="text-[10px] font-black text-emerald-600 dark:text-emerald-400 tracking-widest mb-3">Approved Supplier Quotations</h5>
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
                   {selectedRequirement.approvals.map((app, idx) => (
                     <div key={idx} className="bg-emerald-500/5 border border-emerald-500/20 dark:border-emerald-800/40 p-3 rounded-xl shadow-xs flex items-center gap-3">
@@ -1195,7 +1187,7 @@ export const MaterialRequirementPage = () => {
                         <CheckCircle className="w-4.5 h-4.5" />
                       </div>
                       <div className="overflow-hidden">
-                        <p className="text-[9px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-widest leading-none mb-1">
+                        <p className="text-[9px] font-bold text-emerald-600 dark:text-emerald-400 tracking-widest leading-none mb-1">
                           {app.category || "All Items"}
                         </p>
                         <p className="text-xs font-black text-gray-800 dark:text-white truncate">
@@ -1216,7 +1208,7 @@ export const MaterialRequirementPage = () => {
                         <CheckCircle className="w-4.5 h-4.5" />
                       </div>
                       <div>
-                        <p className="text-[9px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-widest leading-none mb-1">Approved Supplier</p>
+                        <p className="text-[9px] font-bold text-emerald-600 dark:text-emerald-400 tracking-widest leading-none mb-1">Approved Supplier</p>
                         <p className="text-xs font-black text-gray-800 dark:text-white">{safeStr(selectedRequirement.approvedSupplier)}</p>
                       </div>
                     </div>
@@ -1227,7 +1219,7 @@ export const MaterialRequirementPage = () => {
                         <CheckCircle className="w-4.5 h-4.5" />
                       </div>
                       <div>
-                        <p className="text-[9px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-widest leading-none mb-1">Approved Quotation ID</p>
+                        <p className="text-[9px] font-bold text-emerald-600 dark:text-emerald-400 tracking-widest leading-none mb-1">Approved Quotation ID</p>
                         <p className="text-xs font-black text-gray-800 dark:text-white font-mono">{safeStr(selectedRequirement.approvedQuotationId)}</p>
                       </div>
                     </div>
@@ -1241,17 +1233,17 @@ export const MaterialRequirementPage = () => {
 
               {/* Desktop view table */}
               <div className="hidden md:block border border-gray-150/60 dark:border-gray-800/80 rounded-2xl overflow-x-auto shadow-xs bg-gray-50/25 dark:bg-[#0F172A]/40">
-                <table className="w-full min-w-[1000px] text-left border-collapse">
+                <table className="w-full min-w-[1000px] text-left border-collapse table-fixed">
                   <thead className="bg-gray-50/10 dark:bg-[#0F172A]/40 backdrop-blur-md">
                     <tr>
-                      <th className="px-4 py-3.5 text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest border-b border-gray-100 dark:border-gray-800">Material name</th>
-                      <th className="px-4 py-3.5 text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest text-center border-b border-gray-100 dark:border-gray-800">Category</th>
-                      <th className="px-4 py-3.5 text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest text-center border-b border-gray-100 dark:border-gray-800">Condition</th>
-                      <th className="px-4 py-3.5 text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest text-right border-b border-gray-100 dark:border-gray-800">Qty</th>
-                      <th className="px-4 py-3.5 text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest text-right border-b border-gray-100 dark:border-gray-800">In stock</th>
-                      <th className="px-4 py-3.5 text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest text-right border-b border-gray-100 dark:border-gray-800">Purchase</th>
-                      <th className="px-4 py-3.5 text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest text-center border-b border-gray-100 dark:border-gray-800">Status</th>
-                      <th className="px-4 py-3.5 text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest text-right border-b border-gray-100 dark:border-gray-800">Actions</th>
+                      <th className="px-4 py-3.5 text-[10px] font-black text-gray-400 dark:text-gray-500 whitespace-nowrap overflow-hidden border-b border-gray-100 dark:border-gray-800">Material name</th>
+                      <th className="px-4 py-3.5 text-[10px] font-black text-gray-400 dark:text-gray-500 whitespace-nowrap text-center overflow-hidden border-b border-gray-100 dark:border-gray-800 w-[110px]">Category</th>
+                      <th className="px-4 py-3.5 text-[10px] font-black text-gray-400 dark:text-gray-500 whitespace-nowrap text-center overflow-hidden border-b border-gray-100 dark:border-gray-800 w-[100px]">Condition</th>
+                      <th className="px-4 py-3.5 text-[10px] font-black text-gray-400 dark:text-gray-500 whitespace-nowrap text-right overflow-hidden border-b border-gray-100 dark:border-gray-800 w-[80px]">Qty</th>
+                      <th className="px-4 py-3.5 text-[10px] font-black text-gray-400 dark:text-gray-500 whitespace-nowrap text-right overflow-hidden border-b border-gray-100 dark:border-gray-800 w-[80px]">In stock</th>
+                      <th className="px-4 py-3.5 text-[10px] font-black text-gray-400 dark:text-gray-500 whitespace-nowrap text-right overflow-hidden border-b border-gray-100 dark:border-gray-800 w-[90px]">Purchase</th>
+                      <th className="px-4 py-3.5 text-[10px] font-black text-gray-400 dark:text-gray-500 whitespace-nowrap text-center overflow-hidden border-b border-gray-100 dark:border-gray-800 w-[100px]">Status</th>
+                      <th className="px-4 py-3.5 text-[10px] font-black text-gray-400 dark:text-gray-500 whitespace-nowrap text-right overflow-hidden border-b border-gray-100 dark:border-gray-800 w-[150px]">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100/50 dark:divide-gray-800/80 bg-transparent">
@@ -1282,7 +1274,7 @@ export const MaterialRequirementPage = () => {
                                   </div>
                                 ) : (
                                   <div className="flex items-center gap-1 px-2.5 py-0.5 bg-red-50/80 dark:bg-red-950/20 text-red-500 dark:text-red-400 rounded-lg border border-red-200/50 dark:border-red-800/30 shadow-xs shrink-0">
-                                    <span className="text-[9px] font-extrabold tracking-widest uppercase italic">Not Linked</span>
+                                    <span className="text-[9px] font-extrabold tracking-widest italic">Not Linked</span>
                                   </div>
                                 )}
                                 <button
@@ -1769,7 +1761,7 @@ export const MaterialRequirementPage = () => {
                     </button>
                     {allItemsMapped && selectedRequirement.quotationLinkActive !== false && showQuotationDropdown && (
                       <div className="absolute bottom-full left-0 mb-2 w-56 bg-white dark:bg-[#1E293B] border border-gray-200 dark:border-gray-800 rounded-xl shadow-xl p-2 block transition-all z-50 animate-in fade-in slide-in-from-bottom-2 duration-200">
-                        <p className="text-[10px] font-bold text-gray-400 px-3 py-1 uppercase tracking-wider">Select Category</p>
+                        <p className="text-[10px] font-bold text-gray-400 px-3 py-1 tracking-wider">Select Category</p>
                         <button
                           onClick={() => {
                             const url = `${window.location.origin}${window.location.pathname}#public-quotation?mrId=${selectedRequirement.id}`;
@@ -2009,7 +2001,7 @@ export const MaterialRequirementPage = () => {
 
             <div className="space-y-4 pt-6 border-t border-gray-100 dark:border-gray-800">
               <div className="flex justify-between items-center">
-                <h3 className="text-[13px] font-bold text-gray-900 dark:text-white uppercase tracking-wider">Material items</h3>
+                <h3 className="text-[13px] font-bold text-gray-900 dark:text-white tracking-wider">Material items</h3>
                 <Btn label="Add Item" icon={Plus} small outline onClick={addItem} />
               </div>
 

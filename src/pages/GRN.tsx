@@ -402,28 +402,28 @@ export const GRNPage = () => {
             }
           }}
           fixedHeaderContent={() => {
-            const headerClass = "px-4 py-3 text-[11px] font-bold text-[#6B7280] dark:text-gray-400 uppercase tracking-wider sticky top-0 z-10 sticky-th";
+            const headerClass = "px-3 py-3 text-[11px] font-bold text-[#6B7280] dark:text-gray-400 whitespace-nowrap overflow-hidden sticky top-0 z-10 sticky-th";
             return (
               <tr className="bg-gray-50/90 dark:bg-gray-800/90 backdrop-blur-md border-b border-[#E8ECF0] dark:border-gray-800">
                 <th className={headerClass}>
                   Grn details
                 </th>
-                <th className={cn(headerClass, "hidden md:table-cell")}>
+                <th className={cn(headerClass, "hidden md:table-cell w-[148px]")}>
                   Date
                 </th>
-                <th className={cn(headerClass, "hidden md:table-cell")}>
+                <th className={cn(headerClass, "hidden md:table-cell w-[160px]")}>
                   Project / supplier
                 </th>
-                <th className={cn(headerClass, "hidden md:table-cell")}>
+                <th className={cn(headerClass, "hidden md:table-cell w-[150px]")}>
                   Challan / mr
                 </th>
-                <th className={cn(headerClass, "hidden md:table-cell")}>
+                <th className={cn(headerClass, "hidden md:table-cell w-[90px]")}>
                   Photos
                 </th>
-                <th className={cn(headerClass, "hidden md:table-cell")}>
+                <th className={cn(headerClass, "hidden md:table-cell w-[90px]")}>
                   Status
                 </th>
-                <th className={cn(headerClass, "text-right")}>
+                <th className={cn(headerClass, "text-right w-[110px]")}>
                   Actions
                 </th>
               </tr>
@@ -468,25 +468,25 @@ export const GRNPage = () => {
                     ))}
                 </div>
               </Td>
-              <Td className="hidden md:table-cell px-4 py-3 text-[13px] text-gray-600 dark:text-gray-400">
+              <Td className="hidden md:table-cell px-3 py-2.5 text-[13px] text-gray-600 dark:text-gray-400 whitespace-nowrap overflow-hidden">
                 {formatDateTime(grn.date)}
               </Td>
-              <Td className="hidden md:table-cell px-4 py-3 max-w-[150px]">
-                <div className="flex flex-col">
-                  <span className="text-[13px] font-medium text-gray-900 dark:text-white truncate" title={safeStr(grn.project)}>
+              <Td className="hidden md:table-cell px-3 py-2.5 overflow-hidden">
+                <div className="flex flex-col min-w-0">
+                  <span className="block truncate text-[13px] font-medium text-gray-900 dark:text-white" title={safeStr(grn.project)}>
                     {safeStr(grn.project)}
                   </span>
-                  <span className="text-[11px] text-gray-500 truncate" title={safeStr(grn.vendor || grn.supplier)}>
+                  <span className="block truncate text-[11px] text-gray-500" title={safeStr(grn.vendor || grn.supplier)}>
                     {safeStr(grn.vendor || grn.supplier)}
                   </span>
                 </div>
               </Td>
-              <Td className="hidden md:table-cell px-4 py-3 max-w-[150px]">
-                <div className="flex flex-col">
-                  <p className="text-[13px] text-gray-600 dark:text-gray-400 truncate" title={`Inv: ${safeStr(grn.challan)}`}>
+              <Td className="hidden md:table-cell px-3 py-2.5 overflow-hidden">
+                <div className="flex flex-col min-w-0">
+                  <p className="block truncate text-[13px] text-gray-600 dark:text-gray-400" title={`Inv: ${safeStr(grn.challan)}`}>
                     Inv: {safeStr(grn.challan)}
                   </p>
-                  <p className="text-[11px] text-gray-500 truncate" title={`MR: ${safeStr(grn.mrNo)}`}>
+                  <p className="block truncate text-[11px] text-gray-500" title={`MR: ${safeStr(grn.mrNo)}`}>
                     MR: {safeStr(grn.mrNo)}
                   </p>
                 </div>
@@ -558,7 +558,7 @@ export const GRNPage = () => {
           )}
           components={{
             Table: (props) => (
-              <table {...props} className="w-full text-left border-collapse min-w-[800px] md:min-w-0" />
+              <table {...props} className="w-full text-left border-collapse table-fixed min-w-[800px] md:min-w-0" />
             ),
             TableBody: React.forwardRef((props, ref) => <tbody {...props} ref={ref as any} className="divide-y divide-[#E8ECF0] dark:divide-gray-800" />),
             TableRow: (props) => <tr {...props} className={cn("hover:bg-gray-50/50 dark:hover:bg-gray-800/20 transition-colors", props.className)} />
@@ -694,12 +694,12 @@ export const GRNPage = () => {
                   <table className="w-full text-left border-collapse">
                     <thead>
                       <tr className="bg-gray-50/90 dark:bg-gray-800/90 backdrop-blur-md border-b border-[#E8ECF0] dark:border-gray-800">
-                        <th className="px-5 py-3 text-[11px] font-bold text-[#6B7280] dark:text-gray-400 uppercase tracking-wider">Material description</th>
-                        <th className="px-5 py-3 text-[11px] font-bold text-[#6B7280] dark:text-gray-400 uppercase tracking-wider text-center">Ordered</th>
-                        <th className="px-5 py-3 text-[11px] font-bold text-[#6B7280] dark:text-gray-400 uppercase tracking-wider text-center">Received</th>
-                        <th className="px-5 py-3 text-[11px] font-bold text-[#6B7280] dark:text-gray-400 uppercase tracking-wider text-center">Variance</th>
-                        <th className="px-5 py-3 text-[11px] font-bold text-[#6B7280] dark:text-gray-400 uppercase tracking-wider text-center">Unit</th>
-                        <th className="px-5 py-3 text-[11px] font-bold text-[#6B7280] dark:text-gray-400 uppercase tracking-wider">Photos</th>
+                        <th className="px-5 py-3 text-[11px] font-bold text-[#6B7280] dark:text-gray-400 tracking-wider">Material description</th>
+                        <th className="px-5 py-3 text-[11px] font-bold text-[#6B7280] dark:text-gray-400 tracking-wider text-center">Ordered</th>
+                        <th className="px-5 py-3 text-[11px] font-bold text-[#6B7280] dark:text-gray-400 tracking-wider text-center">Received</th>
+                        <th className="px-5 py-3 text-[11px] font-bold text-[#6B7280] dark:text-gray-400 tracking-wider text-center">Variance</th>
+                        <th className="px-5 py-3 text-[11px] font-bold text-[#6B7280] dark:text-gray-400 tracking-wider text-center">Unit</th>
+                        <th className="px-5 py-3 text-[11px] font-bold text-[#6B7280] dark:text-gray-400 tracking-wider">Photos</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-50 dark:divide-gray-800">

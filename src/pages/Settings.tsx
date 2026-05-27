@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import { useState, useRef } from "react";
 import { useAppStore } from "../store";
 import { PageHeader, Card, Btn, Field } from "../components/ui";
 import { 
@@ -11,71 +11,73 @@ import {
   X as CloseIcon, 
   Trash2, 
   Key, 
-  Check, 
-  Palette, 
-  Type, 
-  Image as ImageIcon, 
+  Check,
+  Palette,
+  Image as ImageIcon,
   Globe, 
   Upload,
   Coins
 } from "lucide-react";
-import { Role, Settings as ISettings } from "../types";
 import { toast } from "react-hot-toast";
 
 // Master List Manager Component (Extracted/Aligned with SuperAdmin UI style)
-const ListManager = ({ 
-  title, 
-  listKey, 
-  icon: Icon, 
-  value, 
-  onChange, 
-  onAdd, 
-  onRemove, 
-  items 
-}: { 
-  title: string, 
-  listKey: string, 
-  icon: any, 
-  value: string, 
+const ListManager = ({
+  title,
+  icon: Icon,
+  value,
+  onChange,
+  onAdd,
+  onRemove,
+  items,
+  disabled = false,
+}: {
+  title: string,
+  icon: any,
+  value: string,
   onChange: (val: string) => void,
   onAdd: () => void,
   onRemove: (item: string) => void,
-  items: string[]
+  items: string[],
+  disabled?: boolean,
 }) => (
-  <div className="p-5 rounded-2xl bg-gray-50/50 dark:bg-gray-800/10 border border-gray-100 dark:border-gray-800 transition-all hover:shadow-xs">
+  <div className={`p-5 rounded-2xl bg-gray-50/50 dark:bg-gray-800/10 border border-gray-100 dark:border-gray-800 transition-all ${disabled ? "opacity-60" : "hover:shadow-xs"}`}>
     <h4 className="text-[12px] font-bold text-gray-700 dark:text-gray-300 tracking-widest mb-3 flex items-center gap-2">
       <Icon className="w-4 h-4 text-primary" />
       {title}
     </h4>
-    <div className="flex gap-2 mb-3">
-      <input
-        type="text"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        onKeyDown={(e) => e.key === 'Enter' && onAdd()}
-        placeholder={`Add new ${title.slice(0, -1).toLowerCase()}...`}
-        className="flex-1 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl px-3 py-2 text-xs outline-none focus:ring-2 focus:ring-primary/20 transition-all"
-      />
-      <button
-        onClick={onAdd}
-        className="p-2 bg-primary text-white rounded-xl hover:bg-primary/90 transition-all flex items-center justify-center shrink-0 w-9 h-9"
-      >
-        <Plus className="w-4 h-4" />
-      </button>
-    </div>
+    {!disabled && (
+      <div className="flex gap-2 mb-3">
+        <input
+          type="text"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && onAdd()}
+          placeholder={`Add new ${title.slice(0, -1).toLowerCase()}...`}
+          className="flex-1 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl px-3 py-2 text-xs outline-none focus:ring-2 focus:ring-primary/20 transition-all"
+        />
+        <button
+          onClick={onAdd}
+          className="p-2 bg-primary text-white rounded-xl hover:bg-primary/90 transition-all flex items-center justify-center shrink-0 w-9 h-9 cursor-pointer"
+        >
+          <Plus className="w-4 h-4" />
+        </button>
+      </div>
+    )}
     <div className="flex flex-wrap gap-2 max-h-48 overflow-y-auto no-scrollbar p-1">
       {items.map((item) => (
-        <div 
-          key={item} 
-          className="flex items-center gap-1.5 px-3 py-1 bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-full text-[11px] font-medium text-gray-600 dark:text-gray-400 group hover:border-red-200 hover:bg-red-50 dark:hover:bg-red-900/10 transition-all"
+        <div
+          key={item}
+          className={`flex items-center gap-1.5 px-3 py-1 bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-full text-[11px] font-medium text-gray-600 dark:text-gray-400 transition-all ${!disabled ? "group hover:border-red-200 hover:bg-red-50 dark:hover:bg-red-900/10" : ""}`}
         >
           {item}
-          <button 
-            onClick={() => onRemove(item)}
-            className="text-gray-400 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100 cursor-pointer"
-          >
-            <CloseIcon className="w-3 h-3" />
-          </button>
+          {!disabled && (
+            <button
+              onClick={() => onRemove(item)}
+              className="text-gray-400 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100 cursor-pointer"
+            >
+              <CloseIcon className="w-3 h-3" />
+            </button>
+          )}
         </div>
       ))}
       {items.length === 0 && (
@@ -107,13 +109,16 @@ const FONTS_LIST = [
 ];
 
 export const SettingsPage = () => {
-  const { 
-    settings, 
-    setSettings, 
-    saveSettings, 
+  const {
+    settings,
+    setSettings,
+    saveSettings,
     actionLoading,
-    uploadImage
+    uploadImage,
+    role
   } = useAppStore();
+
+  const isSuperAdmin = role === "Super Admin";
 
   const [activeTab, setActiveTab] = useState("branding");
   
@@ -226,6 +231,19 @@ export const SettingsPage = () => {
         sub="Control look-and-feel, dynamic theme styling, compliance protocols, and master databases."
       />
 
+      {/* Access restriction banner */}
+      {!isSuperAdmin && (
+        <div className="flex items-start gap-3 px-5 py-4 rounded-2xl border border-amber-200 dark:border-amber-800/60 bg-amber-50 dark:bg-amber-900/10">
+          <ShieldAlert className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
+          <div>
+            <p className="text-[13px] font-bold text-amber-800 dark:text-amber-300">View-only access</p>
+            <p className="text-[12px] text-amber-700/80 dark:text-amber-400/80 mt-0.5">
+              Only <span className="font-bold">Super Admin</span> can modify settings. You can browse current configurations below.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Tabs list */}
       <div className="flex gap-1 bg-gray-100/60 dark:bg-gray-800/40 p-1.5 rounded-xl border border-gray-100 dark:border-gray-800/60 overflow-x-auto no-scrollbar">
         {[
@@ -236,7 +254,7 @@ export const SettingsPage = () => {
           <button
             key={t.id}
             onClick={() => setActiveTab(t.id)}
-            className={`flex items-center gap-2.5 px-6 py-3 rounded-lg text-xs font-bold uppercase tracking-wider transition-all duration-300 whitespace-nowrap cursor-pointer ${
+            className={`flex items-center gap-2.5 px-6 py-3 rounded-lg text-xs font-bold tracking-wider transition-all duration-300 whitespace-nowrap cursor-pointer ${
               activeTab === t.id 
                 ? "bg-white dark:bg-gray-800 text-primary shadow-xs border-b-2 border-primary" 
                 : "text-gray-500 hover:text-gray-900 dark:hover:text-white hover:bg-gray-200/40 dark:hover:bg-gray-800/20"
@@ -255,7 +273,7 @@ export const SettingsPage = () => {
           {/* Main Visual Customization Form */}
           <div className="md:col-span-2 space-y-6">
             <Card className="p-6 space-y-6">
-              <h3 className="text-sm font-bold uppercase tracking-wider text-gray-400 flex items-center gap-2 border-b border-gray-100 dark:border-gray-800 pb-3">
+              <h3 className="text-sm font-bold tracking-wider text-gray-400 flex items-center gap-2 border-b border-gray-100 dark:border-gray-800 pb-3">
                 <Globe className="w-4 h-4 text-primary" /> General Platform settings
               </h3>
               
@@ -263,26 +281,28 @@ export const SettingsPage = () => {
                 label="Application Display Title"
                 placeholder="E.g. Garden City Inventory"
                 value={settings.appName || ""}
-                onChange={(e: any) => setSettings({ ...settings, appName: e.target.value })}
+                onChange={(e: any) => isSuperAdmin && setSettings({ ...settings, appName: e.target.value })}
+                disabled={!isSuperAdmin}
               />
 
-              <div className="space-y-3">
-                <label className="block text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest">
+              <div className={`space-y-3 ${!isSuperAdmin ? "opacity-60 pointer-events-none select-none" : ""}`}>
+                <label className="block text-[11px] font-bold text-gray-500 dark:text-gray-400 tracking-widest">
                   Primary Theme Color Selection
                 </label>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                   {PRESET_COLORS.map((color) => (
                     <button
                       key={color.hex}
-                      onClick={() => setSettings({ ...settings, themeColor: color.hex })}
-                      className={`flex items-center gap-2.5 p-3 rounded-xl border text-xs font-bold transition-all cursor-pointer hover:shadow-xs ${
-                        settings.themeColor === color.hex 
-                          ? "border-primary bg-primary/5 dark:bg-primary/15" 
+                      onClick={() => isSuperAdmin && setSettings({ ...settings, themeColor: color.hex })}
+                      disabled={!isSuperAdmin}
+                      className={`flex items-center gap-2.5 p-3 rounded-xl border text-xs font-bold transition-all ${isSuperAdmin ? "cursor-pointer hover:shadow-xs" : "cursor-not-allowed"} ${
+                        settings.themeColor === color.hex
+                          ? "border-primary bg-primary/5 dark:bg-primary/15"
                           : "border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800"
                       }`}
                     >
-                      <span 
-                        className="w-4 h-4 rounded-full border border-black/10 dark:border-white/10 shrink-0" 
+                      <span
+                        className="w-4 h-4 rounded-full border border-black/10 dark:border-white/10 shrink-0"
                         style={{ backgroundColor: color.hex }}
                       />
                       {color.name}
@@ -296,15 +316,17 @@ export const SettingsPage = () => {
                     <input
                       type="color"
                       value={settings.themeColor || "#F97316"}
-                      onChange={(e) => setSettings({ ...settings, themeColor: e.target.value })}
-                      className="w-8 h-8 rounded-lg cursor-pointer bg-transparent border-0 shrink-0 p-0"
+                      onChange={(e) => isSuperAdmin && setSettings({ ...settings, themeColor: e.target.value })}
+                      disabled={!isSuperAdmin}
+                      className={`w-8 h-8 rounded-lg bg-transparent border-0 shrink-0 p-0 ${isSuperAdmin ? "cursor-pointer" : "cursor-not-allowed"}`}
                     />
                     <input
                       type="text"
                       value={settings.themeColor || ""}
-                      onChange={(e) => setSettings({ ...settings, themeColor: e.target.value })}
+                      onChange={(e) => isSuperAdmin && setSettings({ ...settings, themeColor: e.target.value })}
+                      disabled={!isSuperAdmin}
                       placeholder="#F97316"
-                      className="ml-2 w-28 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-2.5 py-1 text-xs outline-none focus:ring-1 focus:ring-primary/20"
+                      className="ml-2 w-28 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-2.5 py-1 text-xs outline-none focus:ring-1 focus:ring-primary/20 disabled:cursor-not-allowed"
                     />
                   </div>
                 </div>
@@ -312,17 +334,18 @@ export const SettingsPage = () => {
 
               {/* Font Family selection */}
               <div className="space-y-3 pt-4 border-t border-gray-100 dark:border-gray-800">
-                <label className="block text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest">
+                <label className="block text-[11px] font-bold text-gray-500 dark:text-gray-400 tracking-widest">
                   Global Typography Family
                 </label>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                <div className={`grid grid-cols-2 sm:grid-cols-4 gap-2 ${!isSuperAdmin ? "opacity-60 pointer-events-none select-none" : ""}`}>
                   {FONTS_LIST.map((font) => (
                     <button
                       key={font}
-                      onClick={() => setSettings({ ...settings, fontFamily: font })}
-                      className={`p-3 text-center rounded-xl border text-xs font-bold transition-all cursor-pointer ${
-                        settings.fontFamily === font 
-                          ? "border-primary bg-primary/5 dark:bg-primary/15 text-primary" 
+                      onClick={() => isSuperAdmin && setSettings({ ...settings, fontFamily: font })}
+                      disabled={!isSuperAdmin}
+                      className={`p-3 text-center rounded-xl border text-xs font-bold transition-all ${isSuperAdmin ? "cursor-pointer" : "cursor-not-allowed"} ${
+                        settings.fontFamily === font
+                          ? "border-primary bg-primary/5 dark:bg-primary/15 text-primary"
                           : "border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300"
                       }`}
                       style={{ fontFamily: font }}
@@ -336,7 +359,7 @@ export const SettingsPage = () => {
 
             {/* Media Uploaders Card */}
             <Card className="p-6 space-y-6">
-              <h3 className="text-sm font-bold uppercase tracking-wider text-gray-400 flex items-center gap-2 border-b border-gray-100 dark:border-gray-800 pb-3">
+              <h3 className="text-sm font-bold tracking-wider text-gray-400 flex items-center gap-2 border-b border-gray-100 dark:border-gray-800 pb-3">
                 <ImageIcon className="w-4 h-4 text-primary" /> Assets & Branding Media
               </h3>
 
@@ -344,12 +367,12 @@ export const SettingsPage = () => {
                 
                 {/* Logo uploader */}
                 <div className="space-y-2">
-                  <label className="block text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest">
+                  <label className="block text-[11px] font-bold text-gray-500 dark:text-gray-400 tracking-widest">
                     Corporate Branding Logo
                   </label>
-                  <div 
-                    onClick={() => logoInputRef.current?.click()}
-                    className="border-2 border-dashed border-gray-200 dark:border-gray-700 hover:border-primary/50 dark:hover:border-primary/50 rounded-2xl p-6 text-center cursor-pointer transition-all bg-gray-50/50 dark:bg-gray-800/10 hover:bg-gray-50 dark:hover:bg-gray-800/20 group relative overflow-hidden h-40 flex flex-col justify-center items-center"
+                  <div
+                    onClick={() => isSuperAdmin && logoInputRef.current?.click()}
+                    className={`border-2 border-dashed border-gray-200 dark:border-gray-700 rounded-2xl p-6 text-center transition-all bg-gray-50/50 dark:bg-gray-800/10 group relative overflow-hidden h-40 flex flex-col justify-center items-center ${isSuperAdmin ? "cursor-pointer hover:border-primary/50 dark:hover:border-primary/50 hover:bg-gray-50 dark:hover:bg-gray-800/20" : "cursor-not-allowed opacity-60"}`}
                   >
                     {uploadingLogo ? (
                       <div className="flex flex-col items-center gap-2">
@@ -363,7 +386,7 @@ export const SettingsPage = () => {
                           alt="Logo Preview" 
                           className="h-16 object-contain rounded-lg p-1 bg-white dark:bg-slate-900 border border-gray-100 dark:border-gray-800"
                         />
-                        <span className="text-[10px] text-gray-400 group-hover:text-primary transition-colors font-semibold uppercase tracking-widest">Change image logo</span>
+                        <span className="text-[10px] text-gray-400 group-hover:text-primary transition-colors font-semibold tracking-widest">Change image logo</span>
                       </div>
                     ) : (
                       <div className="space-y-1.5 text-gray-400 flex flex-col items-center">
@@ -372,11 +395,12 @@ export const SettingsPage = () => {
                         <span className="text-[9px] text-gray-400 italic">PNG, JPG, or SVG recommended</span>
                       </div>
                     )}
-                    <input 
-                      type="file" 
+                    <input
+                      type="file"
                       ref={logoInputRef}
-                      onChange={(e) => e.target.files?.[0] && handleFileUpload(e.target.files[0], "logo")}
-                      className="hidden" 
+                      onChange={(e) => isSuperAdmin && e.target.files?.[0] && handleFileUpload(e.target.files[0], "logo")}
+                      disabled={!isSuperAdmin}
+                      className="hidden"
                       accept="image/*"
                     />
                   </div>
@@ -384,12 +408,12 @@ export const SettingsPage = () => {
 
                 {/* Favicon uploader */}
                 <div className="space-y-2">
-                  <label className="block text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest">
+                  <label className="block text-[11px] font-bold text-gray-500 dark:text-gray-400 tracking-widest">
                     Browser Tab Favicon Icon
                   </label>
-                  <div 
-                    onClick={() => faviconInputRef.current?.click()}
-                    className="border-2 border-dashed border-gray-200 dark:border-gray-700 hover:border-primary/50 dark:hover:border-primary/50 rounded-2xl p-6 text-center cursor-pointer transition-all bg-gray-50/50 dark:bg-gray-800/10 hover:bg-gray-50 dark:hover:bg-gray-800/20 group relative overflow-hidden h-40 flex flex-col justify-center items-center"
+                  <div
+                    onClick={() => isSuperAdmin && faviconInputRef.current?.click()}
+                    className={`border-2 border-dashed border-gray-200 dark:border-gray-700 rounded-2xl p-6 text-center transition-all bg-gray-50/50 dark:bg-gray-800/10 group relative overflow-hidden h-40 flex flex-col justify-center items-center ${isSuperAdmin ? "cursor-pointer hover:border-primary/50 dark:hover:border-primary/50 hover:bg-gray-50 dark:hover:bg-gray-800/20" : "cursor-not-allowed opacity-60"}`}
                   >
                     {uploadingFavicon ? (
                       <div className="flex flex-col items-center gap-2">
@@ -403,7 +427,7 @@ export const SettingsPage = () => {
                           alt="Favicon Preview" 
                           className="w-12 h-12 object-contain rounded-lg p-1.5 bg-white dark:bg-slate-900 border border-gray-100 dark:border-gray-800"
                         />
-                        <span className="text-[10px] text-gray-400 group-hover:text-primary transition-colors font-semibold uppercase tracking-widest">Change favicon icon</span>
+                        <span className="text-[10px] text-gray-400 group-hover:text-primary transition-colors font-semibold tracking-widest">Change favicon icon</span>
                       </div>
                     ) : (
                       <div className="space-y-1.5 text-gray-400 flex flex-col items-center">
@@ -412,11 +436,12 @@ export const SettingsPage = () => {
                         <span className="text-[9px] text-gray-400 italic">Square .ico, .png, or .svg</span>
                       </div>
                     )}
-                    <input 
-                      type="file" 
+                    <input
+                      type="file"
                       ref={faviconInputRef}
-                      onChange={(e) => e.target.files?.[0] && handleFileUpload(e.target.files[0], "favicon")}
-                      className="hidden" 
+                      onChange={(e) => isSuperAdmin && e.target.files?.[0] && handleFileUpload(e.target.files[0], "favicon")}
+                      disabled={!isSuperAdmin}
+                      className="hidden"
                       accept="image/*"
                     />
                   </div>
@@ -433,7 +458,7 @@ export const SettingsPage = () => {
                 <Palette className="w-32 h-32 -mr-8 -mt-8" />
               </div>
 
-              <h3 className="text-[11px] font-black uppercase tracking-widest text-primary mb-5 flex items-center gap-1.5">
+              <h3 className="text-[11px] font-black tracking-widest text-primary mb-5 flex items-center gap-1.5">
                 <span className="w-2 h-2 rounded-full bg-primary animate-pulse" /> Live System Preview
               </h3>
               
@@ -487,15 +512,17 @@ export const SettingsPage = () => {
             </Card>
           </div>
 
-          <div className="md:col-span-3 pt-4 border-t border-gray-100 dark:border-gray-800 flex justify-end">
-            <Btn 
-              label="Commit Customizations" 
-              icon={Check}
-              onClick={handleCommitSettings}
-              loading={actionLoading}
-              shadow
-            />
-          </div>
+          {isSuperAdmin && (
+            <div className="md:col-span-3 pt-4 border-t border-gray-100 dark:border-gray-800 flex justify-end">
+              <Btn
+                label="Commit Customizations"
+                icon={Check}
+                onClick={handleCommitSettings}
+                loading={actionLoading}
+                shadow
+              />
+            </div>
+          )}
         </div>
       )}
 
@@ -514,7 +541,7 @@ export const SettingsPage = () => {
             <div className="space-y-6">
               <div className="space-y-4">
                 <div className="p-5 rounded-2xl bg-primary/5 border border-primary/10">
-                  <h4 className="text-[12px] font-bold text-primary uppercase tracking-widest mb-3 flex items-center gap-2">
+                  <h4 className="text-[12px] font-bold text-primary tracking-widest mb-3 flex items-center gap-2">
                     <ShieldAlert className="w-4 h-4" />
                     Approval Thresholds
                   </h4>
@@ -523,11 +550,12 @@ export const SettingsPage = () => {
                     type="number"
                     value={settings.poThreshold || 0}
                     onChange={(e: any) =>
-                      setSettings({
+                      isSuperAdmin && setSettings({
                         ...settings,
                         poThreshold: Number(e.target.value),
                       })
                     }
+                    disabled={!isSuperAdmin}
                   />
                   <p className="mt-2 text-[10px] text-gray-400 italic leading-relaxed">Orders below this amount will bypass manual director L1/L2 approval cycles.</p>
                 </div>
@@ -536,7 +564,7 @@ export const SettingsPage = () => {
 
             <div className="space-y-6">
               <div className="p-5 rounded-2xl bg-sky-50/50 dark:bg-sky-900/10 border border-sky-100 dark:border-sky-900/20">
-                <h4 className="text-[12px] font-bold text-sky-600 dark:text-sky-400 uppercase tracking-widest mb-3 flex items-center gap-2">
+                <h4 className="text-[12px] font-bold text-sky-600 dark:text-sky-400 tracking-widest mb-3 flex items-center gap-2">
                   <FileText className="w-4 h-4" />
                   Procurement Compliance Rules
                 </h4>
@@ -546,37 +574,41 @@ export const SettingsPage = () => {
                     type="number"
                     value={settings.minQuotesLow || 0}
                     onChange={(e: any) =>
-                      setSettings({
+                      isSuperAdmin && setSettings({
                         ...settings,
                         minQuotesLow: Number(e.target.value),
                       })
                     }
+                    disabled={!isSuperAdmin}
                   />
                   <Field
                     label="Min Supplier Quotes (High Value)"
                     type="number"
                     value={settings.minQuotesHigh || 0}
                     onChange={(e: any) =>
-                      setSettings({
+                      isSuperAdmin && setSettings({
                         ...settings,
                         minQuotesHigh: Number(e.target.value),
                       })
                     }
+                    disabled={!isSuperAdmin}
                   />
                 </div>
                 <p className="mt-2 text-[10px] text-gray-400 italic leading-relaxed">Required number of quotations for procurement verification phase before generating PO.</p>
               </div>
             </div>
 
-            <div className="md:col-span-2 pt-4 border-t border-gray-100 dark:border-gray-800 flex justify-end">
-              <Btn 
-                label="Commit Policies" 
-                icon={Check}
-                onClick={handleCommitSettings}
-                loading={actionLoading}
-                shadow
-              />
-            </div>
+            {isSuperAdmin && (
+              <div className="md:col-span-2 pt-4 border-t border-gray-100 dark:border-gray-800 flex justify-end">
+                <Btn
+                  label="Commit Policies"
+                  icon={Check}
+                  onClick={handleCommitSettings}
+                  loading={actionLoading}
+                  shadow
+                />
+              </div>
+            )}
           </div>
         </Card>
       )}
@@ -593,55 +625,55 @@ export const SettingsPage = () => {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <ListManager 
-              title="Projects" 
-              listKey="projects" 
-              icon={FileText} 
+            <ListManager
+              title="Projects"
+              icon={FileText}
               value={newItem.projects}
               onChange={(val) => setNewItem({ ...newItem, projects: val })}
               onAdd={() => addItemToList('projects')}
               onRemove={(item) => removeItemFromList('projects', item)}
               items={settings.projects || []}
+              disabled={!isSuperAdmin}
             />
-            <ListManager 
-              title="Engineers / Requesters" 
-              listKey="requesters" 
-              icon={Users} 
+            <ListManager
+              title="Engineers / Requesters"
+              icon={Users}
               value={newItem.requesters}
               onChange={(val) => setNewItem({ ...newItem, requesters: val })}
               onAdd={() => addItemToList('requesters')}
               onRemove={(item) => removeItemFromList('requesters', item)}
               items={settings.requesters || []}
+              disabled={!isSuperAdmin}
             />
-            <ListManager 
-              title="Categories" 
-              listKey="categories" 
-              icon={SettingsIcon} 
+            <ListManager
+              title="Categories"
+              icon={SettingsIcon}
               value={newItem.categories}
               onChange={(val) => setNewItem({ ...newItem, categories: val })}
               onAdd={() => addItemToList('categories')}
               onRemove={(item) => removeItemFromList('categories', item)}
               items={settings.categories || []}
+              disabled={!isSuperAdmin}
             />
-            <ListManager 
-              title="Units (UOM)" 
-              listKey="units" 
-              icon={ShieldAlert} 
+            <ListManager
+              title="Units (UOM)"
+              icon={ShieldAlert}
               value={newItem.units}
               onChange={(val) => setNewItem({ ...newItem, units: val })}
               onAdd={() => addItemToList('units')}
               onRemove={(item) => removeItemFromList('units', item)}
               items={settings.units || []}
+              disabled={!isSuperAdmin}
             />
-            <ListManager 
-              title="Work Types" 
-              listKey="workTypes" 
-              icon={Key} 
+            <ListManager
+              title="Work Types"
+              icon={Key}
               value={newItem.workTypes}
               onChange={(val) => setNewItem({ ...newItem, workTypes: val })}
               onAdd={() => addItemToList('workTypes')}
               onRemove={(item) => removeItemFromList('workTypes', item)}
               items={settings.workTypes || []}
+              disabled={!isSuperAdmin}
             />
 
             {/* Company Management */}
@@ -651,43 +683,45 @@ export const SettingsPage = () => {
                 My Companies (Legal Entities)
               </h4>
               
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
-                <Field 
-                  label="Company Name" 
-                  small 
-                  placeholder="Legal Name" 
-                  value={newCompany.name} 
-                  onChange={(e: any) => setNewCompany({...newCompany, name: e.target.value})} 
-                />
-                <Field 
-                  label="GSTIN" 
-                  small 
-                  placeholder="GST Number" 
-                  value={newCompany.gstin} 
-                  onChange={(e: any) => setNewCompany({...newCompany, gstin: e.target.value})} 
-                />
-                <div className="flex gap-2 items-end">
-                  <div className="flex-1">
-                    <Field 
-                      label="Address" 
-                      small 
-                      placeholder="Full Address" 
-                      value={newCompany.address} 
-                      onChange={(e: any) => setNewCompany({...newCompany, address: e.target.value})} 
-                    />
+              {isSuperAdmin && (
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
+                  <Field
+                    label="Company Name"
+                    small
+                    placeholder="Legal Name"
+                    value={newCompany.name}
+                    onChange={(e: any) => setNewCompany({...newCompany, name: e.target.value})}
+                  />
+                  <Field
+                    label="GSTIN"
+                    small
+                    placeholder="GST Number"
+                    value={newCompany.gstin}
+                    onChange={(e: any) => setNewCompany({...newCompany, gstin: e.target.value})}
+                  />
+                  <div className="flex gap-2 items-end">
+                    <div className="flex-1">
+                      <Field
+                        label="Address"
+                        small
+                        placeholder="Full Address"
+                        value={newCompany.address}
+                        onChange={(e: any) => setNewCompany({...newCompany, address: e.target.value})}
+                      />
+                    </div>
+                    <button
+                      onClick={addCompany}
+                      className="mb-4 p-2 bg-primary text-white rounded-xl hover:bg-primary/90 transition-all h-[40px] w-[40px] flex items-center justify-center cursor-pointer shrink-0"
+                    >
+                      <Plus className="w-4 h-4" />
+                    </button>
                   </div>
-                  <button 
-                    onClick={addCompany}
-                    className="mb-4 p-2 bg-primary text-white rounded-xl hover:bg-primary/90 transition-all h-[40px] w-[40px] flex items-center justify-center cursor-pointer shrink-0"
-                  >
-                    <Plus className="w-4 h-4" />
-                  </button>
                 </div>
-              </div>
+              )}
 
               <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
                 {settings.companies?.map((co, idx) => (
-                  <div key={idx} className="flex items-center justify-between p-4 bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-xl group hover:border-primary/30 transition-all">
+                  <div key={idx} className={`flex items-center justify-between p-4 bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-xl transition-all ${isSuperAdmin ? "group hover:border-primary/30" : ""}`}>
                     <div className="flex-1 min-w-0">
                       <p className="text-[13px] font-bold text-gray-900 dark:text-white truncate">{co.name}</p>
                       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-1">
@@ -695,12 +729,14 @@ export const SettingsPage = () => {
                         <p className="text-[10px] text-gray-500 truncate max-w-md">{co.address}</p>
                       </div>
                     </div>
-                    <button 
-                      onClick={() => removeCompany(idx)}
-                      className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/10 rounded-xl transition-all opacity-0 group-hover:opacity-100 cursor-pointer"
-                    >
-                      <Trash2 className="w-4.5 h-4.5" />
-                    </button>
+                    {isSuperAdmin && (
+                      <button
+                        onClick={() => removeCompany(idx)}
+                        className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/10 rounded-xl transition-all opacity-0 group-hover:opacity-100 cursor-pointer"
+                      >
+                        <Trash2 className="w-4.5 h-4.5" />
+                      </button>
+                    )}
                   </div>
                 ))}
                 {(!settings.companies || settings.companies.length === 0) && (
@@ -710,15 +746,17 @@ export const SettingsPage = () => {
             </div>
           </div>
 
-          <div className="pt-4 border-t border-gray-100 dark:border-gray-800 flex justify-end">
-            <Btn 
-              label="Commit Databases" 
-              icon={Check}
-              onClick={handleCommitSettings}
-              loading={actionLoading}
-              shadow
-            />
-          </div>
+          {isSuperAdmin && (
+            <div className="pt-4 border-t border-gray-100 dark:border-gray-800 flex justify-end">
+              <Btn
+                label="Commit Databases"
+                icon={Check}
+                onClick={handleCommitSettings}
+                loading={actionLoading}
+                shadow
+              />
+            </div>
+          )}
         </Card>
       )}
     </div>

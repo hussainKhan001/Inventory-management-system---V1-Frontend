@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import { Calendar, ChevronLeft, ChevronRight, X } from "lucide-react";
 import { cn } from "../../lib/utils";
+import { DatePickerTrigger } from "./DatePickerTrigger";
 
 export interface DateRangeValue {
   start: string; // YYYY-MM-DD or ""
@@ -165,40 +166,21 @@ export const DateRangePicker = React.memo(({
   return (
     <div ref={containerRef} className={cn("relative inline-flex items-center gap-2", className)}>
 
-      {/* Combined Date Range Input */}
-      <button
-        type="button"
+      <DatePickerTrigger
         onClick={() => openFor("start")}
-        className={cn(
-          "flex items-center gap-2 h-[40px] px-3 min-w-[220px] rounded-xl border text-[13px] transition-all duration-200 cursor-pointer",
-          "bg-white dark:bg-[#0F172A] text-[#1A1A2E] dark:text-[#F1F5F9]",
-          open
-            ? "border-primary ring-4 ring-primary/20"
-            : "border-gray-200/50 dark:border-gray-800 hover:border-gray-300 dark:hover:border-gray-700",
-        )}
-      >
-        <Calendar className="w-4 h-4 text-gray-400 shrink-0" />
-        <span className={cn("flex-1 text-left whitespace-nowrap", (!value.start && !value.end) && "text-gray-500")}>
-          {value.start || value.end ? (
+        onClear={(e) => { e.stopPropagation(); onChange({ start: "", end: "" }); }}
+        text={
+          value.start || value.end ? (
             <>
               {value.start ? formatDisplay(value.start) : ""}
               {value.end ? ` - ${formatDisplay(value.end)}` : (value.start ? " -" : "")}
             </>
-          ) : (
-            "Select Date Range"
-          )}
-        </span>
-        {(value.start || value.end) && (
-          <span
-            role="button"
-            tabIndex={-1}
-            onClick={(e) => { e.stopPropagation(); onChange({ start: "", end: "" }); }}
-            className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors ml-1 p-0.5"
-          >
-            <X className="w-3.5 h-3.5" />
-          </span>
-        )}
-      </button>
+          ) : ""
+        }
+        placeholder="Select Date Range"
+        isOpen={open}
+        className="min-w-[220px]"
+      />
 
       {/* Calendar dropdown */}
       {open && (
@@ -228,7 +210,7 @@ export const DateRangePicker = React.memo(({
           {/* Day-of-week headers */}
           <div className="grid grid-cols-7 mb-1">
             {DAY_LABELS.map(d => (
-              <div key={d} className="text-center text-[10px] font-bold text-gray-600 py-1 uppercase tracking-wider">
+              <div key={d} className="text-center text-[10px] font-bold text-gray-600 py-1 tracking-wider">
                 {d}
               </div>
             ))}

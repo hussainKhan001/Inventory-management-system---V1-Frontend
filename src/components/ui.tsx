@@ -4,6 +4,7 @@ import { toast } from "react-hot-toast";
 import { cn } from "../lib/utils";
 import { motion, AnimatePresence } from "motion/react";
 import { compressImage, uploadToCloudinary } from '../lib/upload';
+import { DatePicker } from "./ui/DatePicker";
 
 export const Card = React.memo(({
   children,
@@ -12,7 +13,7 @@ export const Card = React.memo(({
 }: React.HTMLAttributes<HTMLDivElement>) => (
   <div
     className={cn(
-      "bg-white dark:bg-[#1E293B] rounded-xl border border-[#E8ECF0] dark:border-[#334155] shadow-[0_1px_4px_rgba(0,0,0,0.08)] dark:shadow-none transition-colors duration-200",
+      "bg-white dark:bg-[#0F172A] rounded-2xl border border-gray-100 dark:border-gray-800/80 shadow-[0_1px_4px_rgba(0,0,0,0.04)] dark:shadow-none transition-colors duration-200",
       className
     )}
     {...props}
@@ -110,7 +111,7 @@ export const StatusBadge = React.memo(({ status, accountStatus, small }: { statu
       <div className="flex flex-col items-start gap-1">
         {renderBadge(main, color)}
         <span className={cn(
-          "font-bold px-2 inline-block uppercase tracking-tight border border-current rounded-full opacity-70",
+          "font-bold px-2 inline-block tracking-tight border border-current rounded-full opacity-70",
           small ? "text-[7px] leading-tight" : "text-[8px]",
           color === "yellow" ? "text-amber-600 dark:text-amber-400 border-amber-200/50" : ""
         )}>{sub}</span>
@@ -152,22 +153,22 @@ export const Btn = React.memo(({
   type = "button",
 }: any) => {
   const base =
-    "inline-flex items-center justify-center font-semibold rounded-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed active:scale-95";
-  const size = small ? "px-2 py-1 text-[11px]" : "px-4 py-2 text-sm";
+    "inline-flex items-center justify-center font-bold rounded-xl transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed active:scale-95";
+  const size = small ? "px-3 py-1.5 text-[11px] h-[32px]" : "px-6 py-2 h-[40px] text-[13px]";
 
   let colors = "";
   if (outline) {
-    colors = "border border-gray-300 dark:border-[#334155] text-gray-700 dark:text-[#CBD5E1] hover:bg-gray-50 dark:hover:bg-[#334155] bg-white dark:bg-transparent";
+    colors = "border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-[#F1F5F9] hover:bg-gray-50 dark:hover:bg-gray-800 bg-white dark:bg-[#0F172A]";
   } else if (color === "primary") {
-    colors = "bg-[#F97316] text-white hover:bg-[#ea580c] shadow-sm shadow-orange-200 dark:shadow-none";
+    colors = "bg-[#F97316] text-white hover:bg-[#ea580c] shadow-md shadow-orange-500/20 dark:shadow-none";
   } else if (color === "purple") {
-    colors = "bg-[#8B5CF6] text-white hover:bg-[#7c3aed] shadow-sm shadow-purple-200 dark:shadow-none";
+    colors = "bg-[#8B5CF6] text-white hover:bg-[#7c3aed] shadow-md shadow-purple-500/20 dark:shadow-none";
   } else if (color === "red") {
-    colors = "bg-[#EF4444] text-white hover:bg-[#dc2626] shadow-sm shadow-red-200 dark:shadow-none";
+    colors = "bg-[#EF4444] text-white hover:bg-[#dc2626] shadow-md shadow-red-500/20 dark:shadow-none";
   } else if (color === "green") {
-    colors = "bg-[#10B981] text-white hover:bg-[#059669] shadow-sm shadow-green-200 dark:shadow-none";
+    colors = "bg-[#10B981] text-white hover:bg-[#059669] shadow-md shadow-green-500/20 dark:shadow-none";
   } else {
-    colors = "bg-gray-800 dark:bg-[#334155] text-white hover:bg-gray-900 dark:hover:bg-[#475569]";
+    colors = "bg-gray-800 dark:bg-[#1E293B] border border-transparent dark:border-gray-700 text-white hover:bg-gray-900 dark:hover:bg-[#334155]";
   }
 
   return (
@@ -206,6 +207,23 @@ export const Field = React.memo(({
 }: any) => {
   const datalistId = label ? `list-${label.replace(/\s+/g, '-').toLowerCase()}` : undefined;
   
+  if (type === "date") {
+    return (
+      <DatePicker
+        label={label}
+        value={value}
+        onChange={onChange}
+        disabled={disabled}
+        required={required}
+        error={error}
+        small={small}
+        icon={Icon}
+        className={className}
+        {...props}
+      />
+    );
+  }
+
   return (
     <div className={cn(small ? "mb-2" : "mb-4", className)}>
       {label && (
@@ -226,7 +244,7 @@ export const Field = React.memo(({
           list={list}
           {...props}
           className={cn(
-            "w-full bg-white dark:bg-gray-950 border border-gray-200/50 dark:border-gray-800 rounded-xl text-[#1A1A2E] dark:text-[#F1F5F9] transition-all duration-200 focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/5 disabled:bg-gray-50 dark:disabled:bg-gray-900 disabled:text-gray-500 shadow-xs",
+            "w-full bg-white dark:bg-[#0F172A] border border-gray-200/50 dark:border-gray-800 hover:border-gray-300 dark:hover:border-gray-700 rounded-xl text-[#1A1A2E] dark:text-[#F1F5F9] transition-all duration-200 focus:outline-none focus:border-[#F97316] focus:ring-4 focus:ring-[#F97316]/20 disabled:bg-gray-50 dark:disabled:bg-gray-900 disabled:text-gray-500 shadow-xs",
             small ? "px-3 py-1.5 text-[12px]" : "px-4 py-2 h-[40px] text-[13px]",
             Icon ? "pl-10" : "",
             error && "border-red-500 focus:border-red-500 focus:ring-red-500/10"
@@ -267,45 +285,123 @@ export const SField = React.memo(({
   placeholder,
   className,
   ...props
-}: any) => (
-  <div className={cn(small ? "mb-2" : "mb-4", className)}>
-    {label && (
-      <label className={cn("block font-bold text-[#6B7280] dark:text-[#94A3B8] mb-1.5", small ? "text-[9px]" : "text-[11px] h-4")}>
-        {label} {required && <span className="text-red-500">*</span>}
-      </label>
-    )}
-      <select
-        value={value ?? ""}
-        onChange={onChange}
-        disabled={disabled}
-        {...props}
-        className={cn(
-          "w-full bg-white dark:bg-gray-950 border border-gray-200/50 dark:border-gray-800 rounded-xl text-[#1A1A2E] dark:text-[#F1F5F9] transition-all duration-200 focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/5 disabled:bg-gray-50 dark:disabled:bg-gray-900 disabled:text-gray-500 shadow-xs appearance-none cursor-pointer",
-          small ? "px-3 py-1.5 text-[12px]" : "px-4 py-2 h-[40px] text-[13px]",
-          error && "border-red-500 focus:border-red-500 focus:ring-red-500/10"
-        )}
-        style={{
-          backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%236B7280'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E")`,
-          backgroundRepeat: 'no-repeat',
-          backgroundPosition: 'right 1rem center',
-          backgroundSize: '1em'
-        }}
-      >
-        <option value="">{placeholder || "Select..."}</option>
-        {options?.map((opt: any, i: number) => {
-          const val = opt?.value !== undefined ? opt.value : opt;
-          const label = opt?.label !== undefined ? opt.label : opt;
-          return (
-            <option key={val || i} value={val}>
-              {typeof label === 'object' ? JSON.stringify(label) : String(label || "")}
-            </option>
-          );
-        })}
-      </select>
-    {helperText && !error && <p className="text-[10px] text-gray-500 dark:text-gray-400 mt-1 font-medium">{helperText}</p>}
-    {error && <p className="text-[11px] text-red-500 mt-1 font-medium">{error}</p>}
-  </div>
-));
+}: any) => {
+  const [isOpen, setIsOpen] = React.useState(false);
+  const containerRef = React.useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const normalizedOptions = React.useMemo(() => {
+    if (!options) return [];
+    return options.map((opt: any) => {
+      const val = opt?.value !== undefined ? opt.value : opt;
+      const lbl = opt?.label !== undefined ? opt.label : opt;
+      return {
+        value: val,
+        label: typeof lbl === 'object' ? JSON.stringify(lbl) : String(lbl || "")
+      };
+    });
+  }, [options]);
+
+  const selectedOption = normalizedOptions.find((o: any) => String(o.value) === String(value));
+
+  return (
+    <div className={cn(small ? "mb-2" : "mb-4", className)} ref={containerRef}>
+      {label && (
+        <label className={cn("block font-bold text-[#6B7280] dark:text-[#94A3B8] mb-1.5", small ? "text-[9px]" : "text-[11px] h-4")}>
+          {label} {required && <span className="text-red-500">*</span>}
+        </label>
+      )}
+      
+      <div className="relative group">
+        <div
+          onClick={() => {
+            if (!disabled) setIsOpen(!isOpen);
+          }}
+          className={cn(
+            "w-full bg-white dark:bg-[#0F172A] border rounded-xl text-[#1A1A2E] dark:text-[#F1F5F9] transition-all duration-200 focus:outline-none flex items-center justify-between cursor-pointer shadow-xs",
+            small ? "pl-3 pr-2 py-1.5 min-h-[32px] text-[12px]" : "pl-4 pr-3 py-2 min-h-[40px] text-[13px]",
+            error && "border-red-500 ring-4 ring-red-500/10",
+            isOpen ? "border-[#F97316] ring-4 ring-[#F97316]/20" : "border-gray-200/50 dark:border-gray-800 hover:border-gray-300 dark:hover:border-gray-700",
+            disabled && "opacity-50 cursor-not-allowed bg-gray-50 dark:bg-gray-900 hover:border-gray-200/50 dark:hover:border-gray-800",
+            className
+          )}
+          {...props}
+        >
+          <span className={cn("truncate", !selectedOption && "text-gray-500 dark:text-gray-400")}>
+            {selectedOption ? selectedOption.label : (placeholder || "Select...")}
+          </span>
+          <svg className={cn("w-4 h-4 transition-transform duration-200 shrink-0 ml-2", isOpen ? "transform rotate-180 text-[#F97316]" : "text-gray-400 group-hover:text-[#F97316]")} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+          </svg>
+        </div>
+
+        <AnimatePresence>
+          {isOpen && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              transition={{ duration: 0.15 }}
+              className="absolute z-[60] w-full min-w-[160px] top-[calc(100%+8px)] left-0 bg-white dark:bg-[#0F172A] border border-gray-200 dark:border-gray-700/80 rounded-xl shadow-xl dark:shadow-2xl dark:shadow-black/60 overflow-hidden py-1"
+            >
+              <div className="max-h-60 overflow-y-auto overscroll-contain custom-scrollbar">
+                {normalizedOptions.length === 0 ? (
+                  <div className="px-4 py-2 text-[13px] text-gray-500 italic">No options</div>
+                ) : (
+                  <>
+                    <div
+                      onClick={() => {
+                        onChange?.({ target: { value: "", name: props.name } });
+                        setIsOpen(false);
+                      }}
+                      className={cn(
+                        "px-4 py-2 text-[13px] cursor-pointer transition-colors",
+                        !value
+                          ? "bg-[#F97316]/10 text-[#F97316] font-medium"
+                          : "text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-white/5"
+                      )}
+                    >
+                      {placeholder || "Select..."}
+                    </div>
+                    {normalizedOptions.map((opt: any, idx: number) => (
+                      <div
+                        key={`${opt.value}-${idx}`}
+                        onClick={() => {
+                          onChange?.({ target: { value: opt.value, name: props.name } });
+                          setIsOpen(false);
+                        }}
+                        className={cn(
+                          "px-4 py-2 text-[13px] cursor-pointer transition-colors flex items-center justify-between",
+                          String(value) === String(opt.value)
+                            ? "bg-[#F97316]/10 text-[#F97316] font-medium"
+                            : "text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-white/5"
+                        )}
+                      >
+                        <span className="truncate">{opt.label}</span>
+                      </div>
+                    ))}
+                  </>
+                )}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+
+      {helperText && !error && <p className="text-[10px] text-gray-500 dark:text-gray-400 mt-1 font-medium">{helperText}</p>}
+      {error && <p className="text-[11px] text-red-500 mt-1 font-medium">{error}</p>}
+    </div>
+  );
+});
 
 export const Modal = ({ title, onClose, wide, extraWide, ultraWide, children }: any) => (
   <motion.div
@@ -364,7 +460,8 @@ export const Skeleton = ({ className, ...props }: React.HTMLAttributes<HTMLDivEl
  */
 export const Table = ({ children, className, ...props }: React.HTMLAttributes<HTMLTableElement>) => (
   <div className="w-full overflow-x-auto no-scrollbar">
-    <table className={cn("w-full text-left border-collapse min-w-[600px] md:min-w-0 font-sans", className)} {...props}>
+    {/* table-fixed ensures columns respect explicit widths; overflow-x-auto handles mobile */}
+    <table className={cn("w-full text-left border-collapse table-fixed min-w-[640px] font-sans", className)} {...props}>
       {children}
     </table>
   </div>
@@ -383,13 +480,13 @@ export const Tbody = ({ children, className, ...props }: React.HTMLAttributes<HT
 );
 
 export const Tr = ({ children, className, isPending, isNew, ...props }: React.HTMLAttributes<HTMLTableRowElement> & { isPending?: boolean; isNew?: boolean }) => (
-  <tr 
+  <tr
     className={cn(
       "group hover:bg-gray-50/50 dark:hover:bg-gray-800/30 transition-all duration-200",
       isPending && "bg-orange-50/30 dark:bg-orange-950/20",
       isNew && "bg-blue-50/30 dark:bg-blue-950/20",
       className
-    )} 
+    )}
     {...props}
   >
     {children}
@@ -397,20 +494,44 @@ export const Tr = ({ children, className, isPending, isNew, ...props }: React.HT
 );
 
 export const Th = ({ children, className, ...props }: React.ThHTMLAttributes<HTMLTableCellElement>) => (
-  <th 
+  <th
     className={cn(
-      "px-4 py-3 text-[10px] font-black text-gray-400 uppercase tracking-widest transition-colors whitespace-nowrap",
+      "px-3 py-3 text-[10px] font-black text-gray-400 tracking-widest whitespace-nowrap overflow-hidden align-middle",
       className
-    )} 
+    )}
     {...props}
   >
     {children}
   </th>
 );
 
+/**
+ * Td - Table data cell.
+ * Content longer than the column width is clipped with ellipsis.
+ * Use `title` prop for tooltip on hover.
+ * For non-text content (images, buttons) pass className to override as needed.
+ */
 export const Td = ({ children, className, ...props }: React.TdHTMLAttributes<HTMLTableCellElement>) => (
-  <td className={cn("px-4 py-3 text-[13px] text-gray-600 dark:text-gray-300", className)} {...props}>
+  <td className={cn(
+    "px-3 py-2.5 text-[13px] text-gray-600 dark:text-gray-300 align-middle overflow-hidden",
+    className
+  )} {...props}>
     {children}
+  </td>
+);
+
+/**
+ * TdText - Td with built-in ellipsis truncation for plain text content.
+ * Automatically adds a tooltip via `title` on the inner span.
+ */
+export const TdText = ({ children, className, title, ...props }: React.TdHTMLAttributes<HTMLTableCellElement>) => (
+  <td className={cn(
+    "px-3 py-2.5 text-[13px] text-gray-600 dark:text-gray-300 align-middle overflow-hidden",
+    className
+  )} {...props}>
+    <span className="block truncate" title={title ?? (typeof children === 'string' ? children : undefined)}>
+      {children}
+    </span>
   </td>
 );
 
@@ -666,7 +787,7 @@ export const MultiSelect = ({
                       {opt.stock !== undefined && (
                         <div className="text-right">
                           <span className="text-[18px] font-black text-orange-500 leading-none">{opt.stock}</span>
-                          <span className="text-[11px] font-bold text-gray-400 dark:text-gray-500 ml-1 uppercase tracking-tighter">{opt.unit}</span>
+                          <span className="text-[11px] font-bold text-gray-400 dark:text-gray-500 ml-1 tracking-tighter">{opt.unit}</span>
                         </div>
                       )}
                       {selected.includes(opt.value) && <div className="w-2 h-2 rounded-full bg-orange-500" />}
@@ -927,7 +1048,7 @@ export const ImageUpload = ({
   return (
     <div className="space-y-2">
       {label && (
-        <label className={cn("block font-bold text-[#6B7280] dark:text-[#94A3B8] uppercase tracking-wider", small ? "text-[9px]" : "text-[11px]")}>
+        <label className={cn("block font-bold text-[#6B7280] dark:text-[#94A3B8] tracking-wider", small ? "text-[9px]" : "text-[11px]")}>
           {label} {required && <span className="text-red-500">*</span>}
         </label>
       )}
@@ -959,7 +1080,7 @@ export const ImageUpload = ({
             <div className="flex flex-col items-center gap-1">
               <Loader2 className={cn("animate-spin text-[#F97316]", small ? "w-5 h-5" : "w-6 h-6")} />
               {!small && (
-                <span className="text-[11px] font-bold text-[#6B7280] uppercase tracking-wider">
+                <span className="text-[11px] font-bold text-[#6B7280] tracking-wider">
                   {compressing ? "Optimizing..." : "Uploading..."}
                 </span>
               )}
@@ -970,7 +1091,7 @@ export const ImageUpload = ({
               <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                 <div className="flex flex-col items-center gap-1 text-white">
                   <Icon className={cn(small ? "w-4 h-4" : "w-5 h-5")} />
-                  {!small && <span className="text-[10px] font-bold uppercase tracking-wider">Change</span>}
+                  {!small && <span className="text-[10px] font-bold tracking-wider">Change</span>}
                 </div>
               </div>
               {onRemove && (
@@ -987,7 +1108,7 @@ export const ImageUpload = ({
                   )}
                 >
                   <X className={cn(small ? "w-3 h-3" : "w-3.5 h-3.5")} />
-                  {!small && <span className="text-[10px] font-bold uppercase tracking-wider">Discard</span>}
+                  {!small && <span className="text-[10px] font-bold tracking-wider">Discard</span>}
                 </button>
               )}
             </div>
@@ -995,7 +1116,7 @@ export const ImageUpload = ({
             <div className="flex flex-col items-center gap-1">
               <Icon className={cn(small ? "w-5 h-5" : "w-8 h-8", error ? "text-red-400" : "text-[#6B7280] dark:text-[#475569] group-hover:text-[#F97316]")} />
               {!small && (
-                <span className={cn("text-[10px] font-bold uppercase tracking-wider transition-colors", error ? "text-red-500" : "text-[#6B7280] dark:text-[#94A3B8] group-hover:text-[#F97316]")}>
+                <span className={cn("text-[10px] font-bold tracking-wider transition-colors", error ? "text-red-500" : "text-[#6B7280] dark:text-[#94A3B8] group-hover:text-[#F97316]")}>
                   Upload
                 </span>
               )}
@@ -1075,18 +1196,17 @@ export const MultipleImageUpload = ({
   return (
     <div className="space-y-2">
       {label && (
-        <label className={cn("block font-bold text-[#6B7280] dark:text-[#94A3B8] uppercase tracking-wider", small ? "text-[9px]" : "text-[11px]")}>
+        <label className={cn("block font-bold text-[#6B7280] dark:text-[#94A3B8] tracking-wider", small ? "text-[9px]" : "text-[11px]")}>
           {label} {required && <span className="text-red-500">*</span>}
         </label>
       )}
       
       <div className={cn(
-        "grid gap-2",
-        small ? "grid-cols-2" : "grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4"
+        small ? "flex flex-wrap gap-2" : "grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4"
       )}>
         {values.map((url, idx) => (
           <div key={idx} className={cn(
-            "relative group rounded-xl overflow-hidden border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800",
+            "relative group rounded-xl overflow-hidden border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shrink-0",
             small ? "w-10 h-10" : "aspect-square"
           )}>
             <img src={url} alt={`Upload ${idx}`} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
@@ -1099,12 +1219,12 @@ export const MultipleImageUpload = ({
               )}
             >
               <X className={cn(small ? "w-2.5 h-2.5" : "w-3 h-3")} />
-              {!small && <span className="text-[8px] font-bold uppercase tracking-wider">Discard</span>}
+              {!small && <span className="text-[8px] font-bold tracking-wider">Discard</span>}
             </button>
           </div>
         ))}
         
-        <div className={cn("relative", small ? "w-10 h-10" : "aspect-square")}>
+        <div className={cn("relative", small ? "w-10 h-10 shrink-0" : "aspect-square")}>
           <input
             ref={inputRef}
             type="file"
@@ -1137,7 +1257,7 @@ export const MultipleImageUpload = ({
 
       {uploading && progress.length > 0 && (
         <div className="mt-1.5 space-y-1">
-          <div className="text-[8px] font-black text-blue-600 uppercase tracking-tighter animate-pulse">Uploading...</div>
+          <div className="text-[8px] font-black text-blue-600 tracking-tighter animate-pulse">Uploading...</div>
           {progress.map((p, i) => (
             <div key={i} className="flex items-center gap-1.5">
               <div className="flex-1 h-1 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">

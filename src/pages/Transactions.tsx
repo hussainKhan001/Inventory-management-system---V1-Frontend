@@ -213,7 +213,7 @@ export const TransactionsPage = ({ type }: { type?: TransactionType }) => {
   const [viewModal, setViewModal] = useState(false);
   const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
-  const [newTransaction, setNewTransaction] = useState<Partial<Transaction>>({ ...INITIAL_TRANSACTION, type: type || "Inward" });
+  const [newTransaction, setNewTransaction] = useState<Partial<Transaction> & { otherProjectName?: string }>({ ...INITIAL_TRANSACTION, type: type || "Inward" });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [searchItemVal, setSearchItemVal] = useState("");
 
@@ -332,7 +332,7 @@ export const TransactionsPage = ({ type }: { type?: TransactionType }) => {
 
         // Map fields for specific types
         if (newTransaction.type === "Inward Return") {
-          updateData.vendor = newTransaction.supplier || newTransaction.vendor;
+          updateData.vendor = newTransaction.supplier;
         } else if (newTransaction.type === "Outward Return") {
           updateData.sourceSite = newTransaction.project || newTransaction.sourceSite;
         }
@@ -607,7 +607,7 @@ export const TransactionsPage = ({ type }: { type?: TransactionType }) => {
             <button
               onClick={() => setActiveTab('history')}
               className={cn(
-                "px-4 py-2 rounded-lg text-xs font-bold transition-all uppercase tracking-wider",
+                "px-4 py-2 rounded-lg text-xs font-bold transition-all tracking-wider",
                 activeTab === 'history' ? "bg-white dark:bg-gray-900 shadow-sm text-primary" : "text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
               )}
             >
@@ -619,7 +619,7 @@ export const TransactionsPage = ({ type }: { type?: TransactionType }) => {
                 fetchResource('mr-allocations', 1, 100);
               }}
               className={cn(
-                "px-4 py-2 rounded-lg text-xs font-bold transition-all uppercase tracking-wider",
+                "px-4 py-2 rounded-lg text-xs font-bold transition-all tracking-wider",
                 activeTab === 'ready' ? "bg-white dark:bg-gray-900 shadow-sm text-primary" : "text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
               )}
             >
@@ -671,7 +671,7 @@ export const TransactionsPage = ({ type }: { type?: TransactionType }) => {
         {activeTab === 'history' ? (
           <TableVirtuoso
             style={{ height: 'calc(100vh - 350px)', minHeight: '500px' }}
-          data={data || []}
+          data={(data || []) as Transaction[]}
           context={{ inventory }}
           increaseViewportBy={300}
           endReached={() => {
@@ -680,55 +680,54 @@ export const TransactionsPage = ({ type }: { type?: TransactionType }) => {
             }
           }}
           fixedHeaderContent={() => {
-            const headerClass = "px-4 py-3 text-[11px] font-bold text-[#6B7280] dark:text-gray-400 uppercase tracking-wider sticky top-0 z-10 sticky-th";
+            const headerClass = "px-3 py-3 text-[11px] font-bold text-[#6B7280] dark:text-gray-400 whitespace-nowrap overflow-hidden sticky top-0 z-10 sticky-th";
             return (
               <tr className="bg-gray-50/90 dark:bg-gray-800/90 backdrop-blur-md border-b border-[#E8ECF0] dark:border-gray-800">
                 {type === "Transfer Inward" || type === "Transfer Outward" ? (
                   <>
-                    <th className={cn(headerClass, "w-[120px] md:w-auto block md:table-cell")}><span className="md:hidden text-gray-900 dark:text-white text-[13px]">Transaction Details</span><span className="hidden md:inline">Date</span></th>
-                    <th className={cn(headerClass, "hidden md:table-cell w-[120px]")}>From Site</th>
-                    <th className={cn(headerClass, "hidden md:table-cell w-[120px]")}>To Site</th>
+                    <th className={cn(headerClass, "w-[148px] block md:table-cell")}><span className="md:hidden text-gray-900 dark:text-white text-[13px]">Transaction Details</span><span className="hidden md:inline">Date</span></th>
+                    <th className={cn(headerClass, "hidden md:table-cell w-[130px]")}>From Site</th>
+                    <th className={cn(headerClass, "hidden md:table-cell w-[130px]")}>To Site</th>
                     <th className={cn(headerClass, "hidden md:table-cell")}>Item</th>
                     <th className={cn(headerClass, "hidden md:table-cell text-right w-[80px]")}>Qty</th>
-                    <th className={cn(headerClass, "hidden md:table-cell w-[120px]")}>Gate Pass No.</th>
-                    <th className={cn(headerClass, "hidden md:table-cell w-[100px]")}>Gate Pass</th>
-                    <th className={cn(headerClass, "hidden md:table-cell w-[100px]")}>Photos</th>
-                    <th className={cn(headerClass, "hidden md:table-cell text-right w-[140px]")}>Actions</th>
+                    <th className={cn(headerClass, "hidden md:table-cell w-[130px]")}>Gate Pass No.</th>
+                    <th className={cn(headerClass, "hidden md:table-cell w-[110px]")}>Gate Pass</th>
+                    <th className={cn(headerClass, "hidden md:table-cell w-[120px]")}>Photos</th>
+                    <th className={cn(headerClass, "hidden md:table-cell text-right w-[150px]")}>Actions</th>
                   </>
                 ) : type === "Inward" || type === "Inward Return" ? (
                   <>
-                    <th className={cn(headerClass, "w-[120px] md:w-auto block md:table-cell")}><span className="md:hidden text-gray-900 dark:text-white text-[13px]">Transaction Details</span><span className="hidden md:inline">Date</span></th>
+                    <th className={cn(headerClass, "w-[148px] block md:table-cell")}><span className="md:hidden text-gray-900 dark:text-white text-[13px]">Transaction Details</span><span className="hidden md:inline">Date</span></th>
                     <th className={cn(headerClass, "hidden md:table-cell")}>Item</th>
                     <th className={cn(headerClass, "hidden md:table-cell text-right w-[80px]")}>Qty</th>
-                    <th className={cn(headerClass, "hidden md:table-cell w-[150px]")}>Supplier</th>
-                    <th className={cn(headerClass, "hidden md:table-cell w-[150px]")}>Challan / MR</th>
-                    <th className={cn(headerClass, "hidden md:table-cell w-[100px]")}>Photos</th>
-                    <th className={cn(headerClass, "hidden md:table-cell w-[80px]")}>Type</th>
-                    <th className={cn(headerClass, "hidden md:table-cell text-right w-[140px]")}>Actions</th>
+                    <th className={cn(headerClass, "hidden md:table-cell w-[140px]")}>Supplier</th>
+                    <th className={cn(headerClass, "hidden md:table-cell w-[160px]")}>Challan / MR</th>
+                    <th className={cn(headerClass, "hidden md:table-cell w-[120px]")}>Photos</th>
+                    <th className={cn(headerClass, "hidden md:table-cell w-[100px]")}>Type</th>
+                    <th className={cn(headerClass, "hidden md:table-cell text-right w-[150px]")}>Actions</th>
                   </>
                 ) : type === "Outward" || type === "Outward Return" ? (
                   <>
-                    <th className={cn(headerClass, "w-[100px] md:w-auto block md:table-cell")}><span className="md:hidden text-gray-900 dark:text-white text-[13px]">Transaction Details</span><span className="hidden md:inline text-[#6B7280]">MIS No.</span></th>
-                    <th className={cn(headerClass, "hidden md:table-cell w-[110px]")}>Date</th>
+                    <th className={cn(headerClass, "w-[148px] block md:table-cell")}><span className="md:hidden text-gray-900 dark:text-white text-[13px]">Transaction Details</span><span className="hidden md:inline">Date</span></th>
                     <th className={cn(headerClass, "hidden md:table-cell w-[120px]")}>Project</th>
-                    <th className={cn(headerClass, "hidden md:table-cell w-[100px]")}>Category</th>
+                    <th className={cn(headerClass, "hidden md:table-cell w-[110px]")}>Category</th>
                     <th className={cn(headerClass, "hidden md:table-cell")}>Item</th>
                     <th className={cn(headerClass, "hidden md:table-cell text-right w-[80px]")}>Qty</th>
-                    <th className={cn(headerClass, "hidden md:table-cell w-[100px]")}>Location</th>
-                    <th className={cn(headerClass, "hidden md:table-cell w-[130px]")}>
+                    <th className={cn(headerClass, "hidden md:table-cell w-[110px]")}>Location</th>
+                    <th className={cn(headerClass, "hidden md:table-cell w-[120px]")}>
                       {["Transfer Inward", "Transfer Outward"].includes(type || "") ? "Gate Pass Details" : "Person Name"}
                     </th>
-                    <th className={cn(headerClass, "hidden md:table-cell w-[100px]")}>Photos</th>
-                    <th className={cn(headerClass, "hidden md:table-cell text-right w-[140px]")}>Actions</th>
+                    <th className={cn(headerClass, "hidden md:table-cell w-[120px]")}>Photos</th>
+                    <th className={cn(headerClass, "hidden md:table-cell text-right w-[150px]")}>Actions</th>
                   </>
                 ) : (
                   <>
-                    <th className={cn(headerClass, "w-full md:w-auto block md:table-cell")}><span className="md:hidden text-gray-900 dark:text-white text-[13px]">Transaction Details</span><span className="hidden md:inline">Date</span></th>
-                    <th className={cn(headerClass, "hidden md:table-cell")}>Type</th>
-                    <th className={cn(headerClass, "hidden md:table-cell")}>Project</th>
-                    <th className={cn(headerClass, "hidden md:table-cell")}>Gate Pass</th>
+                    <th className={cn(headerClass, "w-[148px] block md:table-cell")}><span className="md:hidden text-gray-900 dark:text-white text-[13px]">Transaction Details</span><span className="hidden md:inline">Date</span></th>
+                    <th className={cn(headerClass, "hidden md:table-cell w-[110px]")}>Type</th>
+                    <th className={cn(headerClass, "hidden md:table-cell w-[130px]")}>Project</th>
+                    <th className={cn(headerClass, "hidden md:table-cell w-[120px]")}>Gate Pass</th>
                     <th className={cn(headerClass, "hidden md:table-cell")}>Items</th>
-                    <th className={cn(headerClass, "hidden md:table-cell text-right")}>Actions</th>
+                    <th className={cn(headerClass, "hidden md:table-cell text-right w-[150px]")}>Actions</th>
                   </>
                 )}
               </tr>
@@ -747,7 +746,7 @@ export const TransactionsPage = ({ type }: { type?: TransactionType }) => {
                       <div className="md:hidden p-4 border-b border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-900">
                         <div className="flex justify-between items-start mb-3">
                           <div>
-                            <p className="text-[10px] uppercase font-bold text-gray-400">{formatDateTime(trx.date)}</p>
+                            <p className="text-[10px] font-bold text-gray-400">{formatDateTime(trx.date)}</p>
                             <h4 className="text-[14px] font-bold text-gray-900 dark:text-white mt-0.5">
                               {trx.itemName || trx.items?.[0]?.itemName || "Multiple Items"}
                             </h4>
@@ -757,16 +756,16 @@ export const TransactionsPage = ({ type }: { type?: TransactionType }) => {
                              <span className={cn("text-lg font-black", type === "Transfer Inward" ? "text-emerald-500" : "text-orange-500")}>
                                {type === "Transfer Inward" ? "+" : "-"}{trx.qty || trx.items?.[0]?.qty}
                              </span>
-                             <p className="text-[10px] font-bold uppercase text-gray-400">{trx.unit || trx.items?.[0]?.unit}</p>
+                             <p className="text-[10px] font-bold text-gray-400">{trx.unit || trx.items?.[0]?.unit}</p>
                           </div>
                         </div>
                         <div className="grid grid-cols-2 gap-3 mb-4 text-[12px]">
                           <div>
-                            <p className="text-[9px] uppercase font-bold text-gray-400 tracking-wider">From</p>
+                            <p className="text-[9px] font-bold text-gray-400 tracking-wider">From</p>
                             <p className="font-medium text-gray-700 dark:text-gray-300">{trx.project}</p>
                           </div>
                           <div>
-                            <p className="text-[9px] uppercase font-bold text-gray-400 tracking-wider">To</p>
+                            <p className="text-[9px] font-bold text-gray-400 tracking-wider">To</p>
                             <p className="font-medium text-gray-700 dark:text-gray-300">{trx.destinationProject || "N/A"}</p>
                           </div>
                         </div>
@@ -784,12 +783,12 @@ export const TransactionsPage = ({ type }: { type?: TransactionType }) => {
                            </div>
                         </div>
                       </div>
-                      <div className="hidden md:block text-[13px] text-gray-600 dark:text-gray-400">
+                      <div className="hidden md:block text-[13px] text-gray-600 dark:text-gray-400 whitespace-nowrap">
                         {formatDateTime(trx.date)}
                       </div>
                     </td>
-                    <td className="hidden md:table-cell px-4 py-3 text-[13px] font-bold text-gray-900 dark:text-white max-w-[150px] truncate" title={trx.project}>{trx.project}</td>
-                    <td className="hidden md:table-cell px-4 py-3 text-[13px] font-bold text-gray-900 dark:text-white max-w-[150px] truncate" title={trx.destinationProject || ""}>{trx.destinationProject || "N/A"}</td>
+                    <td className="hidden md:table-cell px-3 py-2.5 text-[13px] font-bold text-gray-900 dark:text-white overflow-hidden"><span className="block truncate" title={trx.project}>{trx.project}</span></td>
+                    <td className="hidden md:table-cell px-3 py-2.5 text-[13px] font-bold text-gray-900 dark:text-white overflow-hidden"><span className="block truncate" title={trx.destinationProject || ""}>{trx.destinationProject || "N/A"}</span></td>
                     <td className="hidden md:table-cell px-4 py-3">
                       <div className="flex flex-col max-w-[200px]">
                         <span className="text-[13px] font-bold text-gray-900 dark:text-white truncate" title={trx.itemName || trx.items?.[0]?.itemName || inventory.find(i => i.sku === (trx.sku || trx.items?.[0]?.sku))?.itemName || catalogue.find(c => c.sku === (trx.sku || trx.items?.[0]?.sku))?.itemName || trx.sku || "N/A"}>
@@ -803,7 +802,7 @@ export const TransactionsPage = ({ type }: { type?: TransactionType }) => {
                         <span className={`text-[14px] font-black ${type === "Transfer Inward" ? "text-emerald-500" : "text-orange-500"}`}>
                           {type === "Transfer Inward" ? "+" : "-"}{trx.qty || trx.items?.[0]?.qty}
                         </span>
-                        <span className={`text-[11px] font-bold uppercase ${type === "Transfer Inward" ? "text-emerald-500" : "text-orange-500"}`}>
+                        <span className={`text-[11px] font-bold ${type === "Transfer Inward" ? "text-emerald-500" : "text-orange-500"}`}>
                           {trx.unit || trx.items?.[0]?.unit}
                         </span>
                       </div>
@@ -889,7 +888,7 @@ export const TransactionsPage = ({ type }: { type?: TransactionType }) => {
                        <div className="md:hidden p-4 border-b border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-900">
                          <div className="flex justify-between items-start mb-3">
                            <div>
-                             <p className="text-[10px] uppercase font-bold text-gray-400">{formatDateTime(trx.date)}</p>
+                             <p className="text-[10px] font-bold text-gray-400">{formatDateTime(trx.date)}</p>
                              <h4 className="text-[14px] font-bold text-gray-900 dark:text-white mt-0.5">
                                {trx.itemName || trx.items?.[0]?.itemName || "Inward Transaction"}
                              </h4>
@@ -897,16 +896,16 @@ export const TransactionsPage = ({ type }: { type?: TransactionType }) => {
                            </div>
                            <div className="text-right">
                               <span className="text-lg font-black text-emerald-500">+{trx.qty || trx.items?.[0]?.qty}</span>
-                              <p className="text-[10px] font-bold uppercase text-emerald-500">{trx.unit || trx.items?.[0]?.unit}</p>
+                              <p className="text-[10px] font-bold text-emerald-500">{trx.unit || trx.items?.[0]?.unit}</p>
                            </div>
                          </div>
                          <div className="flex flex-wrap gap-x-6 gap-y-2 mb-4 text-[12px]">
                             <div>
-                              <p className="text-[9px] uppercase font-bold text-gray-400">Vendor</p>
+                              <p className="text-[9px] font-bold text-gray-400">Vendor</p>
                               <p className="font-medium text-gray-700 dark:text-gray-300">{trx.supplier || trx.vendor || "N/A"}</p>
                             </div>
                             <div>
-                               <p className="text-[9px] uppercase font-bold text-gray-400">Ref / MR</p>
+                               <p className="text-[9px] font-bold text-gray-400">Ref / MR</p>
                                <p className="font-medium text-gray-700 dark:text-gray-300">{trx.challanNo || trx.challan || "N/A"} / {trx.mrNo || "N/A"}</p>
                             </div>
                          </div>
@@ -920,28 +919,28 @@ export const TransactionsPage = ({ type }: { type?: TransactionType }) => {
                             <Badge text={trx.type || "Manual"} color="gray" />
                          </div>
                        </div>
-                       <div className="hidden md:block text-[13px] text-gray-600 dark:text-gray-400">
+                       <div className="hidden md:block text-[13px] text-gray-600 dark:text-gray-400 whitespace-nowrap">
                          {formatDateTime(trx.date)}
                        </div>
                     </td>
-                    <td className="hidden md:table-cell px-4 py-3">
-                      <div className="flex flex-col max-w-[200px]">
-                        <span className="text-[13px] font-bold text-gray-900 dark:text-white truncate" title={trx.item || trx.items?.[0]?.name || inventory.find(i => i.sku === (trx.sku || trx.items?.[0]?.sku))?.itemName || catalogue.find(c => c.sku === (trx.sku || trx.items?.[0]?.sku))?.itemName || "N/A"}>
+                    <td className="hidden md:table-cell px-3 py-2.5 overflow-hidden">
+                      <div className="flex flex-col min-w-0">
+                        <span className="text-[13px] font-bold text-gray-900 dark:text-white truncate block" title={trx.item || trx.items?.[0]?.name || inventory.find(i => i.sku === (trx.sku || trx.items?.[0]?.sku))?.itemName || catalogue.find(c => c.sku === (trx.sku || trx.items?.[0]?.sku))?.itemName || "N/A"}>
                           {trx.item || trx.items?.[0]?.name || inventory.find(i => i.sku === (trx.sku || trx.items?.[0]?.sku))?.itemName || catalogue.find(c => c.sku === (trx.sku || trx.items?.[0]?.sku))?.itemName || "N/A"}
                         </span>
-                        <span className="text-[11px] text-gray-500 font-mono truncate">{trx.sku || trx.items?.[0]?.sku}</span>
+                        <span className="text-[11px] text-gray-500 font-mono truncate block">{trx.sku || trx.items?.[0]?.sku}</span>
                       </div>
                     </td>
-                    <td className="hidden md:table-cell px-4 py-3 text-right">
+                    <td className="hidden md:table-cell px-3 py-2.5 text-right">
                       <div className="flex flex-col items-end">
                         <span className="text-[14px] font-black text-emerald-500">+{trx.qty || trx.items?.[0]?.qty}</span>
-                        <span className="text-[11px] font-bold text-emerald-500 uppercase">{trx.unit || trx.items?.[0]?.unit}</span>
+                        <span className="text-[11px] font-bold text-emerald-500 ">{trx.unit || trx.items?.[0]?.unit}</span>
                       </div>
                     </td>
-                    <td className="hidden md:table-cell px-4 py-3 text-[13px] text-gray-600 dark:text-gray-400 max-w-[180px] truncate" title={trx.supplier || trx.vendor || ""}>{trx.supplier || trx.vendor}</td>
-                    <td className="hidden md:table-cell px-4 py-3 text-[13px] text-gray-600 dark:text-gray-400 max-w-[250px]">
-                      <p className="truncate" title={`${trx.challanNo || trx.challan || ""} / ${trx.mrNo || ""}`}>{trx.challanNo || trx.challan} / {trx.mrNo}</p>
-                      <p className="text-[11px] font-bold text-orange-600 truncate">{trx.condition || trx.items?.[0]?.condition || "Good"}</p>
+                    <td className="hidden md:table-cell px-3 py-2.5 overflow-hidden"><span className="block truncate text-[13px] text-gray-600 dark:text-gray-400" title={trx.supplier || (trx as any).vendor || ""}>{trx.supplier || (trx as any).vendor}</span></td>
+                    <td className="hidden md:table-cell px-3 py-2.5 overflow-hidden">
+                      <span className="block truncate text-[13px] text-gray-600 dark:text-gray-400" title={`${trx.challanNo || (trx as any).challan || ""} / ${trx.mrNo || ""}`}>{trx.challanNo || (trx as any).challan} / {trx.mrNo}</span>
+                      <span className="block truncate text-[11px] font-bold text-orange-600">{trx.condition || trx.items?.[0]?.condition || "Good"}</span>
                     </td>
                     <td className="hidden md:table-cell px-4 py-3">
                       <div className="flex -space-x-2">
@@ -1066,7 +1065,7 @@ export const TransactionsPage = ({ type }: { type?: TransactionType }) => {
                        <div className="md:hidden p-4 border-b border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-900">
                           <div className="flex justify-between items-start mb-3">
                              <div>
-                               <p className="text-[10px] uppercase font-bold text-gray-400">ID: {trx.id}</p>
+                               <p className="text-[10px] font-bold text-gray-400">{formatDateTime(trx.date)}</p>
                                <h4 className="text-[14px] font-bold text-gray-900 dark:text-white mt-0.5">
                                  {trx.itemName || trx.items?.[0]?.itemName || "Outward Item"}
                                </h4>
@@ -1074,21 +1073,21 @@ export const TransactionsPage = ({ type }: { type?: TransactionType }) => {
                              </div>
                              <div className="text-right">
                                 <span className="text-lg font-black text-red-500">-{trx.qty || trx.items?.[0]?.qty}</span>
-                                <p className="text-[10px] font-bold uppercase text-red-500">{trx.unit || trx.items?.[0]?.unit}</p>
+                                <p className="text-[10px] font-bold text-red-500">{trx.unit || trx.items?.[0]?.unit}</p>
                              </div>
                           </div>
                           <div className="grid grid-cols-2 gap-3 mb-4 text-[12px]">
                              <div>
-                               <p className="text-[9px] uppercase font-bold text-gray-400">Project</p>
+                               <p className="text-[9px] font-bold text-gray-400">Project</p>
                                <p className="font-medium text-gray-700 dark:text-gray-300 truncate">{trx.project || trx.sourceSite || "Site"}</p>
                              </div>
                              <div>
-                               <p className="text-[9px] uppercase font-bold text-gray-400">Receiver</p>
+                               <p className="text-[9px] font-bold text-gray-400">Receiver</p>
                                <p className="font-medium text-gray-700 dark:text-gray-300 truncate">{trx.personName || trx.handoverTo || "N/A"}</p>
                              </div>
                           </div>
                           <div className="flex items-center justify-between pt-3 border-t border-gray-50 dark:border-gray-800">
-                             <p className="text-[10px] text-gray-400 font-medium">{formatDateTime(trx.date)}</p>
+                             <div></div>
                              <div className="flex items-center gap-2">
                                 <Btn icon={Eye} small outline onClick={() => { setSelectedTransaction(trx); setViewModal(true); }} />
                                 {hasPermission(getEditPermission(trx.type)) && (
@@ -1097,29 +1096,26 @@ export const TransactionsPage = ({ type }: { type?: TransactionType }) => {
                              </div>
                           </div>
                        </div>
-                       <div className="hidden md:block text-[11px] font-mono text-gray-500 font-bold">{trx.id}</div>
+                       <div className="hidden md:block text-[13px] text-gray-600 dark:text-gray-400 whitespace-nowrap overflow-hidden">{formatDateTime(trx.date)}</div>
                     </td>
-                    <td className="hidden md:table-cell px-4 py-3 text-[13px] text-gray-600 dark:text-gray-400">{formatDateTime(trx.date)}</td>
-                    <td className="hidden md:table-cell px-4 py-3 text-[13px] text-gray-600 dark:text-gray-400 max-w-[150px] truncate" title={trx.project || trx.sourceSite || ""}>{trx.project || trx.sourceSite}</td>
-                    <td className="hidden md:table-cell px-4 py-3 text-[13px] text-gray-600 dark:text-gray-400">
-                      {currentInventory.find(i => (i.sku === (trx.sku || trx.items?.[0]?.sku)))?.category || "Hardware"}
-                    </td>
-                    <td className="hidden md:table-cell px-4 py-3">
-                      <div className="flex flex-col max-w-[200px]">
-                        <span className="text-[13px] font-bold text-gray-900 dark:text-white truncate" title={trx.itemName || trx.items?.[0]?.itemName || inventory.find(i => i.sku === (trx.sku || trx.items?.[0]?.sku))?.itemName || catalogue.find(c => c.sku === (trx.sku || trx.items?.[0]?.sku))?.itemName || trx.sku || "N/A"}>
+                    <td className="hidden md:table-cell px-3 py-2.5 overflow-hidden"><span className="block truncate text-[13px] text-gray-600 dark:text-gray-400" title={trx.project || trx.sourceSite || ""}>{trx.project || trx.sourceSite}</span></td>
+                    <td className="hidden md:table-cell px-3 py-2.5 overflow-hidden"><span className="block truncate text-[13px] text-gray-600 dark:text-gray-400">{currentInventory.find(i => (i.sku === (trx.sku || trx.items?.[0]?.sku)))?.category || "Hardware"}</span></td>
+                    <td className="hidden md:table-cell px-3 py-2.5 overflow-hidden">
+                      <div className="flex flex-col min-w-0">
+                        <span className="text-[13px] font-bold text-gray-900 dark:text-white truncate block" title={trx.itemName || trx.items?.[0]?.itemName || inventory.find(i => i.sku === (trx.sku || trx.items?.[0]?.sku))?.itemName || catalogue.find(c => c.sku === (trx.sku || trx.items?.[0]?.sku))?.itemName || trx.sku || "N/A"}>
                           {trx.itemName || trx.items?.[0]?.itemName || inventory.find(i => i.sku === (trx.sku || trx.items?.[0]?.sku))?.itemName || catalogue.find(c => c.sku === (trx.sku || trx.items?.[0]?.sku))?.itemName || trx.sku || "N/A"}
                         </span>
-                        <span className="text-[11px] text-gray-500 font-mono truncate">{trx.sku || trx.items?.[0]?.sku}</span>
+                        <span className="text-[11px] text-gray-500 font-mono truncate block">{trx.sku || trx.items?.[0]?.sku}</span>
                       </div>
                     </td>
-                    <td className="hidden md:table-cell px-4 py-3 text-right">
+                    <td className="hidden md:table-cell px-3 py-2.5 text-right">
                       <div className="flex flex-col items-end">
                         <span className="text-[14px] font-black text-red-500">-{trx.qty || trx.items?.[0]?.qty}</span>
-                        <span className="text-[11px] font-bold text-red-500 uppercase">{trx.unit || trx.items?.[0]?.unit}</span>
+                        <span className="text-[11px] font-bold text-red-500 ">{trx.unit || trx.items?.[0]?.unit}</span>
                       </div>
                     </td>
-                    <td className="hidden md:table-cell px-4 py-3 text-[13px] text-gray-600 dark:text-gray-400 max-w-[150px] truncate" title={trx.location || "Site"}>{trx.location || "Site"}</td>
-                    <td className="hidden md:table-cell px-4 py-3 text-[13px] text-gray-600 dark:text-gray-400 max-w-[150px] truncate" title={trx.personName || trx.handoverTo || trx.handoverFrom || ""}>{trx.personName || trx.handoverTo || trx.handoverFrom}</td>
+                    <td className="hidden md:table-cell px-3 py-2.5 overflow-hidden"><span className="block truncate text-[13px] text-gray-600 dark:text-gray-400" title={trx.location || "Site"}>{trx.location || "Site"}</span></td>
+                    <td className="hidden md:table-cell px-3 py-2.5 overflow-hidden"><span className="block truncate text-[13px] text-gray-600 dark:text-gray-400" title={trx.personName || trx.handoverTo || trx.handoverFrom || ""}>{trx.personName || trx.handoverTo || trx.handoverFrom}</span></td>
                     <td className="hidden md:table-cell px-4 py-3">
                       <div className="flex -space-x-2">
                         {(trx.materialPhotoUrl || trx.materialImageUrl) && (
@@ -1185,11 +1181,7 @@ export const TransactionsPage = ({ type }: { type?: TransactionType }) => {
                             }}
                           />
                         )}
-                        <Btn
-                          icon={Download}
-                          small
-                          outline
-                        />
+
                         {hasPermission(getDeletePermission(trx.type)) && (
                           <Btn
                             icon={Trash2}
@@ -1207,7 +1199,7 @@ export const TransactionsPage = ({ type }: { type?: TransactionType }) => {
                     <td className="w-full md:w-auto block md:table-cell p-0 md:p-3">
                        <div className="md:hidden p-4 border-b border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-900">
                           <div className="flex justify-between items-center mb-2">
-                             <p className="text-[10px] uppercase font-bold text-gray-400">{formatDateTime(trx.date)}</p>
+                             <p className="text-[10px] font-bold text-gray-400">{formatDateTime(trx.date)}</p>
                              <div className="flex items-center gap-1">
                                 {getTypeIcon(trx.type)}
                                 <Badge text={trx.type} color="blue" />
@@ -1304,7 +1296,7 @@ export const TransactionsPage = ({ type }: { type?: TransactionType }) => {
             );
           }}
           components={{
-             Table: (props) => <table {...props} className="w-full text-left border-collapse" />,
+             Table: (props) => <table {...props} className="w-full text-left border-collapse table-fixed min-w-[800px] md:min-w-0" />,
              TableBody: React.forwardRef((props, ref) => <tbody {...props} ref={ref as any} className="divide-y divide-[#E8ECF0] dark:divide-gray-800" />),
              TableRow: (props: any) => <tr {...props} className={cn("hover:bg-gray-50/50 dark:hover:bg-gray-800/30 transition-colors", props.className)} />,
           }}
@@ -1317,25 +1309,25 @@ export const TransactionsPage = ({ type }: { type?: TransactionType }) => {
             increaseViewportBy={300}
             fixedHeaderContent={() => (
               <tr className="bg-gray-50/90 dark:bg-gray-800/90 backdrop-blur-md border-b border-gray-100 dark:border-gray-800">
-                <Th className="px-4 py-3 text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">MR / Project</Th>
-                <Th className="px-4 py-3 text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Material Details</Th>
-                <Th className="px-4 py-3 text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider text-center">Allocated</Th>
-                <Th className="px-4 py-3 text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider text-center">Remaining</Th>
-                <Th className="px-4 py-3 text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider text-right">Action</Th>
+                <Th className="px-3 py-3 text-[11px] font-bold text-gray-500 dark:text-gray-400 whitespace-nowrap overflow-hidden">MR / Project</Th>
+                <Th className="px-3 py-3 text-[11px] font-bold text-gray-500 dark:text-gray-400 whitespace-nowrap overflow-hidden">Material Details</Th>
+                <Th className="px-3 py-3 text-[11px] font-bold text-gray-500 dark:text-gray-400 whitespace-nowrap text-center overflow-hidden w-[100px]">Allocated</Th>
+                <Th className="px-3 py-3 text-[11px] font-bold text-gray-500 dark:text-gray-400 whitespace-nowrap text-center overflow-hidden w-[100px]">Remaining</Th>
+                <Th className="px-3 py-3 text-[11px] font-bold text-gray-500 dark:text-gray-400 whitespace-nowrap text-right overflow-hidden w-[110px]">Action</Th>
               </tr>
             )}
             itemContent={(_index, alc) => (
               <>
-                <Td className="px-4 py-3">
-                   <div className="flex flex-col">
-                     <span className="font-bold text-primary font-mono text-[12px]">{alc.mrNumber || alc.mrId}</span>
-                     <span className="text-[11px] text-gray-500 uppercase font-medium">{alc.projectName}</span>
+                <Td className="px-3 py-2.5 overflow-hidden">
+                   <div className="flex flex-col min-w-0">
+                     <span className="block truncate font-bold text-primary font-mono text-[12px]" title={alc.mrNumber || alc.mrId}>{alc.mrNumber || alc.mrId}</span>
+                     <span className="block truncate text-[11px] text-gray-500 font-medium" title={alc.projectName}>{alc.projectName}</span>
                    </div>
                 </Td>
-                <Td className="px-4 py-3">
-                  <div className="flex flex-col">
-                    <span className="font-medium text-gray-900 dark:text-white">{alc.itemName}</span>
-                    <span className="text-[10px] text-gray-400 font-mono tracking-tight">{alc.sku}</span>
+                <Td className="px-3 py-2.5 overflow-hidden">
+                  <div className="flex flex-col min-w-0">
+                    <span className="block truncate font-medium text-gray-900 dark:text-white" title={alc.itemName}>{alc.itemName}</span>
+                    <span className="block truncate text-[10px] text-gray-400 font-mono tracking-tight" title={alc.sku}>{alc.sku}</span>
                   </div>
                 </Td>
                 <Td className="px-4 py-3 text-center">
@@ -1388,7 +1380,7 @@ export const TransactionsPage = ({ type }: { type?: TransactionType }) => {
               </>
             )}
             components={{
-              Table: (props) => <table {...props} className="w-full text-left border-collapse" />,
+              Table: (props) => <table {...props} className="w-full text-left border-collapse table-fixed min-w-[600px]" />,
               TableBody: React.forwardRef((props, ref) => <tbody {...props} ref={ref as any} className="divide-y divide-gray-100 dark:divide-gray-800" />),
               TableRow: (props: any) => <tr {...props} className={cn("hover:bg-gray-50/50 dark:hover:bg-gray-800/30 transition-all", props.className)} />
             }}
@@ -1743,8 +1735,8 @@ export const TransactionsPage = ({ type }: { type?: TransactionType }) => {
                                 />
                               ) : (
                                 <div className="space-y-1">
-                                  <p className="text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1">Unit</p>
-                                  <div className="px-4 py-2.5 bg-gray-100 dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 text-[13px] font-bold text-gray-500 text-center uppercase h-[42px] flex items-center justify-center">
+                                  <p className="text-[11px] font-bold text-gray-500 tracking-wider mb-1">Unit</p>
+                                  <div className="px-4 py-2.5 bg-gray-100 dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 text-[13px] font-bold text-gray-500 text-center h-[42px] flex items-center justify-center">
                                     {item.unit}
                                   </div>
                                 </div>
@@ -1776,25 +1768,25 @@ export const TransactionsPage = ({ type }: { type?: TransactionType }) => {
                     </div>
 
                     <div className="hidden md:block overflow-visible">
-                      <div className="overflow-hidden rounded-xl border border-gray-200 dark:border-gray-800">
+                      <div className="overflow-visible rounded-xl border border-gray-200 dark:border-gray-800">
                         <table className="w-full border-collapse">
                           <thead>
-                            <tr className="bg-gray-50 dark:bg-gray-800/50 border-b border-gray-200 dark:border-gray-800">
-                              <th className="px-4 py-3 text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase text-left w-[25%]">Material Description *</th>
-                              {newTransaction.type === "Transfer Inward" && <th className="px-4 py-3 text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase text-right w-[10%]">Outward Qty</th>}
-                              {newTransaction.type === "Outward" && <th className="px-4 py-3 text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase text-right w-[8%]">Allocated</th>}
-                              <th className="px-4 py-3 text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase text-right w-[12%]">
+                            <tr className="bg-gray-50 dark:bg-gray-800/50 border-b border-gray-200 dark:border-gray-800 [&>th:first-child]:rounded-tl-[11px] [&>th:last-child]:rounded-tr-[11px]">
+                              <th className="px-4 py-3 text-[11px] font-bold text-gray-500 dark:text-gray-400 text-left w-[25%]">Material Description *</th>
+                              {newTransaction.type === "Transfer Inward" && <th className="px-4 py-3 text-[11px] font-bold text-gray-500 dark:text-gray-400 text-right w-[10%]">Outward Qty</th>}
+                              {newTransaction.type === "Outward" && <th className="px-4 py-3 text-[11px] font-bold text-gray-500 dark:text-gray-400 text-right w-[8%]">Allocated</th>}
+                              <th className="px-4 py-3 text-[11px] font-bold text-gray-500 dark:text-gray-400 text-right w-[12%]">
                                 {newTransaction.type === "Transfer Inward" ? "Received Qty *" : "Issue Qty *"}
                               </th>
                               {(newTransaction.type === "Outward" || newTransaction.type === "Transfer Inward") && (
-                                <th className="px-4 py-3 text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase text-right w-[10%]">
+                                <th className="px-4 py-3 text-[11px] font-bold text-gray-500 dark:text-gray-400 text-right w-[10%]">
                                   {newTransaction.type === "Transfer Inward" ? "Variance" : "Remaining"}
                                 </th>
                               )}
-                              <th className="px-4 py-3 text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase text-center w-[10%]">Unit</th>
-                              <th className="px-4 py-3 text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase w-[12%]">MR No.</th>
-                              <th className="px-4 py-3 text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase w-[20%]">Photos</th>
-                              <th className="px-4 py-3 text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase w-10 text-center"></th>
+                              <th className="px-4 py-3 text-[11px] font-bold text-gray-500 dark:text-gray-400 text-center w-[10%]">Unit</th>
+                              <th className="px-4 py-3 text-[11px] font-bold text-gray-500 dark:text-gray-400 w-[12%]">MR No.</th>
+                              <th className="px-4 py-3 text-[11px] font-bold text-gray-500 dark:text-gray-400 w-[20%]">Photos</th>
+                              <th className="px-4 py-3 text-[11px] font-bold text-gray-500 dark:text-gray-400 w-10 text-center"></th>
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
@@ -1830,7 +1822,7 @@ export const TransactionsPage = ({ type }: { type?: TransactionType }) => {
                                         error={errors[`item_${idx}_sku`]}
                                       />
                                       {item.itemName && (
-                                        <div className="mt-1 px-2 py-0.5 bg-orange-50 dark:bg-orange-900/10 border border-orange-100 dark:border-orange-900/20 rounded text-[10px] uppercase tracking-wider font-extrabold text-orange-600 dark:text-orange-400">
+                                        <div className="mt-1 px-2 py-0.5 bg-orange-50 dark:bg-orange-900/10 border border-orange-100 dark:border-orange-900/20 rounded text-[10px] tracking-wider font-extrabold text-orange-600 dark:text-orange-400">
                                           {item.itemName}
                                         </div>
                                       )}
@@ -1843,7 +1835,7 @@ export const TransactionsPage = ({ type }: { type?: TransactionType }) => {
                                       <span className="text-[14px] font-black text-blue-600 font-mono tracking-tighter">
                                         {item.outwardQty || 0}
                                       </span>
-                                      <span className="text-[9px] text-gray-400 uppercase font-black tracking-widest leading-none mt-1">OUTWARD</span>
+                                      <span className="text-[9px] text-gray-400 font-black tracking-widest leading-none mt-1">Outward</span>
                                     </div>
                                   </td>
                                 )}
@@ -1853,7 +1845,7 @@ export const TransactionsPage = ({ type }: { type?: TransactionType }) => {
                                       <span className="text-[14px] font-black text-blue-600 font-mono tracking-tighter">
                                         {item.originalAllocatedQty || item.allocatedQty || 0}
                                       </span>
-                                      <span className="text-[9px] text-gray-400 uppercase font-black tracking-widest leading-none mt-1">ALLOCATED</span>
+                                      <span className="text-[9px] text-gray-400 font-black tracking-widest leading-none mt-1">Allocated</span>
                                     </div>
                                   </td>
                                 )}
@@ -1867,12 +1859,12 @@ export const TransactionsPage = ({ type }: { type?: TransactionType }) => {
                                       className="w-full px-3 py-2 bg-white dark:bg-gray-900 border-2 border-gray-100 dark:border-gray-800 rounded-xl text-[14px] font-black text-right focus:outline-none focus:border-orange-500 transition-all shadow-sm group-hover/input:border-gray-200 dark:group-hover/input:border-gray-700"
                                     />
                                     {newTransaction.type === "Outward" && (item.qty || 0) > (item.originalAllocatedQty || item.allocatedQty || 0) && (
-                                      <div className="absolute -top-2 -right-1 px-1.5 py-0.5 bg-red-500 text-white text-[8px] font-black rounded uppercase animate-bounce">
+                                      <div className="absolute -top-2 -right-1 px-1.5 py-0.5 bg-red-500 text-white text-[8px] font-black rounded animate-bounce">
                                         Exceeds!
                                       </div>
                                     )}
                                     {newTransaction.type === "Transfer Inward" && (item.qty || 0) !== (item.outwardQty || 0) && (
-                                      <div className="absolute -top-2 -right-1 px-1.5 py-0.5 bg-amber-500 text-white text-[8px] font-black rounded uppercase">
+                                      <div className="absolute -top-2 -right-1 px-1.5 py-0.5 bg-amber-500 text-white text-[8px] font-black rounded ">
                                         Variance!
                                       </div>
                                     )}
@@ -1884,8 +1876,8 @@ export const TransactionsPage = ({ type }: { type?: TransactionType }) => {
                                       <span className={`text-[14px] font-black font-mono tracking-tighter ${newTransaction.type === 'Transfer Inward' ? (item.variance === 0 ? 'text-emerald-600' : 'text-red-500') : (((item.originalAllocatedQty || item.allocatedQty || 0) - (item.qty || 0)) < 0 ? 'text-red-500 animate-pulse' : 'text-emerald-600')}`}>
                                         {newTransaction.type === 'Transfer Inward' ? (item.variance || 0) : ((item.originalAllocatedQty || item.allocatedQty || 0) - (item.qty || 0))}
                                       </span>
-                                      <span className="text-[9px] text-gray-400 uppercase font-black tracking-widest leading-none mt-1">
-                                        {newTransaction.type === 'Transfer Inward' ? 'VARIANCE' : 'REMAINING'}
+                                      <span className="text-[9px] text-gray-400 font-black tracking-widest leading-none mt-1">
+                                        {newTransaction.type === 'Transfer Inward' ? 'Variance' : 'Remaining'}
                                       </span>
                                     </div>
                                   </td>
@@ -1899,7 +1891,7 @@ export const TransactionsPage = ({ type }: { type?: TransactionType }) => {
                                       small
                                     />
                                   ) : (
-                                    <div className="px-3 py-2 bg-gray-100 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-xl text-[11px] font-bold text-gray-500 text-center uppercase mt-0.5">
+                                    <div className="px-3 py-2 bg-gray-100 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-xl text-[11px] font-bold text-gray-500 text-center mt-0.5">
                                       {item.unit}
                                     </div>
                                   )}
@@ -1942,9 +1934,9 @@ export const TransactionsPage = ({ type }: { type?: TransactionType }) => {
                     </div>
                   </>
                 ) : (
-                  <div className="text-center py-20 border-2 border-dashed border-gray-200 dark:border-gray-800 rounded-3xl bg-gray-50/30">
-                    <div className="w-16 h-16 bg-white dark:bg-gray-800 rounded-2xl shadow-sm flex items-center justify-center mx-auto mb-4 border border-gray-100 dark:border-gray-700">
-                      <Package className="w-8 h-8 text-gray-300 animate-pulse" />
+                  <div className="text-center py-20 border-2 border-dashed border-gray-200 dark:border-gray-800 rounded-3xl bg-gray-50/30 dark:bg-[#0F172A]/50">
+                    <div className="w-16 h-16 bg-white dark:bg-[#1E293B] rounded-2xl shadow-sm flex items-center justify-center mx-auto mb-4 border border-gray-100 dark:border-gray-700">
+                      <Package className="w-8 h-8 text-gray-300 dark:text-gray-600 animate-pulse" />
                     </div>
                     <h4 className="text-[14px] font-bold text-gray-900 dark:text-white mb-1">No Items Added</h4>
                     <p className="text-xs text-gray-500">Click "Add Regular Item" to include materials in this transaction.</p>
@@ -1954,11 +1946,10 @@ export const TransactionsPage = ({ type }: { type?: TransactionType }) => {
             </div>
 
             {/* Final Actions */}
-            <div className="flex gap-4 pt-8 border-t border-gray-100 dark:border-gray-800">
+            <div className="pt-6 border-t border-gray-100 dark:border-gray-800 flex justify-end gap-3">
               <Btn 
                 label="Discard" 
                 outline 
-                className="flex-1 py-4 text-[13px] font-bold uppercase" 
                 onClick={() => {
                   setModal(false);
                   setErrors({});
@@ -1969,7 +1960,7 @@ export const TransactionsPage = ({ type }: { type?: TransactionType }) => {
                 onClick={handleSubmit}
                 loading={actionLoading || isUploading}
                 disabled={actionLoading || isUploading || !newTransaction.items?.length}
-                className="flex-[2] py-4 bg-[#F97316] hover:bg-[#EA580C] text-white shadow-lg text-[13px] font-bold uppercase"
+                className="px-8"
               />
             </div>
           </div>
@@ -1981,37 +1972,37 @@ export const TransactionsPage = ({ type }: { type?: TransactionType }) => {
           <div className="space-y-8">
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-6">
               <div>
-                <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Date</p>
+                <p className="text-[10px] font-bold text-gray-500 tracking-wider">Date</p>
                 <p className="text-[13px] font-bold text-gray-900 dark:text-white">{formatDateTime(selectedTransaction.date)}</p>
               </div>
               <div>
-                <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Type</p>
+                <p className="text-[10px] font-bold text-gray-500 tracking-wider">Type</p>
                 <div className="flex items-center gap-1 mt-1">
                   {getTypeIcon(selectedTransaction.type)}
                   <p className="text-[13px] font-bold text-gray-900 dark:text-white">{selectedTransaction.type}</p>
                 </div>
               </div>
               <div>
-                <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">
+                <p className="text-[10px] font-bold text-gray-500 tracking-wider">
                   {["Transfer Inward", "Transfer Outward", "Transfer"].includes(selectedTransaction.type || "") ? "Source Site" : "Project"}
                 </p>
                 <p className="text-[13px] font-bold text-gray-900 dark:text-white">{selectedTransaction.project}</p>
               </div>
               {selectedTransaction.destinationProject && (
                 <div>
-                  <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Destination Site</p>
+                  <p className="text-[10px] font-bold text-gray-500 tracking-wider">Destination Site</p>
                   <p className="text-[13px] font-bold text-gray-900 dark:text-white">{selectedTransaction.destinationProject}</p>
                 </div>
               )}
               {(selectedTransaction.supplier || selectedTransaction.vendor) && (
                 <div>
-                  <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Supplier</p>
+                  <p className="text-[10px] font-bold text-gray-500 tracking-wider">Supplier</p>
                   <p className="text-[13px] font-bold text-gray-900 dark:text-white">{selectedTransaction.supplier || selectedTransaction.vendor}</p>
                 </div>
               )}
               {!["Transfer Inward", "Transfer Outward", "Public Transfer Inward", "Public Transfer Outward"].includes(selectedTransaction.type || "") && (
                 <div>
-                  <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Condition</p>
+                  <p className="text-[10px] font-bold text-gray-500 tracking-wider">Condition</p>
                   <div className="mt-1">
                     <StatusBadge status={selectedTransaction.condition || selectedTransaction.items?.[0]?.condition || "Good"} />
                   </div>
@@ -2019,30 +2010,30 @@ export const TransactionsPage = ({ type }: { type?: TransactionType }) => {
               )}
               {(selectedTransaction.challanNo || selectedTransaction.items?.[0]?.challanNo) && (
                 <div>
-                  <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Challan No.</p>
+                  <p className="text-[10px] font-bold text-gray-500 tracking-wider">Challan No.</p>
                   <p className="text-[13px] font-bold text-gray-900 dark:text-white">{selectedTransaction.challanNo || selectedTransaction.items?.[0]?.challanNo}</p>
                 </div>
               )}
               {selectedTransaction.gatePassNo && (
                 <div>
-                  <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Gate Pass No.</p>
+                  <p className="text-[10px] font-bold text-gray-500 tracking-wider">Gate Pass No.</p>
                   <p className="text-[13px] font-bold text-gray-900 dark:text-white">{selectedTransaction.gatePassNo}</p>
                 </div>
               )}
               {(selectedTransaction.mrNo || selectedTransaction.items?.[0]?.mrNo) && (
                 <div>
-                  <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">MR No.</p>
+                  <p className="text-[10px] font-bold text-gray-500 tracking-wider">MR No.</p>
                   <p className="text-[13px] font-bold text-gray-900 dark:text-white">{selectedTransaction.mrNo || selectedTransaction.items?.[0]?.mrNo}</p>
                 </div>
               )}
               {selectedTransaction.location && (
                 <div>
-                  <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Location</p>
+                  <p className="text-[10px] font-bold text-gray-500 tracking-wider">Location</p>
                   <p className="text-[13px] font-bold text-gray-900 dark:text-white">{selectedTransaction.location}</p>
                 </div>
               )}
               <div>
-                <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Created By</p>
+                <p className="text-[10px] font-bold text-gray-500 tracking-wider">Created By</p>
                 <p className="text-[13px] font-bold text-gray-900 dark:text-white">{selectedTransaction.createdBy || "N/A"}</p>
               </div>
             </div>
@@ -2055,7 +2046,7 @@ export const TransactionsPage = ({ type }: { type?: TransactionType }) => {
                   </div>
                 )}
                 <div>
-                  <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">
+                  <p className="text-[10px] font-bold text-gray-500 tracking-wider">
                     {["Transfer Inward", "Transfer Outward", "Transfer"].includes(selectedTransaction.type || "") ? "Gate Pass Details" : "Person Details"}
                   </p>
                   <p className="text-[15px] font-bold text-gray-900 dark:text-white">{selectedTransaction.personName || selectedTransaction.handoverTo || "N/A"}</p>
@@ -2076,18 +2067,18 @@ export const TransactionsPage = ({ type }: { type?: TransactionType }) => {
                 <table className="w-full text-left border-collapse min-w-[800px]">
                   <thead className="bg-gray-50 dark:bg-gray-800/50">
                     <tr>
-                      <th className="px-4 py-3 text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Item</th>
-                      {selectedTransaction.type === "Transfer Inward" && <th className="px-4 py-3 text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider text-right">Outward Qty</th>}
-                      <th className="px-4 py-3 text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider text-right">
+                      <th className="px-4 py-3 text-[11px] font-bold text-gray-500 dark:text-gray-400 tracking-wider">Item</th>
+                      {selectedTransaction.type === "Transfer Inward" && <th className="px-4 py-3 text-[11px] font-bold text-gray-500 dark:text-gray-400 tracking-wider text-right">Outward Qty</th>}
+                      <th className="px-4 py-3 text-[11px] font-bold text-gray-500 dark:text-gray-400 tracking-wider text-right">
                         {selectedTransaction.type === "Transfer Inward" ? "Received Qty" : "Qty"}
                       </th>
-                      {selectedTransaction.type === "Transfer Inward" && <th className="px-4 py-3 text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider text-right">Variance</th>}
-                      <th className="px-4 py-3 text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Details</th>
-                      <th className="px-4 py-3 text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                      {selectedTransaction.type === "Transfer Inward" && <th className="px-4 py-3 text-[11px] font-bold text-gray-500 dark:text-gray-400 tracking-wider text-right">Variance</th>}
+                      <th className="px-4 py-3 text-[11px] font-bold text-gray-500 dark:text-gray-400 tracking-wider">Details</th>
+                      <th className="px-4 py-3 text-[11px] font-bold text-gray-500 dark:text-gray-400 tracking-wider">
                         {["Transfer Inward", "Transfer Outward", "Transfer"].includes(selectedTransaction.type || "") ? "Gate Pass Photo" : "Challan / Invoice Photos"}
                       </th>
-                      <th className="px-4 py-3 text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Remarks</th>
-                      <th className="px-4 py-3 text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Item Photos (Multiple)</th>
+                      <th className="px-4 py-3 text-[11px] font-bold text-gray-500 dark:text-gray-400 tracking-wider">Remarks</th>
+                      <th className="px-4 py-3 text-[11px] font-bold text-gray-500 dark:text-gray-400 tracking-wider">Item Photos (Multiple)</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100 dark:divide-gray-800 bg-white dark:bg-gray-900">

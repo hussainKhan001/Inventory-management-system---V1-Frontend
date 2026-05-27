@@ -451,6 +451,8 @@ export interface AppNotification {
 export interface TransactionItem {
   sku: string;
   itemName: string;
+  /** @deprecated backend alias for itemName */
+  name?: string;
   qty: number;
   outwardQty?: number;
   variance?: number;
@@ -598,13 +600,23 @@ export interface Transaction {
   handoverFrom?: string;
   sourceSite?: string;
   materialPhotoUrl?: string;
+  /** @deprecated backend alias for materialPhotoUrl */
+  materialImageUrl?: string;
   challanPhotoUrl?: string;
+  /** @deprecated backend alias for challanPhotoUrl */
+  challanImageUrl?: string;
   challanPhotos?: string[];
   handoverPhotoUrl?: string;
   personPhotoUrl?: string;
   personPhotos?: string[];
   personName?: string;
   personImageUrl?: string;
+  /** @deprecated backend alias for supplier */
+  vendor?: string;
+  /** @deprecated backend alias for challanNo */
+  challan?: string;
+  /** @deprecated backend alias for itemName */
+  item?: string;
   createdBy?: string;
   status: string;
   condition?: string;

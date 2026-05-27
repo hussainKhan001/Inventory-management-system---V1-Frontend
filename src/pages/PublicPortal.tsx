@@ -175,7 +175,7 @@ export const PublicPortal = () => {
         <div className="mt-20 text-center">
           <div className="inline-flex items-center gap-8 px-8 py-4 rounded-2xl bg-white dark:bg-gray-900 border border-[#E8ECF0] dark:border-gray-800 shadow-sm">
             <Package className="w-5 h-5 text-orange-500" />
-            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Inventory Management System</span>
+            <span className="text-[10px] font-bold text-gray-400 tracking-widest">Inventory Management System</span>
             <ShieldCheck className="w-5 h-5 text-emerald-500" />
           </div>
         </div>

@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import { Calendar, ChevronLeft, ChevronRight, X } from "lucide-react";
 import { cn } from "../../lib/utils";
+import { DatePickerTrigger } from "./DatePickerTrigger";
 
 const MONTHS = [
   "January", "February", "March", "April", "May", "June",
@@ -127,44 +128,18 @@ export const DatePicker = React.memo(({
       )}
       
       <div className="relative">
-        {/* Input Trigger */}
-        <button
-          type="button"
-          disabled={disabled}
+        <DatePickerTrigger
           onClick={openCalendar}
-          className={cn(
-            "w-full flex items-center justify-between text-left font-medium transition-all duration-300 rounded-2xl border cursor-pointer",
-            "bg-white dark:bg-[#0B1120]/50 text-[#1A1A2E] dark:text-[#E2E8F0]",
-            open
-              ? "border-primary/50 ring-4 ring-primary/10"
-              : "border-gray-200/50 dark:border-gray-800/80 hover:border-gray-300 dark:hover:border-gray-700",
-            disabled && "bg-gray-50 dark:bg-gray-900/50 text-gray-500 cursor-not-allowed",
-            small ? "py-1.5 h-[32px] pl-9 pr-3 text-[12px]" : "py-2.5 h-[44px] pl-11 pr-4 text-[14px]",
-            error && "border-red-500 focus:border-red-500 focus:ring-red-500/10",
-            !valStr && "text-gray-400 dark:text-gray-500"
-          )}
-        >
-          {Icon ? (
-            <Icon className={cn("absolute left-3.5 z-10 w-4 h-4 pointer-events-none", open ? "text-primary" : "text-gray-400")} />
-          ) : (
-            <Calendar className={cn("absolute left-3.5 z-10 w-4 h-4 pointer-events-none", open ? "text-primary" : "text-gray-400")} />
-          )}
-          
-          <span className="flex-1 truncate">
-            {valStr ? formatDisplay(valStr) : "Select Date"}
-          </span>
-
-          {valStr && !disabled && (
-            <span
-              role="button"
-              tabIndex={-1}
-              onClick={clearDate}
-              className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors ml-1 p-0.5 shrink-0"
-            >
-              <X className="w-3.5 h-3.5" />
-            </span>
-          )}
-        </button>
+          onClear={clearDate}
+          icon={Icon}
+          text={valStr ? formatDisplay(valStr) : ""}
+          placeholder="Select Date"
+          isOpen={open}
+          disabled={disabled}
+          small={small}
+          error={error}
+          className="w-full"
+        />
 
         {/* Calendar Dropdown */}
         {open && (
@@ -193,7 +168,7 @@ export const DatePicker = React.memo(({
             {/* Day-of-week headers */}
             <div className="grid grid-cols-7 mb-1">
               {DAY_LABELS.map(d => (
-                <div key={d} className="text-center text-[10px] font-bold text-gray-600 py-1 uppercase tracking-wider">
+                <div key={d} className="text-center text-[10px] font-bold text-gray-600 py-1 tracking-wider">
                   {d}
                 </div>
               ))}

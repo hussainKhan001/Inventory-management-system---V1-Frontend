@@ -53,14 +53,13 @@ export const Quotations = () => {
     settings
   } = useAppStore();
   
-  const { projects: PROJECTS = [], categories: CATEGORIES = [] } = settings;
+  const { categories: CATEGORIES = [] } = settings;
 
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
 
-  const [filterProject, setFilterProject] = useState("");
   const [filterCategory, setFilterCategory] = useState("");
   const [filterSupplier, setFilterSupplier] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
@@ -182,11 +181,6 @@ export const Quotations = () => {
         }
       }
 
-      // Filter by Project
-      if (filterProject && mr && mr.project !== filterProject) {
-        return acc;
-      }
-
       // Filter by Category
       if (filterCategory && q.category !== filterCategory) {
         return acc;
@@ -207,7 +201,7 @@ export const Quotations = () => {
       acc[key].push(q);
       return acc;
     }, {} as Record<string, Quotation[]>);
-  }, [quotations, materialRequirements, hasPermission, filterProject, filterCategory, filterSupplier, filterStatus]);
+  }, [quotations, materialRequirements, hasPermission, filterCategory, filterSupplier, filterStatus]);
 
   const getMrDetails = (mrId: string) => {
     return materialRequirements.find(m => m.id === mrId);
@@ -226,12 +220,11 @@ export const Quotations = () => {
 
       <div className="mb-6">
         <FilterRow
-          showClear={!!(search || startDate || endDate || filterProject || filterCategory || filterSupplier || filterStatus)}
+          showClear={!!(search || startDate || endDate || filterCategory || filterSupplier || filterStatus)}
           onClearAll={() => {
             setSearch("");
             setStartDate("");
             setEndDate("");
-            setFilterProject("");
             setFilterCategory("");
             setFilterSupplier("");
             setFilterStatus("");
@@ -250,12 +243,7 @@ export const Quotations = () => {
               setEndDate(v.end);
             }}
           />
-          <SelectFilter
-            value={filterProject}
-            onChange={setFilterProject}
-            options={PROJECTS}
-            placeholder="All Projects"
-          />
+
           <SelectFilter
             value={filterCategory}
             onChange={setFilterCategory}
@@ -481,7 +469,7 @@ export const Quotations = () => {
 
                 {/* Supplier Info */}
                 <div className="flex-1 min-w-0">
-                  <p className="text-[9px] font-black text-orange-600 dark:text-orange-400/80 tracking-[0.2em] uppercase mb-1">Supplier Quotation</p>
+                  <p className="text-[9px] font-black text-orange-600 dark:text-orange-400/80 tracking-[0.2em] mb-1">Supplier Quotation</p>
                   <h3 className="text-xl font-black text-gray-900 dark:text-white truncate leading-tight">{safeStr(selectedQuotation.supplierName)}</h3>
                   <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1.5">
                     <span className="text-[11px] font-mono text-gray-500 dark:text-gray-400">{selectedQuotation.id}</span>
@@ -500,7 +488,7 @@ export const Quotations = () => {
                 <div className="flex sm:flex-col items-center sm:items-end gap-3 sm:gap-2 flex-shrink-0">
                   <StatusBadge status={selectedQuotation.status} />
                   <div className="text-right">
-                    <p className="text-[9px] text-gray-500 tracking-widest uppercase font-bold">Total Quote</p>
+                    <p className="text-[9px] text-gray-500 tracking-widest font-bold">Total Quote</p>
                     <p className="text-2xl font-black text-green-600 dark:text-green-400 leading-none mt-0.5">
                       ₹ {fmt(selectedQuotation.totalAmount || 0)}
                     </p>
@@ -518,7 +506,7 @@ export const Quotations = () => {
                       <FileText className="w-4 h-4 text-orange-500" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-[9px] font-black text-orange-500 tracking-[0.15em] uppercase">Linked Material Requirement</p>
+                      <p className="text-[9px] font-black text-orange-500 tracking-[0.15em] ">Linked Material Requirement</p>
                       <p className="text-xs font-bold text-gray-800 dark:text-gray-200 mt-0.5 truncate">
                         {mr.id} · {safeStr(mr.project)}
                         {mr.requesterName && <span className="text-gray-400 font-normal"> · {mr.requesterName}</span>}
@@ -539,7 +527,7 @@ export const Quotations = () => {
                     { label: 'Mobile', value: safeStr(selectedQuotation.mobile) || '—' },
                   ].map(({ label, value, mono, orange }) => (
                     <div key={label} className="bg-white dark:bg-[#1E293B] px-4 py-3.5">
-                      <p className="text-[9px] font-black text-gray-400 tracking-[0.12em] uppercase mb-1.5">{label}</p>
+                      <p className="text-[9px] font-black text-gray-400 tracking-[0.12em] mb-1.5">{label}</p>
                       <p className={cn(
                         "text-[13px] font-bold truncate",
                         mono && "font-mono text-[12px]",
@@ -553,7 +541,7 @@ export const Quotations = () => {
                 <div>
                   <div className="flex items-center gap-2 mb-3">
                     <Package className="w-3.5 h-3.5 text-gray-400" />
-                    <span className="text-[10px] font-black text-gray-400 tracking-[0.15em] uppercase">Quoted Items</span>
+                    <span className="text-[10px] font-black text-gray-400 tracking-[0.15em] ">Quoted Items</span>
                     <span className="ml-1 text-[10px] font-bold text-gray-300 dark:text-gray-600">
                       ({selectedQuotation.items.length})
                     </span>
@@ -565,12 +553,12 @@ export const Quotations = () => {
                       <table className="w-full text-left">
                         <thead>
                           <tr className="bg-gray-50 dark:bg-gray-800/80 border-b border-gray-100 dark:border-gray-700/60">
-                            <th className="px-5 py-3 text-center text-[9px] font-black text-gray-400 tracking-[0.15em] uppercase w-16">Approve</th>
-                            <th className="px-5 py-3 text-[9px] font-black text-gray-400 tracking-[0.15em] uppercase">Description</th>
-                            <th className="px-4 py-3 text-center text-[9px] font-black text-gray-400 tracking-[0.15em] uppercase w-16">Qty</th>
-                            <th className="px-4 py-3 text-right text-[9px] font-black text-gray-400 tracking-[0.15em] uppercase">Rate</th>
-                            <th className="px-4 py-3 text-right text-[9px] font-black text-gray-400 tracking-[0.15em] uppercase">GST</th>
-                            <th className="px-5 py-3 text-right text-[9px] font-black text-gray-400 tracking-[0.15em] uppercase">Total</th>
+                            <th className="px-5 py-3 text-center text-[9px] font-black text-gray-400 tracking-[0.15em] w-16">Approve</th>
+                            <th className="px-5 py-3 text-[9px] font-black text-gray-400 tracking-[0.15em] ">Description</th>
+                            <th className="px-4 py-3 text-center text-[9px] font-black text-gray-400 tracking-[0.15em] w-16">Qty</th>
+                            <th className="px-4 py-3 text-right text-[9px] font-black text-gray-400 tracking-[0.15em] ">Rate</th>
+                            <th className="px-4 py-3 text-right text-[9px] font-black text-gray-400 tracking-[0.15em] ">GST</th>
+                            <th className="px-5 py-3 text-right text-[9px] font-black text-gray-400 tracking-[0.15em] ">Total</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-50 dark:divide-gray-700/40 bg-white dark:bg-gray-900/30">
@@ -595,7 +583,7 @@ export const Quotations = () => {
                                 </td>
                                 <td className="px-5 py-4">
                                   <p className="text-[13px] font-bold text-gray-900 dark:text-white">{safeStr(item.materialName)}</p>
-                                  <p className="text-[9px] font-bold text-gray-400 tracking-widest mt-0.5 uppercase">{safeStr(item.unit)}</p>
+                                  <p className="text-[9px] font-bold text-gray-400 tracking-widest mt-0.5 ">{safeStr(item.unit)}</p>
                                 </td>
                                 <td className="px-4 py-4 text-center">
                                   <span className="text-sm font-black text-gray-800 dark:text-gray-100">{item.qty}</span>
@@ -646,7 +634,7 @@ export const Quotations = () => {
                           ) : null}
                           <tr className="bg-green-50 dark:bg-green-950/30">
                             <td colSpan={5} className="px-5 py-3.5 text-right">
-                              <span className="text-[10px] font-black text-gray-500 dark:text-gray-400 tracking-[0.15em] uppercase">Grand Total</span>
+                              <span className="text-[10px] font-black text-gray-500 dark:text-gray-400 tracking-[0.15em] ">Grand Total</span>
                             </td>
                             <td className="px-5 py-3.5 text-right">
                               <span className="text-base font-black text-green-600 dark:text-green-400">₹ {fmt(selectedQuotation.totalAmount || 0)}</span>
@@ -679,7 +667,7 @@ export const Quotations = () => {
                                 />
                                 <div>
                                   <p className="text-sm font-bold text-gray-900 dark:text-white">{safeStr(item.materialName)}</p>
-                                  <p className="text-[9px] font-bold text-gray-400 tracking-widest mt-0.5 uppercase">{safeStr(item.unit)}</p>
+                                  <p className="text-[9px] font-bold text-gray-400 tracking-widest mt-0.5 ">{safeStr(item.unit)}</p>
                                 </div>
                               </div>
                               <p className="text-sm font-black text-gray-900 dark:text-white">₹ {fmt(total)}</p>
@@ -703,7 +691,7 @@ export const Quotations = () => {
                       })}
                       {/* Mobile grand total */}
                       <div className="flex justify-between items-center px-4 py-3.5 bg-green-50 dark:bg-green-950/30">
-                        <span className="text-[10px] font-black text-gray-500 dark:text-gray-400 tracking-widest uppercase">Grand Total</span>
+                        <span className="text-[10px] font-black text-gray-500 dark:text-gray-400 tracking-widest ">Grand Total</span>
                         <span className="text-sm font-black text-green-600 dark:text-green-400">₹ {fmt(selectedQuotation.totalAmount || 0)}</span>
                       </div>
                     </div>
@@ -715,14 +703,14 @@ export const Quotations = () => {
                   <div>
                     <div className="flex items-center gap-2 mb-3">
                       <FileText className="w-3.5 h-3.5 text-gray-400" />
-                      <span className="text-[10px] font-black text-gray-400 tracking-[0.15em] uppercase">Original MR Specification</span>
+                      <span className="text-[10px] font-black text-gray-400 tracking-[0.15em] ">Original MR Specification</span>
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                       {mr.items.map((mItem: any, idx: number) => (
                         <div key={idx} className="flex items-center justify-between gap-3 p-3.5 bg-gray-50 dark:bg-gray-800/40 rounded-xl border border-gray-100 dark:border-gray-700/50">
                           <div className="min-w-0">
                             <p className="text-[13px] font-bold text-gray-800 dark:text-gray-200 truncate">{safeStr(mItem.materialName)}</p>
-                            <p className="text-[9px] font-bold text-gray-400 tracking-widest mt-0.5 uppercase">Needed: {safeStr(mItem.qty)} {safeStr(mItem.unit)}</p>
+                            <p className="text-[9px] font-bold text-gray-400 tracking-widest mt-0.5 ">Needed: {safeStr(mItem.qty)} {safeStr(mItem.unit)}</p>
                           </div>
                           <span className="flex-shrink-0 text-[10px] font-black text-red-500 bg-red-50 dark:bg-red-900/20 px-2.5 py-1.5 rounded-lg border border-red-100 dark:border-red-800/40">
                             Purchase: {safeStr(mItem.remainingQty !== undefined ? mItem.remainingQty : mItem.qty)} {safeStr(mItem.unit)}
@@ -736,7 +724,7 @@ export const Quotations = () => {
                 {/* ── Remarks ── */}
                 {selectedQuotation.remarks && (
                   <div className="p-4 bg-amber-50 dark:bg-amber-900/10 rounded-xl border border-amber-100 dark:border-amber-800/40">
-                    <p className="text-[9px] font-black text-amber-600 dark:text-amber-400 tracking-[0.15em] uppercase mb-1.5">Remarks</p>
+                    <p className="text-[9px] font-black text-amber-600 dark:text-amber-400 tracking-[0.15em] mb-1.5">Remarks</p>
                     <p className="text-xs text-gray-700 dark:text-gray-300 italic leading-relaxed">"{selectedQuotation.remarks}"</p>
                   </div>
                 )}
@@ -944,7 +932,7 @@ const QuotationForm = ({ initialData, onClose, onSave }: QuotationFormProps) => 
     <form onSubmit={handleSubmit} className="space-y-6">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="space-y-1">
-          <label className="text-[10px] font-black text-gray-400 tracking-widest uppercase ml-1">Supplier Name</label>
+          <label className="text-[10px] font-black text-gray-400 tracking-widest ml-1">Supplier Name</label>
           <input
             type="text"
             value={formData.supplierName || ""}
@@ -954,7 +942,7 @@ const QuotationForm = ({ initialData, onClose, onSave }: QuotationFormProps) => 
           />
         </div>
         <div className="space-y-1">
-          <label className="text-[10px] font-black text-gray-400 tracking-widest uppercase ml-1">Delivery Date</label>
+          <label className="text-[10px] font-black text-gray-400 tracking-widest ml-1">Delivery Date</label>
           <input
             type="date"
             value={formData.deliveryDate ? formData.deliveryDate.split('T')[0] : ""}
@@ -965,7 +953,7 @@ const QuotationForm = ({ initialData, onClose, onSave }: QuotationFormProps) => 
       </div>
 
       <div className="space-y-4">
-        <h4 className="text-[11px] font-black text-gray-400 tracking-widest uppercase">Items</h4>
+        <h4 className="text-[11px] font-black text-gray-400 tracking-widest ">Items</h4>
         <div className="space-y-3">
           {formData.items?.map((item, idx) => (
             <div key={idx} className="p-4 bg-gray-50 dark:bg-gray-800 rounded-2xl space-y-3 border border-gray-100 dark:border-gray-700">
@@ -986,7 +974,7 @@ const QuotationForm = ({ initialData, onClose, onSave }: QuotationFormProps) => 
                   small
                 />
                 <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-gray-500 uppercase">GST Type</label>
+                  <label className="text-[10px] font-bold text-gray-500 ">GST Type</label>
                   <select
                     value={item.gstType}
                     onChange={(e) => handleItemChange(idx, 'gstType', e.target.value)}
@@ -1003,14 +991,14 @@ const QuotationForm = ({ initialData, onClose, onSave }: QuotationFormProps) => 
       </div>
 
       <div className="space-y-4">
-        <h4 className="text-[11px] font-black text-gray-400 tracking-widest uppercase">Other Charges</h4>
+        <h4 className="text-[11px] font-black text-gray-400 tracking-widest ">Other Charges</h4>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="p-4 bg-gray-50 dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 space-y-3">
             <Field label="Freight" type="number" value={formData.freightAmount || ""} onChange={(e: any) => handleChargeChange('freightAmount', Number(e.target.value))} small />
             <div className="grid grid-cols-2 gap-2">
               <Field label="GST %" type="number" value={formData.freightGstPct || ""} onChange={(e: any) => handleChargeChange('freightGstPct', Number(e.target.value))} small />
               <div className="space-y-1">
-                <label className="text-[10px] font-bold text-gray-500 uppercase">GST Type</label>
+                <label className="text-[10px] font-bold text-gray-500 ">GST Type</label>
                 <select value={formData.freightGstType || "Exclusive"} onChange={(e) => handleChargeChange('freightGstType', e.target.value)} className="w-full bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-1.5 text-xs">
                   <option value="Exclusive">Exclusive</option>
                   <option value="Inclusive">Inclusive</option>
@@ -1023,7 +1011,7 @@ const QuotationForm = ({ initialData, onClose, onSave }: QuotationFormProps) => 
             <div className="grid grid-cols-2 gap-2">
               <Field label="GST %" type="number" value={formData.loadingGstPct || ""} onChange={(e: any) => handleChargeChange('loadingGstPct', Number(e.target.value))} small />
               <div className="space-y-1">
-                <label className="text-[10px] font-bold text-gray-500 uppercase">GST Type</label>
+                <label className="text-[10px] font-bold text-gray-500 ">GST Type</label>
                 <select value={formData.loadingGstType || "Exclusive"} onChange={(e) => handleChargeChange('loadingGstType', e.target.value)} className="w-full bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-1.5 text-xs">
                   <option value="Exclusive">Exclusive</option>
                   <option value="Inclusive">Inclusive</option>
@@ -1036,7 +1024,7 @@ const QuotationForm = ({ initialData, onClose, onSave }: QuotationFormProps) => 
             <div className="grid grid-cols-2 gap-2">
               <Field label="GST %" type="number" value={formData.unloadingGstPct || ""} onChange={(e: any) => handleChargeChange('unloadingGstPct', Number(e.target.value))} small />
               <div className="space-y-1">
-                <label className="text-[10px] font-bold text-gray-500 uppercase">GST Type</label>
+                <label className="text-[10px] font-bold text-gray-500 ">GST Type</label>
                 <select value={formData.unloadingGstType || "Exclusive"} onChange={(e) => handleChargeChange('unloadingGstType', e.target.value)} className="w-full bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-1.5 text-xs">
                   <option value="Exclusive">Exclusive</option>
                   <option value="Inclusive">Inclusive</option>
@@ -1048,7 +1036,7 @@ const QuotationForm = ({ initialData, onClose, onSave }: QuotationFormProps) => 
       </div>
 
       <div className="space-y-1">
-        <label className="text-[10px] font-black text-gray-400 tracking-widest uppercase ml-1">Remarks</label>
+        <label className="text-[10px] font-black text-gray-400 tracking-widest ml-1">Remarks</label>
         <textarea
           value={formData.remarks || ""}
           onChange={(e) => setFormData({ ...formData, remarks: e.target.value })}
@@ -1058,7 +1046,7 @@ const QuotationForm = ({ initialData, onClose, onSave }: QuotationFormProps) => 
       </div>
 
       <div className="flex justify-between items-center bg-orange-50 dark:bg-orange-950/20 p-4 rounded-xl">
-        <span className="text-sm font-black text-orange-900 dark:text-orange-400 uppercase tracking-widest">Total Amount</span>
+        <span className="text-sm font-black text-orange-900 dark:text-orange-400 tracking-widest">Total Amount</span>
         <span className="text-xl font-black text-orange-600 dark:text-orange-300">₹ {fmt(formData.totalAmount)}</span>
       </div>
 
@@ -1088,7 +1076,7 @@ const ConfirmModal = ({ title, message, onConfirm, onCancel, loading }: any) => 
 const Field = ({ label, value, onChange, placeholder, type = "text", required = false, small = false, icon: Icon }: any) => (
   <div className={`space-y-1 ${small ? "mb-0" : "mb-4"}`}>
     {label && (
-      <label className={`block font-black text-gray-500 uppercase tracking-widest ${small ? "text-[10px]" : "text-[11px] ml-1"}`}>
+      <label className={`block font-black text-gray-500 tracking-widest ${small ? "text-[10px]" : "text-[11px] ml-1"}`}>
         {label} {required && <span className="text-red-500">*</span>}
       </label>
     )}

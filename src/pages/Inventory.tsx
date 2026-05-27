@@ -64,16 +64,16 @@ const InventoryRow = memo(
             )}
           </div>
         </Td>
-        <Td className="hidden md:table-cell px-4 py-3 text-[13px] font-mono text-gray-500 dark:text-gray-400">
-          {safeStr(item.sku)}
+        <Td className="hidden md:table-cell px-3 py-2.5 overflow-hidden">
+          <span className="block truncate text-[13px] font-mono text-gray-500 dark:text-gray-400" title={safeStr(item.sku)}>{safeStr(item.sku)}</span>
         </Td>
-        <Td className="hidden md:table-cell px-4 py-3 text-[13px] font-medium text-gray-900 dark:text-white max-w-[200px]">
-          <div className="flex items-center gap-2 truncate" title={safeStr(item.itemName)}>
+        <Td className="hidden md:table-cell px-3 py-2.5 overflow-hidden">
+          <span className="flex items-center gap-2 truncate text-[13px] font-medium text-gray-900 dark:text-white" title={safeStr(item.itemName)}>
             {safeStr(item.itemName) || <span className="text-gray-400 italic">Unnamed Item</span>}
-          </div>
+          </span>
         </Td>
-        <Td className="hidden md:table-cell px-4 py-3 text-[13px] text-gray-500 dark:text-gray-400 max-w-[150px] truncate" title={`${safeStr(item.category)} / ${safeStr(item.subCategory)}`}>
-          {safeStr(item.category)} / {safeStr(item.subCategory)}
+        <Td className="hidden md:table-cell px-3 py-2.5 overflow-hidden">
+          <span className="block truncate text-[13px] text-gray-500 dark:text-gray-400" title={`${safeStr(item.category)} / ${safeStr(item.subCategory)}`}>{safeStr(item.category)} / {safeStr(item.subCategory)}</span>
         </Td>
         <Td className="hidden md:table-cell px-4 py-3 text-right">
           <div className="flex flex-col items-end">
@@ -529,31 +529,31 @@ export const Inventory = () => {
           endReached={loadMore}
           increaseViewportBy={300}
           fixedHeaderContent={() => {
-            const headerClass = "px-4 py-3 text-[11px] font-bold text-[#6B7280] dark:text-gray-400 uppercase tracking-wider sticky top-0 z-10 sticky-th";
+            const headerClass = "px-3 py-3 text-[11px] font-bold text-[#6B7280] dark:text-gray-400 tracking-wider sticky top-0 z-10 sticky-th whitespace-nowrap overflow-hidden";
             return (
               <tr className="bg-gray-50/90 dark:bg-gray-800/90 backdrop-blur-md border-b border-[#E8ECF0] dark:border-gray-800">
                 <th className={cn(headerClass, "md:hidden")}>
                   Inventory details
                 </th>
-                <th className={cn(headerClass, "hidden md:table-cell w-16 text-center")}>
+                <th className={cn(headerClass, "hidden md:table-cell w-14 text-center")}>
                   Photo
                 </th>
-                <th className={cn(headerClass, "hidden md:table-cell w-[120px]")}>
+                <th className={cn(headerClass, "hidden md:table-cell w-[130px]")}>
                   SKU
                 </th>
                 <th className={cn(headerClass, "hidden md:table-cell")}>
                   Item name
                 </th>
-                <th className={cn(headerClass, "hidden md:table-cell w-[150px]")}>
+                <th className={cn(headerClass, "hidden md:table-cell w-[140px]")}>
                   Category
                 </th>
-                <th className={cn(headerClass, "hidden md:table-cell text-right w-[150px]")}>
+                <th className={cn(headerClass, "hidden md:table-cell text-right w-[160px]")}>
                   Stock (Avail | Alc | Isu)
                 </th>
                 <th className={cn(headerClass, "hidden md:table-cell w-[100px] text-center")}>
                   Condition
                 </th>
-                <th className={cn(headerClass, "hidden md:table-cell text-right w-[120px]")}>
+                <th className={cn(headerClass, "hidden md:table-cell text-right w-[110px]")}>
                   Actions
                 </th>
               </tr>
@@ -572,7 +572,7 @@ export const Inventory = () => {
           )}
           components={{
             Table: (props) => (
-              <table {...props} className="w-full text-left border-collapse min-w-[800px] md:min-w-0" />
+              <table {...props} className="w-full text-left border-collapse table-fixed min-w-[720px]" />
             ),
             TableBody: React.forwardRef((props, ref) => <tbody {...props} ref={ref as any} className="divide-y divide-gray-200 dark:divide-gray-800" />),
             TableRow: (props) => {
@@ -616,37 +616,37 @@ export const Inventory = () => {
           <div className="space-y-6">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <p className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">SKU</p>
+                <p className="text-[11px] font-bold text-gray-500 tracking-wider">SKU</p>
                 <p className="text-sm font-medium text-gray-900 dark:text-white">{safeStr(viewModal.sku)}</p>
               </div>
               <div>
-                <p className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">Item Name</p>
+                <p className="text-[11px] font-bold text-gray-500 tracking-wider">Item Name</p>
                 <p className="text-sm font-medium text-gray-900 dark:text-white">{safeStr(viewModal.itemName)}</p>
               </div>
               <div>
-                <p className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">Category</p>
+                <p className="text-[11px] font-bold text-gray-500 tracking-wider">Category</p>
                 <p className="text-sm font-medium text-gray-900 dark:text-white">{safeStr(viewModal.category)}</p>
               </div>
               <div>
-                <p className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">Sub-Category</p>
+                <p className="text-[11px] font-bold text-gray-500 tracking-wider">Sub-Category</p>
                 <p className="text-sm font-medium text-gray-900 dark:text-white">{safeStr(viewModal.subCategory)}</p>
               </div>
               <div>
-                <p className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">Live Stock</p>
+                <p className="text-[11px] font-bold text-gray-500 tracking-wider">Live Stock</p>
                 <p className="text-sm font-bold text-emerald-500">{safeStr(viewModal.liveStock)} {safeStr(viewModal.unit)}</p>
               </div>
               <div>
-                <p className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">Condition</p>
+                <p className="text-[11px] font-bold text-gray-500 tracking-wider">Condition</p>
                 <StatusBadge status={viewModal.condition} />
               </div>
               <div>
-                <p className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">Project</p>
+                <p className="text-[11px] font-bold text-gray-500 tracking-wider">Project</p>
                 <p className="text-sm font-medium text-gray-900 dark:text-white">{safeStr(viewModal.sourceSite)}</p>
               </div>
             </div>
             {catalogue.find(c => c.sku === viewModal.sku)?.imageUrl && (
               <div className="mt-4">
-                <p className="text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-2">Reference Photo</p>
+                <p className="text-[11px] font-bold text-gray-500 tracking-wider mb-2">Reference Photo</p>
                 <div className="aspect-video rounded-xl overflow-hidden border border-gray-200 dark:border-gray-800">
                   <img
                     src={catalogue.find(c => c.sku === viewModal.sku).imageUrl}

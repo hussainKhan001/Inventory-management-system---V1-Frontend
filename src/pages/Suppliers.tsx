@@ -18,6 +18,7 @@ import { Plus, CheckCircle2, AlertCircle, Eye, Edit2, Trash2, Search } from "luc
 import { Supplier } from "../types";
 import { scrollToError, formatAccountNo, safeStr } from "../utils";
 import { TableVirtuoso } from "react-virtuoso";
+import { cn } from "../lib/utils";
 
 const PAN_REGEX = /^[A-Z]{5}[0-9]{4}[A-Z]{1}$/;
 const GST_REGEX = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/;
@@ -25,14 +26,13 @@ const IFSC_REGEX = /^[A-Z]{4}0[A-Z0-9]{6}$/;
 const MOBILE_REGEX = /^[0-9]{10}$/;
 
 export const Suppliers = () => {
-  const { 
-    vendors: suppliers, 
-    vendorsPagination: suppliersPagination,
+  const {
+    suppliers,
+    suppliersPagination,
     fetchResource,
-    addSupplier, 
-    updateSupplier, 
-    deleteSupplier, 
-    role, 
+    addSupplier,
+    updateSupplier,
+    deleteSupplier,
     uploadImage,
     loading,
     actionLoading,
@@ -157,15 +157,13 @@ export const Suppliers = () => {
     setError("");
     
     if (!isEditing) {
-      const isDuplicateEmail = suppliers.some(v => v.email === newSupplier.email);
-      const isDuplicateMobile = suppliers.some(v => v.mobile === newSupplier.mobile);
-      
-      if (isDuplicateEmail) {
-        setError("A supplier with this email already exists.");
-        return;
-      }
-      if (isDuplicateMobile) {
-        setError("A supplier with this mobile number already exists.");
+      // Duplicate company name check (case-insensitive)
+      const isDuplicateName = suppliers.some(
+        (v: Supplier) => (v.companyName || v.name || "").trim().toLowerCase() ===
+                         (newSupplier.companyName || "").trim().toLowerCase()
+      );
+      if (isDuplicateName) {
+        setError(`A supplier named "${newSupplier.companyName}" already exists. Please use a different company name.`);
         return;
       }
     }
@@ -253,45 +251,39 @@ export const Suppliers = () => {
             data={suppliers}
             style={{ height: '100%' }}
             components={{
-              Table: (props) => <table {...props} className="w-full text-left border-collapse" />,
+              Table: (props) => <table {...props} className="w-full text-left border-collapse table-fixed min-w-[640px]" />,
               TableRow: (props) => <tr {...props} className="hover:bg-gray-50/50 dark:hover:bg-gray-800/30 transition-colors border-b border-[#E8ECF0] dark:border-gray-800" />,
               TableHead: React.forwardRef((props, ref) => <thead {...props} ref={ref} className="sticky top-0 z-10 bg-gray-50 dark:bg-gray-800/50" />)
             }}
             fixedHeaderContent={() => {
-              const headerClass = "px-4 py-3 text-[11px] font-bold text-[#6B7280] dark:text-gray-400 uppercase tracking-wider sticky top-0 z-10 sticky-th";
+              const headerClass = "px-3 py-3 text-[11px] font-bold text-[#6B7280] dark:text-gray-400 tracking-wider sticky top-0 z-10 sticky-th whitespace-nowrap overflow-hidden";
               return (
                 <tr className="bg-gray-50/90 dark:bg-gray-800/90 backdrop-blur-md border-b border-[#E8ECF0] dark:border-gray-800">
-                  <th className={headerClass}>Id</th>
-                  <th className={headerClass}>Company</th>
-                  <th className={`${headerClass} hidden md:table-cell`}>Owner</th>
-                  <th className={`${headerClass} hidden md:table-cell`}>Mobile</th>
-                  <th className={`${headerClass} hidden lg:table-cell`}>Products</th>
-                  <th className={headerClass}>Status</th>
-                  <th className={`${headerClass} text-right`}>Actions</th>
+                  <th className={cn(headerClass, "w-[110px]")}>Id</th>
+                  <th className={cn(headerClass, "")}>Company</th>
+                  <th className={cn(headerClass, "hidden md:table-cell w-[140px]")}>Owner</th>
+                  <th className={cn(headerClass, "hidden md:table-cell w-[130px]")}>Mobile</th>
+                  <th className={cn(headerClass, "hidden lg:table-cell w-[160px]")}>Products</th>
+                  <th className={cn(headerClass, "w-[90px]")}>Status</th>
+                  <th className={cn(headerClass, "text-right w-[150px]")}>Actions</th>
                 </tr>
               );
             }}
             itemContent={(_index, v) => (
               <>
-                <td className="px-4 py-3 text-[13px] font-mono text-[#6B7280] dark:text-gray-400">{v.id}</td>
-                <td className="px-4 py-3 text-[13px] font-medium text-[#1A1A2E] dark:text-white">
-                  <div className="flex flex-col">
-                    <span>{safeStr(v.companyName || v.name || (v as any).supplierName) || "NA"}</span>
-                    <span className="md:hidden text-[11px] text-gray-500 font-normal">
+                <td className="px-3 py-2.5 overflow-hidden"><span className="block truncate text-[13px] font-mono text-[#6B7280] dark:text-gray-400" title={v.id}>{v.id}</span></td>
+                <td className="px-3 py-2.5 overflow-hidden">
+                  <div className="flex flex-col min-w-0">
+                    <span className="block truncate text-[13px] font-medium text-[#1A1A2E] dark:text-white" title={safeStr(v.companyName || v.name || (v as any).supplierName)}>{safeStr(v.companyName || v.name || (v as any).supplierName) || "NA"}</span>
+                    <span className="md:hidden block truncate text-[11px] text-gray-500 font-normal">
                       {safeStr(v.ownerName || v.contact) || "NA"}
                     </span>
                   </div>
                 </td>
-                <td className="hidden md:table-cell px-4 py-3 text-[13px] text-[#6B7280] dark:text-gray-400">
-                  {safeStr(v.ownerName || v.contact) || "NA"}
-                </td>
-                <td className="hidden md:table-cell px-4 py-3 text-[13px] text-[#6B7280] dark:text-gray-400">
-                  {safeStr(v.mobile || v.phone) || "NA"}
-                </td>
-                <td className="hidden lg:table-cell px-4 py-3 text-[13px] text-[#6B7280] dark:text-gray-400 truncate max-w-[200px]">
-                  {safeStr(v.dealingProducts || v.category) || "NA"}
-                </td>
-                <td className="px-4 py-3"><StatusBadge status={v.status} /></td>
+                <td className="hidden md:table-cell px-3 py-2.5 overflow-hidden"><span className="block truncate text-[13px] text-[#6B7280] dark:text-gray-400" title={safeStr(v.ownerName || v.contact)}>{safeStr(v.ownerName || v.contact) || "NA"}</span></td>
+                <td className="hidden md:table-cell px-3 py-2.5 overflow-hidden"><span className="block truncate text-[13px] text-[#6B7280] dark:text-gray-400">{safeStr(v.mobile || v.phone) || "NA"}</span></td>
+                <td className="hidden lg:table-cell px-3 py-2.5 overflow-hidden"><span className="block truncate text-[13px] text-[#6B7280] dark:text-gray-400" title={safeStr(v.dealingProducts || v.category)}>{safeStr(v.dealingProducts || v.category) || "NA"}</span></td>
+                <td className="px-3 py-2.5"><StatusBadge status={v.status} /></td>
                 <td className="px-4 py-3">
                   <div className="flex items-center justify-end gap-1.5">
                     <button

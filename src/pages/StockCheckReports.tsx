@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useAppStore } from "../store";
 import { PageHeader, Card, Btn, Modal, Skeleton } from "../components/ui";
+import { DateRangePicker } from "../components/ui/DateRangePicker";
 import { FileText, Download, Eye, Calendar, User, Tag, Search, Trash2, X } from "lucide-react";
 import { StockCheckReport } from "../types";
 import { api } from "../services/api";
@@ -136,35 +137,17 @@ export const StockCheckReports = () => {
             placeholder="Search by Report ID, Category, or Auditor..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-10 pr-4 py-2.5 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl text-[13px] focus:outline-none focus:ring-2 focus:ring-[#F97316]/20 focus:border-[#F97316] transition-all"
+            className="w-full pl-10 pr-4 py-2 bg-white dark:bg-[#0B1120]/50 border border-gray-200/50 dark:border-gray-800/80 rounded-2xl h-[44px] text-[13px] text-gray-900 dark:text-[#E2E8F0] focus:outline-none focus:border-primary/50 focus:ring-4 focus:ring-primary/10 transition-all placeholder:text-gray-400 dark:placeholder:text-gray-500"
           />
         </div>
-        <div className="flex gap-2">
-          <div className="space-y-1">
-            <label className="text-[10px] font-bold text-gray-400 tracking-widest ml-1">From date</label>
-            <input 
-              type="date"
-              value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
-              className="px-3 py-2 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl text-[13px] focus:outline-none focus:ring-2 focus:ring-[#F97316]/20 transition-all [color-scheme:light] dark:[color-scheme:dark]"
-            />
-          </div>
-          <div className="space-y-1">
-            <label className="text-[10px] font-bold text-gray-400 tracking-widest ml-1">To date</label>
-            <input 
-              type="date"
-              value={endDate}
-              onChange={(e) => setEndDate(e.target.value)}
-              className="px-3 py-2 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl text-[13px] focus:outline-none focus:ring-2 focus:ring-[#F97316]/20 transition-all [color-scheme:light] dark:[color-scheme:dark]"
-            />
-          </div>
-          <button 
-            onClick={() => { setStartDate(""); setEndDate(""); setSearch(""); }}
-            className="mb-0.5 p-2.5 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl transition-all"
-            title="Reset Filters"
-          >
-            <X className="w-4 h-4" />
-          </button>
+        <div className="flex gap-2 items-center">
+          <DateRangePicker 
+            value={{ start: startDate, end: endDate }}
+            onChange={(val) => {
+              setStartDate(val.start);
+              setEndDate(val.end);
+            }}
+          />
         </div>
       </div>
 

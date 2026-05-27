@@ -50,23 +50,23 @@ export const Archive = () => {
           </div>
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
+        <div className="overflow-x-auto no-scrollbar">
+          <table className="w-full text-left border-collapse table-fixed min-w-[600px]">
             <thead>
               <tr className="bg-gray-50 dark:bg-gray-800/50 border-b border-[#E8ECF0] dark:border-gray-800">
-                <th className="px-4 py-3 text-[11px] font-bold text-[#6B7280] dark:text-gray-400 tracking-wider">
+                <th className="px-3 py-3 text-[11px] font-bold text-[#6B7280] dark:text-gray-400 whitespace-nowrap w-[130px] overflow-hidden">
                   SKU
                 </th>
-                <th className="px-4 py-3 text-[11px] font-bold text-[#6B7280] dark:text-gray-400 tracking-wider">
+                <th className="px-3 py-3 text-[11px] font-bold text-[#6B7280] dark:text-gray-400 whitespace-nowrap overflow-hidden">
                   Item name
                 </th>
-                <th className="px-4 py-3 text-[11px] font-bold text-[#6B7280] dark:text-gray-400 tracking-wider">
+                <th className="px-3 py-3 text-[11px] font-bold text-[#6B7280] dark:text-gray-400 whitespace-nowrap w-[180px] overflow-hidden">
                   Category
                 </th>
-                <th className="px-4 py-3 text-[11px] font-bold text-[#6B7280] dark:text-gray-400 tracking-wider text-right">
+                <th className="px-3 py-3 text-[11px] font-bold text-[#6B7280] dark:text-gray-400 whitespace-nowrap text-right w-[120px] overflow-hidden">
                   Opening stock
                 </th>
-                <th className="px-4 py-3 text-[11px] font-bold text-[#6B7280] dark:text-gray-400 tracking-wider">
+                <th className="px-3 py-3 text-[11px] font-bold text-[#6B7280] dark:text-gray-400 whitespace-nowrap w-[90px] overflow-hidden">
                   Status
                 </th>
               </tr>
@@ -74,16 +74,16 @@ export const Archive = () => {
             <tbody className="divide-y divide-[#E8ECF0] dark:divide-gray-800">
               {filtered.map((item, idx) => (
                 <tr key={`${item.sku}-${idx}`} className="hover:bg-gray-50/50 dark:hover:bg-gray-800/30 transition-colors">
-                  <td className="px-4 py-3 text-[13px] font-mono text-[#6B7280] dark:text-gray-400">
-                    {item.sku}
+                  <td className="px-3 py-2.5 overflow-hidden">
+                    <span className="block truncate text-[13px] font-mono text-[#6B7280] dark:text-gray-400" title={item.sku}>{item.sku}</span>
                   </td>
-                  <td className="px-4 py-3 text-[13px] font-medium text-[#1A1A2E] dark:text-white">
-                    {item.itemName}
+                  <td className="px-3 py-2.5 overflow-hidden">
+                    <span className="block truncate text-[13px] font-medium text-[#1A1A2E] dark:text-white" title={item.itemName}>{item.itemName}</span>
                   </td>
-                  <td className="px-4 py-3 text-[13px] text-[#6B7280] dark:text-gray-400">
-                    {item.category} / {item.subCategory}
+                  <td className="px-3 py-2.5 overflow-hidden">
+                    <span className="block truncate text-[13px] text-[#6B7280] dark:text-gray-400" title={`${item.category} / ${item.subCategory}`}>{item.category} / {item.subCategory}</span>
                   </td>
-                  <td className="px-4 py-3 text-[13px] font-bold text-right">
+                  <td className="px-3 py-2.5 text-[13px] font-bold text-right overflow-hidden">
                     <span
                       className={
                         item.openingStock < 0
@@ -94,7 +94,7 @@ export const Archive = () => {
                       {item.openingStock} {item.unit}
                     </span>
                   </td>
-                  <td className="px-4 py-3">
+                  <td className="px-3 py-2.5">
                     <StatusBadge status="Archive" />
                   </td>
                 </tr>

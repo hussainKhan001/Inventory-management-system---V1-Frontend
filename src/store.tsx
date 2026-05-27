@@ -39,7 +39,8 @@ interface PaginationInfo {
 interface AppState {
   user: User | null;
   isAuthenticated: boolean;
-  login: (email: string, password: string) => Promise<boolean>;
+  login: (email: string, password: string) => Promise<{ otpRequired: true; email: string } | boolean>;
+  verifyOtp: (email: string, otp: string) => Promise<boolean>;
   changePassword: (currentPassword: string, newPassword: string) => Promise<boolean>;
   logout: () => Promise<void>;
   checkAuth: () => Promise<void>;
@@ -491,11 +492,15 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
+  // Step 1 – validate credentials; backend emails a 6-digit OTP
   const login = async (email: string, password: string) => {
     try {
-      console.log(`Attempting login for: ${email}`);
       const res = await api.post('auth/login', { email, password });
-      console.log(`Login successful for: ${email}`, res);
+      // Backend returns { otpRequired: true, email } — no JWT yet
+      if (res.data?.otpRequired) {
+        return { otpRequired: true as const, email: res.data.email as string };
+      }
+      // Fallback: legacy direct login (shouldn't happen with current backend)
       const { user: userData, token } = res.data;
       localStorage.setItem('token', token);
       setUser(userData);
@@ -503,7 +508,21 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       setIsAuthenticated(true);
       return true;
     } catch (error: any) {
-      console.error("Login failed:", error);
+      throw error;
+    }
+  };
+
+  // Step 2 – submit OTP → receive JWT and mark authenticated
+  const verifyOtp = async (email: string, otp: string) => {
+    try {
+      const res = await api.post('auth/verify-otp', { email, otp });
+      const { user: userData, token } = res.data;
+      localStorage.setItem('token', token);
+      setUser(userData);
+      setRole(userData.role);
+      setIsAuthenticated(true);
+      return true;
+    } catch (error: any) {
       throw error;
     }
   };
@@ -1430,8 +1449,15 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     // Set up WebSocket for real-time updates
     let socket: WebSocket;
     let reconnectTimeout: any;
+    let reconnectDelay = 3000;       // Start: 3 seconds
+    const MAX_RECONNECT_DELAY = 30000; // Cap: 30 seconds
 
     const connectWS = () => {
+      // Skip if a socket is already CONNECTING or OPEN
+      if (socket && (socket.readyState === WebSocket.CONNECTING || socket.readyState === WebSocket.OPEN)) {
+        return;
+      }
+
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
       let wsUrl = `${protocol}//${window.location.host}`;
       if (window.location.port === '5173') {
@@ -1450,6 +1476,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
 
         socket.onopen = () => {
           console.log('WebSocket connected');
+          reconnectDelay = 3000; // Reset backoff on successful connection
           if (authRef.current && userRef.current?.role) {
             socket.send(JSON.stringify({
               type: 'REGISTER_ROLE',
@@ -1458,7 +1485,9 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
           }
         };
       } catch (wsError) {
-        console.error("WebSocket construction failed:", wsError);
+        // Schedule retry with backoff if construction itself fails
+        reconnectTimeout = setTimeout(connectWS, reconnectDelay);
+        reconnectDelay = Math.min(reconnectDelay * 2, MAX_RECONNECT_DELAY);
         return;
       }
 
@@ -1557,14 +1586,20 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         }
       };
 
-      socket.onclose = () => {
-        console.log('WebSocket connection closed. Reconnecting in 5s...');
-        reconnectTimeout = setTimeout(connectWS, 5000);
+      socket.onclose = (event) => {
+        // Normal closure (code 1000) = intentional, no spam log
+        if (event.code !== 1000) {
+          console.warn(`WebSocket closed (code: ${event.code}). Retrying in ${reconnectDelay / 1000}s...`);
+        }
+        reconnectTimeout = setTimeout(connectWS, reconnectDelay);
+        // Exponential backoff: 3s → 6s → 12s → 24s → 30s (capped)
+        reconnectDelay = Math.min(reconnectDelay * 2, MAX_RECONNECT_DELAY);
       };
 
-      socket.onerror = (err) => {
-        console.error('WebSocket error:', err);
-        socket.close();
+      socket.onerror = () => {
+        // Do NOT call socket.close() here — it causes "closed before established" error
+        // The browser automatically fires onclose after onerror, which handles retry
+        // Just silently ignore; the onclose handler will reconnect with backoff
       };
     };
 
@@ -1582,6 +1617,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         user,
         isAuthenticated,
         login,
+        verifyOtp,
         changePassword,
         logout,
         checkAuth,

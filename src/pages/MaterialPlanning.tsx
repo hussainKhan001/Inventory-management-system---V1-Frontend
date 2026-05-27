@@ -270,11 +270,11 @@ export const MaterialPlanning = () => {
                         {plan.project} • {plan.workType} • {plan.milestone}
                       </p>
                       <p className="text-[12px] text-gray-500 dark:text-gray-500 mt-1 italic truncate max-w-[400px]">
-                        Items: {plan.items.map((i: any) => i.itemName).join(", ")}
+                        Items: {plan.items.map((i: any) => i.itemName || i.materialName || i.name || i.sku || 'Unknown').join(", ")}
                       </p>
                     </div>
                     <div className="text-right">
-                      <p className="text-[11px] font-bold text-[#6B7280] dark:text-gray-500 uppercase">
+                      <p className="text-[11px] font-bold text-[#6B7280] dark:text-gray-500 ">
                         Date
                       </p>
                       <p className="text-[13px] font-medium text-[#1A1A2E] dark:text-gray-300">
@@ -321,19 +321,19 @@ export const MaterialPlanning = () => {
                     <table className="w-full text-left border-collapse">
                       <thead>
                         <tr className="border-b border-[#E8ECF0] dark:border-gray-800">
-                          <th className="px-2 py-2 text-[11px] font-bold text-[#6B7280] dark:text-gray-400 uppercase">
+                          <th className="px-2 py-2 text-[11px] font-bold text-[#6B7280] dark:text-gray-400 ">
                             Item
                           </th>
-                          <th className="px-2 py-2 text-[11px] font-bold text-[#6B7280] dark:text-gray-400 uppercase text-right">
+                          <th className="px-2 py-2 text-[11px] font-bold text-[#6B7280] dark:text-gray-400 text-right">
                             Required
                           </th>
-                          <th className="px-2 py-2 text-[11px] font-bold text-[#6B7280] dark:text-gray-400 uppercase text-right">
+                          <th className="px-2 py-2 text-[11px] font-bold text-[#6B7280] dark:text-gray-400 text-right">
                             Available
                           </th>
-                          <th className="px-2 py-2 text-[11px] font-bold text-[#6B7280] dark:text-gray-400 uppercase text-right">
+                          <th className="px-2 py-2 text-[11px] font-bold text-[#6B7280] dark:text-gray-400 text-right">
                             Shortage
                           </th>
-                          <th className="px-2 py-2 text-[11px] font-bold text-[#6B7280] dark:text-gray-400 uppercase">
+                          <th className="px-2 py-2 text-[11px] font-bold text-[#6B7280] dark:text-gray-400 ">
                             Priority
                           </th>
                         </tr>
@@ -341,7 +341,7 @@ export const MaterialPlanning = () => {
                       <tbody className="divide-y divide-[#E8ECF0] dark:divide-gray-800">
                         {plan.items.map((item: any, idx: number) => (
                           <tr key={idx} className="hover:bg-gray-50/50 dark:hover:bg-gray-800/30 transition-colors">
-                            <td className="px-2 py-2 text-[13px] dark:text-gray-300">{item.itemName}</td>
+                            <td className="px-2 py-2 text-[13px] dark:text-gray-300">{item.itemName || item.materialName || item.name || item.sku || 'Unknown'}</td>
                             <td className="px-2 py-2 text-[13px] font-medium text-right dark:text-gray-300">
                               {item.required} {item.unit}
                             </td>
@@ -393,19 +393,19 @@ export const MaterialPlanning = () => {
           <div className="space-y-6">
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
               <div>
-                <p className="text-[11px] font-bold text-gray-500 uppercase">Project</p>
+                <p className="text-[11px] font-bold text-gray-500 ">Project</p>
                 <p className="text-[13px] font-medium text-gray-900 dark:text-white">{selectedPlan.project}</p>
               </div>
               <div>
-                <p className="text-[11px] font-bold text-gray-500 uppercase">Work Type</p>
+                <p className="text-[11px] font-bold text-gray-500 ">Work Type</p>
                 <p className="text-[13px] font-medium text-gray-900 dark:text-white">{selectedPlan.workType}</p>
               </div>
               <div>
-                <p className="text-[11px] font-bold text-gray-500 uppercase">Milestone</p>
+                <p className="text-[11px] font-bold text-gray-500 ">Milestone</p>
                 <p className="text-[13px] font-medium text-gray-900 dark:text-white">{selectedPlan.milestone}</p>
               </div>
               <div>
-                <p className="text-[11px] font-bold text-gray-500 uppercase">Date</p>
+                <p className="text-[11px] font-bold text-gray-500 ">Date</p>
                 <p className="text-[13px] font-medium text-gray-900 dark:text-white">{formatDateTime(selectedPlan.date)}</p>
               </div>
             </div>
@@ -415,11 +415,11 @@ export const MaterialPlanning = () => {
                 <table className="w-full text-left border-collapse min-w-[600px]">
                   <thead className="bg-gray-50 dark:bg-gray-800/50">
                     <tr>
-                      <th className="px-4 py-3 text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Item</th>
-                      <th className="px-4 py-3 text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider text-right">Required</th>
-                      <th className="px-4 py-3 text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider text-right">Available</th>
-                      <th className="px-4 py-3 text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider text-right">Shortage</th>
-                      <th className="px-4 py-3 text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Priority</th>
+                      <th className="px-4 py-3 text-[11px] font-bold text-gray-500 dark:text-gray-400 tracking-wider">Item</th>
+                      <th className="px-4 py-3 text-[11px] font-bold text-gray-500 dark:text-gray-400 tracking-wider text-right">Required</th>
+                      <th className="px-4 py-3 text-[11px] font-bold text-gray-500 dark:text-gray-400 tracking-wider text-right">Available</th>
+                      <th className="px-4 py-3 text-[11px] font-bold text-gray-500 dark:text-gray-400 tracking-wider text-right">Shortage</th>
+                      <th className="px-4 py-3 text-[11px] font-bold text-gray-500 dark:text-gray-400 tracking-wider">Priority</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100 dark:divide-gray-800 bg-white dark:bg-gray-900">
@@ -430,7 +430,7 @@ export const MaterialPlanning = () => {
                             <div className="w-8 h-8 rounded-lg bg-orange-50 dark:bg-orange-900/20 flex items-center justify-center">
                               <Package className="w-4 h-4 text-orange-600 dark:text-orange-400" />
                             </div>
-                            <span className="text-[13px] font-semibold text-gray-900 dark:text-white">{item.itemName}</span>
+                            <span className="text-[13px] font-semibold text-gray-900 dark:text-white">{item.itemName || item.materialName || item.name || item.sku || 'Unknown'}</span>
                           </div>
                         </td>
                         <td className="px-4 py-3 text-[13px] text-right text-gray-900 dark:text-gray-300 font-medium">
@@ -445,7 +445,7 @@ export const MaterialPlanning = () => {
                           </span>
                         </td>
                         <td className="px-4 py-3">
-                          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold tracking-wider ${
                             item.priority === 'High' ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' :
                             item.priority === 'Medium' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' :
                             'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
@@ -537,7 +537,7 @@ export const MaterialPlanning = () => {
                         onClick={() => addItem(i)}
                         className="px-4 py-2 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer text-[13px] text-gray-900 dark:text-gray-300"
                       >
-                        {i.itemName} ({i.sku}) - Stock: {i.liveStock}
+                        {i.itemName || i.materialName || i.name || i.sku || 'Unknown'} ({i.sku}) - Stock: {i.liveStock}
                       </div>
                     ))}
                 </div>
@@ -548,16 +548,16 @@ export const MaterialPlanning = () => {
               <table className="w-full text-left border-collapse mb-4">
                 <thead>
                   <tr className="bg-gray-50 dark:bg-gray-800/50 border-b border-[#E8ECF0] dark:border-gray-700">
-                    <th className="px-2 py-2 text-[11px] font-bold text-[#6B7280] dark:text-gray-400 uppercase">
+                    <th className="px-2 py-2 text-[11px] font-bold text-[#6B7280] dark:text-gray-400 ">
                       Item
                     </th>
-                    <th className="px-2 py-2 text-[11px] font-bold text-[#6B7280] dark:text-gray-400 uppercase w-24">
+                    <th className="px-2 py-2 text-[11px] font-bold text-[#6B7280] dark:text-gray-400 w-24">
                       Required
                     </th>
-                    <th className="px-2 py-2 text-[11px] font-bold text-[#6B7280] dark:text-gray-400 uppercase w-24">
+                    <th className="px-2 py-2 text-[11px] font-bold text-[#6B7280] dark:text-gray-400 w-24">
                       Priority
                     </th>
-                    <th className="px-2 py-2 text-[11px] font-bold text-[#6B7280] dark:text-gray-400 uppercase">
+                    <th className="px-2 py-2 text-[11px] font-bold text-[#6B7280] dark:text-gray-400 ">
                       Activity
                     </th>
                   </tr>
@@ -566,7 +566,7 @@ export const MaterialPlanning = () => {
                   {newPlan.items.map((item, idx) => (
                     <tr key={idx}>
                       <td className="px-2 py-2 text-[13px] dark:text-gray-300">
-                        {item.itemName}
+                        {item.itemName || item.materialName || item.name || item.sku || 'Unknown'}
                         {item.reusable > 0 && (
                           <div className="text-[11px] text-blue-600 dark:text-blue-400 flex items-center gap-1 mt-1">
                             <AlertTriangle className="w-3 h-3" />{" "}

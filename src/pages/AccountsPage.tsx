@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import { useAppStore } from "../store";
 import { motion, AnimatePresence } from "motion/react";
+import { Virtuoso } from "react-virtuoso";
 import { 
   CheckCircle, 
   Clock, 
@@ -351,8 +352,8 @@ export const AccountsPage = () => {
       onClick={onClick}
       className={cn(
         "bg-white dark:bg-[#1E293B] p-3 sm:p-4 rounded-2xl border border-gray-100 dark:border-[#334155] shadow-sm flex items-center gap-2 sm:gap-4 transition-all duration-300",
-        onClick && "cursor-pointer hover:border-orange-500/10 active:scale-95",
-        active && "ring-2 ring-orange-500/50 border-orange-500/30"
+        onClick && "cursor-pointer hover:border-primary/10 active:scale-95",
+        active && "ring-2 ring-primary/50 border-primary/30"
       )}
     >
       <div className={cn("w-10 h-10 sm:w-14 sm:h-14 rounded-xl flex items-center justify-center shrink-0", color, "bg-opacity-15")}>
@@ -372,13 +373,13 @@ export const AccountsPage = () => {
         onClick={() => setFilter(label)}
         className={`px-6 py-2.5 text-[13px] font-bold rounded-xl transition-all flex items-center gap-2 ${
           active 
-            ? "bg-[#F97316] text-white shadow-lg shadow-orange-500/20" 
+            ? "bg-primary text-primary-foreground shadow-lg shadow-primary/20" 
             : "text-gray-500 dark:text-[#94A3B8] hover:bg-gray-100 dark:hover:bg-[#334155]"
         }`}
       >
         {label}
         {count !== undefined && (
-          <span className={`text-[10px] px-2 py-0.5 rounded-lg ${active ? "bg-white/20" : "bg-gray-100 dark:bg-[#334155]"}`}>
+          <span className={`text-[10px] px-2 py-0.5 rounded-lg ${active ? "bg-white/20 text-primary-foreground" : "bg-gray-100 dark:bg-[#334155]"}`}>
             {count}
           </span>
         )}
@@ -449,87 +450,82 @@ export const AccountsPage = () => {
       </div>
 
       {/* Table */}
-      <div className="bg-white dark:bg-[#1E293B] rounded-2xl border border-[#E8ECF0] dark:border-[#334155] shadow-[0_1px_4px_rgba(0,0,0,0.08)] dark:shadow-none overflow-hidden">
+      <div className="bg-white dark:bg-[#1E293B] rounded-2xl border border-gray-100 dark:border-[#334155] shadow-sm overflow-hidden">
         <div className="overflow-x-auto overflow-y-hidden">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="bg-gray-50/50 dark:bg-[#0F172A] border-b border-[#E8ECF0] dark:border-[#334155]">
-                <th className="px-4 sm:px-6 py-4 sm:py-6 text-[10px] sm:text-[11px] font-black text-gray-400 dark:text-[#94A3B8] whitespace-nowrap">PO records</th>
-                <th className="hidden lg:table-cell px-4 sm:px-6 py-4 sm:py-6 text-[10px] sm:text-[11px] font-black text-gray-400 dark:text-[#94A3B8] whitespace-nowrap">Vendor name</th>
-                <th className="hidden sm:table-cell px-4 sm:px-6 py-4 sm:py-6 text-[10px] sm:text-[11px] font-black text-gray-400 dark:text-[#94A3B8] text-right whitespace-nowrap">Amount (₹)</th>
-                <th className="hidden lg:table-cell px-4 sm:px-6 py-4 sm:py-6 text-[10px] sm:text-[11px] font-black text-gray-400 dark:text-[#94A3B8] whitespace-nowrap text-center">GRN</th>
-                <th className="hidden sm:table-cell px-4 sm:px-6 py-4 sm:py-6 text-[10px] sm:text-[11px] font-black text-gray-400 dark:text-[#94A3B8] text-center whitespace-nowrap">Status</th>
-                <th className="hidden md:table-cell px-4 sm:px-6 py-4 sm:py-6 text-[10px] sm:text-[11px] font-black text-gray-400 dark:text-[#94A3B8] whitespace-nowrap text-right">Date</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredPOs.length === 0 ? (
-                 <tr>
-                   <td colSpan={6} className="py-24 text-center">
-                      <div className="flex flex-col items-center gap-4 text-gray-400 dark:text-[#64748B]">
-                        <Search className="w-12 h-12 opacity-20" />
-                        <p className="font-bold text-[13px]">No records found matching filter</p>
-                      </div>
-                   </td>
-                 </tr>
-              ) : filteredPOs.map((po) => (
-                <tr 
-                  key={po.id}
-                  onClick={async () => {
-                    setSelectedPO(po);
-                    setShowRejectForm(false);
-                    setRealGRN(null);
-                    
-                    // Fetch real GRN if it exists
-                    try {
-                      const grnRes = await api.get('grn', { filter: JSON.stringify({ poId: po.id }), limit: 1 });
-                      if (grnRes.success && grnRes.data && grnRes.data.length > 0) {
-                        setRealGRN(grnRes.data[0]);
+          <div className="min-w-[900px]">
+            <div className="grid grid-cols-[1.5fr_2fr_1.5fr_1fr_1fr_1fr] gap-4 p-4 border-b border-gray-100 dark:border-[#334155] bg-gray-50/50 dark:bg-[#0F172A] text-[10px] sm:text-[11px] font-black text-gray-400 dark:text-[#94A3B8] whitespace-nowrap tracking-wider">
+              <div className="pl-2 sm:pl-4">PO records</div>
+              <div className="hidden lg:block">Vendor name</div>
+              <div className="hidden sm:block text-right">Amount (₹)</div>
+              <div className="hidden lg:block text-center">GRN</div>
+              <div className="hidden sm:block text-center">Status</div>
+              <div className="hidden md:block text-right pr-2 sm:pr-4">Date</div>
+            </div>
+            
+            {filteredPOs.length === 0 ? (
+              <div className="py-24 text-center">
+                <div className="flex flex-col items-center gap-4 text-gray-400 dark:text-[#64748B]">
+                  <Search className="w-12 h-12 opacity-20" />
+                  <p className="font-bold text-[13px]">No records found matching filter</p>
+                </div>
+              </div>
+            ) : (
+              <Virtuoso
+                style={{ height: "calc(100vh - 380px)", minHeight: "400px" }}
+                data={filteredPOs}
+                itemContent={(_index, po) => (
+                  <div 
+                    onClick={async () => {
+                      setSelectedPO(po);
+                      setShowRejectForm(false);
+                      setRealGRN(null);
+                      
+                      try {
+                        const grnRes = await api.get('grn', { filter: JSON.stringify({ poId: po.id }), limit: 1 });
+                        if (grnRes.success && grnRes.data && grnRes.data.length > 0) {
+                          setRealGRN(grnRes.data[0]);
+                        }
+                      } catch (err) {
+                        console.error("Failed to fetch GRN for PO", err);
                       }
-                    } catch (err) {
-                      console.error("Failed to fetch GRN for PO", err);
-                    }
-                    
-                    // Robust supplier lookup
-                    const sup = suppliers.find(s => 
-                      s.id === po.supplier || 
-                      (s as any)._id === po.supplier ||
-                      (s.companyName || "").toLowerCase() === (po.supplier || "").toLowerCase() ||
-                      (s.name || "").toLowerCase() === (po.supplier || "").toLowerCase()
-                    );
+                      
+                      const sup = suppliers.find(s => 
+                        s.id === po.supplier || 
+                        (s as any)._id === po.supplier ||
+                        (s.companyName || "").toLowerCase() === (po.supplier || "").toLowerCase() ||
+                        (s.name || "").toLowerCase() === (po.supplier || "").toLowerCase()
+                      );
 
-                    setPaymentForm((prev: any) => ({ 
-                      ...prev, 
-                      amountPaid: po.totalValue,
-                      fromCompany: po.companyName || "Our Company",
-                      toCompany: sup?.companyName || po.supplier || "Unknown Vendor",
-                      vendorBankDetails: po.vendorBankDetails ? { ...po.vendorBankDetails } : (sup ? {
-                        accountHolder: sup.accountHolderName || sup.ownerName || "",
-                        bankName: sup.bankName || "",
-                        accountNo: sup.accountNumber || "",
-                        branchIFSC: `${sup.branch || ""}, ${sup.ifscCode || ""}`.trim().replace(/^,/, "").replace(/,$/, "").trim() || ""
-                      } : {
-                        accountHolder: "",
-                        bankName: "",
-                        accountNo: "",
-                        branchIFSC: ""
-                      }),
-                      // Reset transaction specific fields for the new PO
-                      utr: "",
-                      chequeNo: "",
-                      chequeDate: "",
-                      ref: "",
-                      remarks: "",
-                      previewUrl: "",
-                      screenshot: null
-                    }));
-                  }}
-                  className="hover:bg-gray-50 dark:hover:bg-[#0F172A] cursor-pointer transition-colors border-b border-[#E8ECF0] dark:border-[#334155] group flex flex-col sm:table-row sm:p-0 p-4"
-                >
-                  <td className="px-0 sm:px-6 py-1 sm:py-5">
-                    <div className="flex items-center justify-between gap-3">
+                      setPaymentForm((prev: any) => ({ 
+                        ...prev, 
+                        amountPaid: po.totalValue,
+                        fromCompany: po.companyName || "Our Company",
+                        toCompany: sup?.companyName || po.supplier || "Unknown Vendor",
+                        vendorBankDetails: po.vendorBankDetails ? { ...po.vendorBankDetails } : (sup ? {
+                          accountHolder: sup.accountHolderName || sup.ownerName || "",
+                          bankName: sup.bankName || "",
+                          accountNo: sup.accountNumber || "",
+                          branchIFSC: `${sup.branch || ""}, ${sup.ifscCode || ""}`.trim().replace(/^,/, "").replace(/,$/, "").trim() || ""
+                        } : {
+                          accountHolder: "",
+                          bankName: "",
+                          accountNo: "",
+                          branchIFSC: ""
+                        }),
+                        utr: "",
+                        chequeNo: "",
+                        chequeDate: "",
+                        ref: "",
+                        remarks: "",
+                        previewUrl: "",
+                        screenshot: null
+                      }));
+                    }}
+                    className="grid grid-cols-[1.5fr_2fr_1.5fr_1fr_1fr_1fr] gap-4 p-4 border-b border-gray-50 dark:border-[#334155] hover:bg-gray-50/80 dark:hover:bg-[#0F172A] transition-colors cursor-pointer items-center group"
+                  >
+                    <div className="pl-2 sm:pl-4 flex flex-col justify-center">
                       <div className="flex items-center gap-3">
-                        <span className="text-gray-900 dark:text-white font-black text-[14px] sm:text-sm tracking-tight whitespace-nowrap">{po.id}</span>
+                        <span className="text-gray-900 dark:text-white font-black text-[13px] sm:text-[14px] tracking-tight whitespace-nowrap truncate max-w-[120px] sm:max-w-[160px]">{po.id}</span>
                         <button 
                           onClick={async (e) => {
                             e.stopPropagation();
@@ -551,52 +547,54 @@ export const AccountsPage = () => {
                               setLoadingQuotes(false);
                             }
                           }}
-                          className="p-1.5 bg-blue-50 dark:bg-blue-500/10 text-blue-500 rounded-lg transition-colors group/view sm:opacity-0 group-hover:opacity-100"
+                          className="p-1.5 bg-blue-50 dark:bg-blue-500/10 text-blue-500 rounded-lg transition-colors group/view sm:opacity-0 group-hover:opacity-100 shrink-0"
                           title="View PO Document"
                           disabled={loadingQuotes}
                         >
                           <Eye className={cn("w-4 h-4 transition-transform group-hover/view:scale-110", loadingQuotes && "animate-spin")} />
                         </button>
                       </div>
-                      <div className="sm:hidden flex items-center gap-2">
+                      <div className="sm:hidden mt-2 flex items-center gap-2">
                         <StatusBadge status={po.status} accountStatus={po.accountStatus || (po.status === "Approved" ? "bill_verify" : undefined)} />
                       </div>
                     </div>
-                    <div className="lg:hidden mt-2">
-                       <p className="text-[12px] font-bold text-gray-700 dark:text-[#CBD5E1] truncate">
+                    
+                    <div className="hidden lg:flex items-center">
+                      <p className="text-[12px] sm:text-[13px] font-bold text-gray-700 dark:text-[#CBD5E1] truncate pr-4" title={getSupplierName(po.supplier)}>
                         {getSupplierName(po.supplier)}
-                       </p>
+                      </p>
                     </div>
-                    <div className="sm:hidden mt-2 flex justify-between items-center">
-                       <p className="text-[14px] font-black text-gray-900 dark:text-white tabular-nums">{fmtCur(po.totalValue)}</p>
-                       <p className="text-[10px] font-bold text-gray-400 font-mono">{formatDate(po.date)}</p>
+                    
+                    <div className="hidden sm:flex items-center justify-end">
+                      <p className="text-[13px] sm:text-sm font-black text-gray-900 dark:text-[#F1F5F9] tabular-nums whitespace-nowrap truncate">
+                        {fmtCur(po.totalValue)}
+                      </p>
                     </div>
-                  </td>
-                  <td className="hidden lg:table-cell px-4 sm:px-6 py-4 sm:py-5 text-[12px] sm:text-[13px] font-bold text-gray-700 dark:text-[#CBD5E1] whitespace-nowrap">
-                    {getSupplierName(po.supplier)}
-                  </td>
-                  <td className="hidden sm:table-cell px-4 sm:px-6 py-4 sm:py-5 text-right text-[13px] sm:text-sm font-black text-gray-900 dark:text-[#F1F5F9] tabular-nums whitespace-nowrap">
-                    {fmtCur(po.totalValue)}
-                  </td>
-                  <td className="hidden lg:table-cell px-4 sm:px-6 py-4 sm:py-5 text-center whitespace-nowrap">
-                    {["Fulfilled", "Partially Fulfilled"].includes(po.status) ? (
-                      <span className="bg-green-50 text-green-600 dark:bg-[#064E3B] dark:text-[#34D399] px-2 py-0.5 rounded text-[9px] font-bold border border-green-100 dark:border-[#065F46]">Full receive</span>
-                    ) : (po.status === "Pending GRN" || po.status === "Approved") ? (
-                      <span className="bg-amber-50 text-amber-600 dark:bg-amber-900/10 dark:text-amber-400 px-2 py-0.5 rounded text-[9px] font-bold border border-amber-100 dark:border-amber-900/20">Awaiting grn</span>
-                    ) : (
-                      <span className="bg-gray-50 text-gray-400 dark:bg-gray-800 dark:text-gray-500 px-2 py-0.5 rounded text-[9px] font-bold border border-gray-100 dark:border-gray-700">{po.status}</span>
-                    )}
-                  </td>
-                  <td className="hidden sm:table-cell px-4 sm:px-6 py-4 sm:py-5 text-center whitespace-nowrap">
-                    <StatusBadge status={po.status} accountStatus={po.accountStatus || (po.status === "Approved" ? "bill_verify" : undefined)} />
-                  </td>
-                  <td className="hidden md:table-cell px-4 sm:px-6 py-4 sm:py-5 text-[10px] sm:text-[11px] font-bold text-gray-400 dark:text-[#64748B] whitespace-nowrap font-mono text-right">
-                    {formatDate(po.date)}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                    
+                    <div className="hidden lg:flex items-center justify-center">
+                      {["Fulfilled", "Partially Fulfilled"].includes(po.status) ? (
+                        <span className="bg-green-50 text-green-600 dark:bg-[#064E3B] dark:text-[#34D399] px-2 py-0.5 rounded text-[9px] font-bold border border-green-100 dark:border-[#065F46] whitespace-nowrap">Full receive</span>
+                      ) : (po.status === "Pending GRN" || po.status === "Approved") ? (
+                        <span className="bg-amber-50 text-amber-600 dark:bg-amber-900/10 dark:text-amber-400 px-2 py-0.5 rounded text-[9px] font-bold border border-amber-100 dark:border-amber-900/20 whitespace-nowrap">Awaiting grn</span>
+                      ) : (
+                        <span className="bg-gray-50 text-gray-400 dark:bg-gray-800 dark:text-gray-500 px-2 py-0.5 rounded text-[9px] font-bold border border-gray-100 dark:border-gray-700 whitespace-nowrap">{po.status}</span>
+                      )}
+                    </div>
+                    
+                    <div className="hidden sm:flex items-center justify-center">
+                      <StatusBadge status={po.status} accountStatus={po.accountStatus || (po.status === "Approved" ? "bill_verify" : undefined)} />
+                    </div>
+                    
+                    <div className="hidden md:flex items-center justify-end pr-2 sm:pr-4">
+                      <p className="text-[10px] sm:text-[11px] font-bold text-gray-400 dark:text-[#64748B] whitespace-nowrap font-mono truncate">
+                        {formatDate(po.date)}
+                      </p>
+                    </div>
+                  </div>
+                )}
+              />
+            )}
+          </div>
         </div>
       </div>
 
@@ -915,7 +913,7 @@ export const AccountsPage = () => {
                   <span className="p-1.5 bg-gray-100 dark:bg-[#0F172A] rounded-lg">
                     <CreditCard className="w-4 h-4 text-gray-500" />
                   </span>
-                  <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Supplier bank account details</p>
+                  <p className="text-[10px] font-black text-gray-500 tracking-widest">Supplier bank account details</p>
                 </div>
                 <span className="text-[9px] font-bold text-blue-500 bg-blue-50 dark:bg-blue-500/10 px-2 py-0.5 rounded border border-blue-100 dark:border-blue-500/20">Auto-fetched from Master</span>
               </div>

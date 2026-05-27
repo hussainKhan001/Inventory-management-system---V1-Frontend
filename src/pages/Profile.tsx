@@ -54,18 +54,18 @@ export const Profile = () => {
             </div>
             
             <div className="space-y-1 mb-6">
-              <h3 className="text-xl font-bold text-gray-900 dark:text-white uppercase tracking-tight">{user.name}</h3>
+              <h3 className="text-xl font-bold text-gray-900 dark:text-white tracking-tight">{user.name}</h3>
               <p className="text-sm text-gray-500 font-medium">{user.email}</p>
             </div>
 
             <div className="w-full pt-6 border-t border-gray-100 dark:border-gray-800 space-y-4">
               <div className="flex items-center justify-between text-left">
-                <span className="text-[11px] font-bold text-gray-400 uppercase tracking-widest">Account Status</span>
+                <span className="text-[11px] font-bold text-gray-400 tracking-widest">Account Status</span>
                 <StatusBadge status={user.isActive ? "Active" : "Inactive"} />
               </div>
               <div className="flex items-center justify-between text-left">
-                <span className="text-[11px] font-bold text-gray-400 uppercase tracking-widest">System Role</span>
-                <span className="text-xs font-bold text-primary bg-primary/10 px-3 py-1 rounded-full uppercase">
+                <span className="text-[11px] font-bold text-gray-400 tracking-widest">System Role</span>
+                <span className="text-xs font-bold text-primary bg-primary/10 px-3 py-1 rounded-full ">
                   {user.role}
                 </span>
               </div>
@@ -84,7 +84,7 @@ export const Profile = () => {
                   <Lock className="w-5 h-5 text-orange-500" />
                 </div>
                 <div>
-                  <h3 className="text-lg font-bold text-gray-900 dark:text-white uppercase tracking-tight">Security Settings</h3>
+                  <h3 className="text-lg font-bold text-gray-900 dark:text-white tracking-tight">Security Settings</h3>
                   <p className="text-xs text-gray-500 font-medium">Update your account credentials</p>
                 </div>
               </div>
@@ -154,26 +154,26 @@ export const Profile = () => {
                   <Mail className="w-5 h-5 text-blue-500" />
                 </div>
                 <div>
-                  <h3 className="text-lg font-bold text-gray-900 dark:text-white uppercase tracking-tight">Account Information</h3>
+                  <h3 className="text-lg font-bold text-gray-900 dark:text-white tracking-tight">Account Information</h3>
                   <p className="text-xs text-gray-500 font-medium">Secondary profile details</p>
                 </div>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-8">
                 <div className="space-y-1">
-                  <label className="text-[11px] font-bold text-gray-400 uppercase tracking-widest">Full Name</label>
+                  <label className="text-[11px] font-bold text-gray-400 tracking-widest">Full Name</label>
                   <p className="text-[14px] font-bold text-gray-900 dark:text-white">{user.name}</p>
                 </div>
                 <div className="space-y-1">
-                  <label className="text-[11px] font-bold text-gray-400 uppercase tracking-widest">Primary Email</label>
+                  <label className="text-[11px] font-bold text-gray-400 tracking-widest">Primary Email</label>
                   <p className="text-[14px] font-bold text-gray-900 dark:text-white">{user.email}</p>
                 </div>
                 <div className="space-y-1">
-                  <label className="text-[11px] font-bold text-gray-400 uppercase tracking-widest">Last Login</label>
+                  <label className="text-[11px] font-bold text-gray-400 tracking-widest">Last Login</label>
                   <p className="text-[14px] font-bold text-gray-900 dark:text-white">Today</p>
                 </div>
                 <div className="space-y-1">
-                  <label className="text-[11px] font-bold text-gray-400 uppercase tracking-widest">Member Since</label>
+                  <label className="text-[11px] font-bold text-gray-400 tracking-widest">Member Since</label>
                   <p className="text-[14px] font-bold text-gray-900 dark:text-white">April 2026</p>
                 </div>
               </div>

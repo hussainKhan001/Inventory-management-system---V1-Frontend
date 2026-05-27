@@ -672,7 +672,7 @@ export const PublicPO = () => {
                       {showQuickAdd === idx && (
                         <div className="mb-4 p-3 bg-orange-50/50 dark:bg-orange-900/10 border border-orange-100 dark:border-orange-900/30 rounded-xl animate-in slide-in-from-top-1 duration-200">
                            <div className="flex items-center justify-between mb-2">
-                             <span className="text-[10px] font-bold text-orange-700 dark:text-orange-400 uppercase tracking-wider">Quick Add Item</span>
+                             <span className="text-[10px] font-bold text-orange-700 dark:text-orange-400 tracking-wider">Quick Add Item</span>
                              <button onClick={() => setShowQuickAdd(null)} className="text-gray-400 hover:text-gray-600"><X className="w-3 h-3" /></button>
                            </div>
                            <div className="flex flex-row items-end gap-2">

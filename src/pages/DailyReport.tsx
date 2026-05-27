@@ -12,7 +12,8 @@ export const DailyReport = () => {
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
 
   useEffect(() => {
-    fetchResource('transactions', 1, 1000, false, selectedDate);
+    // Use startDate + endDate for proper date-range filtering (not search which does regex match)
+    fetchResource('transactions', 1, 10000, false, '', null, false, false, selectedDate, selectedDate);
     fetchResource('inventory', 1, 10000, true);
   }, [selectedDate, fetchResource]);
 
@@ -22,9 +23,12 @@ export const DailyReport = () => {
 
     const summary: Record<string, { sku: string; itemName: string; unit: string; in: number; out: number; final: number; category: string }> = {};
 
-    // Only populate based on today's transactions
+    // Only populate based on selected date's transactions
     transactions.forEach(trx => {
-      if (!trx.date || !trx.date.includes(selectedDate)) return;
+      if (!trx.date) return;
+      // Normalize: extract YYYY-MM-DD from both for comparison (handles ISO strings & plain dates)
+      const trxDateStr = trx.date.split('T')[0];
+      if (trxDateStr !== selectedDate) return;
 
       const items = trx.items && trx.items.length > 0 ? trx.items : (trx.sku ? [{ sku: trx.sku, itemName: trx.itemName || 'N/A', qty: trx.qty || 0, unit: trx.unit || 'N/A', category: trx.category }] : []);
       
@@ -117,9 +121,8 @@ export const DailyReport = () => {
           title="Daily Report" 
           sub="Track daily item inflows, outflows and closing stock" 
         />
-        <div className="flex items-center gap-3">
+        <div className="flex items-end gap-3">
           <DateField
-            small
             label="Report Date"
             icon={Calendar}
             value={selectedDate}
@@ -136,9 +139,9 @@ export const DailyReport = () => {
             <ArrowDownLeft className="w-6 h-6 text-green-600 dark:text-green-400" />
           </div>
           <div className="min-w-0">
-            <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest truncate">Total Inward</p>
+            <p className="text-[10px] font-bold text-gray-500 tracking-widest truncate">Total Inward</p>
             <p className="text-xl font-black text-gray-900 dark:text-white truncate">
-              {reportData.reduce((sum, item) => sum + item.in, 0).toLocaleString()} <span className="text-[10px] font-normal text-gray-400 uppercase">Qty</span>
+              {reportData.reduce((sum, item) => sum + item.in, 0).toLocaleString()} <span className="text-[10px] font-normal text-gray-400 ">Qty</span>
             </p>
           </div>
         </Card>
@@ -147,9 +150,9 @@ export const DailyReport = () => {
             <ArrowUpRight className="w-6 h-6 text-blue-600 dark:text-blue-400" />
           </div>
           <div className="min-w-0">
-            <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest truncate">Total Outward</p>
+            <p className="text-[10px] font-bold text-gray-500 tracking-widest truncate">Total Outward</p>
             <p className="text-xl font-black text-gray-900 dark:text-white truncate">
-              {reportData.reduce((sum, item) => sum + item.out, 0).toLocaleString()} <span className="text-[10px] font-normal text-gray-400 uppercase">Qty</span>
+              {reportData.reduce((sum, item) => sum + item.out, 0).toLocaleString()} <span className="text-[10px] font-normal text-gray-400 ">Qty</span>
             </p>
           </div>
         </Card>
@@ -158,7 +161,7 @@ export const DailyReport = () => {
             <Package className="w-6 h-6 text-orange-600 dark:text-orange-400" />
           </div>
           <div className="min-w-0">
-            <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest truncate">Items Moved</p>
+            <p className="text-[10px] font-bold text-gray-500 tracking-widest truncate">Items Moved</p>
             <p className="text-xl font-black text-gray-900 dark:text-white">{reportData.length}</p>
           </div>
         </Card>
@@ -176,7 +179,7 @@ export const DailyReport = () => {
                 TableHead: React.forwardRef((props, ref) => <thead {...props} ref={ref} className="z-10" />)
               }}
               fixedHeaderContent={() => {
-                const headerClass = "px-4 py-3 text-[11px] font-bold text-[#6B7280] dark:text-gray-400 uppercase tracking-wider sticky top-0 z-10 sticky-th";
+                const headerClass = "px-4 py-3 text-[11px] font-bold text-[#6B7280] dark:text-gray-400 tracking-wider sticky top-0 z-10 sticky-th";
                 return (
                   <tr className="bg-gray-50/90 dark:bg-gray-800/90 backdrop-blur-md border-b border-[#E8ECF0] dark:border-gray-800">
                     <th className={`${headerClass} md:hidden`}>Movement Details</th>
@@ -197,22 +200,22 @@ export const DailyReport = () => {
                            <div>
                               <p className="text-[14px] font-bold text-gray-900 dark:text-white leading-tight">{row.itemName}</p>
                               <p className="text-[10px] font-mono text-gray-500 mt-0.5">{row.sku}</p>
-                              <p className="text-[9px] uppercase font-bold text-gray-400 mt-1">{row.category}</p>
+                              <p className="text-[9px] font-bold text-gray-400 mt-1">{row.category}</p>
                            </div>
                            <div className="text-right">
                               <p className="text-[14px] font-black text-gray-900 dark:text-white">{row.final}</p>
-                              <p className="text-[9px] uppercase font-bold text-gray-400">Final Stock</p>
+                              <p className="text-[9px] font-bold text-gray-400">Final Stock</p>
                            </div>
                         </div>
                         <div className="grid grid-cols-2 gap-4 pt-3 border-t border-gray-50 dark:border-gray-800">
                            <div className="bg-green-50/50 dark:bg-green-900/10 p-2 rounded-lg">
-                              <p className="text-[9px] uppercase font-bold text-green-600 dark:text-green-500 mb-1 flex items-center gap-1">
+                              <p className="text-[9px] font-bold text-green-600 dark:text-green-500 mb-1 flex items-center gap-1">
                                 <ArrowDownLeft className="w-3 h-3" /> Inward
                               </p>
                               <p className="text-[13px] font-black text-green-700 dark:text-green-400">+{row.in} <span className="text-[10px] font-normal opacity-70">{row.unit}</span></p>
                            </div>
                            <div className="bg-blue-50/50 dark:bg-blue-900/10 p-2 rounded-lg">
-                              <p className="text-[9px] uppercase font-bold text-blue-600 dark:text-blue-500 mb-1 flex items-center gap-1">
+                              <p className="text-[9px] font-bold text-blue-600 dark:text-blue-500 mb-1 flex items-center gap-1">
                                 <ArrowUpRight className="w-3 h-3" /> Outward
                               </p>
                               <p className="text-[13px] font-black text-blue-700 dark:text-blue-400">-{row.out} <span className="text-[10px] font-normal opacity-70">{row.unit}</span></p>
@@ -226,13 +229,13 @@ export const DailyReport = () => {
                   <td className="hidden md:table-cell px-4 py-3 font-bold text-gray-900 dark:text-white border-b border-gray-100 dark:border-gray-800">{row.itemName}</td>
                   <td className="hidden md:table-cell px-4 py-3 text-gray-600 dark:text-gray-400 border-b border-gray-100 dark:border-gray-800 text-[11px]">{row.category}</td>
                   <td className="hidden md:table-cell px-4 py-3 text-right font-bold text-green-600 dark:text-green-400 border-b border-gray-100 dark:border-gray-800">
-                    {row.in > 0 ? `+${row.in}` : '0'} <span className="text-[10px] font-normal text-gray-400 uppercase">{row.unit}</span>
+                    {row.in > 0 ? `+${row.in}` : '0'} <span className="text-[10px] font-normal text-gray-400 ">{row.unit}</span>
                   </td>
                   <td className="hidden md:table-cell px-4 py-3 text-right font-bold text-blue-600 dark:text-blue-400 border-b border-gray-100 dark:border-gray-800">
-                    {row.out > 0 ? `-${row.out}` : '0'} <span className="text-[10px] font-normal text-gray-400 uppercase">{row.unit}</span>
+                    {row.out > 0 ? `-${row.out}` : '0'} <span className="text-[10px] font-normal text-gray-400 ">{row.unit}</span>
                   </td>
                   <td className="hidden md:table-cell px-4 py-3 text-right font-black text-gray-900 dark:text-white bg-gray-50/30 dark:bg-gray-800/10 border-b border-gray-100 dark:border-gray-800">
-                    {row.final} <span className="text-[10px] font-normal text-gray-400 uppercase">{row.unit}</span>
+                    {row.final} <span className="text-[10px] font-normal text-gray-400 ">{row.unit}</span>
                   </td>
                 </>
               )}
@@ -242,12 +245,12 @@ export const DailyReport = () => {
               <table className="w-full text-left text-[13px] border-collapse sticky top-0 z-10">
                 <thead className="bg-gray-50/90 dark:bg-gray-800/90 backdrop-blur-md border-b border-[#E8ECF0] dark:border-gray-800">
                   <tr>
-                    <th className="px-4 py-3 text-[11px] font-bold text-[#6B7280] dark:text-gray-400 uppercase tracking-wider">SKU</th>
-                    <th className="px-4 py-3 text-[11px] font-bold text-[#6B7280] dark:text-gray-400 uppercase tracking-wider">Item Name</th>
-                    <th className="px-4 py-3 text-[11px] font-bold text-[#6B7280] dark:text-gray-400 uppercase tracking-wider">Category</th>
-                    <th className="px-4 py-3 text-[11px] font-bold text-[#6B7280] dark:text-gray-400 uppercase tracking-wider text-right">Inward</th>
-                    <th className="px-4 py-3 text-[11px] font-bold text-[#6B7280] dark:text-gray-400 uppercase tracking-wider text-right">Outward</th>
-                    <th className="px-4 py-3 text-[11px] font-bold text-[#6B7280] dark:text-gray-400 uppercase tracking-wider text-right">Live Stock</th>
+                    <th className="px-4 py-3 text-[11px] font-bold text-[#6B7280] dark:text-gray-400 tracking-wider">SKU</th>
+                    <th className="px-4 py-3 text-[11px] font-bold text-[#6B7280] dark:text-gray-400 tracking-wider">Item Name</th>
+                    <th className="px-4 py-3 text-[11px] font-bold text-[#6B7280] dark:text-gray-400 tracking-wider">Category</th>
+                    <th className="px-4 py-3 text-[11px] font-bold text-[#6B7280] dark:text-gray-400 tracking-wider text-right">Inward</th>
+                    <th className="px-4 py-3 text-[11px] font-bold text-[#6B7280] dark:text-gray-400 tracking-wider text-right">Outward</th>
+                    <th className="px-4 py-3 text-[11px] font-bold text-[#6B7280] dark:text-gray-400 tracking-wider text-right">Live Stock</th>
                   </tr>
                 </thead>
               </table>

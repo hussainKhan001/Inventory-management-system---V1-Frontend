@@ -986,34 +986,34 @@ export const PurchaseOrders = () => {
           context={{ suppliers }}
           endReached={loadMore}
           fixedHeaderContent={() => {
-            const headerClass = "px-4 py-3 text-[11px] font-bold text-[#6B7280] dark:text-gray-400 uppercase tracking-wider sticky top-0 z-10 sticky-th";
+            const headerClass = "px-3 py-3 text-[11px] font-bold text-[#6B7280] dark:text-gray-400 whitespace-nowrap overflow-hidden sticky top-0 z-10 sticky-th";
             return (
               <tr className="bg-gray-50/90 dark:bg-gray-800/90 backdrop-blur-md border-b border-[#E8ECF0] dark:border-gray-800 text-left">
                 <th className={cn(headerClass, "lg:hidden")}>
                   Po details
                 </th>
-                <th className={cn(headerClass, "hidden lg:table-cell")}>
+                <th className={cn(headerClass, "hidden lg:table-cell w-[130px]")}>
                   Po no.
                 </th>
-                <th className={cn(headerClass, "hidden lg:table-cell")}>
+                <th className={cn(headerClass, "hidden lg:table-cell w-[110px]")}>
                   Mr no.
                 </th>
-                <th className={cn(headerClass, "hidden lg:table-cell whitespace-nowrap")}>
+                <th className={cn(headerClass, "hidden lg:table-cell w-[148px]")}>
                   Date
                 </th>
-                <th className={cn(headerClass, "hidden lg:table-cell")}>
+                <th className={cn(headerClass, "hidden lg:table-cell w-[130px]")}>
                   Project
                 </th>
-                <th className={cn(headerClass, "hidden lg:table-cell")}>
+                <th className={cn(headerClass, "hidden lg:table-cell w-[160px]")}>
                   Supplier
                 </th>
-                <th className={cn(headerClass, "hidden lg:table-cell text-right")}>
+                <th className={cn(headerClass, "hidden lg:table-cell text-right w-[100px]")}>
                   Value
                 </th>
-                <th className={cn(headerClass, "hidden lg:table-cell")}>
+                <th className={cn(headerClass, "hidden lg:table-cell w-[120px]")}>
                   Status
                 </th>
-                <th className={cn(headerClass, "hidden lg:table-cell text-right")}>
+                <th className={cn(headerClass, "hidden lg:table-cell text-right w-[110px]")}>
                   Actions
                 </th>
               </tr>
@@ -1028,30 +1028,30 @@ export const PurchaseOrders = () => {
             return (
               <>
                 {/* Desktop View Cells */}
-                <Td className="hidden lg:table-cell px-4 py-3 text-[13px] font-medium text-gray-900 dark:text-white">
-                  <div className="flex items-center gap-2">
+                <Td className="hidden lg:table-cell px-3 py-2.5 overflow-hidden">
+                  <div className="flex items-center gap-1.5 min-w-0">
                     {isNew && (
-                      <span className="px-1.5 py-0.5 rounded text-[8px] font-black bg-orange-600 text-white animate-pulse">NEW</span>
+                      <span className="px-1.5 py-0.5 rounded text-[8px] font-black bg-orange-600 text-white animate-pulse shrink-0">NEW</span>
                     )}
-                    {safeStr(po.id)}
+                    <span className="block truncate text-[13px] font-medium text-gray-900 dark:text-white" title={safeStr(po.id)}>{safeStr(po.id)}</span>
                   </div>
                 </Td>
-              <Td className="hidden lg:table-cell px-4 py-3 text-[13px] text-gray-500 dark:text-gray-400">
-                {safeStr(po.mrId || "NA")}
+              <Td className="hidden lg:table-cell px-3 py-2.5 overflow-hidden">
+                <span className="block truncate text-[13px] text-gray-500 dark:text-gray-400" title={safeStr(po.mrId || "NA")}>{safeStr(po.mrId || "NA")}</span>
               </Td>
-              <Td className="hidden lg:table-cell px-4 py-3 text-[13px] text-gray-500 dark:text-gray-400 whitespace-nowrap">
+              <Td className="hidden lg:table-cell px-3 py-2.5 text-[13px] text-gray-500 dark:text-gray-400 whitespace-nowrap overflow-hidden">
                 {formatDateTime(po.date)}
               </Td>
-              <Td className="hidden lg:table-cell px-4 py-3 text-[13px] text-gray-500 dark:text-gray-400 max-w-[120px] truncate capitalize" title={safeStr(po.project)}>
-                {safeStr(po.project)}
+              <Td className="hidden lg:table-cell px-3 py-2.5 overflow-hidden">
+                <span className="block truncate text-[13px] text-gray-500 dark:text-gray-400 capitalize" title={safeStr(po.project)}>{safeStr(po.project)}</span>
               </Td>
-              <Td className="hidden lg:table-cell px-4 py-3 text-[13px] text-gray-500 dark:text-gray-400 max-w-[180px] truncate" title={sName}>
-                {safeStr(sName)}
+              <Td className="hidden lg:table-cell px-3 py-2.5 overflow-hidden">
+                <span className="block truncate text-[13px] text-gray-500 dark:text-gray-400" title={sName}>{safeStr(sName)}</span>
               </Td>
-              <Td className="hidden lg:table-cell px-4 py-3 text-[13px] font-bold text-right text-gray-900 dark:text-white">
+              <Td className="hidden lg:table-cell px-3 py-2.5 text-[13px] font-bold text-right text-gray-900 dark:text-white whitespace-nowrap overflow-hidden">
                 {fmtCur(po.totalValue)}
               </Td>
-              <Td className="hidden lg:table-cell px-4 py-3">
+              <Td className="hidden lg:table-cell px-3 py-2.5">
                 <StatusBadge status={po.status} accountStatus={po.accountStatus} />
               </Td>
               <Td className="hidden lg:table-cell px-4 py-3">
@@ -1168,7 +1168,7 @@ export const PurchaseOrders = () => {
           }}
           components={{
             Table: (props) => (
-              <table {...props} className="w-full text-left border-collapse min-w-[800px] lg:min-w-0" />
+              <table {...props} className="w-full text-left border-collapse table-fixed min-w-[800px] lg:min-w-0" />
             ),
             TableBody: React.forwardRef((props, ref) => <tbody {...props} ref={ref as any} className="divide-y divide-gray-200 dark:divide-gray-800" />),
             TableRow: (props: any) => {
@@ -2253,7 +2253,7 @@ export const PurchaseOrders = () => {
               <div className="mt-6 p-4 bg-gray-50/50 dark:bg-gray-800/50 rounded-xl border border-gray-100 dark:border-gray-700">
                 <div className="flex items-center gap-2 mb-4">
                   <div className="w-1 h-5 bg-orange-500 rounded-full"></div>
-                  <h4 className="text-[11px] font-black text-gray-400 tracking-widest uppercase">Other Charges</h4>
+                  <h4 className="text-[11px] font-black text-gray-400 tracking-widest ">Other Charges</h4>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   {/* Freight */}
@@ -2452,7 +2452,7 @@ export const PurchaseOrders = () => {
                 <div className="overflow-x-auto">
                   <table className="w-full text-[11px]">
                     <thead>
-                      <tr className="bg-[#1A365D]/10 dark:bg-[#1A365D]/30 text-[9px] font-black text-gray-500 uppercase tracking-wide">
+                      <tr className="bg-[#1A365D]/10 dark:bg-[#1A365D]/30 text-[9px] font-black text-gray-500 tracking-wide">
                         <th className="p-2 text-left border-r border-[#1A365D]/30">Date</th>
                         <th className="p-2 text-left border-r border-[#1A365D]/30">Type</th>
                         <th className="p-2 text-left border-r border-[#1A365D]/30">Mode</th>
@@ -3054,7 +3054,7 @@ export const PurchaseOrders = () => {
                     <div className="overflow-x-auto">
                       <table className="w-full text-[11px]">
                         <thead>
-                          <tr className="bg-[#1A365D]/10 dark:bg-[#1A365D]/30 text-[9px] font-black text-gray-500 uppercase tracking-wide">
+                          <tr className="bg-[#1A365D]/10 dark:bg-[#1A365D]/30 text-[9px] font-black text-gray-500 tracking-wide">
                             <th className="p-2 text-left border-r border-[#1A365D]/30">Date</th>
                             <th className="p-2 text-left border-r border-[#1A365D]/30">Type</th>
                             <th className="p-2 text-left border-r border-[#1A365D]/30">Mode</th>

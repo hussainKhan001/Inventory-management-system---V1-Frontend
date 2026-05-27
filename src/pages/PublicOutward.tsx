@@ -312,7 +312,7 @@ export const PublicOutward = () => {
             )}
 
             <div className="pt-6 border-t border-gray-100 dark:border-gray-800 space-y-6">
-              <label className="text-[11px] font-bold text-gray-500 uppercase tracking-widest">1. Transaction Details</label>
+              <label className="text-[11px] font-bold text-gray-500 tracking-widest">1. Transaction Details</label>
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="md:col-span-2">
@@ -428,7 +428,7 @@ export const PublicOutward = () => {
 
             <div className="pt-6 border-t border-gray-100 dark:border-gray-800 space-y-4">
               <div className="flex items-center justify-between">
-                <label className="text-[11px] font-bold text-gray-500 uppercase tracking-widest">2. Items to Outward *</label>
+                <label className="text-[11px] font-bold text-gray-500 tracking-widest">2. Items to Outward *</label>
                 <Btn 
                   label="Add Item" 
                   icon={Plus} 
@@ -504,11 +504,11 @@ export const PublicOutward = () => {
                       <table className="w-full border-collapse min-w-[600px]">
                         <thead>
                           <tr className="text-left border-b border-gray-100 dark:border-gray-800">
-                            <th className="pb-2 text-[10px] font-bold text-gray-400 uppercase tracking-wider w-[35%]">Item Search *</th>
-                            <th className="pb-2 text-[10px] font-bold text-gray-400 uppercase tracking-wider w-[12%]">Qty *</th>
-                            <th className="pb-2 text-[10px] font-bold text-gray-400 uppercase tracking-wider w-[10%]">Unit</th>
-                            <th className="pb-2 text-[10px] font-bold text-gray-400 uppercase tracking-wider w-[35%]">Material Photos</th>
-                            <th className="pb-2 text-[10px] font-bold text-gray-400 uppercase tracking-wider w-[8%] text-center">Action</th>
+                            <th className="pb-2 text-[10px] font-bold text-gray-400 tracking-wider w-[35%]">Item Search *</th>
+                            <th className="pb-2 text-[10px] font-bold text-gray-400 tracking-wider w-[12%]">Qty *</th>
+                            <th className="pb-2 text-[10px] font-bold text-gray-400 tracking-wider w-[10%]">Unit</th>
+                            <th className="pb-2 text-[10px] font-bold text-gray-400 tracking-wider w-[35%]">Material Photos</th>
+                            <th className="pb-2 text-[10px] font-bold text-gray-400 tracking-wider w-[8%] text-center">Action</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-50 dark:divide-gray-800/50">

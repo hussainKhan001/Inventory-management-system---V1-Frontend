@@ -44,7 +44,7 @@ export const AuditLogs = () => {
           style={{ height: 'calc(100vh - 350px)', minHeight: '600px' }}
           data={auditLogs || []}
           fixedHeaderContent={() => {
-            const headerClass = "px-6 py-4 text-[11px] font-bold text-[#6B7280] dark:text-gray-400 uppercase tracking-wider sticky top-0 z-10 sticky-th";
+            const headerClass = "px-6 py-4 text-[11px] font-bold text-[#6B7280] dark:text-gray-400 tracking-wider sticky top-0 z-10 sticky-th";
             return (
               <tr className="bg-gray-50/90 dark:bg-gray-800/90 backdrop-blur-md border-b border-[#E8ECF0] dark:border-gray-800">
                 <th className={headerClass}>Audit details</th>

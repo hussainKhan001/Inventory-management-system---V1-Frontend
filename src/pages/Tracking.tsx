@@ -496,7 +496,7 @@ export const TrackingPage = () => {
                              {data.quotations.find(q => q.status === 'Approved')?.supplierName || data.po.companyName || data.po.supplier || 'N/A'}
                            </p>
                            <div className="flex flex-col gap-0.5 mt-1">
-                             <p className="text-[11px] text-gray-500 font-medium font-mono uppercase tracking-tight">GST: {data.quotations.find(q => q.status === 'Approved')?.gstNumber || data.po.gstNo || data.po.companyGst || 'N/A'}</p>
+                             <p className="text-[11px] text-gray-500 font-medium font-mono tracking-tight">GST: {data.quotations.find(q => q.status === 'Approved')?.gstNumber || data.po.gstNo || data.po.companyGst || 'N/A'}</p>
                              <p className="text-[10px] text-gray-400 italic font-medium">{data.po.vendorContact || data.quotations.find(q => q.status === 'Approved')?.supplierName || 'No contact info'}</p>
                            </div>
                         </div>

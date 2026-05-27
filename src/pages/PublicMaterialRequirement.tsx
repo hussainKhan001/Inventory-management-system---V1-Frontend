@@ -206,7 +206,7 @@ export const PublicMaterialRequirement = () => {
             <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Requirement Submitted!</h2>
             <p className="text-gray-500 dark:text-gray-400">Your requirement has been sent for approval.</p>
             <div className="mt-4 p-4 bg-gray-50 dark:bg-gray-800 rounded-xl border border-primary/20">
-              <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-1">Your Requirement ID</p>
+              <p className="text-[11px] font-bold text-gray-400 tracking-widest mb-1">Your Requirement ID</p>
               <p className="text-lg font-mono font-bold text-primary">{submittedId}</p>
             </div>
           </div>
@@ -319,7 +319,7 @@ export const PublicMaterialRequirement = () => {
 
             <div className="space-y-4 pt-6 border-t border-gray-100 dark:border-gray-800">
               <div className="flex justify-between items-center">
-                <h3 className="text-[13px] font-bold text-gray-900 dark:text-white uppercase tracking-wider">Material Items</h3>
+                <h3 className="text-[13px] font-bold text-gray-900 dark:text-white tracking-wider">Material Items</h3>
                 <Btn label="Add Item" icon={Plus} small outline onClick={addItem} />
               </div>
 
