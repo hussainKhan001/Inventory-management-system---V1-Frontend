@@ -25,8 +25,8 @@ export default defineConfig(({ mode }) => {
       },
     },
     build: {
-      // Increase warning threshold to avoid noise
-      chunkSizeWarningLimit: 600,
+      // Raise threshold — vendor-misc is a cacheable baseline bundle
+      chunkSizeWarningLimit: 700,
       rollupOptions: {
         output: {
           manualChunks: (id) => {
@@ -41,8 +41,25 @@ export default defineConfig(({ mode }) => {
             // Animation — shared but separate from main
             if (id.includes('motion') || id.includes('framer-motion')) return 'chunk-motion';
 
-            // Core React runtime
-            if (id.includes('node_modules/react/') || id.includes('node_modules/react-dom/')) return 'vendor-react';
+            // Icons — large shared library
+            if (id.includes('lucide-react')) return 'chunk-icons';
+
+            // Crypto — heavy utility, only used in specific flows
+            if (id.includes('crypto-js')) return 'chunk-crypto';
+
+            // Core React runtime + all direct React consumers must be co-located.
+            // Separating them causes "Cannot read properties of undefined (reading 'memo')"
+            // in vendor-misc because CJS require('react') evaluates before vendor-react
+            // exports are populated in production chunk loading order.
+            if (
+              id.includes('node_modules/react/') ||
+              id.includes('node_modules/react-dom/') ||
+              id.includes('node_modules/react-hot-toast/') ||
+              id.includes('node_modules/goober/') ||          // react-hot-toast dep
+              id.includes('node_modules/react-virtuoso/') ||
+              id.includes('node_modules/scheduler/') ||
+              id.includes('node_modules/use-sync-external-store/')
+            ) return 'vendor-react';
 
             // Everything else from node_modules
             if (id.includes('node_modules')) return 'vendor-misc';
