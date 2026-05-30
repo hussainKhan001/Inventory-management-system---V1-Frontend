@@ -351,10 +351,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     // Super Admin always has full access
     if (user.role === 'Super Admin' || user.role === 'superadmin') return true;
 
-    // All VIEW_* permissions are open to every authenticated user.
-    // Data visibility should be the same for all — only write/action
-    // permissions (CREATE, EDIT, DELETE, APPROVE, ALLOCATE, etc.) are role-gated.
-    if (permission.startsWith('VIEW_')) return true;
+    // Data visibility is now strictly role-gated based on permissions assigned.
 
     // Check if user has specific permission directly (overrides)
     if (user.permissions?.includes(permission)) return true;
@@ -582,11 +579,12 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     // Prevent redundant fetches within 10 seconds unless forced
     const cacheKey = `${resource}-${page}-${limit}-${search}-${JSON.stringify(filter)}-${unused}-${startDate}-${endDate}`;
     const now = Date.now();
-    if (!force && lastFetchRef.current[cacheKey] && now - lastFetchRef.current[cacheKey] < 10000 && !append) {
+    if (!force && lastFetchRef.current[cacheKey] && now - lastFetchRef.current[cacheKey] < 10000 && !append && lastFetchRef.current[`${resource}-last`] === cacheKey) {
       console.log(`[STORE] Skipping redundant fetch for ${resource} (cached)`);
       return;
     }
     lastFetchRef.current[cacheKey] = now;
+    lastFetchRef.current[`${resource}-last`] = cacheKey;
 
     if (!silent) setLoading(true);
     console.log(`Fetching resource: ${resource}, page: ${page}, search: ${search}`);

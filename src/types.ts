@@ -553,6 +553,8 @@ export interface MRAllocation {
 export interface QuotationItem {
   materialName: string;
   qty: number;
+  mrQty?: number;
+  mrUnit?: string;
   unit?: string;
   rate: number;
   sku?: string;

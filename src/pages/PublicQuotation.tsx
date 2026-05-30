@@ -113,6 +113,8 @@ export const PublicQuotation = () => {
             materialName: item.materialName,
             sku: item.sku || "",
             category: item.category,
+            mrQty: item.remainingQty !== undefined ? item.remainingQty : item.qty,
+            mrUnit: item.unit,
             qty: item.remainingQty !== undefined ? item.remainingQty : item.qty,
             unit: item.unit,
             rate: 0,
@@ -130,7 +132,7 @@ export const PublicQuotation = () => {
 
   const handleRateChange = (index: number, rate: number) => {
     const newItems = [...items];
-    newItems[index].rate = rate;
+    newItems[index].rate = isNaN(rate) ? 0 : rate;
     setItems(newItems);
   };
 
@@ -445,16 +447,17 @@ export const PublicQuotation = () => {
               <table className="w-full text-left">
                 <thead>
                   <tr className="bg-gray-50/50 dark:bg-gray-800 text-[10px] font-bold text-gray-400 tracking-widest border-b border-gray-100 dark:border-gray-800">
-                    <th className="px-6 py-5 w-1/3">Item details</th>
-                    <th className="px-4 py-3 text-center w-24">Qty</th>
+                    <th className="px-6 py-5 w-1/4">Item details</th>
+                    <th className="px-4 py-3 text-center w-24">Required</th>
+                    <th className="px-4 py-3 text-center w-32">Offer Qty</th>
                     <th className="px-4 py-3 text-center w-40">Rate (₹)</th>
                     <th className="px-4 py-3 text-center">Gst details</th>
-                    <th className="px-6 py-5 text-right w-48">Total (₹)</th>
+                    <th className="px-6 py-5 text-right w-40">Total (₹)</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
                   {items.map((item, idx) => (
-                    <tr key={idx} className="hover:bg-gray-50/50 dark:hover:bg-gray-700/30 transition-all group">
+                    <tr key={idx} className="transition-all group">
                       <td className="px-6 py-6">
                         <p className="font-semibold text-gray-900 dark:text-gray-100 text-sm leading-tight mb-1">{item.materialName}</p>
                         <div className="flex items-center gap-2">
@@ -464,19 +467,48 @@ export const PublicQuotation = () => {
                       </td>
                       <td className="px-4 py-6 text-center">
                         <div className="flex flex-col items-center">
-                          <span className="font-bold text-gray-900 dark:text-white text-base">{item.qty}</span>
-                          <span className="text-[10px] font-medium text-gray-400 tracking-widest">{item.unit || "NOS"}</span>
+                          <span className="font-bold text-gray-900 dark:text-white text-base">{item.mrQty || item.qty}</span>
+                          <span className="text-[10px] font-medium text-gray-400 tracking-widest">{item.mrUnit || item.unit || "NOS"}</span>
+                        </div>
+                      </td>
+                      <td className="px-2 py-6">
+                        <div className="flex flex-col items-center gap-1.5 w-full max-w-[90px] mx-auto">
+                          <input
+                            type="number"
+                            required
+                            placeholder="Qty"
+                            value={item.qty === 0 ? "" : item.qty}
+                            onChange={(e: any) => {
+                              const val = parseFloat(e.target.value);
+                              const newItems = [...items];
+                              newItems[idx].qty = isNaN(val) ? 0 : val;
+                              setItems(newItems);
+                            }}
+                            className="w-full text-center bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-700 rounded-md h-9 text-[13px] font-semibold text-gray-900 dark:text-white focus:outline-none focus:border-orange-500 transition-all px-1"
+                          />
+                          <input
+                            type="text"
+                            required
+                            placeholder="Unit"
+                            value={item.unit || ""}
+                            onChange={(e: any) => {
+                              const newItems = [...items];
+                              newItems[idx].unit = e.target.value;
+                              setItems(newItems);
+                            }}
+                            className="w-full text-center bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-700 rounded-md h-7 text-[10px] font-bold text-gray-700 dark:text-gray-300 uppercase focus:outline-none focus:border-orange-500 transition-all px-1"
+                          />
                         </div>
                       </td>
                       <td className="px-4 py-6">
-                        <div className="w-full max-w-[140px] mx-auto">
-                          <Field
+                        <div className="w-full max-w-[120px] mx-auto">
+                          <input
                             type="number"
                             required
                             placeholder="0.00"
-                            value={item.rate || ""}
+                            value={item.rate === 0 ? "" : item.rate}
                             onChange={(e: any) => handleRateChange(idx, parseFloat(e.target.value))}
-                            className="mb-0 text-center font-semibold h-11 px-3"
+                            className="w-full text-center bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-700 rounded-lg h-10 text-[14px] font-semibold text-gray-900 dark:text-white focus:outline-none focus:border-orange-500 transition-all px-2"
                           />
                         </div>
                       </td>
@@ -526,14 +558,38 @@ export const PublicQuotation = () => {
                   </div>
 
                   <div className="grid grid-cols-2 gap-4">
-                    <Field label="Required" value={`${item.qty} ${item.unit || "NOS"}`} disabled />
+                    <Field label="Required" value={`${item.mrQty || item.qty} ${item.mrUnit || item.unit || "NOS"}`} disabled />
                     <Field 
                       label="Rate (₹) *" 
                       type="number" 
                       placeholder="0.00"
-                      value={item.rate || ""} 
+                      value={item.rate === 0 ? "" : item.rate} 
                       onChange={(e: any) => handleRateChange(idx, parseFloat(e.target.value))}
                       className="font-semibold h-11"
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <Field 
+                      label="Offer Qty *" 
+                      type="number" 
+                      value={item.qty === 0 ? "" : item.qty} 
+                      onChange={(e: any) => {
+                        const newItems = [...items];
+                        newItems[idx].qty = parseFloat(e.target.value) || 0;
+                        setItems(newItems);
+                      }}
+                      className="font-semibold h-11"
+                    />
+                    <Field 
+                      label="Offer Unit *" 
+                      type="text" 
+                      value={item.unit || ""} 
+                      onChange={(e: any) => {
+                        const newItems = [...items];
+                        newItems[idx].unit = e.target.value;
+                        setItems(newItems);
+                      }}
+                      className="font-semibold h-11 uppercase"
                     />
                   </div>
 

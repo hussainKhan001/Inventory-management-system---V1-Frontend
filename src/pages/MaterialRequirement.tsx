@@ -1039,28 +1039,30 @@ export const MaterialRequirementPage = () => {
             <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 w-full">
               {/* ── Left: primary actions ───────────────────────────── */}
               <div className="flex flex-wrap items-center gap-2">
-                <button
-                  disabled={isMRLocked(selectedRequirement.id) || !allItemsMapped}
-                  onClick={async () => {
-                    if (!selectedRequirement) return;
-                    try {
-                      toast.loading("Saving changes...", { id: "save-mr" });
-                      const allInStock = selectedRequirement.items.length > 0 && selectedRequirement.items.every(i => i.status === "In Stock");
-                      await updateMaterialRequirement(selectedRequirement.id, {
-                        ...selectedRequirement,
-                        status: allInStock ? "Approved by Store" : "Store Pending"
-                      });
-                      toast.success("Requirement saved successfully", { id: "save-mr" });
-                      setViewModal(false);
-                    } catch (e: any) {
-                      toast.error("Save failed: " + e.message, { id: "save-mr" });
-                    }
-                  }}
-                  className="flex items-center gap-2 px-5 py-2.5 bg-primary hover:bg-primary/90 hover:-translate-y-0.5 active:translate-y-0 text-white rounded-xl text-xs font-black transition-all tracking-wider shadow-lg shadow-primary/20 dark:shadow-none disabled:bg-gray-400 disabled:shadow-none disabled:cursor-not-allowed disabled:transform-none cursor-pointer"
-                >
-                  <Check className="w-4 h-4" />
-                  Save & close
-                </button>
+                {hasPermission("SAVE_MR_ITEM") && (
+                  <button
+                    disabled={isMRLocked(selectedRequirement.id) || !allItemsMapped}
+                    onClick={async () => {
+                      if (!selectedRequirement) return;
+                      try {
+                        toast.loading("Saving changes...", { id: "save-mr" });
+                        const allInStock = selectedRequirement.items.length > 0 && selectedRequirement.items.every(i => i.status === "In Stock");
+                        await updateMaterialRequirement(selectedRequirement.id, {
+                          ...selectedRequirement,
+                          status: allInStock ? "Approved by Store" : "Store Pending"
+                        });
+                        toast.success("Requirement saved successfully", { id: "save-mr" });
+                        setViewModal(false);
+                      } catch (e: any) {
+                        toast.error("Save failed: " + e.message, { id: "save-mr" });
+                      }
+                    }}
+                    className="flex items-center gap-2 px-5 py-2.5 bg-primary hover:bg-primary/90 hover:-translate-y-0.5 active:translate-y-0 text-white rounded-xl text-xs font-black transition-all tracking-wider shadow-lg shadow-primary/20 dark:shadow-none disabled:bg-gray-400 disabled:shadow-none disabled:cursor-not-allowed disabled:transform-none cursor-pointer"
+                  >
+                    <Check className="w-4 h-4" />
+                    Save & close
+                  </button>
+                )}
                 {hasPermission("GET_QUOTATION_LINK") && (
                   <div className="relative quotation-dropdown-container">
                     <button
@@ -1162,21 +1164,7 @@ export const MaterialRequirementPage = () => {
                     );
                   }
 
-                  if (selectedRequirement.status === "Quotation Phase" || selectedRequirement.status === "Approved by Store") {
-                    return (
-                      <>
-                        {hasPermission("VIEW_QUOTATIONS") && (
-                          <button
-                            onClick={() => { window.location.hash = "quotations"; setViewModal(false); }}
-                            className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black transition-all tracking-wider bg-blue-500/10 hover:bg-blue-600 hover:text-white dark:bg-blue-500/10 dark:hover:bg-blue-600 text-blue-600 dark:text-blue-400 border border-blue-200/50 dark:border-blue-800/30 shrink-0 cursor-pointer"
-                          >
-                            <TrendingUp className="w-4 h-4" />
-                            Compare Quotations
-                          </button>
-                        )}
-                      </>
-                    );
-                  }
+                  // Removed Compare Quotations block
 
                   return null;
                 })()}
@@ -1657,50 +1645,52 @@ export const MaterialRequirementPage = () => {
                         </td>
                         <td className="px-2 py-4 align-top text-center">
                           <div className="flex justify-center">
-                            <button 
-                              disabled={isMRLocked(selectedRequirement.id)}
-                              onClick={async () => {
-                                try {
-                                  const currentItems = [...selectedRequirement.items];
-                                  currentItems.forEach(item => {
-                                    const inv = inventory.find(i => i.sku === item.sku);
-                                    const liveStock = inv ? (inv.liveStock || 0) : 0;
-                                    
-                                    if (!hasPermission("ALLOCATE_MR")) {
-                                      item.availableInStock = Math.min(item.qty || 0, liveStock);
-                                    }
-                                    if (!hasPermission("EDIT_MR_PURCHASE")) {
-                                      item.remainingQty = Math.max(0, (item.qty || 0) - (item.availableInStock || 0));
-                                    }
-                                    
-                                    const allocated = item.availableInStock || 0;
-                                    if (allocated >= item.qty) {
-                                      item.status = "In Stock";
-                                    } else if (allocated > 0) {
-                                      item.status = "Partial";
-                                    } else {
-                                      item.status = "Needs Purchase";
-                                    }
-                                  });
-
-                                  const allInStock = currentItems.length > 0 && currentItems.every(i => i.status === "In Stock");
-                                  const newStatus = allInStock ? "Approved by Store" : "Store Pending";
-                                  await updateMaterialRequirement(selectedRequirement.id, {
-                                    ...selectedRequirement,
-                                    items: currentItems,
-                                    status: newStatus
-                                  });
-                                  toast.success("Requirement updated & saved");
-                                } catch (e) {
-                                  toast.error("Update failed");
-                                }
-                              }}
-                              className="p-2.5 bg-emerald-500/10 hover:bg-emerald-600 hover:text-white text-emerald-600 dark:text-emerald-400 rounded-xl border border-emerald-500/20 dark:border-emerald-500/30 transition-all flex items-center justify-center gap-1 shadow-xs disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer shrink-0"
-                              title={isMRLocked(selectedRequirement.id) ? "Locked: Purchase Order exists" : "Save changes to this item"}
-                            >
-                              <Check className="w-4 h-4 shrink-0" />
-                              <span className="text-[10px] font-bold">Save</span>
-                            </button>
+                            {hasPermission("SAVE_MR_ITEM") && (
+                              <button 
+                                disabled={isMRLocked(selectedRequirement.id)}
+                                onClick={async () => {
+                                  try {
+                                    const currentItems = [...selectedRequirement.items];
+                                    currentItems.forEach(item => {
+                                      const inv = inventory.find(i => i.sku === item.sku);
+                                      const liveStock = inv ? (inv.liveStock || 0) : 0;
+                                      
+                                      if (!hasPermission("ALLOCATE_MR")) {
+                                        item.availableInStock = Math.min(item.qty || 0, liveStock);
+                                      }
+                                      if (!hasPermission("EDIT_MR_PURCHASE")) {
+                                        item.remainingQty = Math.max(0, (item.qty || 0) - (item.availableInStock || 0));
+                                      }
+                                      
+                                      const allocated = item.availableInStock || 0;
+                                      if (allocated >= item.qty) {
+                                        item.status = "In Stock";
+                                      } else if (allocated > 0) {
+                                        item.status = "Partial";
+                                      } else {
+                                        item.status = "Needs Purchase";
+                                      }
+                                    });
+  
+                                    const allInStock = currentItems.length > 0 && currentItems.every(i => i.status === "In Stock");
+                                    const newStatus = allInStock ? "Approved by Store" : "Store Pending";
+                                    await updateMaterialRequirement(selectedRequirement.id, {
+                                      ...selectedRequirement,
+                                      items: currentItems,
+                                      status: newStatus
+                                    });
+                                    toast.success("Requirement updated & saved");
+                                  } catch (e) {
+                                    toast.error("Update failed");
+                                  }
+                                }}
+                                className="p-2.5 bg-emerald-500/10 hover:bg-emerald-600 hover:text-white text-emerald-600 dark:text-emerald-400 rounded-xl border border-emerald-500/20 dark:border-emerald-500/30 transition-all flex items-center justify-center gap-1 shadow-xs disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer shrink-0"
+                                title={isMRLocked(selectedRequirement.id) ? "Locked: Purchase Order exists" : "Save changes to this item"}
+                              >
+                                <Check className="w-4 h-4 shrink-0" />
+                                <span className="text-[10px] font-bold">Save</span>
+                              </button>
+                            )}
                           </div>
                         </td>
                       </tr>
@@ -1844,43 +1834,45 @@ export const MaterialRequirementPage = () => {
                         </div>
                       </div>
                     </div>
-                    <button 
-                      onClick={async () => {
-                         try {
-                           const currentItems = [...selectedRequirement.items];
-                           currentItems.forEach(it => {
-                             const inv = inventory.find(i => i.sku === it.sku);
-                             const liveStock = inv ? (inv.liveStock || 0) : 0;
-                             
-                             if (!hasPermission("ALLOCATE_MR")) {
-                               it.availableInStock = Math.min(it.qty || 0, liveStock);
-                             }
-                             if (!hasPermission("EDIT_MR_PURCHASE")) {
-                               it.remainingQty = Math.max(0, (it.qty || 0) - (it.availableInStock || 0));
-                             }
-                             
-                             const allocated = it.availableInStock || 0;
-                             if (allocated >= it.qty) {
-                               it.status = "In Stock";
-                             } else if (allocated > 0) {
-                               it.status = "Partial";
-                             } else {
-                               it.status = "Needs Purchase";
-                             }
-                           });
-                           const allInStock = currentItems.length > 0 && currentItems.every(i => i.status === "In Stock");
-                           const newStatus = allInStock ? "Approved by Store" : "Store Pending";
-                           await updateMaterialRequirement(selectedRequirement.id, { ...selectedRequirement, items: currentItems, status: newStatus });
-                           toast.success("Saved");
-                         } catch (e) {
-                           toast.error("Failed");
-                         }
-                      }}
-                      className="w-full py-2 bg-emerald-500/10 hover:bg-emerald-600 hover:text-white text-emerald-600 dark:text-emerald-400 rounded-lg text-xs font-bold flex items-center justify-center gap-2 border border-emerald-500/20 dark:border-emerald-500/30"
-                    >
-                      <Check className="w-3.5 h-3.5" />
-                      Save item changes
-                    </button>
+                    {hasPermission("SAVE_MR_ITEM") && (
+                      <button 
+                        onClick={async () => {
+                           try {
+                             const currentItems = [...selectedRequirement.items];
+                             currentItems.forEach(it => {
+                               const inv = inventory.find(i => i.sku === it.sku);
+                               const liveStock = inv ? (inv.liveStock || 0) : 0;
+                               
+                               if (!hasPermission("ALLOCATE_MR")) {
+                                 it.availableInStock = Math.min(it.qty || 0, liveStock);
+                               }
+                               if (!hasPermission("EDIT_MR_PURCHASE")) {
+                                 it.remainingQty = Math.max(0, (it.qty || 0) - (it.availableInStock || 0));
+                               }
+                               
+                               const allocated = it.availableInStock || 0;
+                               if (allocated >= it.qty) {
+                                 it.status = "In Stock";
+                               } else if (allocated > 0) {
+                                 it.status = "Partial";
+                               } else {
+                                 it.status = "Needs Purchase";
+                               }
+                             });
+                             const allInStock = currentItems.length > 0 && currentItems.every(i => i.status === "In Stock");
+                             const newStatus = allInStock ? "Approved by Store" : "Store Pending";
+                             await updateMaterialRequirement(selectedRequirement.id, { ...selectedRequirement, items: currentItems, status: newStatus });
+                             toast.success("Saved");
+                           } catch (e) {
+                             toast.error("Failed");
+                           }
+                        }}
+                        className="w-full py-2 bg-emerald-500/10 hover:bg-emerald-600 hover:text-white text-emerald-600 dark:text-emerald-400 rounded-lg text-xs font-bold flex items-center justify-center gap-2 border border-emerald-500/20 dark:border-emerald-500/30"
+                      >
+                        <Check className="w-3.5 h-3.5" />
+                        Save item changes
+                      </button>
+                    )}
                   </Card>
                 ))}
               </div>

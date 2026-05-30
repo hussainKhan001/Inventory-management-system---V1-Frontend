@@ -560,7 +560,8 @@ export const Quotations = () => {
                           <tr className="bg-gray-50 dark:bg-gray-800/80 border-b border-gray-100 dark:border-gray-700/60">
                             <th className="px-5 py-3 text-center text-[9px] font-black text-gray-400 tracking-[0.15em] w-16">Approve</th>
                             <th className="px-5 py-3 text-[9px] font-black text-gray-400 tracking-[0.15em] ">Description</th>
-                            <th className="px-4 py-3 text-center text-[9px] font-black text-gray-400 tracking-[0.15em] w-16">Qty</th>
+                            <th className="px-4 py-3 text-center text-[9px] font-black text-gray-400 tracking-[0.15em] w-20">Required</th>
+                            <th className="px-4 py-3 text-center text-[9px] font-black text-gray-400 tracking-[0.15em] w-20">Offered</th>
                             <th className="px-4 py-3 text-right text-[9px] font-black text-gray-400 tracking-[0.15em] ">Rate</th>
                             <th className="px-4 py-3 text-right text-[9px] font-black text-gray-400 tracking-[0.15em] ">GST</th>
                             <th className="px-5 py-3 text-right text-[9px] font-black text-gray-400 tracking-[0.15em] ">Total</th>
@@ -568,6 +569,9 @@ export const Quotations = () => {
                         </thead>
                         <tbody className="divide-y divide-gray-50 dark:divide-gray-700/40 bg-white dark:bg-gray-900/30">
                           {selectedQuotation.items.map((item, idx) => {
+                            const mrItem = mr?.items?.find((m: any) => m.materialName === item.materialName);
+                            const reqQty = item.mrQty !== undefined ? item.mrQty : (mrItem?.qty !== undefined ? mrItem.qty : item.qty);
+                            const reqUnit = item.mrUnit || mrItem?.unit || item.unit;
                             const base = item.qty * item.rate;
                             const gstAmt = item.gstType === "Exclusive" ? (base * (item.gstPct || 0) / 100) : 0;
                             const total = base + gstAmt;
@@ -588,10 +592,15 @@ export const Quotations = () => {
                                 </td>
                                 <td className="px-5 py-4">
                                   <p className="text-[13px] font-bold text-gray-900 dark:text-white">{safeStr(item.materialName)}</p>
-                                  <p className="text-[9px] font-bold text-gray-400 tracking-widest mt-0.5 ">{safeStr(item.unit)}</p>
+                                  {item.sku && <p className="text-[9px] font-bold text-gray-400 tracking-widest mt-0.5 ">{safeStr(item.sku)}</p>}
                                 </td>
                                 <td className="px-4 py-4 text-center">
-                                  <span className="text-sm font-black text-gray-800 dark:text-gray-100">{item.qty}</span>
+                                  <span className="text-sm font-black text-gray-800 dark:text-gray-100">{reqQty}</span>
+                                  <span className="text-[9px] block font-bold text-gray-400 mt-0.5">{safeStr(reqUnit)}</span>
+                                </td>
+                                <td className="px-4 py-4 text-center">
+                                  <span className="text-sm font-black text-orange-500">{item.qty}</span>
+                                  <span className="text-[9px] block font-bold text-orange-400 mt-0.5">{safeStr(item.unit)}</span>
                                 </td>
                                 <td className="px-4 py-4 text-right">
                                   <span className="text-sm font-bold text-gray-500 dark:text-gray-400">₹ {fmt(item.rate)}</span>
@@ -612,7 +621,7 @@ export const Quotations = () => {
                         <tfoot className="border-t-2 border-gray-100 dark:border-gray-700">
                           {selectedQuotation.freightAmount ? (
                             <tr className="bg-gray-50/40 dark:bg-gray-800/20">
-                              <td colSpan={5} className="px-5 py-2.5 text-right">
+                              <td colSpan={6} className="px-5 py-2.5 text-right">
                                 <span className="text-[10px] font-bold text-gray-500">Freight Charges</span>
                                 <span className="text-[9px] text-orange-400 ml-1.5">({selectedQuotation.freightGstPct}% GST · {selectedQuotation.freightGstType})</span>
                               </td>
@@ -621,7 +630,7 @@ export const Quotations = () => {
                           ) : null}
                           {selectedQuotation.loadingAmount ? (
                             <tr className="bg-gray-50/40 dark:bg-gray-800/20">
-                              <td colSpan={5} className="px-5 py-2.5 text-right">
+                              <td colSpan={6} className="px-5 py-2.5 text-right">
                                 <span className="text-[10px] font-bold text-gray-500">Loading Charges</span>
                                 <span className="text-[9px] text-orange-400 ml-1.5">({selectedQuotation.loadingGstPct}% GST · {selectedQuotation.loadingGstType})</span>
                               </td>
@@ -630,7 +639,7 @@ export const Quotations = () => {
                           ) : null}
                           {selectedQuotation.unloadingAmount ? (
                             <tr className="bg-gray-50/40 dark:bg-gray-800/20">
-                              <td colSpan={5} className="px-5 py-2.5 text-right">
+                              <td colSpan={6} className="px-5 py-2.5 text-right">
                                 <span className="text-[10px] font-bold text-gray-500">Unloading Charges</span>
                                 <span className="text-[9px] text-orange-400 ml-1.5">({selectedQuotation.unloadingGstPct}% GST · {selectedQuotation.unloadingGstType})</span>
                               </td>
@@ -638,7 +647,7 @@ export const Quotations = () => {
                             </tr>
                           ) : null}
                           <tr className="bg-green-50 dark:bg-green-950/30">
-                            <td colSpan={5} className="px-5 py-3.5 text-right">
+                            <td colSpan={6} className="px-5 py-3.5 text-right">
                               <span className="text-[10px] font-black text-gray-500 dark:text-gray-400 tracking-[0.15em] ">Grand Total</span>
                             </td>
                             <td className="px-5 py-3.5 text-right">
@@ -652,6 +661,9 @@ export const Quotations = () => {
                     {/* Mobile cards */}
                     <div className="sm:hidden divide-y divide-gray-50 dark:divide-gray-700/40">
                       {selectedQuotation.items.map((item, idx) => {
+                        const mrItem = mr?.items?.find((m: any) => m.materialName === item.materialName);
+                        const reqQty = item.mrQty !== undefined ? item.mrQty : (mrItem?.qty !== undefined ? mrItem.qty : item.qty);
+                        const reqUnit = item.mrUnit || mrItem?.unit || item.unit;
                         const base = item.qty * item.rate;
                         const gstAmt = item.gstType === "Exclusive" ? (base * (item.gstPct || 0) / 100) : 0;
                         const total = base + gstAmt;
@@ -672,15 +684,19 @@ export const Quotations = () => {
                                 />
                                 <div>
                                   <p className="text-sm font-bold text-gray-900 dark:text-white">{safeStr(item.materialName)}</p>
-                                  <p className="text-[9px] font-bold text-gray-400 tracking-widest mt-0.5 ">{safeStr(item.unit)}</p>
+                                  {item.sku && <p className="text-[9px] font-bold text-gray-400 tracking-widest mt-0.5 ">{safeStr(item.sku)}</p>}
                                 </div>
                               </div>
                               <p className="text-sm font-black text-gray-900 dark:text-white">₹ {fmt(total)}</p>
                             </div>
-                            <div className="grid grid-cols-3 gap-2 mt-3 pt-3 border-t border-gray-50 dark:border-gray-700/40 pl-7">
+                            <div className="grid grid-cols-4 gap-2 mt-3 pt-3 border-t border-gray-50 dark:border-gray-700/40 pl-7">
                               <div>
-                                <p className="text-[9px] font-bold text-gray-400 tracking-widest">Qty</p>
-                                <p className="text-xs font-bold text-gray-700 dark:text-gray-300 mt-0.5">{item.qty}</p>
+                                <p className="text-[9px] font-bold text-gray-400 tracking-widest">Required</p>
+                                <p className="text-xs font-bold text-gray-700 dark:text-gray-300 mt-0.5">{reqQty} <span className="text-[9px] font-normal text-gray-500">{reqUnit}</span></p>
+                              </div>
+                              <div>
+                                <p className="text-[9px] font-bold text-gray-400 tracking-widest">Offered</p>
+                                <p className="text-xs font-bold text-orange-500 mt-0.5">{item.qty} <span className="text-[9px] font-normal text-orange-300">{item.unit}</span></p>
                               </div>
                               <div>
                                 <p className="text-[9px] font-bold text-gray-400 tracking-widest">Rate</p>
@@ -814,7 +830,7 @@ export const Quotations = () => {
         <Modal 
           title="Edit Quotation" 
           onClose={() => setEditModal(false)}
-          className="max-w-3xl"
+          className="max-w-5xl"
         >
           <QuotationForm 
             initialData={selectedQuotation} 
@@ -871,13 +887,59 @@ export const Quotations = () => {
 
 interface QuotationFormProps {
   initialData: Quotation;
+  mrData?: any;
   onClose: () => void;
   onSave: (data: Partial<Quotation>) => Promise<void>;
 }
 
-const QuotationForm = ({ initialData, onClose, onSave }: QuotationFormProps) => {
+const QuotationForm = ({ initialData, mrData: initialMrData, onClose, onSave }: QuotationFormProps) => {
   const [formData, setFormData] = useState<Partial<Quotation>>({ ...initialData });
   const [loading, setLoading] = useState(false);
+  const [mrData, setMrData] = useState<any>(initialMrData);
+  
+  const [showSupplierResults, setShowSupplierResults] = useState(false);
+  const [filteredSuppliers, setFilteredSuppliers] = useState<any[]>([]);
+
+  React.useEffect(() => {
+    if (!mrData && initialData.mrId) {
+      fetch(`${import.meta.env.VITE_API_URL}/api/public/mr/${initialData.mrId}`)
+        .then(res => res.json())
+        .then(data => {
+          if (data.success) setMrData(data.data);
+        })
+        .catch(console.error);
+    }
+  }, [initialData.mrId, mrData]);
+
+  const handleSupplierSearch = async (val: string) => {
+    setFormData({ ...formData, supplierName: val });
+    if (val.length > 1) {
+      try {
+        const res = await fetch(`${import.meta.env.VITE_API_URL}/api/public/suppliers?search=${val}`);
+        const data = await res.json();
+        if (data.success) {
+          setFilteredSuppliers(data.data);
+          setShowSupplierResults(true);
+        }
+      } catch (err) {
+        console.error("Supplier search failed", err);
+      }
+    } else {
+      setShowSupplierResults(false);
+    }
+  };
+
+  const selectSupplier = (s: any) => {
+    setFormData({ 
+      ...formData, 
+      supplierName: s.companyName || s.name, 
+      supplierId: s.id || s._id,
+      ownerName: s.ownerName || s.contact,
+      mobile: s.mobile || s.phone,
+      gstNumber: s.gstNumber || s.gst
+    });
+    setShowSupplierResults(false);
+  };
 
   const calculateChargeTotal = (amount: number, gstPct: number, gstType: string) => {
     if (!amount) return 0;
@@ -934,130 +996,426 @@ const QuotationForm = ({ initialData, onClose, onSave }: QuotationFormProps) => 
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="space-y-1">
-          <label className="text-[10px] font-black text-gray-400 tracking-widest ml-1">Supplier Name</label>
-          <input
-            type="text"
-            value={formData.supplierName || ""}
-            onChange={(e) => setFormData({ ...formData, supplierName: e.target.value })}
-            className="w-full bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-orange-500/20 transition-all font-bold"
-            required
-          />
-        </div>
-        <div className="space-y-1">
-          <label className="text-[10px] font-black text-gray-400 tracking-widest ml-1">Delivery Date</label>
-          <DatePicker
-            value={formData.deliveryDate ? formData.deliveryDate.split('T')[0] : ""}
-            onChange={(e: any) => setFormData({ ...formData, deliveryDate: e.target.value })}
-          />
-        </div>
-      </div>
-
-      <div className="space-y-4">
-        <h4 className="text-[11px] font-black text-gray-400 tracking-widest ">Items</h4>
-        <div className="space-y-3">
-          {formData.items?.map((item, idx) => (
-            <div key={idx} className="p-4 bg-gray-50 dark:bg-gray-800 rounded-2xl space-y-3 border border-gray-100 dark:border-gray-700">
-              <p className="text-xs font-bold text-gray-900 dark:text-white">{item.materialName}</p>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                <Field
-                  label="Rate"
-                  type="number"
-                  value={item.rate}
-                  onChange={(e: any) => handleItemChange(idx, 'rate', Number(e.target.value))}
-                  small
-                />
-                <Field
-                  label="GST %"
-                  type="number"
-                  value={item.gstPct}
-                  onChange={(e: any) => handleItemChange(idx, 'gstPct', Number(e.target.value))}
-                  small
-                />
-                <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-gray-500 ">GST Type</label>
-                  <select
-                    value={item.gstType}
-                    onChange={(e) => handleItemChange(idx, 'gstType', e.target.value)}
-                    className="w-full bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-1.5 text-xs"
-                  >
-                    <option value="Exclusive">Exclusive</option>
-                    <option value="Inclusive">Inclusive</option>
-                  </select>
+    <div className="-mx-6 -my-6 bg-gray-50/50 dark:bg-[#020617] p-6 sm:p-8 overflow-y-auto max-h-[85vh]">
+      <form onSubmit={handleSubmit} className="space-y-8 max-w-5xl mx-auto">
+        
+        {/* Requirement overview */}
+        <Card className="p-6 sm:p-10 border-gray-100 dark:border-gray-800 shadow-sm bg-white dark:bg-[#0f172a]">
+          <div className="space-y-8">
+            <div className="flex items-center gap-4">
+              <div className="w-1.5 h-6 bg-orange-500 rounded-full" />
+              <h3 className="text-xs font-bold text-gray-900 dark:text-white tracking-widest">Requirement overview</h3>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold text-gray-400 tracking-widest px-1">Project Name</label>
+                <div className="h-12 flex items-center px-4 bg-gray-50/50 dark:bg-gray-400/5 border border-gray-100 dark:border-gray-800 rounded-xl text-sm font-medium text-gray-900 dark:text-gray-300">
+                  {mrData?.project || "N/A"}
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold text-gray-400 tracking-widest px-1">Delivery Location</label>
+                <div className="h-12 flex items-center px-4 bg-gray-50/50 dark:bg-gray-400/5 border border-gray-100 dark:border-gray-800 rounded-xl text-sm font-medium text-gray-900 dark:text-gray-300">
+                  {mrData?.location || "N/A"}
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold text-gray-400 tracking-widest px-1">Target Delivery Date</label>
+                <div className="h-12 flex items-center px-4 bg-gray-50/50 dark:bg-gray-400/5 border border-gray-100 dark:border-gray-800 rounded-xl text-sm font-medium text-gray-900 dark:text-gray-300">
+                  {mrData?.requirementDate || "ASAP"}
                 </div>
               </div>
             </div>
-          ))}
+          </div>
+        </Card>
+
+        {/* Supplier details */}
+        <Card className="p-6 sm:p-10 overflow-visible border-gray-100 dark:border-gray-800 shadow-sm bg-white dark:bg-[#0f172a]">
+          <div className="space-y-8">
+            <div className="flex items-center gap-4">
+              <div className="w-1.5 h-6 bg-orange-500 rounded-full" />
+              <h3 className="text-xs font-bold text-gray-900 dark:text-white tracking-widest">Supplier details</h3>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
+              <div className="relative lg:col-span-2">
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold text-gray-400 tracking-widest px-1">Search Company / Firm Name *</label>
+                  <input
+                    type="text"
+                    value={formData.supplierName || ""}
+                    onChange={(e) => handleSupplierSearch(e.target.value)}
+                    onFocus={() => (formData.supplierName || "").length > 1 && setShowSupplierResults(true)}
+                    placeholder="Type to search your registered name..."
+                    className="w-full bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-700 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-orange-500/20 transition-all font-semibold h-12"
+                    required
+                    autoComplete="off"
+                  />
+                  <AnimatePresence>
+                    {showSupplierResults && filteredSuppliers.length > 0 && (
+                      <motion.div
+                        initial={{ opacity: 0, y: -10, scale: 0.98 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: -10, scale: 0.98 }}
+                        className="absolute z-50 w-full mt-2 bg-white dark:bg-[#1E293B] border border-gray-100 dark:border-gray-700 rounded-2xl shadow-2xl max-h-80 overflow-y-auto backdrop-blur-xl"
+                      >
+                        {filteredSuppliers.map((s) => (
+                          <button
+                            key={s.id || s._id}
+                            type="button"
+                            onClick={() => selectSupplier(s)}
+                            className="w-full text-left px-5 py-4 hover:bg-orange-50/50 dark:hover:bg-orange-500/5 border-b border-gray-50 dark:border-gray-700 last:border-0 transition-all flex items-center gap-4 group"
+                          >
+                            <div className="p-2 bg-gray-50 dark:bg-gray-800 rounded-lg group-hover:bg-orange-100 dark:group-hover:bg-orange-500/20 transition-colors">
+                              <Building2 className="w-5 h-5 text-orange-500" />
+                            </div>
+                            <div>
+                              <p className="text-sm font-bold text-gray-900 dark:text-white group-hover:text-orange-600 dark:group-hover:text-orange-400 transition-colors">{s.companyName || s.name}</p>
+                              <p className="text-[10px] text-gray-400 font-semibold tracking-widest mt-0.5">{s.ownerName || s.contact} &bull; {s.mobile || s.phone}</p>
+                            </div>
+                          </button>
+                        ))}
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold text-gray-400 tracking-widest px-1">Expected Delivery Date *</label>
+                <div className="h-12 mt-0">
+                  <input
+                    type="date"
+                    value={formData.deliveryDate ? formData.deliveryDate.split('T')[0] : ""}
+                    onChange={(e: any) => setFormData({ ...formData, deliveryDate: e.target.value })}
+                    required
+                    className="w-full bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-700 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-orange-500/20 transition-all font-semibold h-12"
+                  />
+                </div>
+              </div>
+            </div>
+            
+            <AnimatePresence>
+              {(formData.ownerName || formData.mobile || formData.gstNumber) && (
+                <motion.div 
+                  initial={{ opacity: 0, scale: 0.98 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8 bg-gray-50/30 dark:bg-gray-500/5 p-8 rounded-3xl border border-gray-100 dark:border-gray-800"
+                >
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-bold text-gray-400 tracking-widest px-1">Contact person</label>
+                    <div className="h-12 flex items-center px-4 bg-white/50 dark:bg-black/20 border border-gray-100 dark:border-gray-800 rounded-xl text-sm font-medium text-gray-900 dark:text-white">
+                      {formData.ownerName || "---"}
+                    </div>
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-bold text-gray-400 tracking-widest px-1">Mobile number</label>
+                    <div className="h-12 flex items-center px-4 bg-white/50 dark:bg-black/20 border border-gray-100 dark:border-gray-800 rounded-xl text-sm font-medium text-gray-900 dark:text-white">
+                      {formData.mobile || "---"}
+                    </div>
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-bold text-gray-400 tracking-widest px-1">Gst number</label>
+                    <div className="h-12 flex items-center px-4 bg-white/50 dark:bg-black/20 border border-gray-100 dark:border-gray-800 rounded-xl text-sm font-medium text-gray-900 dark:text-white font-mono tracking-wider">
+                      {formData.gstNumber || "---"}
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+        </Card>
+
+        {/* Item Pricing */}
+        <Card className="overflow-visible border-gray-100 dark:border-gray-800 shadow-sm bg-white dark:bg-[#0f172a]">
+          <div className="p-6 sm:p-8 bg-gray-50/50 dark:bg-gray-800/50 border-b border-gray-100 dark:border-gray-800 rounded-t-2xl">
+            <h3 className="text-[13px] font-bold text-gray-900 dark:text-white tracking-wider">Price quotation (per item)</h3>
+          </div>
+          
+          <div className="overflow-x-auto">
+            <table className="w-full text-left">
+              <thead>
+                <tr className="bg-gray-50/50 dark:bg-gray-800 text-[10px] font-bold text-gray-400 tracking-widest border-b border-gray-100 dark:border-gray-800">
+                  <th className="px-6 py-5 w-1/4">Item details</th>
+                  <th className="px-4 py-3 text-center w-24">Required</th>
+                  <th className="px-4 py-3 text-center w-32">Offer Qty</th>
+                  <th className="px-4 py-3 text-center w-40">Rate (₹)</th>
+                  <th className="px-4 py-3 text-center">Gst details</th>
+                  <th className="px-6 py-5 text-right w-40">Total (₹)</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+                {formData.items?.map((item, idx) => {
+                  const mrItem = mrData?.items?.find((m: any) => m.materialName?.trim().toLowerCase() === item.materialName?.trim().toLowerCase());
+                  const mrQtyFallback = mrItem ? (mrItem.remainingQty !== undefined ? mrItem.remainingQty : mrItem.qty) : item.qty;
+                  const reqQty = item.mrQty !== undefined ? item.mrQty : mrQtyFallback;
+                  const reqUnit = item.mrUnit || mrItem?.unit || item.unit;
+                  const base = item.qty * item.rate;
+                  const gst = item.gstType === "Exclusive" ? (base * (item.gstPct || 0) / 100) : 0;
+                  const total = item.gstType === "Exclusive" ? base + gst : base;
+
+                  return (
+                    <tr key={idx} className="transition-all group hover:bg-gray-50/20 dark:hover:bg-gray-800/10">
+                      <td className="px-6 py-6">
+                        <p className="font-semibold text-gray-900 dark:text-gray-100 text-sm leading-tight mb-1">{item.materialName}</p>
+                        <div className="flex items-center gap-2">
+                          <span className="text-[9px] px-1.5 py-0.5 bg-gray-100 dark:bg-gray-700 text-gray-500 rounded font-medium tracking-wider">Category</span>
+                          <span className="text-[10px] text-gray-400 font-mono">{item.category || "N/A"}</span>
+                        </div>
+                      </td>
+                      <td className="px-4 py-6 text-center">
+                        <div className="flex flex-col items-center">
+                          <span className="font-bold text-gray-900 dark:text-white text-base">{reqQty}</span>
+                          <span className="text-[10px] font-medium text-gray-400 tracking-widest">{reqUnit || "NOS"}</span>
+                        </div>
+                      </td>
+                      <td className="px-2 py-6">
+                        <div className="flex flex-col items-center gap-1.5 w-full max-w-[90px] mx-auto">
+                          <input
+                            type="number"
+                            required
+                            placeholder="Qty"
+                            value={item.qty === 0 ? "" : item.qty}
+                            onChange={(e: any) => handleItemChange(idx, 'qty', parseFloat(e.target.value) || 0)}
+                            className="w-full text-center bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-700 rounded-md h-9 text-[13px] font-semibold text-gray-900 dark:text-white focus:outline-none focus:border-orange-500 transition-all px-1"
+                          />
+                          <input
+                            type="text"
+                            required
+                            placeholder="Unit"
+                            value={item.unit || ""}
+                            onChange={(e: any) => handleItemChange(idx, 'unit', e.target.value)}
+                            className="w-full text-center bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-700 rounded-md h-7 text-[10px] font-bold text-gray-700 dark:text-gray-300 uppercase focus:outline-none focus:border-orange-500 transition-all px-1"
+                          />
+                        </div>
+                      </td>
+                      <td className="px-4 py-6">
+                        <div className="w-full max-w-[120px] mx-auto">
+                          <input
+                            type="number"
+                            required
+                            placeholder="0.00"
+                            value={item.rate === 0 ? "" : item.rate}
+                            onChange={(e: any) => handleItemChange(idx, 'rate', parseFloat(e.target.value) || 0)}
+                            className="w-full text-center bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-700 rounded-lg h-10 text-[14px] font-semibold text-gray-900 dark:text-white focus:outline-none focus:border-orange-500 transition-all px-2"
+                          />
+                        </div>
+                      </td>
+                      <td className="px-4 py-6">
+                        <div className="flex items-center gap-2 justify-center min-w-[220px]">
+                          <select
+                            value={item.gstPct}
+                            onChange={(e: any) => handleItemChange(idx, 'gstPct', parseInt(e.target.value) || 0)}
+                            className="bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-700 rounded-xl text-[13px] font-medium text-gray-900 dark:text-gray-100 px-3 py-2 h-11 outline-none focus:border-orange-500 transition-all cursor-pointer box-border"
+                          >
+                            <option value={0}>0% GST</option>
+                            <option value={5}>5% GST</option>
+                            <option value={12}>12% GST</option>
+                            <option value={18}>18% GST</option>
+                            <option value={28}>28% GST</option>
+                          </select>
+                          <select
+                            value={item.gstType}
+                            onChange={(e: any) => handleItemChange(idx, 'gstType', e.target.value)}
+                            className="bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-700 rounded-xl text-[11px] font-semibold text-gray-900 dark:text-gray-100 px-3 py-2 h-11 outline-none focus:border-orange-500 transition-all cursor-pointer box-border"
+                          >
+                            <option value="Exclusive">Exclusive</option>
+                            <option value="Inclusive">Inclusive</option>
+                          </select>
+                        </div>
+                      </td>
+                      <td className="px-6 py-6 text-right">
+                        <p className="text-[10px] font-medium text-gray-400 tracking-widest mb-0.5 opacity-0 group-hover:opacity-100 transition-opacity">Line total</p>
+                        <span className="text-base font-bold text-gray-900 dark:text-white">
+                          ₹ {fmt(total)}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="bg-[#1a2332] dark:bg-[#1a2332] p-6 sm:px-8 border-t border-gray-100 dark:border-gray-800/50 space-y-3 rounded-b-2xl">
+            <div className="flex justify-between items-center text-[13px] font-medium text-gray-500 dark:text-gray-400">
+              <span>Items Subtotal:</span>
+              <span className="font-bold text-gray-700 dark:text-gray-300">
+                ₹ {fmt(formData.items?.reduce((sum, item) => {
+                  const base = item.qty * item.rate;
+                  const gst = item.gstType === "Exclusive" ? (base * (item.gstPct || 0) / 100) : 0;
+                  return sum + (item.gstType === "Exclusive" ? base + gst : base);
+                }, 0))}
+              </span>
+            </div>
+            
+            {(formData.freightAmount || 0) > 0 && (
+              <div className="flex justify-between items-center text-[13px] font-medium text-gray-500 dark:text-gray-400">
+                <span>Freight Charges ({formData.freightGstPct || 0}% GST {formData.freightGstType}):</span>
+                <span className="font-bold text-gray-700 dark:text-gray-300">
+                  ₹ {fmt(calculateChargeTotal(formData.freightAmount || 0, formData.freightGstPct || 0, formData.freightGstType || "Exclusive"))}
+                </span>
+              </div>
+            )}
+            
+            {(formData.loadingAmount || 0) > 0 && (
+              <div className="flex justify-between items-center text-[13px] font-medium text-gray-500 dark:text-gray-400">
+                <span>Loading Charges ({formData.loadingGstPct || 0}% GST {formData.loadingGstType}):</span>
+                <span className="font-bold text-gray-700 dark:text-gray-300">
+                  ₹ {fmt(calculateChargeTotal(formData.loadingAmount || 0, formData.loadingGstPct || 0, formData.loadingGstType || "Exclusive"))}
+                </span>
+              </div>
+            )}
+
+            {(formData.unloadingAmount || 0) > 0 && (
+              <div className="flex justify-between items-center text-[13px] font-medium text-gray-500 dark:text-gray-400">
+                <span>Unloading Charges ({formData.unloadingGstPct || 0}% GST {formData.unloadingGstType}):</span>
+                <span className="font-bold text-gray-700 dark:text-gray-300">
+                  ₹ {fmt(calculateChargeTotal(formData.unloadingAmount || 0, formData.unloadingGstPct || 0, formData.unloadingGstType || "Exclusive"))}
+                </span>
+              </div>
+            )}
+
+            <div className="h-px bg-gray-200 dark:bg-gray-800/80 my-4" />
+
+            <div className="flex justify-between items-center mt-2">
+              <p className="font-bold text-gray-900 dark:text-white tracking-wide text-sm">Estimated Grand Total</p>
+              <span className="text-3xl font-black text-orange-500 tracking-tight">₹ {fmt(formData.totalAmount)}</span>
+            </div>
+          </div>
+        </Card>
+
+        {/* Other Charges */}
+        <Card className="p-6 sm:p-8 bg-gray-50/30 dark:bg-[#1E293B] border-gray-100 dark:border-gray-800 shadow-sm">
+          <div className="mb-6 flex items-center gap-4">
+            <div className="w-1.5 h-6 bg-orange-500 rounded-full" />
+            <h3 className="text-sm font-bold text-gray-900 dark:text-white tracking-widest">Other Charges</h3>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {/* Freight */}
+            <div className="space-y-3">
+              <label className="text-[11px] font-bold text-gray-400 tracking-widest">Freight Charges (₹)</label>
+              <input
+                type="number"
+                placeholder="0.00"
+                value={formData.freightAmount || ""}
+                onChange={(e) => handleChargeChange('freightAmount', parseFloat(e.target.value) || 0)}
+                className="w-full bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-700 rounded-xl text-sm font-medium text-gray-900 dark:text-gray-100 px-4 h-12 outline-none focus:border-orange-500 transition-all box-border"
+              />
+              <div className="grid grid-cols-2 gap-3">
+                <select
+                  value={formData.freightGstPct || 0}
+                  onChange={(e) => handleChargeChange('freightGstPct', parseInt(e.target.value) || 0)}
+                  className="w-full bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-700 rounded-xl text-[13px] font-bold text-gray-900 dark:text-gray-100 px-3 h-11 outline-none focus:border-orange-500 transition-all cursor-pointer box-border"
+                >
+                  <option value={0}>0% GST</option>
+                  <option value={5}>5% GST</option>
+                  <option value={12}>12% GST</option>
+                  <option value={18}>18% GST</option>
+                  <option value={28}>28% GST</option>
+                </select>
+                <select
+                  value={formData.freightGstType || "Exclusive"}
+                  onChange={(e) => handleChargeChange('freightGstType', e.target.value)}
+                  className="w-full bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-700 rounded-xl text-[12px] font-bold text-gray-900 dark:text-gray-100 px-3 h-11 outline-none focus:border-orange-500 transition-all cursor-pointer box-border"
+                >
+                  <option value="Exclusive">Exclusive</option>
+                  <option value="Inclusive">Inclusive</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Loading */}
+            <div className="space-y-3">
+              <label className="text-[11px] font-bold text-gray-400 tracking-widest">Loading Charges (₹)</label>
+              <input
+                type="number"
+                placeholder="0.00"
+                value={formData.loadingAmount || ""}
+                onChange={(e) => handleChargeChange('loadingAmount', parseFloat(e.target.value) || 0)}
+                className="w-full bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-700 rounded-xl text-sm font-medium text-gray-900 dark:text-gray-100 px-4 h-12 outline-none focus:border-orange-500 transition-all box-border"
+              />
+              <div className="grid grid-cols-2 gap-3">
+                <select
+                  value={formData.loadingGstPct || 0}
+                  onChange={(e) => handleChargeChange('loadingGstPct', parseInt(e.target.value) || 0)}
+                  className="w-full bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-700 rounded-xl text-[13px] font-bold text-gray-900 dark:text-gray-100 px-3 h-11 outline-none focus:border-orange-500 transition-all cursor-pointer box-border"
+                >
+                  <option value={0}>0% GST</option>
+                  <option value={5}>5% GST</option>
+                  <option value={12}>12% GST</option>
+                  <option value={18}>18% GST</option>
+                  <option value={28}>28% GST</option>
+                </select>
+                <select
+                  value={formData.loadingGstType || "Exclusive"}
+                  onChange={(e) => handleChargeChange('loadingGstType', e.target.value)}
+                  className="w-full bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-700 rounded-xl text-[12px] font-bold text-gray-900 dark:text-gray-100 px-3 h-11 outline-none focus:border-orange-500 transition-all cursor-pointer box-border"
+                >
+                  <option value="Exclusive">Exclusive</option>
+                  <option value="Inclusive">Inclusive</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Unloading */}
+            <div className="space-y-3">
+              <label className="text-[11px] font-bold text-gray-400 tracking-widest">Unloading Charges (₹)</label>
+              <input
+                type="number"
+                placeholder="0.00"
+                value={formData.unloadingAmount || ""}
+                onChange={(e) => handleChargeChange('unloadingAmount', parseFloat(e.target.value) || 0)}
+                className="w-full bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-700 rounded-xl text-sm font-medium text-gray-900 dark:text-gray-100 px-4 h-12 outline-none focus:border-orange-500 transition-all box-border"
+              />
+              <div className="grid grid-cols-2 gap-3">
+                <select
+                  value={formData.unloadingGstPct || 0}
+                  onChange={(e) => handleChargeChange('unloadingGstPct', parseInt(e.target.value) || 0)}
+                  className="w-full bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-700 rounded-xl text-[13px] font-bold text-gray-900 dark:text-gray-100 px-3 h-11 outline-none focus:border-orange-500 transition-all cursor-pointer box-border"
+                >
+                  <option value={0}>0% GST</option>
+                  <option value={5}>5% GST</option>
+                  <option value={12}>12% GST</option>
+                  <option value={18}>18% GST</option>
+                  <option value={28}>28% GST</option>
+                </select>
+                <select
+                  value={formData.unloadingGstType || "Exclusive"}
+                  onChange={(e) => handleChargeChange('unloadingGstType', e.target.value)}
+                  className="w-full bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-700 rounded-xl text-[12px] font-bold text-gray-900 dark:text-gray-100 px-3 h-11 outline-none focus:border-orange-500 transition-all cursor-pointer box-border"
+                >
+                  <option value="Exclusive">Exclusive</option>
+                  <option value="Inclusive">Inclusive</option>
+                </select>
+              </div>
+            </div>
+          </div>
+        </Card>
+
+        {/* Remarks */}
+        <Card className="p-6 sm:p-8 bg-white dark:bg-[#0f172a] border-gray-100 dark:border-gray-800 shadow-sm">
+          <div className="space-y-3">
+            <div className="flex items-center gap-4">
+              <div className="w-1.5 h-6 bg-orange-500 rounded-full" />
+              <h3 className="text-xs font-bold text-gray-900 dark:text-white tracking-widest">Remarks</h3>
+            </div>
+            <textarea
+              value={formData.remarks || ""}
+              onChange={(e) => setFormData({ ...formData, remarks: e.target.value })}
+              className="w-full bg-gray-50/50 dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-orange-500/20 transition-all font-medium"
+              rows={3}
+              placeholder="Any additional remarks..."
+            />
+          </div>
+        </Card>
+
+        {/* Form Actions */}
+        <div className="pt-6 border-t border-gray-100 dark:border-gray-800 flex justify-end gap-3 sticky bottom-0 bg-gray-50/95 dark:bg-[#020617]/95 backdrop-blur-xl p-4 -mx-8 -mb-8 mt-8 z-50">
+          <Btn label="Cancel" variant="secondary" outline onClick={onClose} disabled={loading} className="px-6 rounded-xl" />
+          <Btn label="Save Changes" type="submit" loading={loading} disabled={loading} className="px-8 rounded-xl shadow-lg shadow-orange-500/20" />
         </div>
-      </div>
-
-      <div className="space-y-4">
-        <h4 className="text-[11px] font-black text-gray-400 tracking-widest ">Other Charges</h4>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="p-4 bg-gray-50 dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 space-y-3">
-            <Field label="Freight" type="number" value={formData.freightAmount || ""} onChange={(e: any) => handleChargeChange('freightAmount', Number(e.target.value))} small />
-            <div className="grid grid-cols-2 gap-2">
-              <Field label="GST %" type="number" value={formData.freightGstPct || ""} onChange={(e: any) => handleChargeChange('freightGstPct', Number(e.target.value))} small />
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold text-gray-500 ">GST Type</label>
-                <select value={formData.freightGstType || "Exclusive"} onChange={(e) => handleChargeChange('freightGstType', e.target.value)} className="w-full bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-1.5 text-xs">
-                  <option value="Exclusive">Exclusive</option>
-                  <option value="Inclusive">Inclusive</option>
-                </select>
-              </div>
-            </div>
-          </div>
-          <div className="p-4 bg-gray-50 dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 space-y-3">
-            <Field label="Loading" type="number" value={formData.loadingAmount || ""} onChange={(e: any) => handleChargeChange('loadingAmount', Number(e.target.value))} small />
-            <div className="grid grid-cols-2 gap-2">
-              <Field label="GST %" type="number" value={formData.loadingGstPct || ""} onChange={(e: any) => handleChargeChange('loadingGstPct', Number(e.target.value))} small />
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold text-gray-500 ">GST Type</label>
-                <select value={formData.loadingGstType || "Exclusive"} onChange={(e) => handleChargeChange('loadingGstType', e.target.value)} className="w-full bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-1.5 text-xs">
-                  <option value="Exclusive">Exclusive</option>
-                  <option value="Inclusive">Inclusive</option>
-                </select>
-              </div>
-            </div>
-          </div>
-          <div className="p-4 bg-gray-50 dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 space-y-3">
-            <Field label="Unloading" type="number" value={formData.unloadingAmount || ""} onChange={(e: any) => handleChargeChange('unloadingAmount', Number(e.target.value))} small />
-            <div className="grid grid-cols-2 gap-2">
-              <Field label="GST %" type="number" value={formData.unloadingGstPct || ""} onChange={(e: any) => handleChargeChange('unloadingGstPct', Number(e.target.value))} small />
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold text-gray-500 ">GST Type</label>
-                <select value={formData.unloadingGstType || "Exclusive"} onChange={(e) => handleChargeChange('unloadingGstType', e.target.value)} className="w-full bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-1.5 text-xs">
-                  <option value="Exclusive">Exclusive</option>
-                  <option value="Inclusive">Inclusive</option>
-                </select>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="space-y-1">
-        <label className="text-[10px] font-black text-gray-400 tracking-widest ml-1">Remarks</label>
-        <textarea
-          value={formData.remarks || ""}
-          onChange={(e) => setFormData({ ...formData, remarks: e.target.value })}
-          className="w-full bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-orange-500/20 transition-all font-medium"
-          rows={3}
-        />
-      </div>
-
-      <div className="flex justify-between items-center bg-orange-50 dark:bg-orange-950/20 p-4 rounded-xl">
-        <span className="text-sm font-black text-orange-900 dark:text-orange-400 tracking-widest">Total Amount</span>
-        <span className="text-xl font-black text-orange-600 dark:text-orange-300">₹ {fmt(formData.totalAmount)}</span>
-      </div>
-
-      <div className="flex gap-3 justify-end pt-4 border-t border-gray-100 dark:border-gray-800">
-        <Btn label="Cancel" outline onClick={onClose} />
-        <Btn label="Save Changes" type="submit" loading={loading} />
-      </div>
-    </form>
+      </form>
+    </div>
   );
 };
 

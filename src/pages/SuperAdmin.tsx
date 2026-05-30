@@ -45,6 +45,7 @@ const PERMISSION_GROUPS = [
       'CREATE_MATERIAL_REQUIREMENT', 
       'EDIT_MATERIAL_REQUIREMENT', 
       'DELETE_MATERIAL_REQUIREMENT', 
+      'SAVE_MR_ITEM',
       'APPROVE_MATERIAL_REQUIREMENT',
       'REJECT_MR',
       'ALLOCATE_MR',
@@ -508,11 +509,16 @@ export const SuperAdmin = () => {
                       </div>
                       <div className="flex items-center gap-6" onClick={e => e.stopPropagation()}>
                         <label className="flex items-center gap-2 cursor-pointer group">
-                           <Checkbox
-                              checked={allSelected}
-                              ref={el => { if (el) el.indeterminate = someSelected; }}
-                              onChange={(e) => handleGroupSelectAll(group.perms, e.target.checked)}
-                           />
+                           <div className="relative inline-flex items-center cursor-pointer">
+                             <input 
+                               type="checkbox" 
+                               className="sr-only peer" 
+                               checked={allSelected} 
+                               ref={el => { if (el) el.indeterminate = someSelected; }} 
+                               onChange={(e) => handleGroupSelectAll(group.perms, e.target.checked)} 
+                             />
+                             <div className="w-9 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all dark:border-gray-600 peer-checked:bg-primary"></div>
+                           </div>
                            <span className="text-[11px] font-black text-gray-500 tracking-widest group-hover:text-primary transition-colors">Select unit</span>
                         </label>
                         <div className={`transform transition-transform duration-300 ${isExpanded ? 'rotate-180 text-primary' : 'text-gray-400'}`}>
@@ -549,15 +555,20 @@ export const SuperAdmin = () => {
                                   </span>
                                 </div>
                               </div>
-                              <Checkbox
-                                checked={isChecked}
-                                onChange={(e) => {
-                                  const newPerms = e.target.checked 
-                                    ? [...currentRolePerms, p]
-                                    : currentRolePerms.filter((perm: string) => perm !== p);
-                                  handleUpdateRolePermissions(selectedRole, newPerms);
-                                }}
-                              />
+                              <div className="relative inline-flex items-center cursor-pointer">
+                                <input 
+                                  type="checkbox" 
+                                  className="sr-only peer" 
+                                  checked={isChecked} 
+                                  onChange={(e) => {
+                                    const newPerms = e.target.checked 
+                                      ? [...currentRolePerms, p]
+                                      : currentRolePerms.filter((perm: string) => perm !== p);
+                                    handleUpdateRolePermissions(selectedRole, newPerms);
+                                  }} 
+                                />
+                                <div className="w-9 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all dark:border-gray-600 peer-checked:bg-primary"></div>
+                              </div>
                             </label>
                           );
                         })}
