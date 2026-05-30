@@ -276,7 +276,8 @@ export const Inventory = () => {
     actionLoading,
     setActionLoading,
     hasPermission,
-    settings
+    settings,
+    api,
   } = useAppStore();
 
   const { projects: PROJECTS, categories: CATEGORIES, units: UNITS } = settings;
@@ -311,42 +312,42 @@ export const Inventory = () => {
   const [newItem, setNewItem] = useState<InventoryItem>(INITIAL_ITEM);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  const generateAutoSKU = (category: string, subCategory: string) => {
-    if (!category || !subCategory) return "";
-    const catCode = category.trim().replace(/[^a-zA-Z0-9]/g, "").slice(0, 3).toUpperCase();
-    const subCatCode = subCategory.trim().replace(/[^a-zA-Z0-9]/g, "").slice(0, 3).toUpperCase();
-    if (!catCode || !subCatCode) return "";
-    
-    const prefix = `${catCode}/${subCatCode}/`;
-    
-    const maxInvNum = inventory.reduce((max, item) => {
-      if (item.sku && item.sku.toUpperCase().startsWith(prefix)) {
-        const parts = item.sku.split("/");
-        const lastPart = parts[parts.length - 1];
-        const num = parseInt(lastPart, 10);
-        if (!isNaN(num)) {
-          return Math.max(max, num);
-        }
-      }
-      return max;
-    }, 0);
+  // Auto-generate SKU: CAT/ITM/0001
+  // Fires 400ms after category OR itemName settles. Uses backend to get the
+  // true next series number from the full database.
+  useEffect(() => {
+    if (isEditing || isSkuManuallyEdited) return;
+    const category = newItem.category?.trim() || "";
+    const itemName = newItem.itemName?.trim() || "";
+    if (!category || !itemName) return;
 
-    const maxCatNum = catalogue.reduce((max, item) => {
-      if (item.sku && item.sku.toUpperCase().startsWith(prefix)) {
-        const parts = item.sku.split("/");
-        const lastPart = parts[parts.length - 1];
-        const num = parseInt(lastPart, 10);
-        if (!isNaN(num)) {
-          return Math.max(max, num);
-        }
-      }
-      return max;
-    }, 0);
+    const catCode = category.replace(/[^a-zA-Z0-9]/g, "").slice(0, 3).toUpperCase();
+    const itmCode = itemName.replace(/[^a-zA-Z0-9]/g, "").slice(0, 3).toUpperCase();
+    if (!catCode || !itmCode) return;
 
-    const maxNum = Math.max(maxInvNum, maxCatNum);
-    
-    return `${prefix}${String(maxNum + 1).padStart(4, "0")}`;
-  };
+    const prefix = `${catCode}/${itmCode}/`;
+
+    const timer = setTimeout(async () => {
+      try {
+        const res = await api.get('inventory/next-sku', { prefix });
+        if (res.success) {
+          setNewItem(prev => ({ ...prev, sku: res.data }));
+        }
+      } catch {
+        // Fallback: scan locally loaded data
+        let maxNum = 0;
+        for (const item of [...inventory, ...catalogue]) {
+          if (item.sku && item.sku.toUpperCase().startsWith(prefix)) {
+            const n = parseInt(item.sku.split('/').pop() || '0', 10);
+            if (!isNaN(n)) maxNum = Math.max(maxNum, n);
+          }
+        }
+        setNewItem(prev => ({ ...prev, sku: `${prefix}${String(maxNum + 1).padStart(4, '0')}` }));
+      }
+    }, 400);
+
+    return () => clearTimeout(timer);
+  }, [newItem.category, newItem.itemName, isEditing, isSkuManuallyEdited]);
 
   useEffect(() => {
     if (Object.keys(errors).length > 0) {
@@ -746,7 +747,7 @@ export const Inventory = () => {
                   label="Item Name"
                   value={newItem.itemName}
                   onChange={(e: any) =>
-                    setNewItem({ ...newItem, itemName: e.target.value })
+                    setNewItem(prev => ({ ...prev, itemName: e.target.value }))
                   }
                   placeholder="e.g. Copper Cable 10mm"
                   required
@@ -757,15 +758,9 @@ export const Inventory = () => {
                 <SField
                   label="Category"
                   value={newItem.category}
-                  onChange={(e: any) => {
-                    const category = e.target.value;
-                    const nextSku = !isEditing && !isSkuManuallyEdited ? generateAutoSKU(category, newItem.subCategory || "") : newItem.sku;
-                    setNewItem({
-                      ...newItem,
-                      category,
-                      sku: nextSku
-                    });
-                  }}
+                  onChange={(e: any) =>
+                    setNewItem(prev => ({ ...prev, category: e.target.value }))
+                  }
                   options={CATEGORIES}
                   required
                   error={errors.category}
@@ -773,15 +768,9 @@ export const Inventory = () => {
                 <Field
                   label="Sub-Category"
                   value={newItem.subCategory}
-                  onChange={(e: any) => {
-                    const subCategory = e.target.value;
-                    const nextSku = !isEditing && !isSkuManuallyEdited ? generateAutoSKU(newItem.category || "", subCategory) : newItem.sku;
-                    setNewItem({
-                      ...newItem,
-                      subCategory,
-                      sku: nextSku
-                    });
-                  }}
+                  onChange={(e: any) =>
+                    setNewItem(prev => ({ ...prev, subCategory: e.target.value }))
+                  }
                   placeholder="e.g. Cables"
                   required
                   error={errors.subCategory}

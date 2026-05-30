@@ -174,10 +174,12 @@ export const Quotations = () => {
     return quotations.reduce((acc, q) => {
       const mr = materialRequirements.find(m => m.id === q.mrId);
       
-      // Role-based visibility for quotations
+      // Role-based visibility: hide quotations for MRs that haven't reached the
+      // quotation stage yet — BUT always keep rejected quotations visible so
+      // users don't lose track of them after a rejection resets the MR status.
       if (hasPermission('APPROVE_MR_AGM')) {
-        // AGM only sees quotations for MRs that have passed Store Incharge stage
-        if (mr && !["Approved by Store", "Approved by AGM", "Closed", "Approved", "Quotation Phase"].includes(mr.status)) {
+        const eligibleMR = !mr || ["Approved by Store", "Approved by AGM", "Closed", "Approved", "Quotation Phase"].includes(mr.status);
+        if (!eligibleMR && q.status !== 'Rejected') {
           return acc;
         }
       }
@@ -391,17 +393,19 @@ export const Quotations = () => {
                                         <span className="text-[9px] font-bold text-amber-700 dark:text-amber-400">Locked: Approved for MR</span>
                                       </div>
                                     )}
-                                    <button 
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        setSelectedQuotation(q);
-                                        setViewModal(true);
-                                      }}
-                                      className="flex-1 flex items-center justify-center gap-2 py-2.5 px-4 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 rounded-xl text-[11px] font-black transition-all tracking-widest shadow-sm active:scale-95"
-                                    >
-                                      <Eye className="w-4 h-4" />
-                                      Details
-                                    </button>
+                                    {hasPermission("VIEW_QUOTATION_DETAILS") && (
+                                      <button 
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setSelectedQuotation(q);
+                                          setViewModal(true);
+                                        }}
+                                        className="flex-1 flex items-center justify-center gap-2 py-2.5 px-4 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 rounded-xl text-[11px] font-black transition-all tracking-widest shadow-sm active:scale-95"
+                                      >
+                                        <Eye className="w-4 h-4" />
+                                        Details
+                                      </button>
+                                    )}
                                     {q.status !== 'Approved' && hasPermission("APPROVE_QUOTATION") && (
                                       <button 
                                         onClick={(e) => {
@@ -414,7 +418,7 @@ export const Quotations = () => {
                                         Approve
                                       </button>
                                     )}
-                                    {q.status === 'Approved' && hasPermission("APPROVE_QUOTATION") && (
+                                    {q.status === 'Approved' && hasPermission("REJECT_QUOTATION") && (
                                       <button 
                                         onClick={(e) => {
                                           e.stopPropagation();
@@ -768,7 +772,7 @@ export const Quotations = () => {
 
                 {/* Primary — right side */}
                 <div className="flex items-center gap-2 ml-auto flex-wrap">
-                  {selectedQuotation.status !== 'Rejected' && hasPermission("APPROVE_QUOTATION") && (
+                  {selectedQuotation.status !== 'Rejected' && hasPermission("REJECT_QUOTATION") && (
                     <button
                       onClick={() => handleStatusUpdate(selectedQuotation.id, 'Rejected')}
                       className="flex items-center gap-1.5 px-4 py-2 rounded-xl border border-red-200 dark:border-red-700/60 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 text-xs font-bold hover:bg-red-100 dark:hover:bg-red-900/30 transition-all"

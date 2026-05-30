@@ -160,7 +160,7 @@ export const Btn = React.memo(({
   if (outline) {
     colors = "border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-[#F1F5F9] hover:bg-gray-50 dark:hover:bg-gray-800 bg-white dark:bg-[#0F172A]";
   } else if (color === "primary") {
-    colors = "bg-[#F97316] text-white hover:bg-[#ea580c] shadow-md shadow-orange-500/20 dark:shadow-none";
+    colors = "bg-primary text-white hover:bg-primary/90 shadow-md shadow-primary/20 dark:shadow-none";
   } else if (color === "purple") {
     colors = "bg-[#8B5CF6] text-white hover:bg-[#7c3aed] shadow-md shadow-purple-500/20 dark:shadow-none";
   } else if (color === "red") {
@@ -403,7 +403,7 @@ export const SField = React.memo(({
   );
 });
 
-export const Modal = ({ title, onClose, wide, extraWide, ultraWide, children, footer }: any) => (
+export const Modal = ({ title, onClose, wide, extraWide, ultraWide, children, footer, className }: any) => (
   <motion.div
     initial={{ opacity: 0 }}
     animate={{ opacity: 1 }}
@@ -413,25 +413,30 @@ export const Modal = ({ title, onClose, wide, extraWide, ultraWide, children, fo
       initial={{ scale: 0.95, opacity: 0 }}
       animate={{ scale: 1, opacity: 1 }}
       className={cn(
-        "bg-white dark:bg-[#1E293B] rounded-2xl shadow-2xl w-full max-h-[98vh] sm:max-h-[90vh] flex flex-col transition-colors duration-200",
-        ultraWide ? "max-w-[1400px]" : extraWide ? "max-w-6xl" : wide ? "max-w-4xl" : "max-w-xl"
+        "bg-white dark:bg-[#172030] rounded-2xl shadow-2xl w-full max-h-[98vh] sm:max-h-[90vh] flex flex-col transition-colors duration-200 border border-gray-100 dark:border-gray-800/80",
+        ultraWide ? "max-w-[1400px]" : extraWide ? "max-w-6xl" : wide ? "max-w-4xl" : "max-w-xl",
+        className
       )}
     >
-      <div className="flex items-center justify-between px-3 sm:px-6 py-3 sm:py-4 border-b border-[#E8ECF0] dark:border-[#334155]">
+      <div className="flex items-center justify-between px-3 sm:px-6 py-3 sm:py-4 border-b border-[#E8ECF0] dark:border-gray-800/80">
         <h2 className="text-[15px] sm:text-lg font-bold text-[#1A1A2E] dark:text-[#F1F5F9] truncate pr-4">{title}</h2>
         <button
           onClick={onClose}
-          className="p-1.5 sm:p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-[#334155] rounded-lg transition-colors shrink-0"
+          className="p-1.5 sm:p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800/60 rounded-lg transition-colors shrink-0"
         >
           <X className="w-5 h-5" />
         </button>
       </div>
-      <div className="p-3 sm:p-6 overflow-y-auto flex-1">{children}</div>
-      {footer && (
-        <div className="px-3 sm:px-6 py-3 sm:py-4 border-t border-[#E8ECF0] dark:border-[#334155] bg-gray-50 dark:bg-[#0B1120] rounded-b-2xl shrink-0">
-          {footer}
+      <div className="flex-1 overflow-y-auto flex flex-col relative rounded-b-2xl">
+        <div className="p-3 sm:p-6 flex-1">
+          {children}
         </div>
-      )}
+        {footer && (
+          <div className="sticky bottom-0 z-[50] px-3 sm:px-6 py-3 sm:py-4 border-t border-[#E8ECF0] dark:border-gray-800/80 bg-gray-50 dark:bg-[#172030] mt-auto">
+            {footer}
+          </div>
+        )}
+      </div>
     </motion.div>
   </motion.div>
 );
@@ -1281,3 +1286,5 @@ export const MultipleImageUpload = ({
 };
 
 export * from './ui/Checkbox';
+export { CustomDropdown } from './ui/CustomDropdown';
+

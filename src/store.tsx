@@ -348,8 +348,13 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const hasPermission = useCallback((permission: string) => {
     if (!user) return false;
 
-    // Super Admin and superadmin always have full access
+    // Super Admin always has full access
     if (user.role === 'Super Admin' || user.role === 'superadmin') return true;
+
+    // All VIEW_* permissions are open to every authenticated user.
+    // Data visibility should be the same for all — only write/action
+    // permissions (CREATE, EDIT, DELETE, APPROVE, ALLOCATE, etc.) are role-gated.
+    if (permission.startsWith('VIEW_')) return true;
 
     // Check if user has specific permission directly (overrides)
     if (user.permissions?.includes(permission)) return true;
@@ -360,7 +365,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       return rp.permissions.includes(permission);
     }
 
-    // Check role-based permissions from user object (fallback if RolePermissions list not loaded)
+    // Fallback: check rolePermissions stored on the user object
     if (user.rolePermissions?.includes(permission)) return true;
 
     return false;

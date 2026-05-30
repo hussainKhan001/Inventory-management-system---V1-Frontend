@@ -12,6 +12,7 @@ import {
   ConfirmModal,
   Skeleton,
   SearchSelect,
+  CustomDropdown,
   DateField,
   Field,
 } from "../components/ui";
@@ -22,7 +23,6 @@ import { genId, todayStr, scrollToError, formatDateTime, formatDate, safeStr, is
 import { toast } from "react-hot-toast";
 import { cn } from "../lib/utils";
 import { SearchFilter, DateRangePicker, SelectFilter, FilterRow } from "../components/ui/Filters";
-
 export const MaterialRequirementPage = () => {
   const { 
     materialRequirements, 
@@ -363,7 +363,7 @@ export const MaterialRequirementPage = () => {
         await updateMaterialRequirement(newRequirement.id!, {
           ...newRequirement,
           items: checkedItems,
-          status: allInStock ? "Approved by Store" : newRequirement.status
+          status: allInStock ? "Approved by Store" : "Store Pending"
         });
         setModal(false);
         resetForm();
@@ -633,7 +633,7 @@ export const MaterialRequirementPage = () => {
             onClick={() => setActiveTab('requirements')}
             className={`px-4 py-2 text-[13px] font-medium rounded-lg transition-all ${
               activeTab === 'requirements'
-                ? 'bg-white dark:bg-gray-700 text-[#F97316] shadow-sm'
+                ? 'bg-white dark:bg-gray-700 text-primary shadow-sm'
                 : 'text-gray-500 hover:text-gray-700'
             }`}
           >
@@ -643,7 +643,7 @@ export const MaterialRequirementPage = () => {
             onClick={() => setActiveTab('allocations')}
             className={`px-4 py-2 text-[13px] font-medium rounded-lg transition-all ${
               activeTab === 'allocations'
-                ? 'bg-white dark:bg-gray-700 text-[#F97316] shadow-sm'
+                ? 'bg-white dark:bg-gray-700 text-primary shadow-sm'
                 : 'text-gray-500 hover:text-gray-700'
             }`}
           >
@@ -732,14 +732,14 @@ export const MaterialRequirementPage = () => {
                   key={req.id} 
                   className={cn(
                     "p-0 overflow-hidden border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 transition-all",
-                    (req.status === 'Store Pending' || req.status === 'Quotation Phase') && "approval-highlight ring-1 ring-orange-500/20 shadow-lg shadow-orange-500/5 scale-[1.01]"
+                    (req.status === 'Store Pending' || req.status === 'Quotation Phase') && "approval-highlight ring-1 ring-primary/20 shadow-lg shadow-primary/5 scale-[1.01]"
                   )}
                 >
                   <div className="p-4 border-b border-[#E8ECF0] dark:border-gray-800 bg-gray-50 dark:bg-gray-800/50 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                     <div>
                       <div className="flex flex-wrap items-center gap-2 sm:gap-3 mb-1">
                         {isNewItem(req.createdAt) && (
-                          <span className="px-1.5 py-0.5 rounded text-[9px] font-black tracking-widest bg-orange-600 text-white animate-pulse">
+                          <span className="px-1.5 py-0.5 rounded text-[9px] font-black tracking-widest bg-primary text-white animate-pulse">
                             NEW
                           </span>
                         )}
@@ -754,7 +754,7 @@ export const MaterialRequirementPage = () => {
                           <Badge text="Stock Available" color="green" icon={Check} className="gap-1 px-1.5" />
                         )}
                         {(req.status === 'Store Pending' || req.status === 'Quotation Phase') && (
-                          <span className="flex items-center gap-1 text-[10px] font-bold text-orange-600 dark:text-orange-400 animate-bounce ml-1">
+                          <span className="flex items-center gap-1 text-[10px] font-bold text-primary dark:text-primary animate-bounce ml-1">
                             <AlertTriangle className="w-3 h-3" />
                             {req.status === 'Quotation Phase' ? 'Quotation Finalization Needed' : 'Awaiting Review'}
                           </span>
@@ -788,7 +788,7 @@ export const MaterialRequirementPage = () => {
                           onClick={() => {
                             window.location.hash = `tracking?id=${req.mrNumber || req.id}`;
                           }}
-                          className="p-2 rounded-lg text-orange-600 hover:bg-orange-50 dark:hover:bg-orange-900/20 transition-colors"
+                          className="p-2 rounded-lg text-primary hover:bg-primary/10 dark:hover:bg-primary/10 transition-colors"
                         >
                           <TrendingUp className="w-4 h-4" />
                         </button>
@@ -883,7 +883,7 @@ export const MaterialRequirementPage = () => {
                       {req.items.map((item, idx) => (
                         <div key={idx} className="px-3 py-1.5 bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-lg flex flex-col gap-1">
                           <div className="flex items-center gap-2">
-                            <Package className="w-3.5 h-3.5 text-orange-500" />
+                            <Package className="w-3.5 h-3.5 text-primary" />
                             <div className="flex flex-col">
                               <span className="text-[13px] font-medium text-gray-700 dark:text-gray-300">{item.materialName}</span>
                               <div className="flex items-center gap-1.5 mt-1">
@@ -925,7 +925,7 @@ export const MaterialRequirementPage = () => {
 
         {loading && materialRequirements.length > 0 && (
           <div className="flex items-center justify-center py-4 text-gray-500 text-xs">
-            <div className="w-4 h-4 border-2 border-orange-500 border-t-transparent rounded-full animate-spin mr-2"></div>
+            <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin mr-2"></div>
             Loading more requirements...
           </div>
         )}
@@ -961,9 +961,9 @@ export const MaterialRequirementPage = () => {
                                <h4 className="text-[14px] font-bold text-gray-900 dark:text-white mt-0.5">{alc.itemName}</h4>
                                <p className="text-[11px] font-mono text-gray-400">{alc.sku}</p>
                              </div>
-                             <div className="bg-orange-100 dark:bg-orange-900/30 px-3 py-1 rounded-lg text-center">
-                                <p className="text-[14px] font-black text-orange-700 dark:text-orange-400">{alc.allocatedQty}</p>
-                                <p className="text-[9px] font-bold text-orange-500">Allocated</p>
+                             <div className="bg-primary/10 dark:bg-primary/20 px-3 py-1 rounded-lg text-center">
+                                <p className="text-[14px] font-black text-primary">{alc.allocatedQty}</p>
+                                <p className="text-[9px] font-bold text-primary/80">Allocated</p>
                              </div>
                            </div>
                            <div className="grid grid-cols-2 gap-4 text-[12px] mt-4 pt-3 border-t border-gray-50 dark:border-gray-800">
@@ -996,7 +996,7 @@ export const MaterialRequirementPage = () => {
                         </div>
                       </td>
                       <td className="hidden md:table-cell px-3 py-2.5 text-center">
-                         <span className="inline-flex items-center px-2 py-0.5 bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 rounded font-bold text-[12px] min-w-[30px] justify-center">
+                         <span className="inline-flex items-center px-2 py-0.5 bg-primary/10 dark:bg-primary/20 text-primary rounded font-bold text-[12px] min-w-[30px] justify-center">
                            {alc.allocatedQty}
                          </span>
                       </td>
@@ -1009,7 +1009,7 @@ export const MaterialRequirementPage = () => {
                     <tr>
                       <td colSpan={5} className="py-4 text-center">
                         <div className="flex items-center justify-center text-gray-500 text-xs">
-                          <div className="w-3 h-3 border-2 border-orange-500 border-t-transparent rounded-full animate-spin mr-2"></div>
+                          <div className="w-3 h-3 border-2 border-primary border-t-transparent rounded-full animate-spin mr-2"></div>
                           Loading more allocations...
                         </div>
                       </td>
@@ -1035,6 +1035,166 @@ export const MaterialRequirementPage = () => {
           title={`Requirement Details - ${selectedRequirement.id}`}
           ultraWide
           onClose={() => setViewModal(false)}
+          footer={
+            <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 w-full">
+              {/* ── Left: primary actions ───────────────────────────── */}
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  disabled={isMRLocked(selectedRequirement.id) || !allItemsMapped}
+                  onClick={async () => {
+                    if (!selectedRequirement) return;
+                    try {
+                      toast.loading("Saving changes...", { id: "save-mr" });
+                      const allInStock = selectedRequirement.items.length > 0 && selectedRequirement.items.every(i => i.status === "In Stock");
+                      await updateMaterialRequirement(selectedRequirement.id, {
+                        ...selectedRequirement,
+                        status: allInStock ? "Approved by Store" : "Store Pending"
+                      });
+                      toast.success("Requirement saved successfully", { id: "save-mr" });
+                      setViewModal(false);
+                    } catch (e: any) {
+                      toast.error("Save failed: " + e.message, { id: "save-mr" });
+                    }
+                  }}
+                  className="flex items-center gap-2 px-5 py-2.5 bg-primary hover:bg-primary/90 hover:-translate-y-0.5 active:translate-y-0 text-white rounded-xl text-xs font-black transition-all tracking-wider shadow-lg shadow-primary/20 dark:shadow-none disabled:bg-gray-400 disabled:shadow-none disabled:cursor-not-allowed disabled:transform-none cursor-pointer"
+                >
+                  <Check className="w-4 h-4" />
+                  Save & close
+                </button>
+                {hasPermission("GET_QUOTATION_LINK") && (
+                  <div className="relative quotation-dropdown-container">
+                    <button
+                      disabled={!allItemsMapped || selectedRequirement.quotationLinkActive === false}
+                      onClick={() => setShowQuotationDropdown(!showQuotationDropdown)}
+                      className={cn(
+                        "flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black transition-all tracking-wider disabled:opacity-50 disabled:cursor-not-allowed shrink-0 cursor-pointer border",
+                        showQuotationDropdown
+                          ? "bg-primary text-white border-primary"
+                          : "bg-primary/5 hover:bg-primary hover:text-white dark:bg-primary/10 dark:hover:bg-primary text-primary border-primary/20"
+                      )}
+                      title={selectedRequirement.quotationLinkActive === false ? "Link is deactivated by AGM" : ""}
+                    >
+                      <Link2 className="w-4 h-4" />
+                      Get quotation link
+                    </button>
+                    {allItemsMapped && selectedRequirement.quotationLinkActive !== false && showQuotationDropdown && (
+                      <div className="absolute bottom-full left-0 mb-2 w-56 bg-white dark:bg-[#1E293B] border border-gray-200 dark:border-gray-800 rounded-xl shadow-xl p-2 block transition-all z-50 animate-in fade-in slide-in-from-bottom-2 duration-200">
+                        <p className="text-[10px] font-bold text-gray-400 px-3 py-1 tracking-wider">Select Category</p>
+                        <button
+                          onClick={() => {
+                            const url = `${window.location.origin}${window.location.pathname}#public-quotation?mrId=${selectedRequirement.id}`;
+                            navigator.clipboard.writeText(url);
+                            toast.success("All items link copied!");
+                            setShowQuotationDropdown(false);
+                          }}
+                          className="w-full text-left px-3 py-2 text-[12px] font-semibold text-gray-700 dark:text-gray-300 hover:bg-primary/10 dark:hover:bg-primary/20 rounded-lg transition-colors cursor-pointer"
+                        >
+                          All Categories
+                        </button>
+                        {Array.from(new Set(selectedRequirement.items.map(i => i.category).filter(Boolean))).map((cat: any) => (
+                          <button
+                            key={cat}
+                            onClick={() => {
+                              const url = `${window.location.origin}${window.location.pathname}#public-quotation?mrId=${selectedRequirement.id}&category=${encodeURIComponent(String(cat))}`;
+                              navigator.clipboard.writeText(url);
+                              toast.success(`${cat} link copied!`);
+                              setShowQuotationDropdown(false);
+                            }}
+                            className="w-full text-left px-3 py-2 text-[12px] font-semibold text-gray-700 dark:text-gray-300 hover:bg-primary/10 dark:hover:bg-primary/20 rounded-lg transition-colors cursor-pointer"
+                          >
+                            {cat}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+                {selectedRequirement.status === "Store Pending" && !isMRLocked(selectedRequirement.id) && (
+                  <button
+                    disabled={!allItemsMapped}
+                    onClick={() => handleRecheck(selectedRequirement)}
+                    className="flex items-center gap-2 px-4 py-2.5 bg-blue-500/10 hover:bg-blue-600 hover:text-white dark:bg-blue-500/10 dark:hover:bg-blue-600 text-blue-600 dark:text-blue-400 rounded-xl text-xs font-black transition-all tracking-wider border border-blue-200/50 dark:border-blue-800/30 disabled:opacity-50 disabled:cursor-not-allowed shrink-0 cursor-pointer"
+                  >
+                    <RefreshCw className={`w-4 h-4 ${actionLoading ? 'animate-spin' : ''}`} />
+                    Recheck
+                  </button>
+                )}
+              </div>
+
+              {/* ── Right: status actions + Cancel ──────────────────── */}
+              <div className="flex flex-wrap items-center gap-2">
+                {(() => {
+                  const itemsWithStockStatus = selectedRequirement.items.map(item => {
+                    const inv = inventory.find(i => i.sku === item.sku);
+                    const liveStock = inv ? (inv.liveStock || 0) : 0;
+                    return { ...item, liveStock, isAvailable: liveStock >= item.qty };
+                  });
+                  const allInStock = itemsWithStockStatus.every(i => i.isAvailable);
+                  const hasFinalQuotation = selectedRequirement.approvals?.length > 0 || selectedRequirement.approvedQuotationId || selectedRequirement.approvedSupplier;
+                  const someAllocated = selectedRequirement.items.some(i => (i.availableInStock || 0) > 0);
+                  const hasPurchaseItems = itemsWithStockStatus.some(i => i.status === "Needs Purchase" || i.status === "Purchase Required" || i.status === "Partial");
+                  const canApprove = allInStock || hasFinalQuotation || someAllocated || hasPurchaseItems;
+
+                  if ((selectedRequirement.status === "Store Pending" || selectedRequirement.status === "Allocated" || selectedRequirement.status === "Partially Allocated") && (hasPermission("APPROVE_MR_STORE") || hasPermission("MANAGE_INVENTORY"))) {
+                    return (
+                      <button
+                        onClick={async () => {
+                          if (!canApprove || !allItemsMapped) {
+                            toast.error("Inventory check failed. Please ensure items are mapped to inventory and either in stock, linked, or marked for purchase.");
+                            return;
+                          }
+                          try {
+                            const newStatus = "Approved by Store";
+                            await updateMaterialRequirement(selectedRequirement.id, { status: newStatus });
+                            toast.success("Requirement approved by Store.");
+                            setViewModal(false);
+                          } catch (e: any) {
+                            toast.error("Failed to approve: " + e.message);
+                          }
+                        }}
+                        disabled={!canApprove || !allItemsMapped}
+                        title={!canApprove ? "Inventory unavailable: Please allocate stock, link inventory, or mark for purchase before approving." : "Approve by store"}
+                        className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black transition-all tracking-wider border shrink-0 cursor-pointer ${(canApprove && allItemsMapped) ? "bg-emerald-500/10 hover:bg-emerald-600 hover:text-white dark:bg-emerald-500/10 dark:hover:bg-emerald-600 text-emerald-600 dark:text-emerald-400 border-emerald-500/25 dark:border-emerald-800/40" : "bg-gray-100 dark:bg-gray-800 text-gray-400 border-gray-255 dark:border-gray-700 cursor-not-allowed"}`}
+                      >
+                        <CheckCircle className="w-4 h-4" />
+                        Approve by store
+                      </button>
+                    );
+                  }
+
+                  if (selectedRequirement.status === "Quotation Phase" || selectedRequirement.status === "Approved by Store") {
+                    return (
+                      <>
+                        {hasPermission("VIEW_QUOTATIONS") && (
+                          <button
+                            onClick={() => { window.location.hash = "quotations"; setViewModal(false); }}
+                            className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black transition-all tracking-wider bg-blue-500/10 hover:bg-blue-600 hover:text-white dark:bg-blue-500/10 dark:hover:bg-blue-600 text-blue-600 dark:text-blue-400 border border-blue-200/50 dark:border-blue-800/30 shrink-0 cursor-pointer"
+                          >
+                            <TrendingUp className="w-4 h-4" />
+                            Compare Quotations
+                          </button>
+                        )}
+                      </>
+                    );
+                  }
+
+                  return null;
+                })()}
+                {selectedRequirement.status !== "Rejected" && hasPermission("REJECT_MR") && (
+                  <Btn
+                    label="Reject Requirement"
+                    color="red"
+                    outline
+                    onClick={() => setRejectingId(selectedRequirement.id)}
+                    loading={actionLoading}
+                    disabled={!allItemsMapped}
+                    className="rounded-xl bg-rose-500/10 hover:bg-rose-600 hover:text-white text-rose-600 dark:text-rose-450 border border-rose-500/25 dark:border-rose-500/30 transition-all duration-200 font-black tracking-wider text-xs px-4 py-2.5 cursor-pointer shrink-0"
+                  />
+                )}
+                <Btn label="Cancel" outline onClick={() => setViewModal(false)} className="rounded-xl font-black text-xs px-5 py-2.5 cursor-pointer shrink-0" />
+              </div>
+            </div>
+          }
         >
           {isMRLocked(selectedRequirement.id) && (
             <div className="mb-6 p-4 bg-amber-500/5 border border-amber-500/20 dark:border-amber-500/30 rounded-xl flex items-center gap-3">
@@ -1046,16 +1206,16 @@ export const MaterialRequirementPage = () => {
             </div>
           )}
           {!allItemsMapped && (
-            <div className="mb-6 p-4 bg-rose-500/5 border border-rose-500/20 dark:border-rose-500/30 rounded-xl flex items-center gap-3">
-              <AlertTriangle className="w-5 h-5 text-red-500 flex-shrink-0" />
+            <div className="mb-6 p-4 bg-red-500/5 border border-red-500/20 rounded-xl flex items-start gap-3">
+              <AlertTriangle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
               <div>
-                <p className="text-[13px] font-bold text-red-900 dark:text-red-450 font-sans">Inventory Mapping Required</p>
-                <p className="text-[11px] text-red-700 dark:text-red-450 font-sans">Some items are not linked to inventory stock SKU. All action buttons (Save & Close, Get Quotation Link, Recheck, Approve by Store, Reject Requirement) are disabled until you map each item.</p>
+                <p className="text-[13px] font-bold text-red-500 font-sans">Inventory Mapping Required</p>
+                <p className="text-[11px] text-red-500/80 font-sans mt-0.5">Some items are not linked to inventory stock SKU. All action buttons (Save & Close, Get Quotation Link, Recheck, Approve by Store, Reject Requirement) are disabled until you map each item.</p>
               </div>
             </div>
           )}
           <div className="space-y-6">
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 p-4 bg-gray-50/25 dark:bg-[#0F172A]/40 border border-gray-150/60 dark:border-gray-850/50 rounded-2xl">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 p-4 bg-gray-50/25 dark:bg-[#0F172A]/40 border border-gray-150/60 dark:border-gray-800/80 rounded-2xl">
               <div className="flex items-center gap-3 p-3 bg-white/40 dark:bg-[#0F172A]/30 rounded-xl border border-gray-200/50 dark:border-gray-800/80 shadow-xs">
                 <div className="w-9 h-9 rounded-lg bg-orange-50 dark:bg-orange-950/30 flex items-center justify-center text-orange-600 dark:text-orange-400 shrink-0">
                   <User className="w-5 h-5" />
@@ -1155,7 +1315,7 @@ export const MaterialRequirementPage = () => {
                             toast.error(err.message || "Failed to update link status");
                           }
                         }}
-                        className="text-[9px] font-extrabold text-orange-500 hover:text-orange-600 hover:underline transition-all tracking-wider shrink-0 cursor-pointer"
+                        className="text-[9px] font-extrabold text-[#F97316] hover:text-[#ea580c] hover:underline transition-all tracking-wider shrink-0 cursor-pointer"
                       >
                         {selectedRequirement.quotationLinkActive !== false ? "Deactivate" : "Activate"}
                       </button>
@@ -1182,7 +1342,7 @@ export const MaterialRequirementPage = () => {
                 <h5 className="text-[10px] font-black text-emerald-600 dark:text-emerald-400 tracking-widest mb-3">Approved Supplier Quotations</h5>
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
                   {selectedRequirement.approvals.map((app, idx) => (
-                    <div key={idx} className="bg-emerald-500/5 border border-emerald-500/20 dark:border-emerald-800/40 p-3 rounded-xl shadow-xs flex items-center gap-3">
+                    <div key={idx} className="bg-emerald-500/5 border border-emerald-500/20 dark:border-emerald-850/40 p-3 rounded-xl shadow-xs flex items-center gap-3">
                       <div className="w-8 h-8 rounded-lg bg-emerald-50 dark:bg-emerald-950/30 flex items-center justify-center text-emerald-600 dark:text-emerald-400 shrink-0">
                         <CheckCircle className="w-4.5 h-4.5" />
                       </div>
@@ -1232,32 +1392,33 @@ export const MaterialRequirementPage = () => {
               <h4 className="text-[11px] font-bold text-gray-500 tracking-wider px-2">Requested items</h4>
 
               {/* Desktop view table */}
-              <div className="hidden md:block border border-gray-150/60 dark:border-gray-800/80 rounded-2xl overflow-x-auto shadow-xs bg-gray-50/25 dark:bg-[#0F172A]/40">
-                <table className="w-full min-w-[1000px] text-left border-collapse table-fixed">
+              <div className="hidden md:block border border-gray-150/60 dark:border-gray-800/80 rounded-2xl overflow-x-auto shadow-xs bg-gray-50/25 dark:bg-[#0F172A]/40 min-h-[360px] pb-28">
+                <table className="w-full min-w-max text-left border-collapse table-auto">
                   <thead className="bg-gray-50/10 dark:bg-[#0F172A]/40 backdrop-blur-md">
                     <tr>
                       <th className="px-4 py-3.5 text-[10px] font-black text-gray-400 dark:text-gray-500 whitespace-nowrap overflow-hidden border-b border-gray-100 dark:border-gray-800">Material name</th>
-                      <th className="px-4 py-3.5 text-[10px] font-black text-gray-400 dark:text-gray-500 whitespace-nowrap text-center overflow-hidden border-b border-gray-100 dark:border-gray-800 w-[110px]">Category</th>
-                      <th className="px-4 py-3.5 text-[10px] font-black text-gray-400 dark:text-gray-500 whitespace-nowrap text-center overflow-hidden border-b border-gray-100 dark:border-gray-800 w-[100px]">Condition</th>
-                      <th className="px-4 py-3.5 text-[10px] font-black text-gray-400 dark:text-gray-500 whitespace-nowrap text-right overflow-hidden border-b border-gray-100 dark:border-gray-800 w-[80px]">Qty</th>
-                      <th className="px-4 py-3.5 text-[10px] font-black text-gray-400 dark:text-gray-500 whitespace-nowrap text-right overflow-hidden border-b border-gray-100 dark:border-gray-800 w-[80px]">In stock</th>
-                      <th className="px-4 py-3.5 text-[10px] font-black text-gray-400 dark:text-gray-500 whitespace-nowrap text-right overflow-hidden border-b border-gray-100 dark:border-gray-800 w-[90px]">Purchase</th>
-                      <th className="px-4 py-3.5 text-[10px] font-black text-gray-400 dark:text-gray-500 whitespace-nowrap text-center overflow-hidden border-b border-gray-100 dark:border-gray-800 w-[100px]">Status</th>
-                      <th className="px-4 py-3.5 text-[10px] font-black text-gray-400 dark:text-gray-500 whitespace-nowrap text-right overflow-hidden border-b border-gray-100 dark:border-gray-800 w-[150px]">Actions</th>
+                      <th className="px-2 py-3.5 text-[10px] font-black text-gray-400 dark:text-gray-500 whitespace-nowrap text-center overflow-hidden border-b border-gray-100 dark:border-gray-800 w-[145px]">Category</th>
+                      <th className="px-2 py-3.5 text-[10px] font-black text-gray-400 dark:text-gray-500 whitespace-nowrap text-center overflow-hidden border-b border-gray-100 dark:border-gray-800 w-[95px]">Condition</th>
+                      <th className="px-2 py-3.5 text-[10px] font-black text-gray-400 dark:text-gray-500 whitespace-nowrap text-center overflow-hidden border-b border-gray-100 dark:border-gray-800 w-[115px]">Qty</th>
+                      <th className="px-2 py-3.5 text-[10px] font-black text-gray-400 dark:text-gray-500 whitespace-nowrap text-center overflow-hidden border-b border-gray-100 dark:border-gray-800 w-[80px]">In stock</th>
+                      <th className="px-2 py-3.5 text-[10px] font-black text-gray-400 dark:text-gray-500 whitespace-nowrap text-center overflow-hidden border-b border-gray-100 dark:border-gray-800 w-[90px]">Allocate</th>
+                      <th className="px-2 py-3.5 text-[10px] font-black text-gray-400 dark:text-gray-500 whitespace-nowrap text-center overflow-hidden border-b border-gray-100 dark:border-gray-800 w-[90px]">Purchase</th>
+                      <th className="px-2 py-3.5 text-[10px] font-black text-gray-400 dark:text-gray-500 whitespace-nowrap text-center overflow-hidden border-b border-gray-100 dark:border-gray-800 w-[100px]">Status</th>
+                      <th className="px-2 py-3.5 text-[10px] font-black text-gray-400 dark:text-gray-500 whitespace-nowrap text-center overflow-hidden border-b border-gray-100 dark:border-gray-800 w-[110px]">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100/50 dark:divide-gray-800/80 bg-transparent">
                     {selectedRequirement.items.map((item, idx) => (
                       <tr key={idx} className="transition-all duration-200">
-                        <td className="px-4 py-4 align-middle">
-                          <div className="flex items-center gap-3">
-                            <div className="w-8.5 h-8.5 rounded-xl bg-orange-50 dark:bg-orange-950/20 flex items-center justify-center border border-orange-100/50 dark:border-orange-900/10 shrink-0">
+                        <td className="px-4 py-4 align-top">
+                          <div className="flex items-start gap-3">
+                            <div className="w-8.5 h-8.5 mt-[3px] rounded-xl bg-orange-50 dark:bg-orange-950/20 flex items-center justify-center border border-orange-100/50 dark:border-orange-900/10 shrink-0">
                               <Package className="w-4 h-4 text-orange-600 dark:text-orange-400" />
                             </div>
                             <div className="flex-1">
                               <input 
                                 disabled={isMRLocked(selectedRequirement.id)}
-                                className="text-[13px] font-bold text-gray-900 dark:text-white block bg-white/40 dark:bg-[#0F172A]/30 border border-gray-200/50 dark:border-gray-800/80 focus:border-primary focus:ring-1 focus:ring-primary rounded-xl px-3 py-1.5 w-full outline-none transition-all disabled:opacity-60 disabled:cursor-not-allowed shadow-inner"
+                                className="text-[13px] font-bold text-gray-900 dark:text-white block bg-white/40 dark:bg-[#0F172A]/30 border border-gray-200/50 dark:border-gray-800/80 focus:border-primary focus:ring-1 focus:ring-primary rounded-xl px-4 h-[40px] w-full outline-none transition-all disabled:opacity-60 disabled:cursor-not-allowed shadow-inner"
                                 value={item.materialName}
                                 onChange={(e) => {
                                   const newItems = [...selectedRequirement.items];
@@ -1269,7 +1430,7 @@ export const MaterialRequirementPage = () => {
                               <div className="flex items-center gap-2 mt-2">
                                 {item.sku && item.sku !== 'N/A' ? (
                                   <div className="flex items-center gap-1 px-2.5 py-0.5 bg-green-50/80 dark:bg-green-950/20 text-green-600 dark:text-green-400 rounded-lg border border-green-200/50 dark:border-green-800/30 shadow-xs shrink-0">
-                                    <Check className="w-3 h-3 shrink-0" />
+                                    <Check className="w-3.5 h-3.5 shrink-0" />
                                     <span className="text-[10px] font-black tracking-tight">{safeStr(item.sku)}</span>
                                   </div>
                                 ) : (
@@ -1306,7 +1467,7 @@ export const MaterialRequirementPage = () => {
                                       let status: MaterialRequirementItem['status'] = "Needs Purchase";
                                       if (available >= requested) status = "In Stock";
                                       else if (available > 0) status = "Partial";
- 
+  
                                       newItems[idx] = {
                                         ...newItems[idx],
                                         sku: bestMatch.sku,
@@ -1331,63 +1492,45 @@ export const MaterialRequirementPage = () => {
                             </div>
                           </div>
                         </td>
-                        <td className="px-4 py-4 align-middle text-center">
-                          <select
+                        <td className="px-2 py-4 align-top text-center">
+                          <SField
                             disabled={isMRLocked(selectedRequirement.id)}
-                            className="text-[12px] font-bold bg-white/40 dark:bg-[#0F172A]/30 border border-gray-200/50 dark:border-gray-800/80 focus:border-primary focus:ring-1 focus:ring-primary rounded-xl px-3 py-1.5 cursor-pointer text-gray-700 dark:text-gray-300 transition-all outline-none disabled:opacity-50 shadow-inner appearance-none pr-8 min-w-[130px]"
+                            options={categoryOptions.map(cat => ({ value: cat, label: cat }))}
                             value={item.category || ""}
-                            onChange={(e) => {
+                            onChange={(e: any) => {
                               const newItems = [...selectedRequirement.items];
                               newItems[idx].category = e.target.value;
                               setSelectedRequirement({ ...selectedRequirement, items: newItems });
                             }}
-                            style={{
-                              backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%236B7280'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E")`,
-                              backgroundRepeat: 'no-repeat',
-                              backgroundPosition: 'right 0.75rem center',
-                              backgroundSize: '1em'
-                            }}
-                          >
-                            <option value="" className="bg-white dark:bg-[#1E293B] text-gray-700 dark:text-gray-300">Select Category</option>
-                            {categoryOptions.map((cat: any) => (
-                              <option key={cat} value={cat} className="bg-white dark:bg-[#1E293B] text-gray-700 dark:text-gray-300">
-                                {cat}
-                              </option>
-                            ))}
-                          </select>
+                            placeholder="Select Category"
+                            className="min-w-[130px] w-full mb-0"
+                          />
                         </td>
-                        <td className="px-4 py-4 align-middle text-center">
-                          <select
+                        <td className="px-2 py-4 align-top text-center">
+                          <SField
                             disabled={isMRLocked(selectedRequirement.id)}
-                            className="text-[12px] font-bold bg-white/40 dark:bg-[#0F172A]/30 border border-gray-200/50 dark:border-gray-800/80 focus:border-primary focus:ring-1 focus:ring-primary rounded-xl px-3 py-1.5 cursor-pointer text-gray-700 dark:text-gray-300 transition-all outline-none disabled:opacity-50 shadow-inner appearance-none pr-8"
+                            options={["New", "Old"]}
                             value={item.condition || "New"}
-                            onChange={(e) => {
+                            onChange={(e: any) => {
                               const newItems = [...selectedRequirement.items];
                               newItems[idx].condition = e.target.value as any;
                               setSelectedRequirement({ ...selectedRequirement, items: newItems });
                             }}
-                            style={{
-                              backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%236B7280'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E")`,
-                              backgroundRepeat: 'no-repeat',
-                              backgroundPosition: 'right 0.75rem center',
-                              backgroundSize: '1em'
-                            }}
-                          >
-                            <option value="New" className="bg-white dark:bg-[#1E293B] text-gray-700 dark:text-gray-300">New</option>
-                            <option value="Old" className="bg-white dark:bg-[#1E293B] text-gray-700 dark:text-gray-300">Old</option>
-                          </select>
+                            className="w-full mb-0"
+                          />
                         </td>
-                        <td className="px-4 py-4 align-middle text-right">
-                          <div className="flex items-center justify-end">
-                            <div className="flex items-center bg-white/40 dark:bg-[#0F172A]/30 border border-gray-200/50 dark:border-gray-800/80 rounded-xl focus-within:border-primary focus-within:ring-1 focus-within:ring-primary overflow-hidden shadow-inner w-32 shrink-0">
+                        <td className="px-2 py-4 align-top">
+                          <div className="flex justify-center">
+                            <div className="flex flex-col gap-1.5 w-full max-w-[100px] mx-auto">
                               <input 
                                 disabled={isMRLocked(selectedRequirement.id)}
                                 type="number"
-                                className="w-16 bg-transparent text-right text-[13px] font-black text-gray-900 dark:text-white outline-none border-none py-1.5 pl-2 pr-1 disabled:opacity-60 disabled:cursor-not-allowed"
+                                className="text-[13px] font-bold text-center bg-white/40 dark:bg-[#0F172A]/30 border border-gray-200/50 dark:border-gray-800/80 focus:border-primary focus:ring-1 focus:ring-primary rounded-xl px-4 h-[40px] outline-none transition-all disabled:opacity-60 disabled:cursor-not-allowed shadow-inner w-full"
                                 value={item.qty}
+                                min={1}
                                 onChange={(e) => {
                                   const newItems = [...selectedRequirement.items];
-                                  const qty = Number(e.target.value);
+                                  const qty = Math.max(1, Number(e.target.value));
                                   const inv = inventory.find(i => i.sku === item.sku);
                                   
                                   let status = item.status;
@@ -1400,7 +1543,7 @@ export const MaterialRequirementPage = () => {
                                     else status = "Needs Purchase";
                                     availableInStock = Math.min(qty, available);
                                   }
- 
+
                                   newItems[idx] = { 
                                     ...newItems[idx], 
                                     qty, 
@@ -1411,145 +1554,154 @@ export const MaterialRequirementPage = () => {
                                   setSelectedRequirement({ ...selectedRequirement, items: newItems });
                                 }}
                               />
-                              <span className="text-gray-300 dark:text-gray-600 font-light select-none px-0.5">|</span>
-                              <select
+                              <SField
                                 disabled={isMRLocked(selectedRequirement.id)}
-                                className="flex-1 bg-transparent text-[11px] font-bold text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300 cursor-pointer outline-none border-none py-1.5 pl-1 pr-4 appearance-none"
-                                value={item.unit}
-                                onChange={(e) => {
+                                options={UNITS.map(u => ({ value: u, label: u }))}
+                                value={item.unit || ""}
+                                onChange={(e: any) => {
                                   const newItems = [...selectedRequirement.items];
                                   newItems[idx].unit = e.target.value;
                                   setSelectedRequirement({ ...selectedRequirement, items: newItems });
                                 }}
-                                style={{
-                                  backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%2394A3B8'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E")`,
-                                  backgroundRepeat: 'no-repeat',
-                                  backgroundPosition: 'right 0.25rem center',
-                                  backgroundSize: '0.8em'
-                                }}
-                              >
-                                <option value="">Unit</option>
-                                {UNITS.map(u => <option key={u} value={u} className="bg-white dark:bg-gray-800 text-gray-900 dark:text-white">{u}</option>)}
-                              </select>
+                                placeholder="Unit"
+                                className="w-full mb-0"
+                              />
                             </div>
                           </div>
                         </td>
-                        <td className="px-4 py-4 align-middle text-right">
-                          {hasPermission("ALLOCATE_MR") && !isMRLocked(selectedRequirement.id) ? (
-                            <input
-                              type="number"
-                              className="w-20 text-right text-[13px] font-bold bg-emerald-500/5 border border-emerald-500/20 dark:border-emerald-500/30 rounded-xl px-3 py-1.5 shadow-inner text-emerald-600 dark:text-emerald-400 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 outline-none transition-all"
-                              value={item.availableInStock || 0}
-                              max={item.qty}
-                              onChange={(e) => {
-                                const newItems = [...selectedRequirement.items];
-                                const val = Math.min(Number(e.target.value), item.qty || 0);
-                                const requested = item.qty || 0;
-                                
-                                let status: MaterialRequirementItem['status'] = "Needs Purchase";
-                                if (val >= requested) status = "In Stock";
-                                else if (val > 0) status = "Partial";
- 
-                                newItems[idx] = { 
-                                  ...newItems[idx], 
-                                  availableInStock: val,
-                                  remainingQty: Math.max(0, requested - val),
-                                  status
-                                };
-                                setSelectedRequirement({ ...selectedRequirement, items: newItems });
-                              }}
-                            />
-                          ) : (
-                            <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-500/5 text-emerald-600 dark:text-emerald-400 rounded-xl border border-emerald-500/20 dark:border-emerald-500/30 shadow-xs shrink-0">
-                              <span className="text-[12px] font-black leading-none">
-                                {(() => {
-                                  const inv = inventory.find(i => i.sku === item.sku);
-                                  return inv ? (inv.liveStock || 0) : (item.availableInStock || 0);
-                                })()}
-                              </span>
+                        <td className="px-2 py-4 align-top text-center">
+                          <div className="flex justify-center">
+                            <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-blue-500/5 text-blue-600 dark:text-blue-400 rounded-xl border border-blue-500/20 dark:border-blue-500/30 shadow-xs shrink-0 font-bold text-xs h-9 min-w-[50px] justify-center">
+                              {(() => {
+                                const inv = inventory.find(i => i.sku === item.sku);
+                                return inv ? (inv.liveStock || 0) : 0;
+                              })()}
                             </div>
-                          )}
+                          </div>
                         </td>
-                        <td className="px-4 py-4 align-middle text-right">
-                          {hasPermission("ALLOCATE_MR") && !isMRLocked(selectedRequirement.id) ? (
-                            <input
-                              type="number"
-                              className="w-20 text-right text-[13px] font-bold bg-rose-500/5 border border-rose-500/20 dark:border-rose-500/30 rounded-xl px-3 py-1.5 shadow-inner text-rose-600 dark:text-rose-450 focus:border-rose-500 focus:ring-1 focus:ring-rose-500 outline-none transition-all"
-                              value={item.remainingQty || 0}
-                              max={item.qty}
-                              onChange={(e) => {
-                                const newItems = [...selectedRequirement.items];
-                                const val = Math.min(Number(e.target.value), item.qty || 0);
-                                const requested = item.qty || 0;
-                                
-                                const allocated = Math.max(0, requested - val);
-                                let status: MaterialRequirementItem['status'] = "Needs Purchase";
-                                if (allocated >= requested) status = "In Stock";
-                                else if (allocated > 0) status = "Partial";
- 
-                                newItems[idx] = { 
-                                  ...newItems[idx], 
-                                  remainingQty: val,
-                                  availableInStock: allocated,
-                                  status
-                                };
-                                setSelectedRequirement({ ...selectedRequirement, items: newItems });
-                              }}
+                        <td className="px-2 py-4 align-top text-center">
+                          <div className="flex justify-center">
+                            {hasPermission("ALLOCATE_MR") && !isMRLocked(selectedRequirement.id) ? (
+                              <input
+                                type="number"
+                                className="w-20 text-center text-[13px] font-bold bg-emerald-500/5 border border-emerald-500/20 dark:border-emerald-500/30 rounded-xl px-3 py-1.5 shadow-inner text-emerald-600 dark:text-emerald-400 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 outline-none transition-all h-9"
+                                value={item.availableInStock || 0}
+                                min={0}
+                                max={item.qty}
+                                onChange={(e) => {
+                                  const newItems = [...selectedRequirement.items];
+                                  const val = Math.max(0, Math.min(Number(e.target.value), item.qty || 0));
+                                  const requested = item.qty || 0;
+                                  
+                                  let status: MaterialRequirementItem['status'] = "Needs Purchase";
+                                  if (val >= requested) status = "In Stock";
+                                  else if (val > 0) status = "Partial";
+  
+                                  newItems[idx] = { 
+                                    ...newItems[idx], 
+                                    availableInStock: val,
+                                    remainingQty: Math.max(0, requested - val),
+                                    status
+                                  };
+                                  setSelectedRequirement({ ...selectedRequirement, items: newItems });
+                                }}
+                              />
+                            ) : (
+                              <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-500/5 text-emerald-600 dark:text-emerald-400 rounded-xl border border-emerald-500/20 dark:border-emerald-500/30 shadow-xs shrink-0 font-bold text-xs h-9 min-w-[50px] justify-center">
+                                {item.availableInStock || 0}
+                              </div>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-2 py-4 align-top text-center">
+                          <div className="flex justify-center">
+                            {hasPermission("EDIT_MR_PURCHASE") && !isMRLocked(selectedRequirement.id) ? (
+                              <input
+                                type="number"
+                                className="w-20 text-center text-[13px] font-bold bg-rose-500/5 border border-rose-500/20 dark:border-rose-500/30 rounded-xl px-3 py-1.5 shadow-inner text-rose-600 dark:text-rose-455 focus:border-rose-500 focus:ring-1 focus:ring-rose-500 outline-none transition-all h-9"
+                                value={item.remainingQty || 0}
+                                min={0}
+                                max={item.qty}
+                                onChange={(e) => {
+                                  const newItems = [...selectedRequirement.items];
+                                  const val = Math.max(0, Math.min(Number(e.target.value), item.qty || 0));
+                                  const requested = item.qty || 0;
+                                  
+                                  const allocated = Math.max(0, requested - val);
+                                  let status: MaterialRequirementItem['status'] = "Needs Purchase";
+                                  if (allocated >= requested) status = "In Stock";
+                                  else if (allocated > 0) status = "Partial";
+  
+                                  newItems[idx] = { 
+                                    ...newItems[idx], 
+                                    remainingQty: val,
+                                    availableInStock: allocated,
+                                    status
+                                  };
+                                  setSelectedRequirement({ ...selectedRequirement, items: newItems });
+                                }}
+                              />
+                            ) : (
+                              <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-rose-500/5 text-rose-600 dark:text-rose-455 rounded-xl border border-rose-500/20 dark:border-rose-500/30 shadow-xs shrink-0 font-bold text-xs h-9 min-w-[50px] justify-center">
+                                {item.remainingQty || 0}
+                              </div>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-2 py-4 align-top text-center">
+                          <div className="flex justify-center">
+                            <StatusBadge 
+                              status={item.status || "Check Required"}
                             />
-                          ) : (
-                            <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-rose-500/5 text-rose-600 dark:text-rose-450 rounded-xl border border-rose-500/20 dark:border-rose-500/30 shadow-xs shrink-0">
-                              <span className="text-[12px] font-black leading-none">
-                                {(() => {
-                                  const inv = inventory.find(i => i.sku === item.sku);
-                                  const liveStock = inv ? (inv.liveStock || 0) : (item.availableInStock || 0);
-                                  return Math.max(0, (item.qty || 0) - liveStock);
-                                })()}
-                              </span>
-                            </div>
-                          )}
+                          </div>
                         </td>
-                        <td className="px-5 py-4 align-middle text-center">
-                          <StatusBadge 
-                            status={item.status || "Check Required"}
-                          />
-                        </td>
-                        <td className="px-4 py-4 align-middle text-right">
-                          <button 
-                            disabled={isMRLocked(selectedRequirement.id)}
-                            onClick={async () => {
-                              try {
-                                const currentItems = [...selectedRequirement.items];
-                                // Only auto-recalculate from inventory if user DOES NOT have discretionary allocation permission
-                                // If they have ALLOCATE_MR, we trust their manual inputs on this row and others
-                                if (!hasPermission("ALLOCATE_MR")) {
+                        <td className="px-2 py-4 align-top text-center">
+                          <div className="flex justify-center">
+                            <button 
+                              disabled={isMRLocked(selectedRequirement.id)}
+                              onClick={async () => {
+                                try {
+                                  const currentItems = [...selectedRequirement.items];
                                   currentItems.forEach(item => {
                                     const inv = inventory.find(i => i.sku === item.sku);
-                                    if (inv) {
-                                      item.availableInStock = inv.liveStock;
-                                      item.remainingQty = Math.max(0, (item.qty || 0) - (inv.liveStock || 0));
-                                      item.status = (inv.liveStock || 0) >= (item.qty || 0) ? "In Stock" : "Needs Purchase";
+                                    const liveStock = inv ? (inv.liveStock || 0) : 0;
+                                    
+                                    if (!hasPermission("ALLOCATE_MR")) {
+                                      item.availableInStock = Math.min(item.qty || 0, liveStock);
+                                    }
+                                    if (!hasPermission("EDIT_MR_PURCHASE")) {
+                                      item.remainingQty = Math.max(0, (item.qty || 0) - (item.availableInStock || 0));
+                                    }
+                                    
+                                    const allocated = item.availableInStock || 0;
+                                    if (allocated >= item.qty) {
+                                      item.status = "In Stock";
+                                    } else if (allocated > 0) {
+                                      item.status = "Partial";
                                     } else {
                                       item.status = "Needs Purchase";
-                                      item.remainingQty = item.qty;
                                     }
                                   });
+
+                                  const allInStock = currentItems.length > 0 && currentItems.every(i => i.status === "In Stock");
+                                  const newStatus = allInStock ? "Approved by Store" : "Store Pending";
+                                  await updateMaterialRequirement(selectedRequirement.id, {
+                                    ...selectedRequirement,
+                                    items: currentItems,
+                                    status: newStatus
+                                  });
+                                  toast.success("Requirement updated & saved");
+                                } catch (e) {
+                                  toast.error("Update failed");
                                 }
- 
-                                await updateMaterialRequirement(selectedRequirement.id, {
-                                  ...selectedRequirement,
-                                  items: currentItems
-                                });
-                                toast.success("Requirement updated & saved");
-                              } catch (e) {
-                                toast.error("Update failed");
-                              }
-                            }}
-                            className="p-2.5 bg-emerald-500/10 hover:bg-emerald-600 hover:text-white text-emerald-600 dark:text-emerald-400 rounded-xl border border-emerald-500/20 dark:border-emerald-500/30 transition-all flex items-center justify-center gap-1 shadow-xs disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer shrink-0"
-                            title={isMRLocked(selectedRequirement.id) ? "Locked: Purchase Order exists" : "Save changes to this item"}
-                          >
-                            <Check className="w-4 h-4 shrink-0" />
-                            <span className="text-[10px] font-bold">Save</span>
-                          </button>
+                              }}
+                              className="p-2.5 bg-emerald-500/10 hover:bg-emerald-600 hover:text-white text-emerald-600 dark:text-emerald-400 rounded-xl border border-emerald-500/20 dark:border-emerald-500/30 transition-all flex items-center justify-center gap-1 shadow-xs disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer shrink-0"
+                              title={isMRLocked(selectedRequirement.id) ? "Locked: Purchase Order exists" : "Save changes to this item"}
+                            >
+                              <Check className="w-4 h-4 shrink-0" />
+                              <span className="text-[10px] font-bold">Save</span>
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -1560,7 +1712,7 @@ export const MaterialRequirementPage = () => {
               {/* Mobile view cards */}
               <div className="md:hidden space-y-3">
                 {selectedRequirement.items.map((item, idx) => (
-                  <Card key={idx} className="p-4 space-y-3 bg-gray-50/25 dark:bg-[#0F172A]/40 border border-gray-155/60 dark:border-gray-800/80 shadow-sm">
+                  <Card key={idx} className="p-4 space-y-3 bg-gray-50/25 dark:bg-[#0F172A]/40 border border-gray-150/60 dark:border-gray-800/80 shadow-sm">
                     <div className="flex justify-between items-start">
                       <div className="flex-1 mr-2">
                         <input 
@@ -1601,44 +1753,54 @@ export const MaterialRequirementPage = () => {
                     </div>
                     <div className="grid grid-cols-2 gap-2 py-2 border-t border-gray-50 dark:border-gray-800 mt-2">
                       <div className="space-y-1">
-                        <span className="text-[9px] font-bold text-gray-400 tracking-widest leading-none">Qty</span>
-                        <div className="flex items-center gap-2">
+                        <span className="text-[9px] font-bold text-gray-400 tracking-widest leading-none">Qty & Unit</span>
+                        <div className="flex flex-col gap-1.5">
                            <input 
                             type="number"
-                            className="text-xs font-bold text-gray-700 dark:text-white bg-white/40 dark:bg-[#0F172A]/30 border border-gray-200/50 dark:border-gray-800/80 rounded px-1.5 py-1 w-16"
+                            className="text-[13px] font-bold text-gray-700 dark:text-white bg-white/40 dark:bg-[#0F172A]/30 border border-gray-200/50 dark:border-gray-800/80 rounded-xl px-3 py-2 w-full min-h-[40px] outline-none transition-all focus:border-primary focus:ring-1 focus:ring-primary shadow-inner"
                             value={item.qty}
+                            min={1}
                             onChange={(e) => {
                               const newItems = [...selectedRequirement.items];
-                              newItems[idx].qty = Number(e.target.value);
+                              newItems[idx].qty = Math.max(1, Number(e.target.value));
                               setSelectedRequirement({ ...selectedRequirement, items: newItems });
                             }}
                           />
-                          <select
-                            className="text-[10px] font-bold bg-transparent border-none p-0 cursor-pointer text-gray-500"
-                            value={item.unit}
-                            onChange={(e) => {
+                          <SField
+                            options={UNITS.map(u => ({ value: u, label: u }))}
+                            value={item.unit || ""}
+                            onChange={(e: any) => {
                               const newItems = [...selectedRequirement.items];
                               newItems[idx].unit = e.target.value;
                               setSelectedRequirement({ ...selectedRequirement, items: newItems });
                             }}
-                          >
-                            <option value="">Unit</option>
-                            {UNITS.map(u => <option key={u} value={u}>{u}</option>)}
-                          </select>
+                            placeholder="Unit"
+                            className="w-full mb-0"
+                          />
                         </div>
                       </div>
-                      <div className="grid grid-cols-2 gap-2">
-                        <div className="text-right">
-                          <span className="text-[9px] font-bold text-gray-400 tracking-widest leading-none">Stock</span>
+                      <div className="grid grid-cols-3 gap-2">
+                        <div className="text-center">
+                          <span className="text-[9px] font-bold text-gray-400 tracking-widest leading-none block">Inv Stock</span>
+                          <span className="text-xs font-bold text-blue-500 block mt-1 bg-blue-500/5 border border-blue-500/20 dark:border-blue-500/30 rounded py-0.5">
+                            {(() => {
+                              const inv = inventory.find(i => i.sku === item.sku);
+                              return inv ? (inv.liveStock || 0) : 0;
+                            })()}
+                          </span>
+                        </div>
+                        <div className="text-center">
+                          <span className="text-[9px] font-bold text-gray-400 tracking-widest leading-none block">Allocate</span>
                           {hasPermission("ALLOCATE_MR") && !isMRLocked(selectedRequirement.id) ? (
                             <input
                               type="number"
-                              className="text-xs font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/5 border border-emerald-500/20 dark:border-emerald-500/30 rounded px-1.5 py-0.5 w-full mt-1 outline-none focus:ring-1 focus:ring-emerald-500"
+                              className="text-xs font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/5 border border-emerald-500/20 dark:border-emerald-500/30 rounded px-1.5 py-0.5 w-full mt-1 outline-none focus:ring-1 focus:ring-emerald-500 text-center"
                               value={item.availableInStock || 0}
                               max={item.qty}
+                              min={0}
                               onChange={(e) => {
                                 const newItems = [...selectedRequirement.items];
-                                const val = Math.min(Number(e.target.value), item.qty || 0);
+                                const val = Math.max(0, Math.min(Number(e.target.value), item.qty || 0));
                                 const requested = item.qty || 0;
                                 let status: MaterialRequirementItem['status'] = "Needs Purchase";
                                 if (val >= requested) status = "In Stock";
@@ -1648,25 +1810,23 @@ export const MaterialRequirementPage = () => {
                               }}
                             />
                           ) : (
-                            <span className="text-xs font-bold text-emerald-500 block mt-1">
-                              {(() => {
-                                const inv = inventory.find(i => i.sku === item.sku);
-                                return inv ? (inv.liveStock || 0) : (item.availableInStock || 0);
-                              })()}
+                            <span className="text-xs font-bold text-emerald-500 block mt-1 bg-emerald-500/5 border border-emerald-500/20 dark:border-emerald-500/30 rounded py-0.5">
+                              {item.availableInStock || 0}
                             </span>
                           )}
                         </div>
-                        <div className="text-right">
-                          <span className="text-[9px] font-bold text-gray-400 tracking-widest leading-none">Purchase</span>
-                          {hasPermission("ALLOCATE_MR") && !isMRLocked(selectedRequirement.id) ? (
+                        <div className="text-center">
+                          <span className="text-[9px] font-bold text-gray-400 tracking-widest leading-none block">Purchase</span>
+                          {hasPermission("EDIT_MR_PURCHASE") && !isMRLocked(selectedRequirement.id) ? (
                             <input
                               type="number"
-                              className="text-xs font-bold text-rose-600 dark:text-rose-450 bg-rose-500/5 border border-rose-500/20 dark:border-rose-500/30 rounded px-1.5 py-0.5 w-full mt-1 outline-none focus:ring-1 focus:ring-rose-500"
+                              className="text-xs font-bold text-rose-600 dark:text-rose-455 bg-rose-500/5 border border-rose-500/20 dark:border-rose-500/30 rounded px-1.5 py-0.5 w-full mt-1 outline-none focus:ring-1 focus:ring-rose-500 text-center"
                               value={item.remainingQty || 0}
                               max={item.qty}
+                              min={0}
                               onChange={(e) => {
                                 const newItems = [...selectedRequirement.items];
-                                const val = Math.min(Number(e.target.value), item.qty || 0);
+                                const val = Math.max(0, Math.min(Number(e.target.value), item.qty || 0));
                                 const requested = item.qty || 0;
                                 const allocated = Math.max(0, requested - val);
                                 let status: MaterialRequirementItem['status'] = "Needs Purchase";
@@ -1677,12 +1837,8 @@ export const MaterialRequirementPage = () => {
                               }}
                             />
                           ) : (
-                            <span className="text-xs font-bold text-orange-500 block mt-1">
-                               {(() => {
-                                const inv = inventory.find(i => i.sku === item.sku);
-                                const liveStock = inv ? (inv.liveStock || 0) : (item.availableInStock || 0);
-                                return Math.max(0, (item.qty || 0) - liveStock);
-                              })()}
+                            <span className="text-xs font-bold text-primary block mt-1 bg-red-500/5 border border-red-500/20 dark:border-red-500/30 rounded py-0.5">
+                               {item.remainingQty || 0}
                             </span>
                           )}
                         </div>
@@ -1692,18 +1848,29 @@ export const MaterialRequirementPage = () => {
                       onClick={async () => {
                          try {
                            const currentItems = [...selectedRequirement.items];
-                           // Only auto-recalculate if user does not have discretionary allocation Power
-                           if (!hasPermission("ALLOCATE_MR")) {
-                             currentItems.forEach(it => {
-                               const inv = inventory.find(i => i.sku === it.sku);
-                               if (inv) {
-                                 it.availableInStock = inv.liveStock;
-                                 it.remainingQty = Math.max(0, (it.qty || 0) - (inv.liveStock || 0));
-                                 it.status = (inv.liveStock || 0) >= (it.qty || 0) ? "In Stock" : "Needs Purchase";
-                               }
-                             });
-                           }
-                           await updateMaterialRequirement(selectedRequirement.id, { ...selectedRequirement, items: currentItems });
+                           currentItems.forEach(it => {
+                             const inv = inventory.find(i => i.sku === it.sku);
+                             const liveStock = inv ? (inv.liveStock || 0) : 0;
+                             
+                             if (!hasPermission("ALLOCATE_MR")) {
+                               it.availableInStock = Math.min(it.qty || 0, liveStock);
+                             }
+                             if (!hasPermission("EDIT_MR_PURCHASE")) {
+                               it.remainingQty = Math.max(0, (it.qty || 0) - (it.availableInStock || 0));
+                             }
+                             
+                             const allocated = it.availableInStock || 0;
+                             if (allocated >= it.qty) {
+                               it.status = "In Stock";
+                             } else if (allocated > 0) {
+                               it.status = "Partial";
+                             } else {
+                               it.status = "Needs Purchase";
+                             }
+                           });
+                           const allInStock = currentItems.length > 0 && currentItems.every(i => i.status === "In Stock");
+                           const newStatus = allInStock ? "Approved by Store" : "Store Pending";
+                           await updateMaterialRequirement(selectedRequirement.id, { ...selectedRequirement, items: currentItems, status: newStatus });
                            toast.success("Saved");
                          } catch (e) {
                            toast.error("Failed");
@@ -1719,200 +1886,6 @@ export const MaterialRequirementPage = () => {
               </div>
             </div>
 
-            <div className="flex flex-wrap gap-3 justify-between items-center pt-5 border-t border-gray-150/60 dark:border-gray-800/80 mt-2">
-              <div className="flex flex-wrap gap-2.5 items-center">
-                <button
-                  disabled={isMRLocked(selectedRequirement.id) || !allItemsMapped}
-                  onClick={async () => {
-                    if (!selectedRequirement) return;
-                    try {
-                      toast.loading("Saving changes...", { id: "save-mr" });
-                      const allInStock = selectedRequirement.items.length > 0 && selectedRequirement.items.every(i => i.status === "In Stock");
-                      await updateMaterialRequirement(selectedRequirement.id, {
-                        ...selectedRequirement,
-                        status: allInStock ? "Approved by Store" : selectedRequirement.status
-                      });
-                      toast.success("Requirement saved successfully", { id: "save-mr" });
-                      setViewModal(false);
-                    } catch (e: any) {
-                      toast.error("Save failed: " + e.message, { id: "save-mr" });
-                    }
-                  }}
-                  className="flex items-center gap-2 px-5 py-2.5 bg-primary hover:bg-primary/90 hover:-translate-y-0.5 active:translate-y-0 text-white rounded-xl text-xs font-black transition-all tracking-wider shadow-lg shadow-orange-500/20 dark:shadow-none disabled:bg-gray-400 disabled:shadow-none disabled:cursor-not-allowed disabled:transform-none cursor-pointer"
-                >
-                  <Check className="w-4 h-4" />
-                  Save & close
-                </button>
-                {hasPermission("GET_QUOTATION_LINK") && (
-                  <div className="relative quotation-dropdown-container">
-                    <button
-                      disabled={!allItemsMapped || selectedRequirement.quotationLinkActive === false}
-                      onClick={() => setShowQuotationDropdown(!showQuotationDropdown)}
-                      className={cn(
-                        "flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black transition-all tracking-wider disabled:opacity-50 disabled:cursor-not-allowed shrink-0 cursor-pointer border",
-                        showQuotationDropdown
-                          ? "bg-primary text-white border-primary"
-                          : "bg-orange-50/50 hover:bg-primary hover:text-white dark:bg-orange-950/15 dark:hover:bg-primary text-primary border-primary/20"
-                      )}
-                      title={selectedRequirement.quotationLinkActive === false ? "Link is deactivated by AGM" : ""}
-                    >
-                      <Link2 className="w-4 h-4" />
-                      Get quotation link
-                    </button>
-                    {allItemsMapped && selectedRequirement.quotationLinkActive !== false && showQuotationDropdown && (
-                      <div className="absolute bottom-full left-0 mb-2 w-56 bg-white dark:bg-[#1E293B] border border-gray-200 dark:border-gray-800 rounded-xl shadow-xl p-2 block transition-all z-50 animate-in fade-in slide-in-from-bottom-2 duration-200">
-                        <p className="text-[10px] font-bold text-gray-400 px-3 py-1 tracking-wider">Select Category</p>
-                        <button
-                          onClick={() => {
-                            const url = `${window.location.origin}${window.location.pathname}#public-quotation?mrId=${selectedRequirement.id}`;
-                            navigator.clipboard.writeText(url);
-                            toast.success("All items link copied!");
-                            setShowQuotationDropdown(false);
-                          }}
-                          className="w-full text-left px-3 py-2 text-[12px] font-semibold text-gray-700 dark:text-gray-300 hover:bg-primary/10 dark:hover:bg-primary/20 rounded-lg transition-colors cursor-pointer"
-                        >
-                          All Categories
-                        </button>
-                        {Array.from(new Set(selectedRequirement.items.map(i => i.category).filter(Boolean))).map((cat: any) => (
-                          <button
-                            key={cat}
-                            onClick={() => {
-                              const url = `${window.location.origin}${window.location.pathname}#public-quotation?mrId=${selectedRequirement.id}&category=${encodeURIComponent(String(cat))}`;
-                              navigator.clipboard.writeText(url);
-                              toast.success(`${cat} link copied!`);
-                              setShowQuotationDropdown(false);
-                            }}
-                            className="w-full text-left px-3 py-2 text-[12px] font-semibold text-gray-700 dark:text-gray-300 hover:bg-primary/10 dark:hover:bg-primary/20 rounded-lg transition-colors cursor-pointer"
-                          >
-                            {cat}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                )}
-                {selectedRequirement.status === "Store Pending" && !isMRLocked(selectedRequirement.id) && (
-                  <button
-                    disabled={!allItemsMapped}
-                    onClick={() => handleRecheck(selectedRequirement)}
-                    className="flex items-center gap-2 px-4 py-2.5 bg-blue-500/10 hover:bg-blue-600 hover:text-white dark:bg-blue-500/10 dark:hover:bg-blue-600 text-blue-600 dark:text-blue-400 rounded-xl text-xs font-black transition-all tracking-wider border border-blue-200/50 dark:border-blue-800/30 disabled:opacity-50 disabled:cursor-not-allowed shrink-0 cursor-pointer"
-                  >
-                    <RefreshCw className={`w-4 h-4 ${actionLoading ? 'animate-spin' : ''}`} />
-                    Recheck
-                  </button>
-                )}
-                {(() => {
-                  const itemsWithStockStatus = selectedRequirement.items.map(item => {
-                    const inv = inventory.find(i => i.sku === item.sku);
-                    const liveStock = inv ? (inv.liveStock || 0) : 0;
-                    return { ...item, liveStock, isAvailable: liveStock >= item.qty };
-                  });
-                  const allInStock = itemsWithStockStatus.every(i => i.isAvailable);
-                  const hasFinalQuotation = selectedRequirement.approvals?.length > 0 || selectedRequirement.approvedQuotationId || selectedRequirement.approvedSupplier;
-                  const someAllocated = selectedRequirement.items.some(i => (i.allocatedQty || 0) > 0);
-                  const hasPurchaseItems = itemsWithStockStatus.some(i => i.status === "Needs Purchase" || i.status === "Purchase Required");
-                  const canApprove = allInStock || hasFinalQuotation || someAllocated || hasPurchaseItems;
-
-                  return (selectedRequirement.status === "Store Pending" || selectedRequirement.status === "Allocated" || selectedRequirement.status === "Partially Allocated") && (hasPermission("APPROVE_MR_STORE") || hasPermission("MANAGE_INVENTORY")) ? (
-                    <div className="flex flex-col items-end gap-2 shrink-0">
-                      {!canApprove && (
-                        <div className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-500/5 border border-amber-500/20 rounded-xl text-amber-600 dark:text-amber-455 animate-pulse text-[10px] font-bold">
-                          <AlertTriangle className="w-3.5 h-3.5" />
-                          Inventory unavailable: Please allocate stock, link inventory, or mark for purchase before approving.
-                        </div>
-                      )}
-                      <div className="flex gap-2">
-                        <button
-                          onClick={async () => {
-                            if (!canApprove || !allItemsMapped) {
-                              toast.error("Inventory check failed. Please ensure items are mapped to inventory and either in stock, linked, or marked for purchase.");
-                              return;
-                            }
-                            try {
-                              const allInStock = itemsWithStockStatus.every(i => i.isAvailable);
-                              const newStatus = allInStock ? "Approved by Store" : "Quotation Phase";
-                              await updateMaterialRequirement(selectedRequirement.id, { status: newStatus });
-                              toast.success(allInStock ? "Requirement approved by Store" : "Approved by Store. Moved to Quotation Phase.");
-                              setViewModal(false);
-                            } catch (e: any) {
-                              toast.error("Failed to approve: " + e.message);
-                            }
-                          }}
-                          disabled={!canApprove || !allItemsMapped}
-                          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black transition-all tracking-wider border shrink-0 cursor-pointer ${(canApprove && allItemsMapped) ? "bg-emerald-500/10 hover:bg-emerald-600 hover:text-white dark:bg-emerald-500/10 dark:hover:bg-emerald-600 text-emerald-600 dark:text-emerald-400 border-emerald-500/25 dark:border-emerald-800/40" : "bg-gray-100 dark:bg-gray-800 text-gray-400 border-gray-250 dark:border-gray-700 cursor-not-allowed"}`}
-                        >
-                          <CheckCircle className="w-4 h-4" />
-                          Approve by store
-                        </button>
-                      </div>
-                    </div>
-                  ) : selectedRequirement.status === "Quotation Phase" ? (
-                    <div className="flex flex-col sm:flex-row items-center gap-3 shrink-0">
-                      {hasPermission("VIEW_QUOTATIONS") && (
-                        <button
-                          onClick={() => {
-                            window.location.hash = "quotations";
-                            setViewModal(false);
-                          }}
-                          className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black transition-all tracking-wider bg-blue-500/10 hover:bg-blue-600 hover:text-white dark:bg-blue-500/10 dark:hover:bg-blue-600 text-blue-600 dark:text-blue-400 border border-blue-200/50 dark:border-blue-800/30 shrink-0 cursor-pointer"
-                        >
-                          <TrendingUp className="w-4 h-4" />
-                          Compare Quotations
-                        </button>
-                      )}
-                      {hasPermission("APPROVE_MR_AGM") && (
-                        <div className="flex flex-col sm:flex-row items-center gap-2">
-                          {!hasFinalQuotation && (
-                            <div className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-500/5 border border-amber-500/20 rounded-xl text-amber-600 dark:text-amber-450 animate-pulse text-[10px] font-bold">
-                              <AlertTriangle className="w-3.5 h-3.5" />
-                              No quotation finalized: Please finalize a quotation before AGM approval.
-                            </div>
-                          )}
-                          <button
-                            onClick={async () => {
-                              if (!hasFinalQuotation) {
-                                toast.error("No quotation finalized yet.");
-                                return;
-                              }
-                              try {
-                                await updateMaterialRequirement(selectedRequirement.id, { status: "Approved by AGM" });
-                                toast.success("Final Approval by AGM completed. Ready for PO.");
-                                setViewModal(false);
-                              } catch (e: any) {
-                                toast.error("Failed to approve: " + e.message);
-                              }
-                            }}
-                            disabled={!hasFinalQuotation}
-                            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black transition-all tracking-wider shrink-0 cursor-pointer border ${
-                              hasFinalQuotation 
-                                ? "bg-primary hover:bg-primary/95 text-white border-primary/20 shadow-lg shadow-orange-500/10 hover:-translate-y-0.5 active:translate-y-0 duration-200" 
-                                : "bg-gray-100 dark:bg-gray-800 text-gray-400 border-gray-200 dark:border-gray-700 cursor-not-allowed"
-                            }`}
-                          >
-                            <CheckCircle className="w-4 h-4" />
-                            Final Approve by AGM
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  ) : null;
-                })()}
-                {selectedRequirement.status !== "Rejected" && (hasPermission("APPROVE_MR_STORE") || hasPermission("MANAGE_INVENTORY")) && (
-                  <Btn
-                    label="Reject Requirement"
-                    color="red"
-                    outline
-                    onClick={() => {
-                      setRejectingId(selectedRequirement.id);
-                    }}
-                    loading={actionLoading}
-                    disabled={!allItemsMapped}
-                    className="rounded-xl bg-rose-500/10 hover:bg-rose-600 hover:text-white text-rose-600 dark:text-rose-450 border border-rose-500/25 dark:border-rose-500/30 transition-all duration-200 font-black tracking-wider text-xs px-4 py-2.5 cursor-pointer shrink-0"
-                  />
-                )}
-              </div>
-              <Btn label="Cancel" outline onClick={() => setViewModal(false)} className="rounded-xl font-black text-xs px-5 py-2.5 cursor-pointer shrink-0" />
-            </div>
           </div>
         </Modal>
       )}
@@ -1922,6 +1895,17 @@ export const MaterialRequirementPage = () => {
           title={isEditing ? "Edit Requirement" : "New Material Requirement"}
           onClose={() => setModal(false)}
           extraWide
+          footer={
+            <div className="flex justify-end gap-3 w-full">
+              <Btn label="Cancel" outline onClick={() => { setModal(false); resetForm(); }} />
+              <Btn 
+                label={isEditing ? "Update Requirement" : "Submit Requirement"} 
+                className="px-8"
+                onClick={handleCreate} 
+                loading={actionLoading} 
+              />
+            </div>
+          }
         >
           <div className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
@@ -2009,7 +1993,7 @@ export const MaterialRequirementPage = () => {
 
               <div className="space-y-4">
                 {newRequirement.items?.map((item, idx) => (
-                  <div key={idx} className="bg-gray-50/30 dark:bg-gray-800/20 p-5 rounded-2xl border border-gray-100 dark:border-gray-800 relative group transition-all hover:border-orange-200 dark:hover:border-orange-900/30">
+                  <div key={idx} className="bg-gray-50/30 dark:bg-gray-800/20 p-5 rounded-2xl border border-gray-100 dark:border-gray-800 relative group transition-all hover:border-primary/30 dark:hover:border-primary/20">
                     <div className="grid grid-cols-1 md:grid-cols-12 gap-x-4 gap-y-4 items-end">
                       <div className="md:col-span-5">
                         <Field
@@ -2080,15 +2064,6 @@ export const MaterialRequirementPage = () => {
               </div>
             </div>
 
-            <div className="pt-6 border-t border-gray-100 dark:border-gray-800 flex justify-end gap-3">
-              <Btn label="Cancel" outline onClick={() => { setModal(false); resetForm(); }} />
-              <Btn 
-                label={isEditing ? "Update Requirement" : "Submit Requirement"} 
-                className="px-8"
-                onClick={handleCreate} 
-                loading={actionLoading} 
-              />
-            </div>
           </div>
         </Modal>
       )}

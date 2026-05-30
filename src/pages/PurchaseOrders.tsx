@@ -463,7 +463,7 @@ export const PurchaseOrders = () => {
   const mrOptions = React.useMemo(() => {
     const list: { label: string; value: string }[] = [];
     (materialRequirements || []).forEach(m => {
-      if (m && m.status === "Approved by AGM") {
+      if (m && (m.status === "Approved by AGM" || m.status === "Approved by Store" || m.status === "Quotation Phase")) {
         if (m.approvals && m.approvals.length > 0) {
           m.approvals.forEach(app => {
             const category = app.category || 'General';

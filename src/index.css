@@ -51,7 +51,7 @@
   }
 
   .approval-highlight {
-    @apply animate-pulse-subtle border-orange-200 dark:border-orange-900/50 bg-orange-50/30 dark:bg-orange-900/5;
+    @apply animate-pulse-subtle border-primary/20 dark:border-primary/30 bg-primary/5 dark:bg-primary/5;
   }
   
   /* Custom Scrollbar */
