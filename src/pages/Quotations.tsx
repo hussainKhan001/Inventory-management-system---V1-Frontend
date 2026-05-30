@@ -36,6 +36,7 @@ import { toast } from "react-hot-toast";
 import { cn } from "../lib/utils";
 import { Virtuoso } from "react-virtuoso";
 import { DatePicker } from "../components/ui/DatePicker";
+import { api } from "../services/api";
 
 export const Quotations = () => {
   const { 
@@ -833,7 +834,8 @@ export const Quotations = () => {
           className="max-w-5xl"
         >
           <QuotationForm 
-            initialData={selectedQuotation} 
+            initialData={selectedQuotation}
+            mrData={materialRequirements.find(m => m.id === selectedQuotation.mrId)} 
             onClose={() => setEditModal(false)}
             onSave={async (data) => {
               const updatedData = { ...data, status: 'Pending' as const };
@@ -893,7 +895,20 @@ interface QuotationFormProps {
 }
 
 const QuotationForm = ({ initialData, mrData: initialMrData, onClose, onSave }: QuotationFormProps) => {
-  const [formData, setFormData] = useState<Partial<Quotation>>({ ...initialData });
+  const [formData, setFormData] = useState<Partial<Quotation>>(() => {
+    return {
+      ...initialData,
+      items: initialData.items?.map(i => {
+        const mrItem = initialMrData?.items?.find((m: any) => m.materialName?.trim().toLowerCase() === i.materialName?.trim().toLowerCase());
+        const fallbackQty = mrItem ? (mrItem.remainingQty !== undefined ? mrItem.remainingQty : mrItem.qty) : i.qty;
+        return {
+          ...i,
+          mrQty: i.mrQty !== undefined ? i.mrQty : fallbackQty,
+          mrUnit: i.mrUnit || mrItem?.unit || i.unit
+        };
+      })
+    };
+  });
   const [loading, setLoading] = useState(false);
   const [mrData, setMrData] = useState<any>(initialMrData);
   
@@ -902,10 +917,9 @@ const QuotationForm = ({ initialData, mrData: initialMrData, onClose, onSave }: 
 
   React.useEffect(() => {
     if (!mrData && initialData.mrId) {
-      fetch(`${import.meta.env.VITE_API_URL}/api/public/mr/${initialData.mrId}`)
-        .then(res => res.json())
-        .then(data => {
-          if (data.success) setMrData(data.data);
+      api.get(`public/mr/${initialData.mrId}`)
+        .then(res => {
+          if (res.success) setMrData(res.data);
         })
         .catch(console.error);
     }
@@ -915,10 +929,9 @@ const QuotationForm = ({ initialData, mrData: initialMrData, onClose, onSave }: 
     setFormData({ ...formData, supplierName: val });
     if (val.length > 1) {
       try {
-        const res = await fetch(`${import.meta.env.VITE_API_URL}/api/public/suppliers?search=${val}`);
-        const data = await res.json();
-        if (data.success) {
-          setFilteredSuppliers(data.data);
+        const res = await api.get("public/suppliers", { search: val });
+        if (res.success) {
+          setFilteredSuppliers(res.data);
           setShowSupplierResults(true);
         }
       } catch (err) {
@@ -1080,14 +1093,13 @@ const QuotationForm = ({ initialData, mrData: initialMrData, onClose, onSave }: 
                 </div>
               </div>
               <div className="space-y-1.5">
-                <label className="text-[10px] font-bold text-gray-400 tracking-widest px-1">Expected Delivery Date *</label>
                 <div className="h-12 mt-0">
-                  <input
-                    type="date"
+                  <DatePicker 
+                    label="Expected Delivery Date *"
                     value={formData.deliveryDate ? formData.deliveryDate.split('T')[0] : ""}
                     onChange={(e: any) => setFormData({ ...formData, deliveryDate: e.target.value })}
                     required
-                    className="w-full bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-700 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-orange-500/20 transition-all font-semibold h-12"
+                    className="w-full"
                   />
                 </div>
               </div>
@@ -1144,10 +1156,8 @@ const QuotationForm = ({ initialData, mrData: initialMrData, onClose, onSave }: 
               </thead>
               <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
                 {formData.items?.map((item, idx) => {
-                  const mrItem = mrData?.items?.find((m: any) => m.materialName?.trim().toLowerCase() === item.materialName?.trim().toLowerCase());
-                  const mrQtyFallback = mrItem ? (mrItem.remainingQty !== undefined ? mrItem.remainingQty : mrItem.qty) : item.qty;
-                  const reqQty = item.mrQty !== undefined ? item.mrQty : mrQtyFallback;
-                  const reqUnit = item.mrUnit || mrItem?.unit || item.unit;
+                  const reqQty = item.mrQty;
+                  const reqUnit = item.mrUnit || "NOS";
                   const base = item.qty * item.rate;
                   const gst = item.gstType === "Exclusive" ? (base * (item.gstPct || 0) / 100) : 0;
                   const total = item.gstType === "Exclusive" ? base + gst : base;

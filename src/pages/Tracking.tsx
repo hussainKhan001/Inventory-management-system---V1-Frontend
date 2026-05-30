@@ -41,6 +41,7 @@ export const TrackingPage = () => {
     grns: GRN[];
   } | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const isPublic = window.location.hash.includes('public-tracking');
 
   useEffect(() => {
     const handleHash = () => {
@@ -70,77 +71,16 @@ export const TrackingPage = () => {
     setLoading(true);
     setError(null);
     try {
-      let mr: MaterialRequirement | null = null;
-      let po: PurchaseOrder | null = null;
-      let grns: GRN[] = [];
-      let quotations: Quotation[] = [];
-
-      // Logic: 
-      // 1. If start with PO-, it's a PO
-      // 2. If start with GRN-, it's a GRN
-      // 3. Else try finding as MR
-      
-      if (queryId.startsWith('PO-')) {
-        const poRes = await api.get('pos', { search: queryId, limit: 1, isTracking: true });
-        if (poRes.success && poRes.data.length > 0) {
-          po = poRes.data[0];
-          if (po?.mrId) {
-            const mrRes = await api.get('material-requirements', { filter: JSON.stringify({ id: po.mrId }), limit: 1, isTracking: true });
-            mr = mrRes.data?.[0] || null;
-          }
-        }
-      } else if (queryId.startsWith('GRN-')) {
-        const grnRes = await api.get('grn', { search: queryId, limit: 1, isTracking: true });
-        if (grnRes.success && grnRes.data.length > 0) {
-          const g = grnRes.data[0];
-          if (g.poId) {
-            const poRes = await api.get('pos', { filter: JSON.stringify({ id: g.poId }), limit: 1, isTracking: true });
-            po = poRes.data?.[0] || null;
-            if (po?.mrId) {
-              const mrRes = await api.get('material-requirements', { filter: JSON.stringify({ id: po.mrId }), limit: 1, isTracking: true });
-              mr = mrRes.data?.[0] || null;
-            }
-          } else if (g.mrNo) {
-            const mrRes = await api.get('material-requirements', { filter: JSON.stringify({ id: g.mrNo }), limit: 1, isTracking: true });
-            mr = mrRes.data?.[0] || null;
-          }
-        }
-      }
-
-      // Fallback: search as MR if still not found
-      if (!mr) {
-        const mrRes = await api.get('material-requirements', { search: queryId, limit: 1, isTracking: true });
-        if (mrRes.success && mrRes.data.length > 0) {
-          mr = mrRes.data[0];
-        }
-      }
-
-      if (!mr) {
-        setError("Document not found. Please check the ID.");
-        setLoading(false);
-        return;
-      }
-
-      // Fetch related data based on MR found
-      const qRes = await api.get('quotations', { filter: JSON.stringify({ mrId: mr.id }), limit: 50, isTracking: true });
-      quotations = qRes.data || [];
-
-      if (!po) {
-        const poRes = await api.get('pos', { filter: JSON.stringify({ mrId: mr.id }), limit: 1, isTracking: true });
-        po = poRes.data && poRes.data.length > 0 ? poRes.data[0] as PurchaseOrder : null;
-      }
-
-      if (po) {
-        const grnRes = await api.get('grn', { filter: JSON.stringify({ poId: po.id }), limit: 50, isTracking: true });
-        grns = grnRes.data || [];
+      const res = await api.get(`public/tracking/${queryId}`);
+      if (res.success && res.data) {
+        setData(res.data);
       } else {
-        const grnRes = await api.get('grn', { filter: JSON.stringify({ mrNo: mr.id }), limit: 50, isTracking: true });
-        grns = grnRes.data || [];
+        setError("Document not found. Please check the ID.");
+        setData(null);
       }
-
-      setData({ mr, quotations, po, grns });
     } catch (err: any) {
-      setError(err.message || "An error occurred");
+      setError(err.message || "Document not found. Please check the ID.");
+      setData(null);
     } finally {
       setLoading(false);
     }
@@ -235,8 +175,9 @@ export const TrackingPage = () => {
   );
 
   return (
-    <div className="space-y-6 max-w-5xl mx-auto">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-950 font-sans text-gray-900 dark:text-gray-100 p-4 sm:p-6 lg:p-8">
+      <div className="space-y-6 max-w-5xl mx-auto">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
         <PageHeader
           title="MR Lifecycle Tracking"
           sub="End-to-end audit trail from requirement to fulfillment"
@@ -478,16 +419,19 @@ export const TrackingPage = () => {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       <div className="space-y-4">
                         <div 
-                           onClick={() => window.location.hash = `pos?id=${data.po!.id}`}
-                           className="flex items-center justify-between p-3 bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm cursor-pointer hover:border-orange-500 transition-colors group"
+                           onClick={() => !isPublic && (window.location.hash = `pos?id=${data.po!.id}`)}
+                           className={cn(
+                             "flex items-center justify-between p-3 bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm transition-colors",
+                             !isPublic ? "cursor-pointer hover:border-orange-500 group" : ""
+                           )}
                         >
                            <div className="flex items-center gap-2">
-                             <ShoppingCart className="w-4 h-4 text-orange-500 group-hover:scale-110 transition-transform" />
+                             <ShoppingCart className={cn("w-4 h-4 text-orange-500 transition-transform", !isPublic && "group-hover:scale-110")} />
                              <span className="text-[13px] font-black text-gray-900 dark:text-white">{data.po.id}</span>
                            </div>
                            <div className="flex items-center gap-2">
                              <span className="text-xs font-bold text-orange-600">{fmtCur(data.po.totalValue)}</span>
-                             <ArrowRight className="w-3 h-3 text-gray-300 group-hover:text-orange-500 transition-colors" />
+                             {!isPublic && <ArrowRight className="w-3 h-3 text-gray-300 group-hover:text-orange-500 transition-colors" />}
                            </div>
                         </div>
                         <div className="p-3 bg-gray-50 dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700">
@@ -697,6 +641,7 @@ export const TrackingPage = () => {
           </div>
         </div>
       )}
+    </div>
     </div>
   );
 };

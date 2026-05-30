@@ -368,14 +368,16 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     return false;
   }, [user, rolePermissions]);
 
-  const fetchRolePermissions = async () => {
+  const fetchRolePermissions = useCallback(async () => {
     try {
       const res = await api.get('role-permissions');
-      if (res.success) setRolePermissions(res.data);
+      if (res.success) {
+        setRolePermissions(prev => JSON.stringify(prev) === JSON.stringify(res.data) ? prev : res.data);
+      }
     } catch (error) {
       console.error("Failed to fetch role permissions:", error);
     }
-  };
+  }, []);
 
   const updateRolePermissions = async (role: Role, permissions: string[]) => {
     setActionLoading(true);
@@ -434,14 +436,16 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  const fetchUsers = async () => {
+  const fetchUsers = useCallback(async () => {
     try {
       const res = await api.get('users');
-      if (res.success) setUsers(res.data);
+      if (res.success) {
+        setUsers(prev => JSON.stringify(prev) === JSON.stringify(res.data) ? prev : res.data);
+      }
     } catch (error) {
       console.error("Failed to fetch users:", error);
     }
-  };
+  }, []);
 
   const addUser = async (data: any) => {
     setActionLoading(true);

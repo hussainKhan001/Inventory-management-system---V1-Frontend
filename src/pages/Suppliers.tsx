@@ -14,11 +14,13 @@ import {
   ImageUpload,
   Skeleton,
 } from "../components/ui";
-import { Plus, CheckCircle2, AlertCircle, Eye, Edit2, Trash2, Search } from "lucide-react";
+import { Plus, CheckCircle2, AlertCircle, Eye, Edit2, Trash2, Search, Building2 } from "lucide-react";
 import { Supplier } from "../types";
 import { scrollToError, formatAccountNo, safeStr } from "../utils";
 import { TableVirtuoso } from "react-virtuoso";
 import { cn } from "../lib/utils";
+import { api } from "../services/api";
+import { motion, AnimatePresence } from "motion/react";
 
 const PAN_REGEX = /^[A-Z]{5}[0-9]{4}[A-Z]{1}$/;
 const GST_REGEX = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/;
@@ -64,6 +66,45 @@ export const Suppliers = () => {
       scrollToError();
     }
   }, [errors]);
+
+  const [showSupplierResults, setShowSupplierResults] = useState(false);
+  const [filteredSuppliers, setFilteredSuppliers] = useState<any[]>([]);
+
+  const handleSupplierSearch = async (val: string) => {
+    setNewSupplier(prev => ({ ...prev, companyName: val }));
+    if (val.length > 1) {
+      try {
+        const res = await api.get("public/suppliers", { search: val });
+        if (res.success) {
+          setFilteredSuppliers(res.data);
+          setShowSupplierResults(true);
+        }
+      } catch (err) {
+        console.error("Supplier search failed", err);
+      }
+    } else {
+      setShowSupplierResults(false);
+    }
+  };
+
+  const selectSupplier = (s: any) => {
+    setNewSupplier(prev => ({
+      ...prev,
+      companyName: s.companyName || s.name || prev.companyName,
+      ownerName: s.ownerName || s.contact || prev.ownerName,
+      mobile: s.mobile || s.phone || prev.mobile,
+      email: s.email || prev.email,
+      address: s.address || prev.address,
+      panNumber: s.panNumber || prev.panNumber,
+      gstNumber: s.gstNumber || s.gst || prev.gstNumber,
+      accountHolderName: s.accountHolderName || s.ownerName || prev.accountHolderName,
+      bankName: s.bankName || prev.bankName,
+      accountNumber: s.accountNumber ? formatAccountNo(s.accountNumber) : prev.accountNumber,
+      ifscCode: s.ifscCode || prev.ifscCode,
+      branch: s.branch || prev.branch,
+    }));
+    setShowSupplierResults(false);
+  };
   
   const initialSupplier: Partial<Supplier> = {
     email: "",
@@ -493,7 +534,58 @@ export const Suppliers = () => {
               {section === 1 && (
                 <>
                   <Field label="Email" value={newSupplier.email} onChange={(e: any) => setNewSupplier(prev => ({ ...prev, email: e.target.value }))} required type="email" error={errors.email} />
-                  <Field label="Company Name" value={newSupplier.companyName} onChange={(e: any) => setNewSupplier(prev => ({ ...prev, companyName: e.target.value }))} required error={errors.companyName} />
+                  
+                  <div className="relative">
+                    <label className="text-[11px] font-bold text-[#6B7280] dark:text-[#94A3B8] mb-1.5 block">Search Company / Firm Name *</label>
+                    <div className="relative">
+                      <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                        <Building2 className="h-4 w-4 text-gray-400" />
+                      </div>
+                      <input
+                        type="text"
+                        value={newSupplier.companyName || ""}
+                        onChange={(e) => handleSupplierSearch(e.target.value)}
+                        onFocus={() => (newSupplier.companyName || "").length > 1 && setShowSupplierResults(true)}
+                        placeholder="Type to search suppliers..."
+                        className="w-full pl-10 pr-4 py-2 border border-[#E8ECF0] dark:border-gray-800 bg-white dark:bg-gray-900 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#F97316]/20 focus:border-[#F97316] transition-all h-10"
+                        required
+                        autoComplete="off"
+                      />
+                      {errors.companyName && (
+                        <p className="text-[11px] text-red-500 mt-1.5 font-medium flex items-center gap-1">
+                          <span className="w-1 h-1 rounded-full bg-red-500"></span>
+                          {errors.companyName}
+                        </p>
+                      )}
+                    </div>
+                    <AnimatePresence>
+                      {showSupplierResults && filteredSuppliers.length > 0 && (
+                        <motion.div
+                          initial={{ opacity: 0, y: -10, scale: 0.98 }}
+                          animate={{ opacity: 1, y: 0, scale: 1 }}
+                          exit={{ opacity: 0, y: -10, scale: 0.98 }}
+                          className="absolute z-50 w-full mt-2 bg-white dark:bg-[#1E293B] border border-gray-100 dark:border-gray-700 rounded-2xl shadow-2xl max-h-80 overflow-y-auto backdrop-blur-xl"
+                        >
+                          {filteredSuppliers.map((s) => (
+                            <button
+                              key={s.id || s._id}
+                              type="button"
+                              onClick={() => selectSupplier(s)}
+                              className="w-full text-left px-5 py-4 hover:bg-orange-50/50 dark:hover:bg-orange-500/5 border-b border-gray-50 dark:border-gray-700 last:border-0 transition-all flex items-center gap-4 group"
+                            >
+                              <div className="p-2 bg-gray-50 dark:bg-gray-800 rounded-lg group-hover:bg-orange-100 dark:group-hover:bg-orange-500/20 transition-colors">
+                                <Building2 className="w-5 h-5 text-orange-500" />
+                              </div>
+                              <div>
+                                <p className="text-sm font-bold text-gray-900 dark:text-white group-hover:text-orange-600 dark:group-hover:text-orange-400 transition-colors">{s.companyName || s.name}</p>
+                                <p className="text-[10px] text-gray-400 font-semibold tracking-widest mt-0.5">{s.ownerName || s.contact} &bull; {s.mobile || s.phone}</p>
+                              </div>
+                            </button>
+                          ))}
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
                   <Field label="Owner Name" value={newSupplier.ownerName} onChange={(e: any) => setNewSupplier(prev => ({ ...prev, ownerName: e.target.value }))} required error={errors.ownerName} />
                   <Field label="Mobile (10-digit)" value={newSupplier.mobile} onChange={(e: any) => setNewSupplier(prev => ({ ...prev, mobile: e.target.value }))} required maxLength={10} error={errors.mobile} />
                   <Field label="Alt Mobile" value={newSupplier.altMobile} onChange={(e: any) => setNewSupplier(prev => ({ ...prev, altMobile: e.target.value }))} maxLength={10} error={errors.altMobile} />

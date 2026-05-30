@@ -8,6 +8,7 @@ const GST_RATES = [0, 5, 12, 18, 28];
 const GST_TYPES = ["Inclusive", "Exclusive"];
 import toast from "react-hot-toast";
 import { motion, AnimatePresence } from "motion/react";
+import { DatePicker } from "../components/ui/DatePicker";
 
 export const PublicQuotation = () => {
   const [mr, setMr] = useState<MaterialRequirement | null>(null);
@@ -393,14 +394,15 @@ export const PublicQuotation = () => {
                     )}
                   </AnimatePresence>
                 </div>
-                <Field
-                  label="Expected Delivery Date *"
-                  type="date"
-                  value={deliveryDate}
-                  onChange={(e: any) => setDeliveryDate(e.target.value)}
-                  required
-                  className="h-12 font-semibold"
-                />
+                <div className="h-12 w-full mt-0">
+                  <DatePicker 
+                    label="Expected Delivery Date *"
+                    value={deliveryDate}
+                    onChange={(e: any) => setDeliveryDate(e.target.value)}
+                    required
+                    className="w-full"
+                  />
+                </div>
               </div>
               
               {/* Auto-filled details */}
@@ -467,7 +469,7 @@ export const PublicQuotation = () => {
                       </td>
                       <td className="px-4 py-6 text-center">
                         <div className="flex flex-col items-center">
-                          <span className="font-bold text-gray-900 dark:text-white text-base">{item.mrQty || item.qty}</span>
+                          <span className="font-bold text-gray-900 dark:text-white text-base">{item.mrQty !== undefined ? item.mrQty : item.qty}</span>
                           <span className="text-[10px] font-medium text-gray-400 tracking-widest">{item.mrUnit || item.unit || "NOS"}</span>
                         </div>
                       </td>

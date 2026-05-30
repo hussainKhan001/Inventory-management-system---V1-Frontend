@@ -134,6 +134,7 @@ const AppContent = () => {
   if (hash === "public-supplier-registration") return <Suspense fallback={<PageLoader />}><PublicSupplierRegistration /></Suspense>;
   if (hash === "public-material-requirement")  return <Suspense fallback={<PageLoader />}><PublicMaterialRequirement /></Suspense>;
   if (hash === "public-quotation")           return <Suspense fallback={<PageLoader />}><PublicQuotation /></Suspense>;
+  if (hash === "public-tracking")            return <Suspense fallback={<PageLoader />}><TrackingPage /></Suspense>;
   if (hash === "public-po")                  return <Suspense fallback={<PageLoader />}><PublicPO /></Suspense>;
 
   if (isAuthLoading) {

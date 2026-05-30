@@ -104,6 +104,13 @@ export const PublicPortal = () => {
           icon: ArrowLeftRight,
           to: "/public-transfer-outward",
           color: "bg-cyan-500"
+        },
+        {
+          title: "Track Material Requirement",
+          description: "Check the status and fulfillment progress of your MR.",
+          icon: Package,
+          to: "/public-tracking",
+          color: "bg-teal-500"
         }
       ]
     },
