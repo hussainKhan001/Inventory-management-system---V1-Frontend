@@ -1,22 +1,31 @@
 import axios from 'axios';
 
-// Read base URL from environment variable.
-// Dev default: http://localhost:5000/api  (set in .env)
-// Production:  set VITE_API_BASE_URL in your hosting environment
 const API_BASE = import.meta.env.VITE_API_BASE_URL || '/api';
 
 export const instance = axios.create({
   baseURL: API_BASE,
   withCredentials: true,
+  timeout: 30000,
 });
 
 instance.interceptors.request.use(config => {
   const token = localStorage.getItem('token');
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
+  if (token) config.headers.Authorization = `Bearer ${token}`;
   return config;
 });
+
+// ── Keep server warm (prevents Render free-tier cold starts) ──────────────────
+// Ping /api/health every 14 minutes so the server never spins down
+const HEALTH_URL = API_BASE.replace(/\/api$/, '') + '/api/health';
+if (import.meta.env.PROD) {
+  const ping = () => fetch(HEALTH_URL, { method: 'GET' }).catch(() => {});
+  ping(); // immediate ping on page load
+  setInterval(ping, 14 * 60 * 1000);
+}
+
+// ── Wake server before login form appears ────────────────────────────────────
+export const wakeServer = () =>
+  fetch(HEALTH_URL, { method: 'GET' }).catch(() => {});
 
 export const api = {
   get: async (path: string, params?: any) => {

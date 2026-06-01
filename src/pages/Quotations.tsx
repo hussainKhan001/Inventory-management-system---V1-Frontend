@@ -48,6 +48,7 @@ export const Quotations = () => {
     updateMaterialRequirement,
     materialRequirements,
     pos,
+    suppliers,
     addNotification,
     loading,
     role,
@@ -67,9 +68,10 @@ export const Quotations = () => {
   const [filterStatus, setFilterStatus] = useState("");
 
   const supplierOptions = React.useMemo(() => {
-    const uniqueSuppliers = Array.from(new Set(quotations.map(q => q.supplierName).filter(Boolean)));
+    // Get unique suppliers from the global suppliers list so the dropdown doesn't shrink when filtered
+    const uniqueSuppliers = Array.from(new Set(suppliers.map(s => s.companyName).filter(Boolean)));
     return uniqueSuppliers.sort();
-  }, [quotations]);
+  }, [suppliers]);
 
   const statusOptions = React.useMemo(() => [
     { label: "Pending", value: "Pending" },
@@ -92,7 +94,8 @@ export const Quotations = () => {
     fetchResource("quotations", 1, 1000, true, debouncedSearch, finalFilter, false, false, startDate, endDate);
     fetchResource("material-requirements", 1, 1000, true);
     fetchResource("pos", 1, 1000, true);
-  }, [fetchResource, debouncedSearch, startDate, endDate, filterCategory, filterSupplier, filterStatus]);
+    if (suppliers.length === 0) fetchResource("suppliers", 1, 1000, true);
+  }, [fetchResource, debouncedSearch, startDate, endDate, filterCategory, filterSupplier, filterStatus, suppliers.length]);
 
   const [viewModal, setViewModal] = useState(false);
   const [editModal, setEditModal] = useState(false);

@@ -113,12 +113,19 @@ export const PurchaseOrders = () => {
   const [filterStatus, setFilterStatus] = useState("");
 
   const supplierOptions = React.useMemo(() => {
-    const list = new Set<string>();
-    suppliers.forEach(s => list.add(s.companyName || s.name || s.id));
-    pos.forEach(po => {
-      if (po.supplier) list.add(po.supplier);
+    const optionsMap = new Map<string, string>();
+    suppliers.forEach(s => {
+      const label = s.companyName || s.name || s.id;
+      if (label) optionsMap.set(s.id, label);
     });
-    return Array.from(list).filter(Boolean).sort();
+    pos.forEach(po => {
+      if (po.supplier && !optionsMap.has(po.supplier)) {
+        optionsMap.set(po.supplier, po.supplier);
+      }
+    });
+    return Array.from(optionsMap.entries())
+      .map(([value, label]) => ({ label, value }))
+      .sort((a, b) => a.label.localeCompare(b.label));
   }, [suppliers, pos]);
 
   const statusOptions = React.useMemo(() => [
