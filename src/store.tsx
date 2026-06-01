@@ -157,6 +157,8 @@ interface AppState {
   fetchPublicMRs: (params?: any) => Promise<any[]>;
   submitPublicInward: (data: any) => Promise<void>;
   submitPublicOutward: (data: any) => Promise<void>;
+  submitPublicInwardReturn: (data: any) => Promise<void>;
+  submitPublicOutwardReturn: (data: any) => Promise<void>;
   submitPublicPO: (data: any) => Promise<void>;
   uploadPublicImage: (file: File) => Promise<{ url: string }>;
   stats: {
@@ -1445,6 +1447,24 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
+  const submitPublicInwardReturn = async (data: any) => {
+    setActionLoading(true);
+    try {
+      await api.post('public/inward-returns', data);
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const submitPublicOutwardReturn = async (data: any) => {
+    setActionLoading(true);
+    try {
+      await api.post('public/outward-returns', data);
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   const submitPublicPO = async (data: any) => {
     setActionLoading(true);
     try {
@@ -1764,6 +1784,8 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         fetchPublicMRs,
         submitPublicInward,
         submitPublicOutward,
+        submitPublicInwardReturn,
+        submitPublicOutwardReturn,
         submitPublicPO,
         uploadPublicImage,
         stats,

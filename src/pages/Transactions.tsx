@@ -74,8 +74,8 @@ export const TransactionsPage = ({ type }: { type?: TransactionType }) => {
   const resourceMap: Record<string, string> = {
     "Inward": "inward",
     "Outward": "outward",
-    "Inward Return": "transactions",
-    "Outward Return": "transactions",
+    "Inward Return": "inward-returns",
+    "Outward Return": "outward-returns",
     "Public Inward": "inward",
     "Public Outward": "outward",
     "Transfer Inward": "inward",
@@ -164,11 +164,10 @@ export const TransactionsPage = ({ type }: { type?: TransactionType }) => {
       filter.type = { $in: ["Inward", "Public Inward", "GRN", "Manual"] };
     } else if (type === "Outward") {
       filter.type = { $in: ["Outward", "Public Outward", "Manual"] };
-    } else if (type === "Inward Return") {
-      filter.type = { $in: ["Inward Return", "Public Inward Return"] };
-    } else if (type === "Outward Return") {
-      filter.type = { $in: ["Outward Return", "Public Outward Return"] };
     }
+    // Note: "Inward Return" and "Outward Return" fetch from their own collections
+    // which do not have a 'type' field, so we omit filtering by type here.
+    
     
     // Only add type filter if we are on the "All Transactions" page
     if (!type && filterType) {
@@ -341,19 +340,19 @@ export const TransactionsPage = ({ type }: { type?: TransactionType }) => {
         };
 
         // Map fields for specific types
-        if (newTransaction.type === "Inward Return" || newTransaction.type === "Public Inward Return") {
+        if (newTransaction.type === "Inward Return") {
           updateData.vendor = newTransaction.supplier;
-        } else if (newTransaction.type === "Outward Return" || newTransaction.type === "Public Outward Return") {
+        } else if (newTransaction.type === "Outward Return") {
           updateData.sourceSite = newTransaction.project || newTransaction.sourceSite;
         }
 
-        const actualType = newTransaction.type;
+        const currentType = type || newTransaction.type;
 
-        if (["Inward", "Transfer Inward", "Public Inward", "Public Inward Return"].includes(actualType || "")) await updateInward(selectedTransaction.id, updateData);
-        else if (["Outward", "Transfer Outward", "Public Outward", "Public Outward Return"].includes(actualType || "")) await updateOutward(selectedTransaction.id, updateData);
-        else if (actualType === "Inward Return") await updateInwardReturn(selectedTransaction.id, updateData);
-        else if (actualType === "Outward Return") await updateOutwardReturn(selectedTransaction.id, updateData);
-        else toast.error(`Update not supported for type: ${actualType}`);
+        if (currentType === "Inward" || currentType === "Transfer Inward") await updateInward(selectedTransaction.id, updateData);
+        else if (currentType === "Outward" || currentType === "Transfer Outward") await updateOutward(selectedTransaction.id, updateData);
+        else if (currentType === "Inward Return") await updateInwardReturn(selectedTransaction.id, updateData);
+        else if (currentType === "Outward Return") await updateOutwardReturn(selectedTransaction.id, updateData);
+        else toast.error(`Update not supported for type: ${currentType}`);
       } else {
         // Create new - send all items in one request
         const batchId = `BATCH-${Date.now()}`;
@@ -2239,15 +2238,11 @@ export const TransactionsPage = ({ type }: { type?: TransactionType }) => {
           loading={actionLoading}
           onConfirm={async () => {
             try {
-              const trx = (data || []).find((t: any) => t.id === deleteConfirm) || transactions.find(t => t.id === deleteConfirm);
-              const actualType = trx?.type || type;
-              
-              if (["Inward", "Transfer Inward", "Public Inward", "Public Inward Return"].includes(actualType || "")) await deleteInward(deleteConfirm);
-              else if (["Outward", "Transfer Outward", "Public Outward", "Public Outward Return"].includes(actualType || "")) await deleteOutward(deleteConfirm);
-              else if (actualType === "Inward Return") await deleteInwardReturn(deleteConfirm);
-              else if (actualType === "Outward Return") await deleteOutwardReturn(deleteConfirm);
+              if (type === "Inward" || type === "Transfer Inward") await deleteInward(deleteConfirm);
+              else if (type === "Outward" || type === "Transfer Outward") await deleteOutward(deleteConfirm);
+              else if (type === "Inward Return") await deleteInwardReturn(deleteConfirm);
+              else if (type === "Outward Return") await deleteOutwardReturn(deleteConfirm);
               else await deleteTransaction(deleteConfirm);
-              
               setDeleteConfirm(null);
             } catch (err: any) {
               toast.error(err.message || "Delete failed");

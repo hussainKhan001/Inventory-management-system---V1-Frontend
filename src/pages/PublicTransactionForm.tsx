@@ -18,6 +18,8 @@ export const PublicTransactionForm = ({ type }: PublicTransactionFormProps) => {
     fetchPublicCatalogue,
     submitPublicInward,
     submitPublicOutward,
+    submitPublicInwardReturn,
+    submitPublicOutwardReturn,
     uploadPublicImage,
     actionLoading,
     fetchResource,
@@ -304,7 +306,11 @@ export const PublicTransactionForm = ({ type }: PublicTransactionFormProps) => {
     delete (payload as any).otherDestProjectName;
 
     try {
-      if (type.includes("Outward")) {
+      if (type === "Public Inward Return") {
+        await submitPublicInwardReturn(payload as any);
+      } else if (type === "Public Outward Return") {
+        await submitPublicOutwardReturn(payload as any);
+      } else if (type.includes("Outward")) {
         await submitPublicOutward(payload as any);
       } else {
         await submitPublicInward(payload as any);
