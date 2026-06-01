@@ -14,37 +14,22 @@ export default defineConfig(({ mode }) => {
       alias: {
         '@': path.resolve(__dirname, '.'),
       },
-      // Ensure all libraries share the same React instance
+      // Single React instance across all vendor libraries — prevents
+      // "Cannot read properties of undefined (reading 'memo')" class of errors
       dedupe: ['react', 'react-dom'],
     },
     optimizeDeps: {
       include: ['react', 'react-dom', 'react-hot-toast'],
     },
     build: {
-      rollupOptions: {
-        output: {
-          manualChunks(id) {
-            if (id.includes('node_modules')) {
-              if (id.includes('react') || id.includes('react-dom') || id.includes('react-hot-toast')) {
-                return 'vendor-react';
-              }
-              if (id.includes('recharts') || id.includes('d3') || id.includes('victory')) {
-                return 'vendor-charts';
-              }
-              if (id.includes('motion') || id.includes('framer')) {
-                return 'vendor-motion';
-              }
-              if (id.includes('lucide')) {
-                return 'vendor-icons';
-              }
-              if (id.includes('jspdf') || id.includes('xlsx')) {
-                return 'vendor-docs';
-              }
-              return 'vendor-misc';
-            }
-          },
-        },
-      },
+      // Let Vite handle chunking automatically.
+      // Manual chunk splitting was causing React 19 initialization-order
+      // errors: vendor-misc would call into vendor-react before React's
+      // internal fiber state had finished setting up (e.g. "Cannot set
+      // properties of undefined (setting 'Activity')").
+      // resolve.dedupe above already ensures a single React instance, which
+      // is all that is needed to prevent duplicate-React runtime crashes.
+      chunkSizeWarningLimit: 1000,
     },
     server: {
       hmr: process.env.DISABLE_HMR !== 'true',
