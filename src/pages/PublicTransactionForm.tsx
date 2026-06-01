@@ -16,7 +16,8 @@ export const PublicTransactionForm = ({ type }: PublicTransactionFormProps) => {
   const { 
     fetchPublicInventory, 
     fetchPublicCatalogue,
-    submitPublicInward, // We can reuse this or create specific ones if needed, but usually the backend handles it by type
+    submitPublicInward,
+    submitPublicOutward,
     uploadPublicImage,
     actionLoading,
     fetchResource,
@@ -303,7 +304,11 @@ export const PublicTransactionForm = ({ type }: PublicTransactionFormProps) => {
     delete (payload as any).otherDestProjectName;
 
     try {
-      await submitPublicInward(payload as any);
+      if (type.includes("Outward")) {
+        await submitPublicOutward(payload as any);
+      } else {
+        await submitPublicInward(payload as any);
+      }
       setSubmitted(true);
       toast.success(`${type} record submitted successfully!`);
     } catch (error: any) {
@@ -710,14 +715,12 @@ export const PublicTransactionForm = ({ type }: PublicTransactionFormProps) => {
                                 {item.isMiscellaneous ? (
                                   <div className="space-y-3">
                                     <Field
-                                      label="Item Name"
                                       value={item.itemName}
                                       onChange={(e: any) => updateItem(idx, { itemName: e.target.value })}
                                       placeholder="Item Name"
                                       error={errors[`item_${idx}_itemName`]}
                                     />
                                     <SField
-                                      label="Category"
                                       value={item.category}
                                       onChange={(e: any) => updateItem(idx, { category: e.target.value })}
                                       options={CATEGORIES}
@@ -726,7 +729,6 @@ export const PublicTransactionForm = ({ type }: PublicTransactionFormProps) => {
                                   </div>
                                 ) : (
                                   <SearchSelect
-                                    label="Item Search"
                                     options={inventoryOptions}
                                     value={item.sku}
                                     onChange={(val) => handleRowItemSelect(idx, val)}
@@ -738,7 +740,6 @@ export const PublicTransactionForm = ({ type }: PublicTransactionFormProps) => {
                               </td>
                               <td className="py-3 pr-2 align-top">
                                 <Field
-                                  label="Qty"
                                   value={item.qty}
                                   onChange={(e: any) => updateItem(idx, { qty: e.target.value })}
                                   type="number"
@@ -749,14 +750,12 @@ export const PublicTransactionForm = ({ type }: PublicTransactionFormProps) => {
                               <td className="py-3 pr-2 align-top">
                                 {item.isMiscellaneous ? (
                                   <SField
-                                    label="Unit"
                                     value={item.unit}
                                     onChange={(e: any) => updateItem(idx, { unit: e.target.value })}
                                     options={UNITS}
                                   />
                                 ) : (
                                   <Field
-                                    label="Unit"
                                     value={item.unit}
                                     disabled
                                   />
@@ -764,7 +763,6 @@ export const PublicTransactionForm = ({ type }: PublicTransactionFormProps) => {
                               </td>
                               <td className="py-3 pr-2 align-top">
                                 <Field
-                                  label="MR No."
                                   value={item.mrNo}
                                   onChange={(e: any) => updateItem(idx, { mrNo: e.target.value })}
                                   placeholder="MR No."
@@ -773,7 +771,6 @@ export const PublicTransactionForm = ({ type }: PublicTransactionFormProps) => {
                               <td className="py-3 pr-2 align-top">
                                 <MultipleImageUpload
                                   id={`item-photos-${idx}`}
-                                  label="Photos"
                                   onUpload={(urls) => updateItem(idx, { images: [...(item.images || []), ...urls] })}
                                   values={item.images || []}
                                   onRemove={(imgIdx) => {
@@ -787,7 +784,7 @@ export const PublicTransactionForm = ({ type }: PublicTransactionFormProps) => {
                               <td className="py-3 text-center align-top">
                                 <button 
                                   onClick={() => removeItem(idx)}
-                                  className="mt-6 p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-all"
+                                  className="mt-2 p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-all"
                                 >
                                   <Trash2 className="w-4 h-4" />
                                 </button>
