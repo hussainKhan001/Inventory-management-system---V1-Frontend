@@ -496,14 +496,14 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  const fetchAuditLogs = async (search?: string) => {
+  const fetchAuditLogs = useCallback(async (search?: string) => {
     try {
       const res = await api.get('audit-logs', { search });
       if (res.success) setAuditLogs(res.data);
     } catch (error) {
       console.error("Failed to fetch audit logs:", error);
     }
-  };
+  }, []);
 
   // Validate credentials → receive JWT and mark authenticated immediately
   const login = async (email: string, password: string) => {

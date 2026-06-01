@@ -79,7 +79,7 @@ export const AuditLogs = () => {
                           log.action === 'DELETE' ? 'bg-red-100 text-red-700 dark:bg-red-900/30' :
                           'bg-amber-100 text-amber-700 dark:bg-amber-900/30'
                         }`}>
-                          {log.action.charAt(0) + log.action.slice(1).toLowerCase()}
+                          {log.action ? log.action.charAt(0) + log.action.slice(1).toLowerCase() : 'Unknown'}
                         </span>
                       </div>
                     </div>
@@ -112,7 +112,7 @@ export const AuditLogs = () => {
                   log.action === 'DELETE' ? 'bg-red-100 text-red-700 dark:bg-red-900/30' :
                   'bg-amber-100 text-amber-700 dark:bg-amber-900/30'
                 }`}>
-                  {log.action.charAt(0) + log.action.slice(1).toLowerCase()}
+                  {log.action ? log.action.charAt(0) + log.action.slice(1).toLowerCase() : 'Unknown'}
                 </span>
               </td>
               <td className="px-6 py-4 text-right">
