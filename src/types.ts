@@ -300,9 +300,16 @@ export interface MaterialPlan {
   project: string;
   milestone: string;
   workType: string;
+  location: string;
+  engineer: string;
+  gmAgm: string;
   date: string;
   status: "Open" | "PO Raised" | "Fulfilled";
   items: PlanLineItem[];
+  addOns?: {
+    date: string;
+    items: PlanLineItem[];
+  }[];
 }
 
 export interface GRNItem {

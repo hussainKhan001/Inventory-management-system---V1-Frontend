@@ -12,11 +12,12 @@ import {
   ConfirmModal,
   Skeleton,
 } from "../components/ui";
-import { Plus, Search, AlertTriangle, Eye, Edit2, Trash2, Package } from "lucide-react";
-import { MaterialPlan, PlanLineItem } from "../types";
+import { Plus, Search, AlertTriangle, Eye, Edit2, Trash2, Package, X, Save } from "lucide-react";
+import { MaterialPlan, PlanLineItem, InventoryItem } from "../types";
 import { genId, todayStr, scrollToError, formatDateTime } from "../utils";
 import { Virtuoso } from 'react-virtuoso';
 import { cn } from "../lib/utils";
+import toast from "react-hot-toast";
 
 export const MaterialPlanning = () => {
   const { 
@@ -31,10 +32,16 @@ export const MaterialPlanning = () => {
     loading,
     actionLoading,
     hasPermission,
-    settings
+    settings,
+    users,
+    fetchUsers
   } = useAppStore();
 
-  const { projects: PROJECTS, workTypes: WORK_TYPES } = settings;
+  useEffect(() => {
+    fetchUsers();
+  }, [fetchUsers]);
+
+  const { projects: PROJECTS, workTypes: WORK_TYPES, requesters: REQUESTERS } = settings;
 
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
@@ -55,6 +62,10 @@ export const MaterialPlanning = () => {
   const [isEditing, setIsEditing] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
+  const [addingToPlan, setAddingToPlan] = useState<MaterialPlan | null>(null);
+  const [additionalItems, setAdditionalItems] = useState<PlanLineItem[]>([]);
+  const [searchAdditionalItem, setSearchAdditionalItem] = useState("");
+
   useEffect(() => {
     if (Object.keys(errors).length > 0) {
       scrollToError();
@@ -62,12 +73,12 @@ export const MaterialPlanning = () => {
   }, [errors]);
 
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [customProject, setCustomProject] = useState("");
 
   const validateForm = (data: any) => {
     const newErrors: Record<string, string> = {};
     if (!data.project) newErrors.project = "Project is required";
-    if (!data.milestone) newErrors.milestone = "Milestone is required";
-    if (!data.workType) newErrors.workType = "Work Type is required";
+    if (data.project === "Other" && !customProject) newErrors.customProject = "Project name is required";
     if (!data.items || (data.items?.length || 0) === 0) newErrors.items = "At least one item is required";
     
     setErrors(newErrors);
@@ -78,23 +89,27 @@ export const MaterialPlanning = () => {
     project: "",
     milestone: "",
     workType: "",
+    location: "",
+    engineer: "",
+    gmAgm: "",
     items: [],
   });
   const [searchItem, setSearchItem] = useState("");
 
   useEffect(() => {
-    if (!modal) return;
+    if (!modal && !addingToPlan) return;
     
+    const searchTarget = addingToPlan ? searchAdditionalItem : searchItem;
     const delayDebounceFn = setTimeout(() => {
-      if (searchItem) {
-        fetchResource('inventory', 1, 100, true, searchItem);
+      if (searchTarget) {
+        fetchResource('inventory', 1, 100, true, searchTarget);
       } else {
         fetchResource('inventory', 1, 200, true);
       }
     }, 400);
 
     return () => clearTimeout(delayDebounceFn);
-  }, [searchItem, fetchResource, modal]);
+  }, [searchItem, searchAdditionalItem, fetchResource, modal, addingToPlan]);
 
   const handlePageChange = useCallback((page: number) => {
     fetchResource('planning', page);
@@ -105,20 +120,23 @@ export const MaterialPlanning = () => {
       return;
     }
 
+    const finalProject = newPlan.project === "Other" ? customProject : newPlan.project;
+
     if (isEditing) {
       try {
-        await updatePlan(newPlan.id!, newPlan);
+        await updatePlan(newPlan.id!, { ...newPlan, project: finalProject });
         setModal(false);
-        setNewPlan({ project: "", milestone: "", workType: "", items: [] });
+        setNewPlan({ project: "", milestone: "", workType: "", location: "", engineer: "", gmAgm: "", items: [] });
+        setCustomProject("");
         setIsEditing(false);
         setErrors({});
+        toast.success("Plan updated successfully");
       } catch (error: any) {
-        alert(`Failed to update material plan: ${error.message}`);
+        toast.error(`Failed to update material plan: ${error.message}`);
       }
       return;
     }
 
-    // Find the max ID to avoid duplicates
     const maxIdNum = plans.reduce((max, p) => {
       const parts = p.id.split("-");
       const num = parseInt(parts[parts.length - 1] || "0");
@@ -127,9 +145,12 @@ export const MaterialPlanning = () => {
 
     const plan: MaterialPlan = {
       id: genId("MP", maxIdNum),
-      project: newPlan.project!,
+      project: finalProject!,
       milestone: newPlan.milestone!,
       workType: newPlan.workType!,
+      location: newPlan.location || "",
+      engineer: newPlan.engineer || "",
+      gmAgm: newPlan.gmAgm || "",
       date: new Date().toISOString(),
       status: "Open",
       items: newPlan.items!,
@@ -138,10 +159,12 @@ export const MaterialPlanning = () => {
     try {
       await addPlan(plan);
       setModal(false);
-      setNewPlan({ project: "", milestone: "", workType: "", items: [] });
+      setNewPlan({ project: "", milestone: "", workType: "", location: "", engineer: "", gmAgm: "", items: [] });
+      setCustomProject("");
       setErrors({});
+      toast.success("Plan created successfully");
     } catch (error: any) {
-      alert(`Failed to create material plan: ${error.message}`);
+      toast.error(`Failed to create material plan: ${error.message}`);
     }
   };
 
@@ -170,20 +193,104 @@ export const MaterialPlanning = () => {
     setSearchItem("");
   };
 
-  const updateItem = (index: number, field: string, value: any) => {
+  const updateItem = (idx: number, field: string, value: any) => {
     const items = [...(newPlan.items || [])];
-    const item = { ...items[index], [field]: value };
+    items[idx] = { ...items[idx], [field]: value };
     if (field === "required") {
-      item.shortage = Math.max(0, item.required - item.available);
+      items[idx].shortage = Math.max(
+        0,
+        Number(value) - (items[idx].available || 0) - (items[idx].reusable || 0)
+      );
     }
-    items[index] = item;
     setNewPlan({ ...newPlan, items });
+  };
+
+  const addAdditionalItem = (inv: InventoryItem) => {
+    setAdditionalItems([
+      ...additionalItems,
+      {
+        sku: inv.sku || "",
+        itemName: inv.itemName || inv.materialName || inv.name || "",
+        required: 1,
+        unit: inv.unit || "NOS",
+        available: inv.liveStock || 0,
+        reusable: 0,
+        shortage: Math.max(0, 1 - (inv.liveStock || 0)),
+        priority: "Medium",
+        delivery: todayStr(),
+        activity: "",
+      },
+    ]);
+    setSearchAdditionalItem("");
+  };
+
+  const updateAdditionalItem = (idx: number, field: string, value: any) => {
+    const items = [...additionalItems];
+    items[idx] = { ...items[idx], [field]: value };
+    if (field === "required") {
+      items[idx].shortage = Math.max(
+        0,
+        Number(value) - (items[idx].available || 0) - (items[idx].reusable || 0)
+      );
+    }
+    setAdditionalItems(items);
+  };
+
+  const handleAddAdditionalItems = async () => {
+    if (!addingToPlan) return;
+    const validItems = additionalItems.filter(i => i.itemName || i.materialName || i.name);
+    if (validItems.length === 0) {
+      toast.error("Please add at least one valid item");
+      return;
+    }
+
+    const updatedPlan = { ...addingToPlan };
+    const mergedItems = [...(updatedPlan.items || [])];
+
+    for (const newItem of validItems) {
+      const existingIdx = mergedItems.findIndex(i => 
+         (i.sku && newItem.sku && i.sku === newItem.sku) || 
+         (i.itemName && newItem.itemName && i.itemName === newItem.itemName) ||
+         (i.materialName && newItem.materialName && i.materialName === newItem.materialName) ||
+         (i.name && newItem.name && i.name === newItem.name)
+      );
+
+      if (existingIdx >= 0) {
+        mergedItems[existingIdx] = {
+           ...mergedItems[existingIdx],
+           required: Number(mergedItems[existingIdx].required || 0) + Number(newItem.required || 0)
+        };
+        mergedItems[existingIdx].shortage = Math.max(0, Number(mergedItems[existingIdx].required) - (mergedItems[existingIdx].available || 0) - (mergedItems[existingIdx].reusable || 0));
+      } else {
+        newItem.shortage = Math.max(0, Number(newItem.required) - (newItem.available || 0) - (newItem.reusable || 0));
+        mergedItems.push(newItem);
+      }
+    }
+
+    updatedPlan.items = mergedItems;
+    updatedPlan.addOns = [
+      ...(updatedPlan.addOns || []),
+      {
+        date: new Date().toISOString(),
+        items: validItems.map(i => ({ ...i }))
+      }
+    ];
+
+    try {
+      await updatePlan(updatedPlan.id, updatedPlan);
+      toast.success("Materials added successfully!");
+      setAddingToPlan(null);
+      setAdditionalItems([]);
+    } catch (error: any) {
+      toast.error(`Failed to add materials: ${error.message}`);
+    }
   };
 
   const handleConfirmDelete = async () => {
     if (!deletingId) return;
     try {
       await deletePlan(deletingId);
+      toast.success("Plan deleted successfully");
       setDeletingId(null);
     } catch (error: any) {
       console.error("Failed to delete material plan:", error);
@@ -201,7 +308,9 @@ export const MaterialPlanning = () => {
               label="New Plan"
               icon={Plus}
               onClick={() => {
-                setNewPlan({ project: "", milestone: "", workType: "", items: [] });
+                setNewPlan({ project: "", milestone: "", workType: "", location: "", engineer: "", gmAgm: "", items: [] });
+                setCustomProject("");
+                setErrors({});
                 setIsEditing(false);
                 setModal(true);
               }}
@@ -249,7 +358,7 @@ export const MaterialPlanning = () => {
           <Virtuoso
             style={{ height: 'calc(100vh - 280px)', minHeight: '600px' }}
             data={plans || []}
-            context={{ hasPermission, setDeletingId, setNewPlan, setIsEditing, setModal, setSelectedPlan, setViewModal }}
+            context={{ hasPermission, setDeletingId, setNewPlan, setIsEditing, setModal, setSelectedPlan, setViewModal, setCustomProject, PROJECTS, setAddingToPlan, setAdditionalItems }}
             endReached={() => {
               if (plansPagination && plansPagination.page < plansPagination.pages && !loading) {
                 handlePageChange(plansPagination.page + 1);
@@ -293,11 +402,28 @@ export const MaterialPlanning = () => {
                           />
                           {context.hasPermission("EDIT_MATERIAL_PLAN") && (
                             <Btn
+                              icon={Plus}
+                              small
+                              outline
+                              onClick={() => {
+                                context.setAddingToPlan(plan);
+                                context.setAdditionalItems([]);
+                              }}
+                              title="Add Items"
+                            />
+                          )}
+                          {context.hasPermission("EDIT_MATERIAL_PLAN") && (
+                            <Btn
                               icon={Edit2}
                               small
                               outline
                               onClick={() => {
-                                context.setNewPlan(plan);
+                                const isStandardProject = context.PROJECTS.some((p: any) => p === plan.project || p?.value === plan.project);
+                                context.setNewPlan({
+                                  ...plan,
+                                  project: isStandardProject ? plan.project : "Other",
+                                });
+                                context.setCustomProject(isStandardProject ? "" : plan.project);
                                 context.setIsEditing(true);
                                 context.setModal(true);
                               }}
@@ -384,6 +510,103 @@ export const MaterialPlanning = () => {
         )}
       </div>
 
+      {addingToPlan && (
+        <Modal
+          title={`Add Materials to ${addingToPlan.id}`}
+          wide
+          onClose={() => {
+            setAddingToPlan(null);
+            setAdditionalItems([]);
+            setSearchAdditionalItem("");
+          }}
+        >
+          <div className="mb-4">
+            <h3 className="text-[13px] font-bold text-[#1A1A2E] dark:text-white mb-3">
+              Add New Items
+            </h3>
+            <div className="relative mb-4">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <input
+                type="text"
+                placeholder="Search inventory to add items..."
+                value={searchAdditionalItem}
+                onChange={(e) => setSearchAdditionalItem(e.target.value)}
+                className="w-full pl-9 pr-4 py-2 border border-[#E8ECF0] dark:border-gray-700 bg-white dark:bg-gray-800 rounded-lg text-[13px] text-gray-900 dark:text-white focus:outline-none focus:border-[#F97316] dark:focus:border-orange-500"
+              />
+              {searchAdditionalItem && (
+                <div className="absolute z-10 w-full mt-1 bg-white dark:bg-gray-800 border border-[#E8ECF0] dark:border-gray-700 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                  {inventory
+                    .filter(
+                      (i) =>
+                        (i.itemName || i.materialName || i.name || "")
+                          .toLowerCase()
+                          .includes(searchAdditionalItem.toLowerCase()) ||
+                        (i.sku || "")
+                          .toLowerCase()
+                          .includes(searchAdditionalItem.toLowerCase())
+                    )
+                    .map((i, idx) => (
+                      <div
+                        key={`${i.sku}-${idx}`}
+                        onClick={() => addAdditionalItem(i)}
+                        className="px-4 py-2 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer text-[13px] text-gray-900 dark:text-gray-300"
+                      >
+                        {i.itemName || i.materialName || i.name || i.sku || 'Unknown'} ({i.sku}) - Stock: {i.liveStock}
+                      </div>
+                    ))}
+                </div>
+              )}
+            </div>
+
+            {additionalItems.length > 0 && (
+              <table className="w-full text-left border-collapse mb-4">
+                <thead>
+                  <tr className="bg-gray-50 dark:bg-gray-800/50 border-b border-[#E8ECF0] dark:border-gray-700">
+                    <th className="px-2 py-2 text-[11px] font-bold text-[#6B7280] dark:text-gray-400 ">Item</th>
+                    <th className="px-2 py-2 text-[11px] font-bold text-[#6B7280] dark:text-gray-400 w-24">Required</th>
+                    <th className="px-2 py-2 text-[11px] font-bold text-[#6B7280] dark:text-gray-400 w-12 text-center"></th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#E8ECF0] dark:divide-gray-700">
+                  {additionalItems.map((item, idx) => (
+                    <tr key={idx}>
+                      <td className="px-2 py-2 text-[13px] dark:text-gray-300">
+                        {item.itemName || item.materialName || item.name || item.sku || 'Unknown'}
+                      </td>
+                      <td className="px-2 py-2">
+                        <input
+                          type="number"
+                          value={item.required}
+                          onChange={(e) => updateAdditionalItem(idx, "required", Number(e.target.value))}
+                          className="w-full px-2 py-1 border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded text-[13px] text-gray-900 dark:text-white"
+                        />
+                      </td>
+                      <td className="px-2 py-2 text-center">
+                        <button onClick={() => {
+                          const items = [...additionalItems];
+                          items.splice(idx, 1);
+                          setAdditionalItems(items);
+                        }} className="text-red-500 hover:bg-red-50 p-1 rounded">
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+          <div className="flex gap-3 justify-end mt-4">
+            <Btn label="Cancel" outline onClick={() => {
+              setAddingToPlan(null);
+              setAdditionalItems([]);
+              setSearchAdditionalItem("");
+            }} />
+            <Btn label="Add Materials" onClick={handleAddAdditionalItems} disabled={additionalItems.length === 0} />
+          </div>
+        </Modal>
+      )}
+
       {viewModal && selectedPlan && (
         <Modal
           title={`Material Plan Details - ${selectedPlan.id}`}
@@ -391,22 +614,26 @@ export const MaterialPlanning = () => {
           onClose={() => setViewModal(false)}
         >
           <div className="space-y-6">
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
               <div>
                 <p className="text-[11px] font-bold text-gray-500 ">Project</p>
-                <p className="text-[13px] font-medium text-gray-900 dark:text-white">{selectedPlan.project}</p>
-              </div>
-              <div>
-                <p className="text-[11px] font-bold text-gray-500 ">Work Type</p>
-                <p className="text-[13px] font-medium text-gray-900 dark:text-white">{selectedPlan.workType}</p>
-              </div>
-              <div>
-                <p className="text-[11px] font-bold text-gray-500 ">Milestone</p>
-                <p className="text-[13px] font-medium text-gray-900 dark:text-white">{selectedPlan.milestone}</p>
+                <p className="text-[13px] font-medium text-gray-900 dark:text-white">{selectedPlan.project || "-"}</p>
               </div>
               <div>
                 <p className="text-[11px] font-bold text-gray-500 ">Date</p>
                 <p className="text-[13px] font-medium text-gray-900 dark:text-white">{formatDateTime(selectedPlan.date)}</p>
+              </div>
+              <div>
+                <p className="text-[11px] font-bold text-gray-500 ">Location</p>
+                <p className="text-[13px] font-medium text-gray-900 dark:text-white">{selectedPlan.location || "-"}</p>
+              </div>
+              <div>
+                <p className="text-[11px] font-bold text-gray-500 ">Engineer</p>
+                <p className="text-[13px] font-medium text-gray-900 dark:text-white">{selectedPlan.engineer || "-"}</p>
+              </div>
+              <div>
+                <p className="text-[11px] font-bold text-gray-500 ">GM / AGM</p>
+                <p className="text-[13px] font-medium text-gray-900 dark:text-white">{selectedPlan.gmAgm || "-"}</p>
               </div>
             </div>
 
@@ -460,6 +687,44 @@ export const MaterialPlanning = () => {
               </div>
             </div>
 
+            {selectedPlan.addOns && selectedPlan.addOns.length > 0 && (
+              <div className="mt-6">
+                <h3 className="text-[13px] font-bold text-[#1A1A2E] dark:text-white mb-3">
+                  Add-on History
+                </h3>
+                <div className="space-y-4">
+                  {selectedPlan.addOns.map((addOn, idx) => (
+                    <div key={idx} className="border border-gray-100 dark:border-gray-800 rounded-xl overflow-hidden shadow-sm">
+                      <div className="bg-gray-50 dark:bg-gray-800/50 px-4 py-2 border-b border-gray-100 dark:border-gray-800">
+                        <p className="text-[11px] font-bold text-gray-500 dark:text-gray-400">Added on {formatDateTime(addOn.date)}</p>
+                      </div>
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-left border-collapse min-w-[600px]">
+                          <tbody className="divide-y divide-gray-100 dark:divide-gray-800 bg-white dark:bg-gray-900">
+                            {addOn.items.map((item, itemIdx) => (
+                              <tr key={itemIdx} className="hover:bg-gray-50/50 dark:hover:bg-gray-800/30 transition-colors">
+                                <td className="px-4 py-2">
+                                  <div className="flex items-center gap-3">
+                                    <div className="w-6 h-6 rounded-md bg-emerald-50 dark:bg-emerald-900/20 flex items-center justify-center">
+                                      <Plus className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
+                                    </div>
+                                    <span className="text-[13px] font-semibold text-gray-900 dark:text-white">{item.itemName || item.materialName || item.name || item.sku || 'Unknown'}</span>
+                                  </div>
+                                </td>
+                                <td className="px-4 py-2 text-[13px] text-right text-emerald-600 dark:text-emerald-400 font-bold">
+                                  +{item.required} {item.unit}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             <div className="flex justify-end gap-2">
               <Btn label="Close" outline onClick={() => setViewModal(false)} />
             </div>
@@ -474,39 +739,56 @@ export const MaterialPlanning = () => {
           onClose={() => {
             setModal(false);
             setErrors({});
-            setNewPlan({ project: "", milestone: "", workType: "", items: [] });
+            setNewPlan({ project: "", milestone: "", workType: "", location: "", engineer: "", gmAgm: "", items: [] });
+            setCustomProject("");
             setIsEditing(false);
           }}
         >
-          <div className="grid grid-cols-3 gap-4 mb-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
             <SField
               label="Project"
               value={newPlan.project}
               onChange={(e: any) =>
                 setNewPlan({ ...newPlan, project: e.target.value })
               }
-              options={PROJECTS}
+              options={[...PROJECTS, { label: "Other", value: "Other" }]}
               required
               error={errors.project}
             />
+            {newPlan.project === "Other" && (
+              <Field
+                label="Custom Project Name"
+                value={customProject}
+                onChange={(e: any) => setCustomProject(e.target.value)}
+                placeholder="Enter project name"
+                required
+                error={errors.customProject}
+              />
+            )}
             <Field
-              label="Milestone"
-              value={newPlan.milestone}
+              label="Location"
+              value={newPlan.location}
               onChange={(e: any) =>
-                setNewPlan({ ...newPlan, milestone: e.target.value })
+                setNewPlan({ ...newPlan, location: e.target.value })
               }
-              required
-              error={errors.milestone}
+              placeholder="e.g. Site A, Block 3"
             />
             <SField
-              label="Work Type"
-              value={newPlan.workType}
+              label="Engineer"
+              value={newPlan.engineer}
               onChange={(e: any) =>
-                setNewPlan({ ...newPlan, workType: e.target.value })
+                setNewPlan({ ...newPlan, engineer: e.target.value })
               }
-              options={WORK_TYPES}
-              required
-              error={errors.workType}
+              options={REQUESTERS}
+              placeholder="Select Engineer"
+            />
+            <Field
+              label="GM / AGM"
+              value={newPlan.gmAgm}
+              onChange={(e: any) =>
+                setNewPlan({ ...newPlan, gmAgm: e.target.value })
+              }
+              placeholder="GM / AGM name"
             />
           </div>
 

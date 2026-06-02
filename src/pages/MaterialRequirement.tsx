@@ -24,18 +24,20 @@ import { toast } from "react-hot-toast";
 import { cn } from "../lib/utils";
 import { SearchFilter, DateRangePicker, SelectFilter, FilterRow } from "../components/ui/Filters";
 export const MaterialRequirementPage = () => {
-  const { 
-    materialRequirements, 
+  const {
+    materialRequirements,
     materialRequirementsPagination,
     mrAllocations,
     mrAllocationsPagination,
     fetchResource,
-    addMaterialRequirement, 
-    updateMaterialRequirement, 
-    deleteMaterialRequirement, 
+    addMaterialRequirement,
+    updateMaterialRequirement,
+    deleteMaterialRequirement,
     inventory,
     catalogue,
-    role, 
+    role,
+    user,
+    plans,
     loading,
     actionLoading,
     api,
@@ -106,7 +108,8 @@ export const MaterialRequirementPage = () => {
     // Background fetches for dependencies
     if (inventory.length === 0) fetchResource('inventory', 1, 2000, true);
     if (catalogue.length === 0) fetchResource('catalogue', 1, 2000, true);
-  }, [fetchResource, inventory.length, catalogue.length]);
+    if (plans.length === 0) fetchResource('planning', 1, 500, true);
+  }, [fetchResource, inventory.length, catalogue.length, plans.length]);
 
   const [modal, setModal] = useState(false);
   const [successModal, setSuccessModal] = useState<string | null>(null);
@@ -219,15 +222,52 @@ export const MaterialRequirementPage = () => {
     }
   }, [fetchResource, activeTab, debouncedSearch]);
 
+  const isSiteEngineer = role === "Site Engineer";
+
+  // Plans assigned to this engineer (by name match)
+  const myPlans = React.useMemo(() => {
+    if (!isSiteEngineer || !user?.name) return plans;
+    return plans.filter(p => p.engineer && p.engineer.trim().toLowerCase() === user.name.trim().toLowerCase());
+  }, [isSiteEngineer, user?.name, plans]);
+
+  // Projects the engineer is allowed to raise MRs for
+  const engineerProjects = React.useMemo(() => {
+    if (!isSiteEngineer) return null;
+    return Array.from(new Set(myPlans.map(p => p.project).filter(Boolean)));
+  }, [isSiteEngineer, myPlans]);
+
+  // Items allowed for the selected project (from the engineer's plan)
+  const engineerPlanItems = React.useMemo(() => {
+    if (!isSiteEngineer || !newRequirement.project) return null;
+    const projectPlans = myPlans.filter(p => p.project === newRequirement.project);
+    const allItems = projectPlans.flatMap(p => p.items || []);
+    // De-duplicate by itemName
+    const seen = new Set<string>();
+    return allItems.filter(item => {
+      const key = (item.itemName || item.materialName || item.sku || "").toLowerCase();
+      if (!key || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  }, [isSiteEngineer, newRequirement.project, myPlans]);
+
   // Memoize search options to improve performance
   const searchOptions = React.useMemo(() => {
+    // For Site Engineers with a project selected, restrict to plan items only
+    if (isSiteEngineer && engineerPlanItems) {
+      return engineerPlanItems.map(item => ({
+        value: item.itemName || item.materialName || item.sku || "",
+        label: item.itemName || item.materialName || item.sku || "",
+        subLabel: item.unit,
+      }));
+    }
     const options = [
       ...inventory.map(i => ({ value: i.itemName, label: i.itemName, subLabel: i.category })),
       ...catalogue.map(c => ({ value: c.itemName, label: c.itemName, subLabel: c.category }))
     ];
     // De-duplicate
     return options.filter((v, i, a) => a.findIndex(t => t.value === v.value) === i);
-  }, [inventory, catalogue]);
+  }, [isSiteEngineer, engineerPlanItems, inventory, catalogue]);
 
   const projects = React.useMemo(() => settings.projects || [], [settings.projects]);
   const workTypes = React.useMemo(() => settings.workTypes || [
@@ -1054,7 +1094,7 @@ export const MaterialRequirementPage = () => {
                         toast.success("Requirement saved successfully", { id: "save-mr" });
                         setViewModal(false);
                       } catch (e: any) {
-                        toast.error("Save failed: " + e.message, { id: "save-mr" });
+                        toast.error(e?.message || "Save failed", { id: "save-mr" });
                       }
                     }}
                     className="flex items-center gap-2 px-5 py-2.5 bg-primary hover:bg-primary/90 hover:-translate-y-0.5 active:translate-y-0 text-white rounded-xl text-xs font-black transition-all tracking-wider shadow-lg shadow-primary/20 dark:shadow-none disabled:bg-gray-400 disabled:shadow-none disabled:cursor-not-allowed disabled:transform-none cursor-pointer"
@@ -1680,8 +1720,8 @@ export const MaterialRequirementPage = () => {
                                       status: newStatus
                                     });
                                     toast.success("Requirement updated & saved");
-                                  } catch (e) {
-                                    toast.error("Update failed");
+                                  } catch (e: any) {
+                                    toast.error(e?.message || "Update failed");
                                   }
                                 }}
                                 className="p-2.5 bg-emerald-500/10 hover:bg-emerald-600 hover:text-white text-emerald-600 dark:text-emerald-400 rounded-xl border border-emerald-500/20 dark:border-emerald-500/30 transition-all flex items-center justify-center gap-1 shadow-xs disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer shrink-0"
@@ -1926,12 +1966,15 @@ export const MaterialRequirementPage = () => {
                 <SField
                   label="Project *"
                   value={newRequirement.project}
-                  onChange={(e: any) => setNewRequirement({ ...newRequirement, project: e.target.value })}
-                  options={projects}
+                  onChange={(e: any) => setNewRequirement({ ...newRequirement, project: e.target.value, items: [{ materialName: "", sku: "", qty: 1, unit: "", condition: "New" }] })}
+                  options={isSiteEngineer && engineerProjects ? engineerProjects : projects}
                   error={errors.project}
                   required
                 />
-                {newRequirement.project === "Other" && (
+                {isSiteEngineer && engineerProjects && engineerProjects.length === 0 && (
+                  <p className="text-[11px] text-amber-500 mt-1">No material plans are assigned to you yet.</p>
+                )}
+                {!isSiteEngineer && newRequirement.project === "Other" && (
                   <div className="mt-2 text-xs">
                     <Field
                       placeholder="Enter project name"
@@ -1980,6 +2023,17 @@ export const MaterialRequirementPage = () => {
                 <h3 className="text-[13px] font-bold text-gray-900 dark:text-white tracking-wider">Material items</h3>
                 <Btn label="Add Item" icon={Plus} small outline onClick={addItem} />
               </div>
+
+              {isSiteEngineer && newRequirement.project && engineerPlanItems && (
+                <p className="text-[11px] text-blue-500 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 px-3 py-2 rounded-lg">
+                  Only items from the material plan for <strong>{newRequirement.project}</strong> are available.
+                </p>
+              )}
+              {isSiteEngineer && !newRequirement.project && (
+                <p className="text-[11px] text-amber-500 bg-amber-50 dark:bg-amber-900/20 px-3 py-2 rounded-lg">
+                  Select a project first to see available plan items.
+                </p>
+              )}
 
               {errors.items && <p className="text-[11px] text-red-500">{errors.items}</p>}
 
