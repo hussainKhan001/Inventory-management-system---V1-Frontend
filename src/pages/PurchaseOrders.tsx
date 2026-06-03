@@ -2507,24 +2507,66 @@ export const PurchaseOrders = () => {
                             />
                           </td>
                           <td className="p-1.5 border-r border-[#1A365D]/20">
-                            <input type="number"
+                            <input type="text"
                               className="w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded px-1.5 py-1 text-xs text-right"
-                              value={pt.amount ?? 0}
-                              onChange={(e) => { const pts = [...(newPO.paymentTimelines || [])]; pts[idx] = {...pts[idx], amount: Number(e.target.value)}; setNewPO({ ...newPO, paymentTimelines: pts }); }}
+                              value={pt.amount ?? ""}
+                              onChange={(e) => { 
+                                const valStr = e.target.value.replace(/[^0-9.]/g, '');
+                                const val = parseFloat(valStr) || 0;
+                                const pts = [...(newPO.paymentTimelines || [])]; 
+                                const gst = String(pts[idx].gstPct || "").toLowerCase();
+                                let calculatedPayable = val;
+                                if (gst !== 'inclusive' && gst !== '-' && gst !== '0' && gst !== '') {
+                                  const pct = parseFloat(gst.replace(/[^0-9.]/g, ''));
+                                  if (!isNaN(pct)) {
+                                    calculatedPayable = val + (val * pct / 100);
+                                  }
+                                }
+                                pts[idx] = {...pts[idx], amount: valStr as any, ifPayable: parseFloat(calculatedPayable.toFixed(2))}; 
+                                setNewPO({ ...newPO, paymentTimelines: pts }); 
+                              }}
                             />
                           </td>
                           <td className="p-1.5 border-r border-[#1A365D]/20">
                             <input
                               className="w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded px-1.5 py-1 text-xs text-center"
                               value={pt.gstPct || ""}
-                              onChange={(e) => { const pts = [...(newPO.paymentTimelines || [])]; pts[idx] = {...pts[idx], gstPct: e.target.value}; setNewPO({ ...newPO, paymentTimelines: pts }); }}
+                              onChange={(e) => { 
+                                const val = e.target.value;
+                                const pts = [...(newPO.paymentTimelines || [])]; 
+                                const amt = parseFloat(String(pts[idx].amount)) || 0;
+                                const gst = String(val).toLowerCase();
+                                let calculatedPayable = amt;
+                                if (gst !== 'inclusive' && gst !== '-' && gst !== '0' && gst !== '') {
+                                  const pct = parseFloat(gst.replace(/[^0-9.]/g, ''));
+                                  if (!isNaN(pct)) {
+                                    calculatedPayable = amt + (amt * pct / 100);
+                                  }
+                                }
+                                pts[idx] = {...pts[idx], gstPct: val, ifPayable: parseFloat(calculatedPayable.toFixed(2))}; 
+                                setNewPO({ ...newPO, paymentTimelines: pts }); 
+                              }}
                             />
                           </td>
                           <td className="p-1.5 border-r border-[#1A365D]/20">
-                            <input type="number"
+                            <input type="text"
                               className="w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded px-1.5 py-1 text-xs text-right font-bold"
-                              value={pt.ifPayable ?? 0}
-                              onChange={(e) => { const pts = [...(newPO.paymentTimelines || [])]; pts[idx] = {...pts[idx], ifPayable: Number(e.target.value)}; setNewPO({ ...newPO, paymentTimelines: pts }); }}
+                              value={pt.ifPayable ?? ""}
+                              onChange={(e) => { 
+                                const valStr = e.target.value.replace(/[^0-9.]/g, '');
+                                const val = parseFloat(valStr) || 0;
+                                const pts = [...(newPO.paymentTimelines || [])]; 
+                                const gst = String(pts[idx].gstPct || "").toLowerCase();
+                                let calculatedAmount = val;
+                                if (gst !== 'inclusive' && gst !== '-' && gst !== '0' && gst !== '') {
+                                  const pct = parseFloat(gst.replace(/[^0-9.]/g, ''));
+                                  if (!isNaN(pct)) {
+                                    calculatedAmount = val / (1 + pct / 100);
+                                  }
+                                }
+                                pts[idx] = {...pts[idx], ifPayable: valStr as any, amount: parseFloat(calculatedAmount.toFixed(2))}; 
+                                setNewPO({ ...newPO, paymentTimelines: pts }); 
+                              }}
                             />
                           </td>
                           <td className="p-1.5 text-center">
@@ -3119,13 +3161,55 @@ export const PurchaseOrders = () => {
                                     <input value={pt.mode || ""} onChange={(e) => { const ts=[...draftTimelines]; ts[idx]={...ts[idx],mode:e.target.value}; setDraftTimelines(ts); }} className="w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded px-1.5 py-1 text-xs" />
                                   </td>
                                   <td className="p-1.5 border-r border-[#1A365D]/20">
-                                    <input type="number" value={pt.amount ?? 0} onChange={(e) => { const ts=[...draftTimelines]; ts[idx]={...ts[idx],amount:Number(e.target.value)}; setDraftTimelines(ts); }} className="w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded px-1.5 py-1 text-xs text-right" />
+                                    <input type="text" value={pt.amount ?? ""} onChange={(e) => { 
+                                      const valStr = e.target.value.replace(/[^0-9.]/g, '');
+                                      const val = parseFloat(valStr) || 0;
+                                      const ts=[...draftTimelines]; 
+                                      const gst = String(ts[idx].gstPct || "").toLowerCase();
+                                      let calculatedPayable = val;
+                                      if (gst !== 'inclusive' && gst !== '-' && gst !== '0' && gst !== '') {
+                                        const pct = parseFloat(gst.replace(/[^0-9.]/g, ''));
+                                        if (!isNaN(pct)) {
+                                          calculatedPayable = val + (val * pct / 100);
+                                        }
+                                      }
+                                      ts[idx]={...ts[idx], amount: valStr as any, ifPayable: parseFloat(calculatedPayable.toFixed(2))}; 
+                                      setDraftTimelines(ts); 
+                                    }} className="w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded px-1.5 py-1 text-xs text-right" />
                                   </td>
                                   <td className="p-1.5 border-r border-[#1A365D]/20">
-                                    <input value={pt.gstPct || ""} onChange={(e) => { const ts=[...draftTimelines]; ts[idx]={...ts[idx],gstPct:e.target.value}; setDraftTimelines(ts); }} className="w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded px-1.5 py-1 text-xs text-center" />
+                                    <input value={pt.gstPct || ""} onChange={(e) => { 
+                                      const val = e.target.value;
+                                      const ts=[...draftTimelines]; 
+                                      const amt = parseFloat(String(ts[idx].amount)) || 0;
+                                      const gst = String(val).toLowerCase();
+                                      let calculatedPayable = amt;
+                                      if (gst !== 'inclusive' && gst !== '-' && gst !== '0' && gst !== '') {
+                                        const pct = parseFloat(gst.replace(/[^0-9.]/g, ''));
+                                        if (!isNaN(pct)) {
+                                          calculatedPayable = amt + (amt * pct / 100);
+                                        }
+                                      }
+                                      ts[idx]={...ts[idx], gstPct: val, ifPayable: parseFloat(calculatedPayable.toFixed(2))}; 
+                                      setDraftTimelines(ts); 
+                                    }} className="w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded px-1.5 py-1 text-xs text-center" />
                                   </td>
                                   <td className="p-1.5">
-                                    <input type="number" value={pt.ifPayable ?? 0} onChange={(e) => { const ts=[...draftTimelines]; ts[idx]={...ts[idx],ifPayable:Number(e.target.value)}; setDraftTimelines(ts); }} className="w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded px-1.5 py-1 text-xs text-right font-bold" />
+                                    <input type="text" value={pt.ifPayable ?? ""} onChange={(e) => { 
+                                      const valStr = e.target.value.replace(/[^0-9.]/g, '');
+                                      const val = parseFloat(valStr) || 0;
+                                      const ts=[...draftTimelines]; 
+                                      const gst = String(ts[idx].gstPct || "").toLowerCase();
+                                      let calculatedAmount = val;
+                                      if (gst !== 'inclusive' && gst !== '-' && gst !== '0' && gst !== '') {
+                                        const pct = parseFloat(gst.replace(/[^0-9.]/g, ''));
+                                        if (!isNaN(pct)) {
+                                          calculatedAmount = val / (1 + pct / 100);
+                                        }
+                                      }
+                                      ts[idx]={...ts[idx], ifPayable: valStr as any, amount: parseFloat(calculatedAmount.toFixed(2))}; 
+                                      setDraftTimelines(ts); 
+                                    }} className="w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded px-1.5 py-1 text-xs text-right font-bold" />
                                   </td>
                                 </>
                               ) : (

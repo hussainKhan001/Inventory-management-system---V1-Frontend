@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { api } from "../services/api";
 import { MaterialRequirement, QuotationItem } from "../types";
 import { Btn, ThemeToggle, Card, Field, SField } from "../components/ui";
-import { Package, Send, CheckCircle2, Building2, Calendar, FileText, IndianRupee, Clock } from "lucide-react";
+import { Package, Send, CheckCircle2, Building2, Calendar, FileText, IndianRupee, Clock, X } from "lucide-react";
 
 const GST_RATES = [0, 5, 12, 18, 28];
 const GST_TYPES = ["Inclusive", "Exclusive"];
@@ -27,6 +27,30 @@ export const PublicQuotation = () => {
   const [remarks, setRemarks] = useState("");
   const [items, setItems] = useState<QuotationItem[]>([]);
   const [quotationId, setQuotationId] = useState("");
+
+  const [theme, setTheme] = useState<"light" | "dark">("light");
+
+  useEffect(() => {
+    const savedTheme = localStorage.getItem("theme") as "light" | "dark" | null;
+    const initialTheme = savedTheme || (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+    setTheme(initialTheme);
+    if (initialTheme === "dark") {
+      document.documentElement.classList.add("dark");
+    } else {
+      document.documentElement.classList.remove("dark");
+    }
+  }, []);
+
+  const toggleTheme = () => {
+    const newTheme = theme === "light" ? "dark" : "light";
+    setTheme(newTheme);
+    localStorage.setItem("theme", newTheme);
+    if (newTheme === "dark") {
+      document.documentElement.classList.add("dark");
+    } else {
+      document.documentElement.classList.remove("dark");
+    }
+  };
 
   // Other Charges
   const [freightAmount, setFreightAmount] = useState<number>(0);
@@ -141,6 +165,10 @@ export const PublicQuotation = () => {
     const newItems = [...items];
     newItems[index].gstPct = pct;
     setItems(newItems);
+  };
+
+  const handleRemoveItem = (index: number) => {
+    setItems(items.filter((_, i) => i !== index));
   };
 
   const handleGstTypeChange = (index: number, type: "Inclusive" | "Exclusive") => {
@@ -329,7 +357,7 @@ export const PublicQuotation = () => {
               Quotation for <span className="text-orange-600 dark:text-orange-400 font-bold">MR #{mrId}</span> &bull; {items.length} items requested
             </p>
           </div>
-          <ThemeToggle theme="light" toggleTheme={() => {}} />
+          <ThemeToggle theme={theme} toggleTheme={toggleTheme} />
         </motion.div>
 
         <form onSubmit={handleSubmit} className="space-y-8">
@@ -533,10 +561,24 @@ export const PublicQuotation = () => {
                         </div>
                       </td>
                       <td className="px-6 py-6 text-right">
-                        <p className="text-[10px] font-medium text-gray-400 tracking-widest mb-0.5 opacity-0 group-hover:opacity-100 transition-opacity">Line total</p>
-                        <span className="text-base font-bold text-gray-900 dark:text-white">
-                          ₹ {fmt(calculateItemTotal(item))}
-                        </span>
+                        <div className="flex items-center justify-end gap-3">
+                          <div>
+                            <p className="text-[10px] font-medium text-gray-400 tracking-widest mb-0.5 opacity-0 group-hover:opacity-100 transition-opacity">Line total</p>
+                            <span className="text-base font-bold text-gray-900 dark:text-white">
+                              ₹ {fmt(calculateItemTotal(item))}
+                            </span>
+                          </div>
+                          {items.length > 1 && (
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveItem(idx)}
+                              className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
+                              title="Remove item"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -553,9 +595,21 @@ export const PublicQuotation = () => {
                       <p className="font-bold text-gray-900 dark:text-white text-base leading-tight">{item.materialName}</p>
                       <p className="text-[10px] text-gray-400 font-mono mt-0.5 tracking-wider">{item.sku || "No sku"}</p>
                     </div>
-                    <div className="text-right">
-                      <p className="text-[10px] font-medium text-orange-500 tracking-widest mb-1">Item total</p>
-                      <p className="text-lg font-bold text-gray-900 dark:text-white">₹ {fmt(calculateItemTotal(item))}</p>
+                    <div className="flex items-start gap-3 text-right">
+                      <div>
+                        <p className="text-[10px] font-medium text-orange-500 tracking-widest mb-1">Item total</p>
+                        <p className="text-lg font-bold text-gray-900 dark:text-white">₹ {fmt(calculateItemTotal(item))}</p>
+                      </div>
+                      {items.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveItem(idx)}
+                          className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                          title="Remove item"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      )}
                     </div>
                   </div>
 
@@ -621,7 +675,7 @@ export const PublicQuotation = () => {
               ))}
             </div>
 
-            <div className="bg-[#1a2332] dark:bg-[#1a2332] p-6 sm:px-8 border-t border-gray-100 dark:border-gray-800/50 space-y-3">
+            <div className="bg-gray-50 dark:bg-gray-800/50 p-6 sm:px-8 border-t border-gray-100 dark:border-gray-800/50 space-y-3">
               <div className="flex justify-between items-center text-[13px] font-medium text-gray-500 dark:text-gray-400">
                 <span>Items Subtotal:</span>
                 <span className="font-bold text-gray-700 dark:text-gray-300">₹ {fmt(items.reduce((sum, item) => sum + calculateItemTotal(item), 0))}</span>
