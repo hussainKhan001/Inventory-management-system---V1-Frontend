@@ -758,7 +758,7 @@ export const MaterialRequirementPage = () => {
           ))
         ) : (
           <Virtuoso
-            style={{ height: 'calc(100vh - 350px)', minHeight: '600px' }}
+            style={{ height: 'calc(100vh - 350px)' }}
             data={materialRequirements || []}
             context={{ inventory }}
             endReached={(index) => {
@@ -2118,6 +2118,11 @@ export const MaterialRequirementPage = () => {
         <Modal
           title="Success"
           onClose={() => setSuccessModal(null)}
+          footer={
+            <div className="w-full">
+              <Btn label="Close" onClick={() => setSuccessModal(null)} block />
+            </div>
+          }
         >
           <div className="space-y-6 text-center">
             <div className="w-16 h-16 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center mx-auto">
@@ -2130,7 +2135,6 @@ export const MaterialRequirementPage = () => {
                 {successModal}
               </div>
             </div>
-            <Btn label="Close" onClick={() => setSuccessModal(null)} block />
           </div>
         </Modal>
       )}

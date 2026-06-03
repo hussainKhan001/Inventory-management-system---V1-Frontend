@@ -407,19 +407,21 @@ export const Modal = ({ title, onClose, wide, extraWide, ultraWide, children, fo
   <motion.div
     initial={{ opacity: 0 }}
     animate={{ opacity: 1 }}
-    className="fixed inset-0 z-[60] flex items-center justify-center p-2 sm:p-4 bg-[#0F172A]/80 backdrop-blur-sm"
+    className="fixed inset-0 z-[60] flex justify-end bg-[#0F172A]/60 backdrop-blur-sm"
+    onClick={(e) => { if (e.target === e.currentTarget) onClose?.(); }}
   >
     <motion.div
-      initial={{ scale: 0.95, opacity: 0 }}
-      animate={{ scale: 1, opacity: 1 }}
+      initial={{ x: "100%" }}
+      animate={{ x: 0 }}
+      transition={{ type: "spring", damping: 30, stiffness: 300 }}
       className={cn(
-        "bg-white dark:bg-[#172030] rounded-2xl shadow-2xl w-full max-h-[98vh] sm:max-h-[90vh] flex flex-col transition-colors duration-200 border border-gray-100 dark:border-gray-800/80",
-        ultraWide ? "max-w-[1400px]" : extraWide ? "max-w-6xl" : wide ? "max-w-4xl" : "max-w-xl",
+        "bg-white dark:bg-[#172030] h-full shadow-2xl flex flex-col border-l border-gray-100 dark:border-gray-800/80 transition-colors duration-200",
+        ultraWide ? "w-full max-w-[1400px]" : extraWide ? "w-full max-w-6xl" : wide ? "w-full max-w-4xl" : "w-full max-w-xl",
         className
       )}
     >
-      <div className="flex items-center justify-between px-3 sm:px-6 py-3 sm:py-4 border-b border-[#E8ECF0] dark:border-gray-800/80">
-        <h2 className="text-[15px] sm:text-lg font-bold text-[#1A1A2E] dark:text-[#F1F5F9] truncate pr-4">{title}</h2>
+      <div className="flex items-center justify-between px-4 sm:px-6 py-4 border-b border-[#E8ECF0] dark:border-gray-800/80 shrink-0">
+        <h2 className="text-[15px] sm:text-base font-bold text-[#1A1A2E] dark:text-[#F1F5F9] truncate pr-4">{title}</h2>
         <button
           onClick={onClose}
           className="p-1.5 sm:p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800/60 rounded-lg transition-colors shrink-0"
@@ -427,12 +429,12 @@ export const Modal = ({ title, onClose, wide, extraWide, ultraWide, children, fo
           <X className="w-5 h-5" />
         </button>
       </div>
-      <div className="flex-1 overflow-y-auto flex flex-col relative rounded-b-2xl">
-        <div className="p-3 sm:p-6 flex-1">
+      <div className="flex-1 overflow-y-auto flex flex-col relative">
+        <div className="p-4 sm:p-6 flex-1">
           {children}
         </div>
         {footer && (
-          <div className="sticky bottom-0 z-[50] px-3 sm:px-6 py-3 sm:py-4 border-t border-[#E8ECF0] dark:border-gray-800/80 bg-gray-50 dark:bg-[#172030] mt-auto">
+          <div className="sticky bottom-0 z-[50] px-4 sm:px-6 py-3 sm:py-4 border-t border-[#E8ECF0] dark:border-gray-800/80 bg-gray-50 dark:bg-[#172030] mt-auto shrink-0">
             {footer}
           </div>
         )}
@@ -442,20 +444,33 @@ export const Modal = ({ title, onClose, wide, extraWide, ultraWide, children, fo
 );
 
 export const ConfirmModal = ({ title, message, onConfirm, onCancel, loading, confirmLabel = "Confirm", confirmColor = "red" }: any) => (
-  <Modal title={title} onClose={onCancel}>
-    <div className="flex flex-col items-center text-center">
-      <div className="w-12 h-12 rounded-full bg-red-50 dark:bg-red-900/20 flex items-center justify-center mb-4">
-        <AlertCircle className="w-6 h-6 text-red-500" />
+  <motion.div
+    initial={{ opacity: 0 }}
+    animate={{ opacity: 1 }}
+    className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-[#0F172A]/70 backdrop-blur-sm"
+    onClick={(e) => { if (e.target === e.currentTarget) onCancel?.(); }}
+  >
+    <motion.div
+      initial={{ scale: 0.95, opacity: 0 }}
+      animate={{ scale: 1, opacity: 1 }}
+      transition={{ type: "spring", damping: 30, stiffness: 300 }}
+      className="bg-white dark:bg-[#172030] rounded-2xl shadow-2xl w-full max-w-sm flex flex-col border border-gray-100 dark:border-gray-800/80 p-6"
+    >
+      <h2 className="text-[15px] font-bold text-[#1A1A2E] dark:text-[#F1F5F9] mb-4 text-center">{title}</h2>
+      <div className="flex flex-col items-center text-center">
+        <div className="w-12 h-12 rounded-full bg-red-50 dark:bg-red-900/20 flex items-center justify-center mb-4">
+          <AlertCircle className="w-6 h-6 text-red-500" />
+        </div>
+        <p className="text-[#6B7280] dark:text-[#94A3B8] text-[14px] leading-relaxed mb-6">
+          {message}
+        </p>
+        <div className="flex gap-3 w-full">
+          <Btn label="Cancel" onClick={onCancel} outline className="flex-1" disabled={loading} />
+          <Btn label={confirmLabel} onClick={onConfirm} color={confirmColor} className="flex-1" loading={loading} />
+        </div>
       </div>
-      <p className="text-[#6B7280] dark:text-[#94A3B8] text-[14px] leading-relaxed mb-8">
-        {message}
-      </p>
-      <div className="flex gap-3 w-full">
-        <Btn label="Cancel" onClick={onCancel} outline className="flex-1" disabled={loading} />
-        <Btn label={confirmLabel} onClick={onConfirm} color={confirmColor} className="flex-1" loading={loading} />
-      </div>
-    </div>
-  </Modal>
+    </motion.div>
+  </motion.div>
 );
 
 export const Skeleton = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => (

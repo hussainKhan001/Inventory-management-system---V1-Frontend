@@ -18,6 +18,7 @@ import {
   TransactionItem,
   MaterialRequirement,
   MRAllocation,
+  MaterialPlanRevision,
   User,
   AuditLog,
   Quotation,
@@ -111,6 +112,9 @@ interface AppState {
   updatePlan: (id: string, data: Partial<MaterialPlan>) => Promise<void>;
   addPlan: (data: MaterialPlan) => Promise<void>;
   deletePlan: (id: string) => Promise<void>;
+  planRevisions: MaterialPlanRevision[];
+  createPlanRevision: (data: Partial<MaterialPlanRevision>) => Promise<any>;
+  reviewPlanRevision: (id: string, payload: { status: 'approved' | 'rejected'; reviewNote?: string }) => Promise<any>;
   materialRequirements: MaterialRequirement[];
   materialRequirementsPagination: PaginationInfo | null;
   updateMaterialRequirement: (id: string, data: Partial<MaterialRequirement>) => Promise<any>;
@@ -226,6 +230,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const [stockCheckReportsPagination, setStockCheckReportsPagination] = useState<PaginationInfo | null>(null);
   const [mrAllocations, setMrAllocations] = useState<MRAllocation[]>([]);
   const [mrAllocationsPagination, setMrAllocationsPagination] = useState<PaginationInfo | null>(null);
+  const [planRevisions, setPlanRevisions] = useState<MaterialPlanRevision[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [transactionsPagination, setTransactionsPagination] = useState<PaginationInfo | null>(null);
   const [availableGatePasses, setAvailableGatePasses] = useState<Transaction[]>([]);
@@ -731,6 +736,9 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
             setMrAllocations(prev => append ? [...prev, ...res.data] : res.data);
             setMrAllocationsPagination(res.pagination);
             break;
+          case 'plan-revisions':
+            setPlanRevisions(res.data);
+            break;
           case 'transactions':
             setTransactions(prev => append ? [...prev, ...res.data] : res.data);
             setTransactionsPagination(res.pagination);
@@ -1008,6 +1016,29 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     try {
       await api.delete('planning', id);
       await fetchResource('planning');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const createPlanRevision = async (data: Partial<MaterialPlanRevision>) => {
+    setActionLoading(true);
+    try {
+      const res = await api.post('plan-revisions', data);
+      await fetchResource('plan-revisions', 1, 500, true);
+      return res.data;
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const reviewPlanRevision = async (id: string, payload: { status: 'approved' | 'rejected'; reviewNote?: string }) => {
+    setActionLoading(true);
+    try {
+      const res = await api.put('plan-revisions', id, payload);
+      setPlanRevisions(prev => prev.map(r => r.id === id ? { ...r, ...res.data } : r));
+      await fetchResource('planning', 1, 50, true);
+      return res.data;
     } finally {
       setActionLoading(false);
     }
@@ -1738,6 +1769,9 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         updatePlan,
         addPlan,
         deletePlan,
+        planRevisions,
+        createPlanRevision,
+        reviewPlanRevision,
         materialRequirements,
         materialRequirementsPagination,
         updateMaterialRequirement,

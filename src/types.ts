@@ -557,6 +557,25 @@ export interface MRAllocation {
   status: "Allocated" | "Partially Issued" | "Closed";
 }
 
+export interface MaterialPlanRevision {
+  id: string;
+  planId: string;
+  planItemSku: string;
+  itemName?: string;
+  engineerName?: string;
+  engineerId?: string;
+  project?: string;
+  unit?: string;
+  currentAllocatedQty?: number;
+  requestedExtraQty: number;
+  reason: string;
+  status: 'pending' | 'approved' | 'rejected';
+  reviewedBy?: string;
+  reviewNote?: string;
+  reviewedAt?: string;
+  createdAt?: string;
+}
+
 export interface QuotationItem {
   materialName: string;
   qty: number;

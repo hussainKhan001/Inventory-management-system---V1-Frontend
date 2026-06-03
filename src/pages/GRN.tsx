@@ -601,6 +601,22 @@ export const GRNPage = () => {
           title={`GRN Details: ${selectedGRN.id}`}
           extraWide
           onClose={() => setViewModal(false)}
+          footer={
+            <div className="flex justify-end gap-3 w-full">
+              <Btn 
+                label="Download PDF" 
+                icon={Download} 
+                className="rounded-xl h-10 text-[13px] bg-[#F97316] text-white border-none shadow-lg shadow-orange-500/20"
+                onClick={() => toast.success("Preparing PDF...")} 
+              />
+              <Btn 
+                 label="Close"
+                 outline
+                 className="rounded-xl h-10 w-28 text-[13px]"
+                 onClick={() => setViewModal(false)}
+              />
+            </div>
+          }
         >
           <div className="space-y-8 pb-4">
             {/* Modal Header & Header Information */}
@@ -784,21 +800,6 @@ export const GRNPage = () => {
                   </div>
                 )}
               </div>
-
-              <div className="flex items-center gap-3">
-                <Btn 
-                  label="Download PDF" 
-                  icon={Download} 
-                  className="rounded-xl h-10 text-[13px] bg-[#F97316] text-white border-none shadow-lg shadow-orange-500/20"
-                  onClick={() => toast.success("Preparing PDF...")} 
-                />
-                <Btn 
-                   label="Close"
-                   outline
-                   className="rounded-xl h-10 w-28 text-[13px]"
-                   onClick={() => setViewModal(false)}
-                />
-              </div>
             </div>
           </div>
         </Modal>
@@ -823,6 +824,25 @@ export const GRNPage = () => {
             });
             setIsEditing(false);
           }}
+          footer={
+            <div className="flex justify-end gap-3 w-full">
+              <Btn 
+                label="Cancel" 
+                className="px-6 py-2 bg-[#1e293b] text-white hover:bg-[#0f172a] shadow-md text-[12px] font-bold tracking-tight" 
+                onClick={() => {
+                  setModal(false);
+                  setErrors({});
+                }} 
+              />
+              <Btn
+                label={isEditing ? "Confirm update" : "Confirm GRN"}
+                onClick={handleCreate}
+                loading={actionLoading || isUploading}
+                disabled={isUploading}
+                className="px-6 py-2 bg-[#F97316] hover:bg-[#EA580C] text-white shadow-md text-[12px] font-bold tracking-tight"
+              />
+            </div>
+          }
         >
           <div className="space-y-6 pb-4">
             {Object.keys(errors).length > 0 && (
@@ -1025,30 +1045,20 @@ export const GRNPage = () => {
               </div>
             </div>
 
-            {/* Actions */}
-            <div className="flex justify-end gap-3 pt-6 border-t border-gray-100 dark:border-gray-800">
-              <Btn 
-                label="Cancel" 
-                className="px-6 py-2 bg-[#1e293b] text-white hover:bg-[#0f172a] shadow-md text-[12px] font-bold tracking-tight" 
-                onClick={() => {
-                  setModal(false);
-                  setErrors({});
-                }} 
-              />
-              <Btn
-                label={isEditing ? "Confirm update" : "Confirm GRN"}
-                onClick={handleCreate}
-                loading={actionLoading || isUploading}
-                disabled={isUploading}
-                className="px-6 py-2 bg-[#F97316] hover:bg-[#EA580C] text-white shadow-md text-[12px] font-bold tracking-tight"
-              />
-            </div>
           </div>
         </Modal>
       )}
 
       {previewImage && (
-        <Modal title="Image Preview" onClose={() => setPreviewImage(null)}>
+        <Modal 
+          title="Image Preview" 
+          onClose={() => setPreviewImage(null)}
+          footer={
+            <div className="flex justify-end w-full">
+              <Btn label="Close" outline onClick={() => setPreviewImage(null)} />
+            </div>
+          }
+        >
           <div className="flex justify-center items-center p-2">
             <img
               src={previewImage}
@@ -1056,9 +1066,6 @@ export const GRNPage = () => {
               className="max-w-full max-h-[70vh] rounded-lg shadow-xl"
               referrerPolicy="no-referrer"
             />
-          </div>
-          <div className="flex justify-end mt-4">
-            <Btn label="Close" outline onClick={() => setPreviewImage(null)} />
           </div>
         </Modal>
       )}

@@ -1429,6 +1429,25 @@ export const TransactionsPage = ({ type }: { type?: TransactionType }) => {
             setErrors({});
             setNewTransaction({ ...INITIAL_TRANSACTION, type: newTransaction.type || "Inward" });
           }}
+          footer={
+            <div className="flex justify-end gap-3 w-full">
+              <Btn 
+                label="Discard" 
+                outline 
+                onClick={() => {
+                  setModal(false);
+                  setErrors({});
+                }} 
+              />
+              <Btn
+                label={actionLoading ? "Processing..." : isUploading ? "Uploading..." : "Confirm Transaction"}
+                onClick={handleSubmit}
+                loading={actionLoading || isUploading}
+                disabled={actionLoading || isUploading || !newTransaction.items?.length}
+                className="px-8"
+              />
+            </div>
+          }
         >
           <div className="space-y-6 pb-4">
             {errors.form && (
@@ -1946,30 +1965,21 @@ export const TransactionsPage = ({ type }: { type?: TransactionType }) => {
               </div>
             </div>
 
-            {/* Final Actions */}
-            <div className="pt-6 border-t border-gray-100 dark:border-gray-800 flex justify-end gap-3">
-              <Btn 
-                label="Discard" 
-                outline 
-                onClick={() => {
-                  setModal(false);
-                  setErrors({});
-                }} 
-              />
-              <Btn
-                label={actionLoading ? "Processing..." : isUploading ? "Uploading..." : "Confirm Transaction"}
-                onClick={handleSubmit}
-                loading={actionLoading || isUploading}
-                disabled={actionLoading || isUploading || !newTransaction.items?.length}
-                className="px-8"
-              />
-            </div>
           </div>
         </Modal>
       )}
 
       {viewModal && selectedTransaction && (
-        <Modal title={`Transaction Details: ${selectedTransaction.id}`} extraWide onClose={() => setViewModal(false)}>
+        <Modal 
+          title={`Transaction Details: ${selectedTransaction.id}`} 
+          extraWide 
+          onClose={() => setViewModal(false)}
+          footer={
+            <div className="flex justify-end w-full">
+              <Btn label="Close" outline onClick={() => setViewModal(false)} />
+            </div>
+          }
+        >
           <div className="space-y-8">
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-6">
               <div>
@@ -2215,19 +2225,21 @@ export const TransactionsPage = ({ type }: { type?: TransactionType }) => {
               </div>
             </div>
 
-            <div className="flex justify-end pt-4 border-t border-gray-200 dark:border-gray-700">
-              <Btn label="Close" outline onClick={() => setViewModal(false)} />
-            </div>
           </div>
         </Modal>
       )}
 
       {previewImage && (
-        <Modal title="Image Preview" onClose={() => setPreviewImage(null)}>
+        <Modal 
+          title="Image Preview" 
+          onClose={() => setPreviewImage(null)}
+          footer={
+            <div className="flex justify-end w-full">
+              <Btn label="Close" outline onClick={() => setPreviewImage(null)} />
+            </div>
+          }
+        >
           <img src={previewImage} className="w-full h-auto rounded-xl shadow-2xl" referrerPolicy="no-referrer" />
-          <div className="flex justify-end mt-4">
-            <Btn label="Close" outline onClick={() => setPreviewImage(null)} />
-          </div>
         </Modal>
       )}
 

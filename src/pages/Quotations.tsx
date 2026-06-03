@@ -461,13 +461,82 @@ export const Quotations = () => {
       {viewModal && selectedQuotation && (() => {
         const mr = getMrDetails(selectedQuotation.mrId);
         return (
-          <Modal
-            title={`Quotation — ${selectedQuotation.id}`}
-            wide
-            onClose={() => setViewModal(false)}
-          >
-            {/* Negative margins to stretch hero to modal edges */}
-            <div className="-mx-3 sm:-mx-6 -mt-3 sm:-mt-6">
+        <Modal
+          title={`Quotation — ${selectedQuotation.id}`}
+          wide
+          onClose={() => setViewModal(false)}
+          footer={
+            <div className="flex flex-wrap items-center gap-2.5 w-full">
+              {/* Secondary / destructive — left side */}
+              <div className="flex items-center gap-2 flex-wrap">
+                {hasPermission("EDIT_QUOTATION") && (
+                  <button
+                    onClick={() => {
+                      if (hasLinkedPO(selectedQuotation)) {
+                        toast.error("Cannot edit: A Purchase Order is already linked to this quotation.");
+                        return;
+                      }
+                      setEditModal(true);
+                    }}
+                    className="flex items-center gap-1.5 px-4 py-2 rounded-xl border border-blue-200 dark:border-blue-700/60 text-blue-600 dark:text-blue-400 text-xs font-bold hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all"
+                  >
+                    <Edit2 className="w-3.5 h-3.5" /> Edit
+                  </button>
+                )}
+                {hasPermission("DELETE_QUOTATION") && (
+                  <button
+                    onClick={() => {
+                      if (hasLinkedPO(selectedQuotation)) {
+                        toast.error("Cannot delete: A Purchase Order is already linked to this quotation.");
+                        return;
+                      }
+                      setDeleteConfirm(selectedQuotation.id);
+                      setViewModal(false);
+                    }}
+                    className="flex items-center gap-1.5 px-4 py-2 rounded-xl border border-red-200 dark:border-red-700/60 text-red-500 dark:text-red-400 text-xs font-bold hover:bg-red-50 dark:hover:bg-red-900/20 transition-all"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" /> Delete
+                  </button>
+                )}
+              </div>
+
+              {/* Primary — right side */}
+              <div className="flex items-center gap-2 ml-auto flex-wrap">
+                {selectedQuotation.status !== 'Rejected' && hasPermission("REJECT_QUOTATION") && (
+                  <button
+                    onClick={() => handleStatusUpdate(selectedQuotation.id, 'Rejected')}
+                    className="flex items-center gap-1.5 px-4 py-2 rounded-xl border border-red-200 dark:border-red-700/60 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 text-xs font-bold hover:bg-red-100 dark:hover:bg-red-900/30 transition-all"
+                  >
+                    <XCircle className="w-3.5 h-3.5" /> Reject
+                  </button>
+                )}
+                {hasPermission("APPROVE_QUOTATION") && (
+                  <button
+                    onClick={() => {
+                      if (selectedApprovedItems.length === 0) {
+                        toast.error("Please select at least one item to approve.");
+                        return;
+                      }
+                      handleStatusUpdate(selectedQuotation.id, 'Approved', selectedApprovedItems);
+                    }}
+                    disabled={hasLinkedPO(selectedQuotation)}
+                    className="flex items-center gap-1.5 px-5 py-2 rounded-xl bg-green-500 hover:bg-green-600 disabled:opacity-50 disabled:hover:bg-green-500 active:scale-95 text-white text-xs font-bold transition-all shadow-md shadow-green-500/25"
+                  >
+                    <CheckCircle className="w-3.5 h-3.5" /> {selectedQuotation.status === 'Approved' ? 'Update Approvals' : 'Approve Quotation'}
+                  </button>
+                )}
+                <button
+                  onClick={() => setViewModal(false)}
+                  className="px-5 py-2 rounded-xl border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 text-xs font-bold hover:bg-gray-100 dark:hover:bg-gray-800 transition-all"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          }
+        >
+          {/* Negative margins to stretch hero to modal edges */}
+          <div className="-mx-3 sm:-mx-6 -mt-3 sm:-mt-6">
 
               {/* ── Hero Strip ── */}
               <div className="bg-gradient-to-br from-white via-gray-50 to-white dark:from-[#0F172A] dark:via-[#1A2744] dark:to-[#0F172A] border-b border-gray-100 dark:border-transparent px-5 sm:px-8 py-6 flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-6">
@@ -755,75 +824,6 @@ export const Quotations = () => {
                 )}
               </div>
 
-              {/* ── Footer Actions ── */}
-              <div className="px-5 sm:px-8 pt-4 pb-5 border-t border-gray-100 dark:border-gray-700/60 bg-gray-50/50 dark:bg-gray-800/20 flex flex-wrap items-center gap-2.5 rounded-b-2xl">
-                {/* Secondary / destructive — left side */}
-                <div className="flex items-center gap-2 flex-wrap">
-                  {hasPermission("EDIT_QUOTATION") && (
-                    <button
-                      onClick={() => {
-                        if (hasLinkedPO(selectedQuotation)) {
-                          toast.error("Cannot edit: A Purchase Order is already linked to this quotation.");
-                          return;
-                        }
-                        setEditModal(true);
-                      }}
-                      className="flex items-center gap-1.5 px-4 py-2 rounded-xl border border-blue-200 dark:border-blue-700/60 text-blue-600 dark:text-blue-400 text-xs font-bold hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all"
-                    >
-                      <Edit2 className="w-3.5 h-3.5" /> Edit
-                    </button>
-                  )}
-                  {hasPermission("DELETE_QUOTATION") && (
-                    <button
-                      onClick={() => {
-                        if (hasLinkedPO(selectedQuotation)) {
-                          toast.error("Cannot delete: A Purchase Order is already linked to this quotation.");
-                          return;
-                        }
-                        setDeleteConfirm(selectedQuotation.id);
-                        setViewModal(false);
-                      }}
-                      className="flex items-center gap-1.5 px-4 py-2 rounded-xl border border-red-200 dark:border-red-700/60 text-red-500 dark:text-red-400 text-xs font-bold hover:bg-red-50 dark:hover:bg-red-900/20 transition-all"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" /> Delete
-                    </button>
-                  )}
-                </div>
-
-                {/* Primary — right side */}
-                <div className="flex items-center gap-2 ml-auto flex-wrap">
-                  {selectedQuotation.status !== 'Rejected' && hasPermission("REJECT_QUOTATION") && (
-                    <button
-                      onClick={() => handleStatusUpdate(selectedQuotation.id, 'Rejected')}
-                      className="flex items-center gap-1.5 px-4 py-2 rounded-xl border border-red-200 dark:border-red-700/60 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 text-xs font-bold hover:bg-red-100 dark:hover:bg-red-900/30 transition-all"
-                    >
-                      <XCircle className="w-3.5 h-3.5" /> Reject
-                    </button>
-                  )}
-                  {hasPermission("APPROVE_QUOTATION") && (
-                    <button
-                      onClick={() => {
-                        if (selectedApprovedItems.length === 0) {
-                          toast.error("Please select at least one item to approve.");
-                          return;
-                        }
-                        handleStatusUpdate(selectedQuotation.id, 'Approved', selectedApprovedItems);
-                      }}
-                      disabled={hasLinkedPO(selectedQuotation)}
-                      className="flex items-center gap-1.5 px-5 py-2 rounded-xl bg-green-500 hover:bg-green-600 disabled:opacity-50 disabled:hover:bg-green-500 active:scale-95 text-white text-xs font-bold transition-all shadow-md shadow-green-500/25"
-                    >
-                      <CheckCircle className="w-3.5 h-3.5" /> {selectedQuotation.status === 'Approved' ? 'Update Approvals' : 'Approve Quotation'}
-                    </button>
-                  )}
-                  <button
-                    onClick={() => setViewModal(false)}
-                    className="px-5 py-2 rounded-xl border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 text-xs font-bold hover:bg-gray-100 dark:hover:bg-gray-800 transition-all"
-                  >
-                    Close
-                  </button>
-                </div>
-              </div>
-
             </div>
           </Modal>
         );
@@ -835,6 +835,15 @@ export const Quotations = () => {
           title="Edit Quotation" 
           onClose={() => setEditModal(false)}
           className="max-w-5xl"
+          footer={
+            <div className="flex justify-end gap-3 w-full">
+              <Btn label="Cancel" variant="secondary" outline onClick={() => setEditModal(false)} disabled={actionLoading} className="px-6 rounded-xl" />
+              <Btn label="Save Changes" onClick={() => {
+                const form = document.getElementById('edit-quotation-form') as HTMLFormElement;
+                if (form) form.requestSubmit();
+              }} loading={actionLoading} disabled={actionLoading} className="px-8 rounded-xl shadow-lg shadow-orange-500/20" />
+            </div>
+          }
         >
           <QuotationForm 
             initialData={selectedQuotation}
@@ -1013,7 +1022,7 @@ const QuotationForm = ({ initialData, mrData: initialMrData, onClose, onSave }: 
 
   return (
     <div className="-mx-6 -my-6 bg-gray-50/50 dark:bg-[#020617] p-6 sm:p-8 overflow-y-auto max-h-[85vh]">
-      <form onSubmit={handleSubmit} className="space-y-8 max-w-5xl mx-auto">
+      <form id="edit-quotation-form" onSubmit={handleSubmit} className="space-y-8 max-w-5xl mx-auto">
         
         {/* Requirement overview */}
         <Card className="p-6 sm:p-10 border-gray-100 dark:border-gray-800 shadow-sm bg-white dark:bg-[#0f172a]">
@@ -1422,11 +1431,6 @@ const QuotationForm = ({ initialData, mrData: initialMrData, onClose, onSave }: 
           </div>
         </Card>
 
-        {/* Form Actions */}
-        <div className="pt-6 border-t border-gray-100 dark:border-gray-800 flex justify-end gap-3 sticky bottom-0 bg-gray-50/95 dark:bg-[#020617]/95 backdrop-blur-xl p-4 -mx-8 -mb-8 mt-8 z-50">
-          <Btn label="Cancel" variant="secondary" outline onClick={onClose} disabled={loading} className="px-6 rounded-xl" />
-          <Btn label="Save Changes" type="submit" loading={loading} disabled={loading} className="px-8 rounded-xl shadow-lg shadow-orange-500/20" />
-        </div>
       </form>
     </div>
   );

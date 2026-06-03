@@ -12,6 +12,7 @@ import {
   ConfirmModal,
   Skeleton,
 } from "../components/ui";
+import { FilterRow, SearchFilter, SelectFilter, DateRangePicker, DateRangeValue } from "../components/ui/Filters";
 import { Plus, Search, AlertTriangle, Eye, Edit2, Trash2, Package, X, Save } from "lucide-react";
 import { MaterialPlan, PlanLineItem, InventoryItem } from "../types";
 import { genId, todayStr, scrollToError, formatDateTime } from "../utils";
@@ -20,15 +21,19 @@ import { cn } from "../lib/utils";
 import toast from "react-hot-toast";
 
 export const MaterialPlanning = () => {
-  const { 
-    plans, 
+  const {
+    plans,
     plansPagination,
     fetchResource,
-    addPlan, 
-    updatePlan, 
-    deletePlan, 
-    role, 
+    addPlan,
+    updatePlan,
+    deletePlan,
+    role,
     inventory,
+    mrAllocations,
+    planRevisions,
+    createPlanRevision,
+    reviewPlanRevision,
     loading,
     actionLoading,
     hasPermission,
@@ -36,6 +41,8 @@ export const MaterialPlanning = () => {
     users,
     fetchUsers
   } = useAppStore();
+
+  const isAdmin = ['Super Admin', 'Director', 'Project Manager', 'admin'].includes(role || '');
 
   useEffect(() => {
     fetchUsers();
@@ -45,6 +52,9 @@ export const MaterialPlanning = () => {
 
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
+  const [projectFilter, setProjectFilter] = useState("");
+  const [dateRange, setDateRange] = useState<DateRangeValue>({ startDate: "", endDate: "" });
 
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedSearch(search), 500);
@@ -52,9 +62,26 @@ export const MaterialPlanning = () => {
   }, [search]);
 
   useEffect(() => {
-    fetchResource('planning', 1, 50, false, debouncedSearch);
+    const filter: any = {};
+    if (statusFilter) filter.status = statusFilter;
+    if (projectFilter) filter.project = projectFilter;
+
+    fetchResource(
+      'planning', 
+      1, 
+      50, 
+      false, 
+      debouncedSearch,
+      Object.keys(filter).length > 0 ? filter : null,
+      false,
+      false,
+      dateRange.startDate,
+      dateRange.endDate
+    );
     fetchResource('inventory', 1, 100, true);
-  }, [fetchResource, debouncedSearch]);
+    fetchResource('mr-allocations', 1, 2000, true);
+    fetchResource('plan-revisions', 1, 500, true);
+  }, [fetchResource, debouncedSearch, statusFilter, projectFilter, dateRange]);
 
   const [modal, setModal] = useState(false);
   const [viewModal, setViewModal] = useState(false);
@@ -74,6 +101,14 @@ export const MaterialPlanning = () => {
 
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [customProject, setCustomProject] = useState("");
+
+  // Revision request state
+  const [revisionModal, setRevisionModal] = useState(false);
+  const [revisionItem, setRevisionItem] = useState<{ sku: string; itemName: string; unit: string; currentAllocated: number; planId: string; project: string } | null>(null);
+  const [revisionQty, setRevisionQty] = useState(1);
+  const [revisionReason, setRevisionReason] = useState("");
+  const [rejectingRevisionId, setRejectingRevisionId] = useState<string | null>(null);
+  const [rejectNote, setRejectNote] = useState("");
 
   const validateForm = (data: any) => {
     const newErrors: Record<string, string> = {};
@@ -319,16 +354,29 @@ export const MaterialPlanning = () => {
         }
       />
 
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-        <input
-          type="text"
-          placeholder="Search by Plan ID, Project, or Milestone..."
+      <FilterRow>
+        <SearchFilter
           value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="w-full pl-10 pr-4 py-2 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl text-[13px] focus:outline-none focus:ring-2 focus:ring-[#F97316]/20 focus:border-[#F97316] transition-all"
+          onChange={setSearch}
+          placeholder="Search by Plan ID, Project, or Milestone..."
         />
-      </div>
+        <DateRangePicker
+          value={dateRange}
+          onChange={setDateRange}
+        />
+        <SelectFilter
+          value={projectFilter}
+          onChange={setProjectFilter}
+          options={PROJECTS || []}
+          placeholder="All Projects"
+        />
+        <SelectFilter
+          value={statusFilter}
+          onChange={setStatusFilter}
+          options={["Open", "In Progress", "Completed", "Closed", "Cancelled"]}
+          placeholder="All Status"
+        />
+      </FilterRow>
 
       <div className="space-y-4">
         {loading && plans.length === 0 ? (
@@ -356,7 +404,7 @@ export const MaterialPlanning = () => {
           ))
         ) : (
           <Virtuoso
-            style={{ height: 'calc(100vh - 280px)', minHeight: '600px' }}
+            style={{ height: 'calc(100vh - 280px)' }}
             data={plans || []}
             context={{ hasPermission, setDeletingId, setNewPlan, setIsEditing, setModal, setSelectedPlan, setViewModal, setCustomProject, PROJECTS, setAddingToPlan, setAdditionalItems }}
             endReached={() => {
@@ -519,6 +567,16 @@ export const MaterialPlanning = () => {
             setAdditionalItems([]);
             setSearchAdditionalItem("");
           }}
+          footer={
+            <div className="flex gap-3 justify-end w-full">
+              <Btn label="Cancel" outline onClick={() => {
+                setAddingToPlan(null);
+                setAdditionalItems([]);
+                setSearchAdditionalItem("");
+              }} />
+              <Btn label="Add Materials" onClick={handleAddAdditionalItems} disabled={additionalItems.length === 0} />
+            </div>
+          }
         >
           <div className="mb-4">
             <h3 className="text-[13px] font-bold text-[#1A1A2E] dark:text-white mb-3">
@@ -596,14 +654,6 @@ export const MaterialPlanning = () => {
               </table>
             )}
           </div>
-          <div className="flex gap-3 justify-end mt-4">
-            <Btn label="Cancel" outline onClick={() => {
-              setAddingToPlan(null);
-              setAdditionalItems([]);
-              setSearchAdditionalItem("");
-            }} />
-            <Btn label="Add Materials" onClick={handleAddAdditionalItems} disabled={additionalItems.length === 0} />
-          </div>
         </Modal>
       )}
 
@@ -612,6 +662,11 @@ export const MaterialPlanning = () => {
           title={`Material Plan Details - ${selectedPlan.id}`}
           wide
           onClose={() => setViewModal(false)}
+          footer={
+            <div className="flex justify-end gap-2 w-full">
+              <Btn label="Close" outline onClick={() => setViewModal(false)} />
+            </div>
+          }
         >
           <div className="space-y-6">
             <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
@@ -639,49 +694,79 @@ export const MaterialPlanning = () => {
 
             <div className="border border-gray-100 dark:border-gray-800 rounded-xl overflow-hidden shadow-sm">
               <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse min-w-[600px]">
+                <table className="w-full text-left border-collapse min-w-[560px]">
                   <thead className="bg-gray-50 dark:bg-gray-800/50">
                     <tr>
                       <th className="px-4 py-3 text-[11px] font-bold text-gray-500 dark:text-gray-400 tracking-wider">Item</th>
-                      <th className="px-4 py-3 text-[11px] font-bold text-gray-500 dark:text-gray-400 tracking-wider text-right">Required</th>
-                      <th className="px-4 py-3 text-[11px] font-bold text-gray-500 dark:text-gray-400 tracking-wider text-right">Available</th>
-                      <th className="px-4 py-3 text-[11px] font-bold text-gray-500 dark:text-gray-400 tracking-wider text-right">Shortage</th>
-                      <th className="px-4 py-3 text-[11px] font-bold text-gray-500 dark:text-gray-400 tracking-wider">Priority</th>
+                      <th className="px-4 py-3 text-[11px] font-bold text-gray-500 dark:text-gray-400 tracking-wider text-right">Total Qty</th>
+                      <th className="px-4 py-3 text-[11px] font-bold text-gray-500 dark:text-gray-400 tracking-wider text-right">Allocated</th>
+                      <th className="px-4 py-3 text-[11px] font-bold text-gray-500 dark:text-gray-400 tracking-wider text-right">Pending</th>
+                      <th className="px-4 py-3 text-[11px] font-bold text-gray-500 dark:text-gray-400 tracking-wider text-center">Action</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100 dark:divide-gray-800 bg-white dark:bg-gray-900">
-                    {selectedPlan.items.map((item, idx) => (
-                      <tr key={idx} className="hover:bg-gray-50/50 dark:hover:bg-gray-800/30 transition-colors">
-                        <td className="px-4 py-3">
-                          <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 rounded-lg bg-orange-50 dark:bg-orange-900/20 flex items-center justify-center">
-                              <Package className="w-4 h-4 text-orange-600 dark:text-orange-400" />
+                    {selectedPlan.items.map((item, idx) => {
+                      const allocated = mrAllocations
+                        .filter(a =>
+                          a.sku === item.sku &&
+                          a.projectName?.trim().toLowerCase() === selectedPlan.project?.trim().toLowerCase() &&
+                          a.engineerName?.trim().toLowerCase() === selectedPlan.engineer?.trim().toLowerCase()
+                        )
+                        .reduce((sum, a) => sum + (a.allocatedQty || 0), 0);
+                      const pending = Math.max(0, item.required - allocated);
+                      const hasPendingRevision = planRevisions.some(
+                        r => r.planId === selectedPlan.id && r.planItemSku === item.sku && r.status === 'pending'
+                      );
+                      return (
+                        <tr key={idx} className="hover:bg-gray-50/50 dark:hover:bg-gray-800/30 transition-colors">
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-3">
+                              <div className="w-8 h-8 rounded-lg bg-orange-50 dark:bg-orange-900/20 flex items-center justify-center">
+                                <Package className="w-4 h-4 text-orange-600 dark:text-orange-400" />
+                              </div>
+                              <span className="text-[13px] font-semibold text-gray-900 dark:text-white">{item.itemName || item.materialName || item.name || item.sku || 'Unknown'}</span>
                             </div>
-                            <span className="text-[13px] font-semibold text-gray-900 dark:text-white">{item.itemName || item.materialName || item.name || item.sku || 'Unknown'}</span>
-                          </div>
-                        </td>
-                        <td className="px-4 py-3 text-[13px] text-right text-gray-900 dark:text-gray-300 font-medium">
-                          {item.required} {item.unit}
-                        </td>
-                        <td className="px-4 py-3 text-[13px] text-right text-gray-900 dark:text-gray-300">
-                          {item.available}
-                        </td>
-                        <td className="px-4 py-3 text-[13px] text-right">
-                          <span className={`font-bold ${item.shortage > 0 ? 'text-red-500' : 'text-emerald-500'}`}>
-                            {item.shortage}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3">
-                          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold tracking-wider ${
-                            item.priority === 'High' ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' :
-                            item.priority === 'Medium' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' :
-                            'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
-                          }`}>
-                            {item.priority}
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
+                          </td>
+                          <td className="px-4 py-3 text-[13px] text-right text-gray-900 dark:text-gray-300 font-medium">
+                            {item.required} {item.unit}
+                          </td>
+                          <td className="px-4 py-3 text-[13px] text-right font-bold text-emerald-600 dark:text-emerald-400">
+                            {allocated > 0 ? `${allocated} ${item.unit}` : '—'}
+                          </td>
+                          <td className="px-4 py-3 text-[13px] text-right">
+                            <span className={`font-bold ${pending > 0 ? 'text-red-500 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
+                              {pending > 0 ? `${pending} ${item.unit}` : '—'}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-center">
+                            {pending <= 0 && (
+                              hasPendingRevision ? (
+                                <span className="text-[10px] font-bold text-amber-500 bg-amber-50 dark:bg-amber-900/20 px-2 py-1 rounded-full">Revision Pending</span>
+                              ) : (
+                                <button
+                                  onClick={() => {
+                                    setRevisionItem({
+                                      sku: item.sku,
+                                      itemName: item.itemName || item.materialName || item.name || item.sku || 'Unknown',
+                                      unit: item.unit,
+                                      currentAllocated: item.required,
+                                      planId: selectedPlan.id,
+                                      project: selectedPlan.project,
+                                    });
+                                    setRevisionQty(1);
+                                    setRevisionReason("");
+                                    setRevisionModal(true);
+                                  }}
+                                  className="text-[10px] font-bold text-primary bg-primary/10 hover:bg-primary hover:text-white px-3 py-1 rounded-full transition-all cursor-pointer"
+                                >
+                                  + Request Revision
+                                </button>
+                              )
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -725,9 +810,6 @@ export const MaterialPlanning = () => {
               </div>
             )}
 
-            <div className="flex justify-end gap-2">
-              <Btn label="Close" outline onClick={() => setViewModal(false)} />
-            </div>
           </div>
         </Modal>
       )}
@@ -743,6 +825,19 @@ export const MaterialPlanning = () => {
             setCustomProject("");
             setIsEditing(false);
           }}
+          footer={
+            <div className="flex justify-end gap-2 w-full">
+              <Btn label="Cancel" outline onClick={() => {
+                setModal(false);
+                setErrors({});
+              }} />
+              <Btn
+                label={isEditing ? "Update Plan" : "Create Plan"}
+                onClick={handleCreate}
+                loading={actionLoading}
+              />
+            </div>
+          }
         >
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
             <SField
@@ -897,17 +992,6 @@ export const MaterialPlanning = () => {
             )}
           </div>
 
-          <div className="flex justify-end gap-2 pt-4 border-t border-[#E8ECF0] dark:border-gray-700">
-            <Btn label="Cancel" outline onClick={() => {
-              setModal(false);
-              setErrors({});
-            }} />
-            <Btn
-              label={isEditing ? "Update Plan" : "Create Plan"}
-              onClick={handleCreate}
-              loading={actionLoading}
-            />
-          </div>
         </Modal>
       )}
 
@@ -919,6 +1003,155 @@ export const MaterialPlanning = () => {
           onCancel={() => setDeletingId(null)}
           loading={actionLoading}
         />
+      )}
+
+      {/* ── Revision Request Modal (engineer) ──────────────────────── */}
+      {revisionModal && revisionItem && (
+        <Modal
+          title="Request Quantity Revision"
+          onClose={() => setRevisionModal(false)}
+        >
+          <div className="space-y-4">
+            <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700/40 rounded-xl px-4 py-3">
+              <p className="text-[12px] font-bold text-amber-700 dark:text-amber-400">{revisionItem.itemName}</p>
+              <p className="text-[11px] text-amber-600 dark:text-amber-500 mt-0.5">
+                Current allocation: <span className="font-bold">{revisionItem.currentAllocated} {revisionItem.unit}</span> — fully exhausted
+              </p>
+            </div>
+            <Field
+              label="Extra Qty Needed"
+              type="number"
+              value={revisionQty}
+              onChange={(e: any) => setRevisionQty(Math.max(1, Number(e.target.value)))}
+              required
+            />
+            <div>
+              <label className="text-[12px] font-bold text-gray-600 dark:text-gray-400 block mb-1">Reason <span className="text-red-500">*</span></label>
+              <textarea
+                value={revisionReason}
+                onChange={(e) => setRevisionReason(e.target.value)}
+                rows={3}
+                placeholder="Explain why additional quantity is needed..."
+                className="w-full px-3 py-2 border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-xl text-[13px] text-gray-900 dark:text-white focus:outline-none focus:border-primary resize-none"
+              />
+            </div>
+            <div className="flex justify-end gap-3 pt-2">
+              <Btn label="Cancel" outline onClick={() => setRevisionModal(false)} />
+              <Btn
+                label="Submit Request"
+                loading={actionLoading}
+                onClick={async () => {
+                  if (!revisionReason.trim()) { toast.error("Please provide a reason."); return; }
+                  try {
+                    await createPlanRevision({
+                      planId: revisionItem.planId,
+                      planItemSku: revisionItem.sku,
+                      itemName: revisionItem.itemName,
+                      unit: revisionItem.unit,
+                      project: revisionItem.project,
+                      currentAllocatedQty: revisionItem.currentAllocated,
+                      requestedExtraQty: revisionQty,
+                      reason: revisionReason.trim(),
+                    });
+                    toast.success("Revision request submitted.");
+                    setRevisionModal(false);
+                  } catch (e: any) {
+                    toast.error(e?.message || "Failed to submit revision.");
+                  }
+                }}
+              />
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* ── Reject Note Modal (admin) ───────────────────────────────── */}
+      {rejectingRevisionId && (
+        <Modal
+          title="Reject Revision Request"
+          onClose={() => { setRejectingRevisionId(null); setRejectNote(""); }}
+        >
+          <div className="space-y-4">
+            <div>
+              <label className="text-[12px] font-bold text-gray-600 dark:text-gray-400 block mb-1">Rejection Reason</label>
+              <textarea
+                value={rejectNote}
+                onChange={(e) => setRejectNote(e.target.value)}
+                rows={3}
+                placeholder="Explain why the request was rejected (optional)..."
+                className="w-full px-3 py-2 border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-xl text-[13px] text-gray-900 dark:text-white focus:outline-none focus:border-primary resize-none"
+              />
+            </div>
+            <div className="flex justify-end gap-3 pt-2">
+              <Btn label="Cancel" outline onClick={() => { setRejectingRevisionId(null); setRejectNote(""); }} />
+              <Btn
+                label="Confirm Reject"
+                color="red"
+                loading={actionLoading}
+                onClick={async () => {
+                  try {
+                    await reviewPlanRevision(rejectingRevisionId, { status: 'rejected', reviewNote: rejectNote });
+                    toast.success("Revision request rejected.");
+                    setRejectingRevisionId(null);
+                    setRejectNote("");
+                  } catch (e: any) {
+                    toast.error(e?.message || "Failed to reject.");
+                  }
+                }}
+              />
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* ── Admin: Revision Requests Panel ────────────────────────── */}
+      {isAdmin && planRevisions.filter(r => r.status === 'pending').length > 0 && (
+        <div className="mt-8">
+          <h2 className="text-[14px] font-bold text-[#1A1A2E] dark:text-white mb-3 flex items-center gap-2">
+            Revision Requests
+            <span className="bg-amber-500 text-white text-[10px] font-black px-2 py-0.5 rounded-full">
+              {planRevisions.filter(r => r.status === 'pending').length}
+            </span>
+          </h2>
+          <div className="space-y-2">
+            {planRevisions.filter(r => r.status === 'pending').map(rev => (
+              <div key={rev.id} className="flex items-start justify-between gap-4 bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-xl px-4 py-3">
+                <div className="flex-1 min-w-0">
+                  <p className="text-[13px] font-bold text-gray-900 dark:text-white truncate">{rev.itemName}</p>
+                  <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5">
+                    <span className="font-semibold text-gray-700 dark:text-gray-300">{rev.engineerName}</span>
+                    {rev.project && <> · {rev.project}</>}
+                    {' · '}Wants <span className="font-bold text-primary">+{rev.requestedExtraQty} {rev.unit}</span>
+                    {' '}(current: {rev.currentAllocatedQty} {rev.unit})
+                  </p>
+                  <p className="text-[11px] text-gray-400 dark:text-gray-500 mt-1 italic">"{rev.reason}"</p>
+                </div>
+                <div className="flex gap-2 shrink-0">
+                  <Btn
+                    label="Approve"
+                    small
+                    loading={actionLoading}
+                    onClick={async () => {
+                      try {
+                        await reviewPlanRevision(rev.id, { status: 'approved' });
+                        toast.success(`Revision approved — +${rev.requestedExtraQty} ${rev.unit} added to plan.`);
+                      } catch (e: any) {
+                        toast.error(e?.message || "Failed to approve.");
+                      }
+                    }}
+                  />
+                  <Btn
+                    label="Reject"
+                    small
+                    outline
+                    color="red"
+                    onClick={() => { setRejectingRevisionId(rev.id); setRejectNote(""); }}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
       )}
     </div>
   );

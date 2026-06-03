@@ -1,10 +1,9 @@
 import React from "react";
-import { X, Download, FileText, Check } from "lucide-react";
-import { Modal, Btn, StatusBadge } from "./ui";
+import { X, Download, Check } from "lucide-react";
+import { Modal, StatusBadge } from "./ui";
 import { PurchaseOrder, Supplier } from "../types";
 import { fmtCur, safeStr, formatPrettyDate } from "../utils";
 import { generatePOPDF } from "../utils/pdfGenerator";
-import { cn } from "../lib/utils";
 
 interface POPreviewModalProps {
   po: PurchaseOrder;
@@ -28,6 +27,32 @@ export const POPreviewModal: React.FC<POPreviewModalProps> = ({
       title={`Purchase Order Details - ${po.id}`}
       ultraWide
       onClose={onClose}
+      footer={
+        <div className="flex flex-wrap gap-3 justify-center w-full">
+          {onApprove && (
+            <button 
+              onClick={() => onApprove(po.id)}
+              className="px-6 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl text-[13px] font-black shadow-lg shadow-emerald-500/20 flex items-center gap-2 transition-all active:scale-95 tracking-widest"
+            >
+              <Check className="w-4 h-4" /> Approve PO
+            </button>
+          )}
+          {onReject && (
+            <button 
+              onClick={() => onReject(po.id)}
+              className="px-6 py-2.5 bg-red-500 hover:bg-red-600 text-white rounded-xl text-[13px] font-black shadow-lg shadow-red-500/20 flex items-center gap-2 transition-all active:scale-95 tracking-widest"
+            >
+              <X className="w-4 h-4" /> Reject PO
+            </button>
+          )}
+          <button 
+            onClick={() => generatePOPDF(po, supplier as any)}
+            className="px-6 py-2.5 bg-orange-500 hover:bg-orange-600 text-white rounded-xl text-[13px] font-black shadow-lg shadow-orange-500/20 flex items-center gap-2 transition-all active:scale-95 tracking-widest"
+          >
+            <Download className="w-4 h-4" /> Download PO PDF
+          </button>
+        </div>
+      }
     >
       <div id="printable-po" className="p-2 sm:p-4 bg-white dark:bg-gray-900 text-[#1A365D] dark:text-gray-200 font-sans w-full">
         {/* Company & Vendor Combined Header */}
@@ -263,7 +288,7 @@ export const POPreviewModal: React.FC<POPreviewModalProps> = ({
                     </tr>
                     <tr className="bg-[#1A365D]/5 dark:bg-[#1A365D]/20 font-black text-[11px] text-[#1A365D] dark:text-blue-400">
                       <td colSpan={3} className="border border-[#1A365D] p-2 text-right tracking-widest">Grand Total</td>
-                      {po.priceComparison.vendors.map((v, i) => {
+                      {po.priceComparison.vendors.map((_v, i) => {
                          const vTotal = po.priceComparison!.items.reduce((sum, item) => {
                            const r = item.rates[i] || 0;
                            const g = item.gstPcts[i] || 0;
@@ -376,6 +401,7 @@ export const POPreviewModal: React.FC<POPreviewModalProps> = ({
                       <th className="border border-[#1A365D] p-1 text-center">MODE</th>
                       <th className="border border-[#1A365D] p-1 text-right">AMOUNT (RS)</th>
                       <th className="border border-[#1A365D] p-1 text-center">GST %</th>
+                      <th className="border border-[#1A365D] p-1 text-right">GST AMT (RS)</th>
                       <th className="border border-[#1A365D] p-1 text-right">PAYABLE (RS)</th>
                     </tr>
                   </thead>
@@ -386,7 +412,28 @@ export const POPreviewModal: React.FC<POPreviewModalProps> = ({
                         <td className="border border-[#1A365D] p-1 text-center font-medium">{pt.type}</td>
                         <td className="border border-[#1A365D] p-1 text-center ">{pt.mode}</td>
                         <td className="border border-[#1A365D] p-1 text-right font-mono">{fmtCur(pt.amount)}</td>
-                        <td className="border border-[#1A365D] p-1 text-center">{pt.gstPct}</td>
+                        <td className="border border-[#1A365D] p-1 text-center font-medium">
+                          {(() => {
+                            const g = String(pt.gstPct || "").toLowerCase().trim();
+                            const amt = pt.amount || 0;
+                            const payable = pt.ifPayable || 0;
+                            if (amt > 0 && payable > amt + 0.5) {
+                              const pct = (payable / amt - 1) * 100;
+                              const pctStr = Number.isInteger(pct) ? pct : pct.toFixed(1);
+                              return `${pctStr}% Exclusive`;
+                            }
+                            if (!g || g === '-' || g === 'inclusive' || g === 'exclusive') return '—';
+                            const num = parseFloat(g.replace('%', ''));
+                            if (!isNaN(num)) return `${num}% Exclusive`;
+                            return pt.gstPct;
+                          })()}
+                        </td>
+                        <td className="border border-[#1A365D] p-1 text-right font-medium text-emerald-700 dark:text-emerald-400">
+                          {(() => {
+                            const gstAmt = Math.max(0, (pt.ifPayable || 0) - (pt.amount || 0));
+                            return gstAmt > 0 ? fmtCur(gstAmt) : '—';
+                          })()}
+                        </td>
                         <td className="border border-[#1A365D] p-1 text-right font-black">{fmtCur(pt.ifPayable)}</td>
                       </tr>
                     ))}
@@ -447,30 +494,6 @@ export const POPreviewModal: React.FC<POPreviewModalProps> = ({
           </div>
         </div>
 
-        <div className="flex flex-wrap gap-3 justify-center mt-8 border-t border-gray-100 dark:border-gray-800 pt-6">
-          {onApprove && (
-            <button 
-              onClick={() => onApprove(po.id)}
-              className="px-6 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl text-[13px] font-black shadow-lg shadow-emerald-500/20 flex items-center gap-2 transition-all active:scale-95 tracking-widest"
-            >
-              <Check className="w-4 h-4" /> Approve PO
-            </button>
-          )}
-          {onReject && (
-            <button 
-              onClick={() => onReject(po.id)}
-              className="px-6 py-2.5 bg-red-500 hover:bg-red-600 text-white rounded-xl text-[13px] font-black shadow-lg shadow-red-500/20 flex items-center gap-2 transition-all active:scale-95 tracking-widest"
-            >
-              <X className="w-4 h-4" /> Reject PO
-            </button>
-          )}
-          <button 
-            onClick={() => generatePOPDF(po, supplier as any)}
-            className="px-6 py-2.5 bg-orange-500 hover:bg-orange-600 text-white rounded-xl text-[13px] font-black shadow-lg shadow-orange-500/20 flex items-center gap-2 transition-all active:scale-95 tracking-widest"
-          >
-            <Download className="w-4 h-4" /> Download PO PDF
-          </button>
-        </div>
       </div>
     </Modal>
   );

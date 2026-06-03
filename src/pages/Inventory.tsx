@@ -652,6 +652,11 @@ export const Inventory = () => {
         <Modal
           title="Inventory Item Details"
           onClose={() => setViewModal(null)}
+          footer={
+            <div className="flex justify-end w-full">
+              <Btn label="Close" outline onClick={() => setViewModal(null)} />
+            </div>
+          }
         >
           <div className="space-y-6">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -697,9 +702,6 @@ export const Inventory = () => {
                 </div>
               </div>
             )}
-            <div className="flex justify-end pt-4 border-t border-gray-100 dark:border-gray-800">
-              <Btn label="Close" outline onClick={() => setViewModal(null)} />
-            </div>
           </div>
         </Modal>
       )}
@@ -714,6 +716,26 @@ export const Inventory = () => {
             setIsSkuManuallyEdited(false);
             setErrors({});
           }}
+          footer={
+            <div className="flex justify-end gap-3 w-full">
+              <Btn
+                label="Cancel"
+                outline
+                onClick={() => {
+                  setShowAddModal(false);
+                  setNewItem(INITIAL_ITEM);
+                  setIsEditing(false);
+                  setIsSkuManuallyEdited(false);
+                  setErrors({});
+                }}
+              />
+              <Btn
+                label={isEditing ? "Update Item" : "Add Item to Inventory"}
+                onClick={handleAddInventory}
+                loading={actionLoading}
+              />
+            </div>
+          }
         >
           <div className="space-y-6">
             <div className="bg-gray-50 dark:bg-gray-800/50 p-4 rounded-xl border border-dashed border-gray-200 dark:border-gray-700 space-y-4">
@@ -841,24 +863,6 @@ export const Inventory = () => {
               />
             </div>
 
-            <div className="flex justify-end gap-3 pt-4 border-t border-gray-100 dark:border-gray-800">
-              <Btn
-                label="Cancel"
-                outline
-                onClick={() => {
-                  setShowAddModal(false);
-                  setNewItem(INITIAL_ITEM);
-                  setIsEditing(false);
-                  setIsSkuManuallyEdited(false);
-                  setErrors({});
-                }}
-              />
-              <Btn
-                label={isEditing ? "Update Item" : "Add Item to Inventory"}
-                onClick={handleAddInventory}
-                loading={actionLoading}
-              />
-            </div>
           </div>
         </Modal>
       )}

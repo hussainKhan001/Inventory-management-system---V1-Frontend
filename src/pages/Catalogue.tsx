@@ -410,7 +410,15 @@ export const Catalogue = () => {
       </div>
 
       {previewImage && (
-        <Modal title="Image Preview" onClose={() => setPreviewImage(null)}>
+        <Modal 
+          title="Image Preview" 
+          onClose={() => setPreviewImage(null)}
+          footer={
+            <div className="flex justify-center w-full">
+              <Btn label="Close" outline onClick={() => setPreviewImage(null)} />
+            </div>
+          }
+        >
           <div className="flex items-center justify-center bg-gray-50 dark:bg-gray-800 rounded-xl overflow-hidden">
             <img 
               src={previewImage} 
@@ -418,9 +426,6 @@ export const Catalogue = () => {
               className="max-w-full max-h-[70vh] object-contain shadow-2xl"
               referrerPolicy="no-referrer"
             />
-          </div>
-          <div className="mt-4 flex justify-center">
-            <Btn label="Close" outline onClick={() => setPreviewImage(null)} />
           </div>
         </Modal>
       )}
@@ -430,45 +435,62 @@ export const Catalogue = () => {
           title="Product Details" 
           onClose={() => setSelectedEntry(null)}
           wide
+          footer={
+            <div className="flex items-center justify-between w-full">
+              <div className="flex gap-3">
+                {hasPermission("EDIT_CATALOGUE") && (
+                  <Btn
+                    icon={Edit2}
+                    outline
+                    onClick={() => {
+                      setNewEntry(selectedEntry);
+                      setIsEditing(true);
+                      setModal(true);
+                    }}
+                    label="Edit"
+                  />
+                )}
+                {hasPermission("DELETE_CATALOGUE") && (
+                  <Btn
+                    icon={Trash2}
+                    outline
+                    color="red"
+                    onClick={async () => {
+                      if (confirm("Are you sure you want to delete this catalogue entry?")) {
+                        try {
+                          await deleteCatalogue(selectedEntry.sku);
+                          setSelectedEntry(null);
+                        } catch (error: any) {
+                          alert(`Failed to delete catalogue entry: ${error.message}`);
+                        }
+                      }
+                    }}
+                    label="Delete"
+                  />
+                )}
+              </div>
+              <div className="flex items-center gap-3">
+                {hasPermission("EDIT_CATALOGUE") && selectedEntry.status === "Draft" && (
+                  <Btn
+                    label="Approve Product"
+                    icon={Check}
+                    color="green"
+                    onClick={async () => {
+                      await handleApprove(selectedEntry.sku);
+                      setSelectedEntry(prev => prev ? { ...prev, status: "Approved" } : null);
+                    }}
+                    loading={actionLoading}
+                  />
+                )}
+                <Btn label="Close" outline onClick={() => setSelectedEntry(null)} />
+              </div>
+            </div>
+          }
         >
           {(() => {
             const inv = inventory.find((i) => i.sku === selectedEntry.sku);
             return (
               <div className="space-y-8">
-                <div className="flex items-center justify-between">
-                  <div className="flex gap-3">
-                    {hasPermission("EDIT_CATALOGUE") && (
-                      <Btn
-                        icon={Edit2}
-                        outline
-                        onClick={() => {
-                          setNewEntry(selectedEntry);
-                          setIsEditing(true);
-                          setModal(true);
-                        }}
-                        label="Edit"
-                      />
-                    )}
-                    {hasPermission("DELETE_CATALOGUE") && (
-                      <Btn
-                        icon={Trash2}
-                        outline
-                        color="red"
-                        onClick={async () => {
-                          if (confirm("Are you sure you want to delete this catalogue entry?")) {
-                            try {
-                              await deleteCatalogue(selectedEntry.sku);
-                              setSelectedEntry(null);
-                            } catch (error: any) {
-                              alert(`Failed to delete catalogue entry: ${error.message}`);
-                            }
-                          }
-                        }}
-                        label="Delete"
-                      />
-                    )}
-                  </div>
-                </div>
 
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 items-start">
                   {/* Left Column: Image Showcase */}
@@ -561,19 +583,6 @@ export const Catalogue = () => {
                       </div>
                     </div>
 
-                    {hasPermission("EDIT_CATALOGUE") && selectedEntry.status === "Draft" && (
-                      <Btn
-                        label="Approve Product"
-                        icon={Check}
-                        color="green"
-                        className="w-full py-4 rounded-xl text-base"
-                        onClick={async () => {
-                          await handleApprove(selectedEntry.sku);
-                          setSelectedEntry(prev => prev ? { ...prev, status: "Approved" } : null);
-                        }}
-                        loading={actionLoading}
-                      />
-                    )}
                   </div>
                 </div>
               </div>
@@ -583,23 +592,38 @@ export const Catalogue = () => {
       )}
 
       {modal && (
-        <Modal title={isEditing ? "Edit Catalogue Entry" : "Add Catalogue Entry"} onClose={() => {
-          setModal(false);
-          setErrors({});
-          setNewEntry({
-            sku: "",
-            itemName: "",
-            brand: "",
-            description: "",
-            category: "",
-            uom: "",
-            location: "",
-            minStock: 0,
-            imageUrl: "",
-            status: "Draft",
-          });
-          setIsEditing(false);
-        }}>
+        <Modal 
+          title={isEditing ? "Edit Catalogue Entry" : "Add Catalogue Entry"} 
+          onClose={() => {
+            setModal(false);
+            setErrors({});
+            setNewEntry({
+              sku: "",
+              itemName: "",
+              brand: "",
+              description: "",
+              category: "",
+              uom: "",
+              location: "",
+              minStock: 0,
+              imageUrl: "",
+              status: "Draft",
+            });
+            setIsEditing(false);
+          }}
+          footer={
+            <div className="flex justify-end gap-2 w-full">
+              <Btn label="Cancel" outline onClick={() => {
+                setModal(false);
+                setErrors({});
+              }} />
+              <Btn
+                label={isEditing ? "Update" : "Save as Draft"}
+                onClick={handleCreate}
+              />
+            </div>
+          }
+        >
           <div className="space-y-4">
             {!isEditing && (
               <SField
@@ -709,16 +733,6 @@ export const Catalogue = () => {
               loading={uploading}
             />
 
-            <div className="flex justify-end gap-2 mt-6">
-              <Btn label="Cancel" outline onClick={() => {
-                setModal(false);
-                setErrors({});
-              }} />
-              <Btn
-                label={isEditing ? "Update" : "Save as Draft"}
-                onClick={handleCreate}
-              />
-            </div>
           </div>
         </Modal>
       )}

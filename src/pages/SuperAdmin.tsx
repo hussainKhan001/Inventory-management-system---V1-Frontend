@@ -1124,49 +1124,65 @@ export const SuperAdmin = () => {
 
           {/* Add User Modal */}
           {showAddModal && (
-            <Modal onClose={() => setShowAddModal(false)} title="Register New User">
-              <form onSubmit={handleAddUser} className="space-y-4">
-                <Field label="Full Name" value={newUser.name} onChange={(e: any) => setNewUser({...newUser, name: e.target.value})} required />
-                <Field label="Email (neotericgrp.in)" type="email" value={newUser.email} onChange={(e: any) => setNewUser({...newUser, email: e.target.value})} required />
-                <Field label="Password" type="password" value={newUser.password} onChange={(e: any) => setNewUser({...newUser, password: e.target.value})} required />
-                <div className="space-y-1 text-gray-900 dark:text-white">
-                  <label className="text-[11px] font-bold text-gray-500 ">Role</label>
-                  <select 
-                    className="w-full bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg px-4 py-2.5 text-[13px] outline-none focus:ring-2 focus:ring-primary/20 [color-scheme:light] dark:[color-scheme:dark]"
-                    value={newUser.role}
-                    onChange={(e) => setNewUser({...newUser, role: e.target.value as any})}
-                  >
-                    {ROLES_LIST.map(r => (
-                      <option key={r} value={r} className="bg-white dark:bg-gray-900 text-gray-900 dark:text-white">{r}</option>
-                    ))}
-                  </select>
-                </div>
-                <div className="pt-4">
-                  <Btn label="Create Account" type="submit" block loading={actionLoading} />
-                </div>
-              </form>
-            </Modal>
+        <Modal 
+          onClose={() => setShowAddModal(false)} 
+          title="Register New User"
+          footer={
+            <div className="w-full">
+              <Btn label="Create Account" onClick={() => {
+                const form = document.getElementById('add-user-form') as HTMLFormElement;
+                if (form) form.requestSubmit();
+              }} block loading={actionLoading} />
+            </div>
+          }
+        >
+          <form id="add-user-form" onSubmit={handleAddUser} className="space-y-4">
+            <Field label="Full Name" value={newUser.name} onChange={(e: any) => setNewUser({...newUser, name: e.target.value})} required />
+            <Field label="Email (neotericgrp.in)" type="email" value={newUser.email} onChange={(e: any) => setNewUser({...newUser, email: e.target.value})} required />
+            <Field label="Password" type="password" value={newUser.password} onChange={(e: any) => setNewUser({...newUser, password: e.target.value})} required />
+            <div className="space-y-1 text-gray-900 dark:text-white">
+              <label className="text-[11px] font-bold text-gray-500 ">Role</label>
+              <select 
+                className="w-full bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg px-4 py-2.5 text-[13px] outline-none focus:ring-2 focus:ring-primary/20 [color-scheme:light] dark:[color-scheme:dark]"
+                value={newUser.role}
+                onChange={(e) => setNewUser({...newUser, role: e.target.value as any})}
+              >
+                {ROLES_LIST.map(r => (
+                  <option key={r} value={r} className="bg-white dark:bg-gray-900 text-gray-900 dark:text-white">{r}</option>
+                ))}
+              </select>
+            </div>
+          </form>
+        </Modal>
           )}
 
           {/* Add Role Modal */}
           {showAddRoleModal && (
-            <Modal onClose={() => setShowAddRoleModal(false)} title="Define New System Role">
-              <form onSubmit={handleAddRole} className="space-y-4">
-                <Field 
-                  label="Role Name" 
-                  placeholder="e.g. Regional Manager"
-                  value={newRoleName} 
-                  onChange={(e: any) => setNewRoleName(e.target.value)} 
-                  required 
-                />
-                <p className="text-[10px] text-gray-500">
-                  New roles are initialized with zero permissions. You will need to configure their access rights after creation.
-                </p>
-                <div className="pt-4">
-                  <Btn label="Create Role" type="submit" block loading={actionLoading} />
-                </div>
-              </form>
-            </Modal>
+        <Modal 
+          onClose={() => setShowAddRoleModal(false)} 
+          title="Define New System Role"
+          footer={
+            <div className="w-full">
+              <Btn label="Create Role" onClick={() => {
+                const form = document.getElementById('add-role-form') as HTMLFormElement;
+                if (form) form.requestSubmit();
+              }} block loading={actionLoading} />
+            </div>
+          }
+        >
+          <form id="add-role-form" onSubmit={handleAddRole} className="space-y-4">
+            <Field 
+              label="Role Name" 
+              placeholder="e.g. Regional Manager"
+              value={newRoleName} 
+              onChange={(e: any) => setNewRoleName(e.target.value)} 
+              required 
+            />
+            <p className="text-[10px] text-gray-500">
+              New roles are initialized with zero permissions. You will need to configure their access rights after creation.
+            </p>
+          </form>
+        </Modal>
           )}
         </div>
       )}
@@ -1198,8 +1214,17 @@ export const SuperAdmin = () => {
         <Modal 
           onClose={() => setRenamingRole(null)} 
           title={`Rename Role: ${renamingRole}`}
+          footer={
+            <div className="flex gap-3 w-full">
+               <Btn label="Cancel" outline type="button" block onClick={() => setRenamingRole(null)} />
+               <Btn label="Rename Role" onClick={() => {
+                 const form = document.getElementById('rename-role-form') as HTMLFormElement;
+                 if (form) form.requestSubmit();
+               }} block loading={actionLoading} />
+            </div>
+          }
         >
-          <form className="space-y-4" onSubmit={async (e) => {
+          <form id="rename-role-form" className="space-y-4" onSubmit={async (e) => {
             e.preventDefault();
             if (!newNameForRole.trim() || newNameForRole === renamingRole) {
               setRenamingRole(null);
@@ -1219,10 +1244,6 @@ export const SuperAdmin = () => {
             <p className="text-[11px] text-amber-600 font-medium">
               Note: This will also update the role field for all users currently assigned to "{renamingRole}".
             </p>
-            <div className="pt-4 flex gap-3">
-               <Btn label="Cancel" outline type="button" block onClick={() => setRenamingRole(null)} />
-               <Btn label="Rename Role" type="submit" block loading={actionLoading} />
-            </div>
           </form>
         </Modal>
       )}

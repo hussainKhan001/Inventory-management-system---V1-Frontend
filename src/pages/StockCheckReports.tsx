@@ -253,6 +253,31 @@ export const StockCheckReports = () => {
           title={`Audit Report: ${selectedReport.id}`}
           onClose={() => setSelectedReport(null)}
           wide
+          footer={
+            <div className="flex flex-wrap justify-end gap-3 w-full">
+              <div className="flex gap-2 mr-auto">
+                <Btn label="Download PDF" icon={Download} outline onClick={() => downloadPDF(selectedReport)} />
+              </div>
+              
+              {selectedReport.status === 'Pending Approval' && ["Super Admin", "Director", "AGM", "Inventory Manager", "Project Manager"].includes(role || "") && (
+                <div className="flex gap-2">
+                  <Btn 
+                    label="Reject" 
+                    variant="ghost"
+                    className="text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
+                    onClick={() => setApprovalModal({ id: selectedReport.id, type: 'reject' })} 
+                  />
+                  <Btn 
+                    label="Approve Shortage" 
+                    color="green"
+                    onClick={() => setApprovalModal({ id: selectedReport.id, type: 'approve' })} 
+                  />
+                </div>
+              )}
+              
+              <Btn label="Close" outline onClick={() => setSelectedReport(null)} />
+            </div>
+          }
         >
           <div className="space-y-6">
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
@@ -314,43 +339,25 @@ export const StockCheckReports = () => {
             </div>
           </div>
 
-            <div className="flex flex-wrap justify-end gap-3 pt-4 border-t border-gray-100 dark:border-gray-800">
-              <div className="flex gap-2 mr-auto">
-                <Btn label="Download PDF" icon={Download} outline onClick={() => downloadPDF(selectedReport)} />
-              </div>
-              
-              {selectedReport.status === 'Pending Approval' && ["Super Admin", "Director", "AGM", "Inventory Manager", "Project Manager"].includes(role || "") && (
-                <div className="flex gap-2">
-                  <Btn 
-                    label="Reject" 
-                    variant="ghost"
-                    className="text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
-                    onClick={() => setApprovalModal({ id: selectedReport.id, type: 'reject' })} 
-                  />
-                  <Btn 
-                    label="Approve Shortage" 
-                    color="green"
-                    onClick={() => setApprovalModal({ id: selectedReport.id, type: 'approve' })} 
-                  />
-                </div>
-              )}
-              
-              <Btn label="Close" outline onClick={() => setSelectedReport(null)} />
-            </div>
           </div>
         </Modal>
       )}
 
       {statusConfirm && (
-        <Modal onClose={() => setStatusConfirm(null)} title="Delete Report">
+        <Modal 
+          onClose={() => setStatusConfirm(null)} 
+          title="Delete Report"
+          footer={
+            <div className="flex justify-end gap-3 w-full">
+              <Btn label="Cancel" outline onClick={() => setStatusConfirm(null)} />
+              <Btn label="Delete Permanently" color="red" onClick={() => handleDeleteReport(statusConfirm)} loading={isDeleting} />
+            </div>
+          }
+        >
           <div className="space-y-4">
             <p className="text-sm text-gray-600 dark:text-gray-400">
               Are you sure you want to delete this audit report? This action cannot be undone.
             </p>
-            <div className="flex justify-end gap-3 pt-2">
-              <Btn label="Cancel" outline onClick={() => setStatusConfirm(null)} />
-              <Btn label="Delete Permanently" color="red" onClick={() => handleDeleteReport(statusConfirm)} loading={isDeleting} />
-            </div>
           </div>
         </Modal>
       )}
@@ -359,6 +366,18 @@ export const StockCheckReports = () => {
         <Modal 
           title={approvalModal.type === 'approve' ? "Approve Audit Shortage" : "Reject Audit Shortage"} 
           onClose={() => setApprovalModal(null)}
+          footer={
+            <div className="flex justify-end gap-3 w-full">
+              <Btn label="Cancel" outline onClick={() => setApprovalModal(null)} />
+              <Btn 
+                label={approvalModal.type === 'approve' ? "Confirm Approval" : "Confirm Rejection"}
+                color={approvalModal.type === 'approve' ? "green" : "red"}
+                onClick={approvalModal.type === 'approve' ? handleApprove : handleReject}
+                loading={actionLoading}
+                disabled={!reason.trim()}
+              />
+            </div>
+          }
         >
           <div className="space-y-4">
             <p className="text-sm text-gray-600 dark:text-gray-400">
@@ -373,16 +392,6 @@ export const StockCheckReports = () => {
               className="w-full p-3 border border-gray-200 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 min-h-[100px]"
               required
             />
-            <div className="flex justify-end gap-3">
-              <Btn label="Cancel" outline onClick={() => setApprovalModal(null)} />
-              <Btn 
-                label={approvalModal.type === 'approve' ? "Confirm Approval" : "Confirm Rejection"}
-                color={approvalModal.type === 'approve' ? "green" : "red"}
-                onClick={approvalModal.type === 'approve' ? handleApprove : handleReject}
-                loading={actionLoading}
-                disabled={!reason.trim()}
-              />
-            </div>
           </div>
         </Modal>
       )}

@@ -125,7 +125,7 @@ export const AuditLogs = () => {
 
       <Card className="p-0 overflow-hidden border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 flex-1 min-h-[600px]">
         <TableVirtuoso
-          style={{ height: 'calc(100vh - 350px)', minHeight: '600px' }}
+          style={{ height: 'calc(100vh - 350px)' }}
           data={auditLogs || []}
           fixedHeaderContent={() => {
             const headerClass = "px-6 py-4 text-[11px] font-bold text-[#6B7280] dark:text-gray-400 tracking-wider sticky top-0 z-10 sticky-th";
@@ -250,6 +250,11 @@ export const AuditLogs = () => {
           title="Activity Details"
           onClose={() => setSelectedLog(null)}
           wide
+          footer={
+            <div className="flex justify-end w-full">
+              <Btn label="Close" outline onClick={() => setSelectedLog(null)} />
+            </div>
+          }
         >
           <div className="bg-gray-50 dark:bg-[#0F172A] p-4 sm:p-6 rounded-xl overflow-y-auto max-h-[65vh] border border-gray-200 dark:border-gray-800 shadow-inner">
             {selectedLog.details && Object.keys(selectedLog.details).length > 0 ? (

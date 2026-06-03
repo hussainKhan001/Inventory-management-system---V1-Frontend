@@ -333,6 +333,11 @@ export const PurchaseOrders = () => {
         // Row 3 (After 10 Days) gets the full grand total
         pts[2].amount = Math.round(grandBase * 100) / 100;
         pts[2].ifPayable = Math.round(grandTotal * 100) / 100;
+        // Reflect the actual GST % so display is consistent with the amount difference
+        if (pts[2].gstPct === "Inclusive" || pts[2].gstPct === "-") {
+          const firstItemGstPct = newPO.items[0]?.gstPct;
+          if (firstItemGstPct != null) pts[2].gstPct = String(firstItemGstPct);
+        }
         setNewPO(prev => ({ ...prev, paymentTimelines: pts, totalAmount: grandTotal }));
       }
     }
@@ -534,6 +539,18 @@ export const PurchaseOrders = () => {
     const plus10 = d10.toISOString().split('T')[0];
     return [poDate, delivDate, plus10];
   };
+
+  // Format gstPct for display in input: "18" → "18% Exclusive", "Inclusive"/"-" → as-is
+  const fmtGstPct = (val: string | number | undefined) => {
+    const g = String(val || "").trim();
+    const gl = g.toLowerCase();
+    if (!g || gl === '-' || gl === 'inclusive') return g;
+    const num = parseFloat(g.replace(/[^0-9.]/g, ''));
+    if (!isNaN(num)) return `${num}% Exclusive`;
+    return g;
+  };
+  // Strip "% Exclusive" suffix so we store just the number
+  const parseGstInput = (raw: string) => raw.replace(/\s*%?\s*exclusive\s*/i, '').trim();
 
   const calcChargeTotal = (amount: number, gstPct: number, gstType: string) => {
     if (!amount) return 0;
@@ -2478,6 +2495,7 @@ export const PurchaseOrders = () => {
                         <th className="p-2 text-left border-r border-[#1A365D]/30">Mode</th>
                         <th className="p-2 text-right border-r border-[#1A365D]/30">Amount</th>
                         <th className="p-2 text-center border-r border-[#1A365D]/30">GST %</th>
+                        <th className="p-2 text-right border-r border-[#1A365D]/30">GST Amt</th>
                         <th className="p-2 text-right border-r border-[#1A365D]/30">If Payable</th>
                         <th className="p-2 w-8"></th>
                       </tr>
@@ -2529,11 +2547,12 @@ export const PurchaseOrders = () => {
                           </td>
                           <td className="p-1.5 border-r border-[#1A365D]/20">
                             <input
-                              className="w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded px-1.5 py-1 text-xs text-center"
-                              value={pt.gstPct || ""}
-                              onChange={(e) => { 
-                                const val = e.target.value;
-                                const pts = [...(newPO.paymentTimelines || [])]; 
+                              className="w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded px-1.5 py-1 text-xs text-center font-medium"
+                              value={fmtGstPct(pt.gstPct)}
+                              onFocus={(e) => e.target.select()}
+                              onChange={(e) => {
+                                const val = parseGstInput(e.target.value);
+                                const pts = [...(newPO.paymentTimelines || [])];
                                 const amt = parseFloat(String(pts[idx].amount)) || 0;
                                 const gst = String(val).toLowerCase();
                                 let calculatedPayable = amt;
@@ -2543,19 +2562,25 @@ export const PurchaseOrders = () => {
                                     calculatedPayable = amt + (amt * pct / 100);
                                   }
                                 }
-                                pts[idx] = {...pts[idx], gstPct: val, ifPayable: parseFloat(calculatedPayable.toFixed(2))}; 
-                                setNewPO({ ...newPO, paymentTimelines: pts }); 
+                                pts[idx] = {...pts[idx], gstPct: val, ifPayable: parseFloat(calculatedPayable.toFixed(2))};
+                                setNewPO({ ...newPO, paymentTimelines: pts });
                               }}
                             />
+                          </td>
+                          <td className="p-1.5 border-r border-[#1A365D]/20 text-right text-[11px] font-bold text-emerald-600 dark:text-emerald-400 min-w-[70px]">
+                            {(() => {
+                              const gstAmt = Math.max(0, (pt.ifPayable || 0) - (pt.amount || 0));
+                              return gstAmt > 0 ? fmtCur(gstAmt) : <span className="text-gray-400 font-normal">—</span>;
+                            })()}
                           </td>
                           <td className="p-1.5 border-r border-[#1A365D]/20">
                             <input type="text"
                               className="w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded px-1.5 py-1 text-xs text-right font-bold"
                               value={pt.ifPayable ?? ""}
-                              onChange={(e) => { 
+                              onChange={(e) => {
                                 const valStr = e.target.value.replace(/[^0-9.]/g, '');
                                 const val = parseFloat(valStr) || 0;
-                                const pts = [...(newPO.paymentTimelines || [])]; 
+                                const pts = [...(newPO.paymentTimelines || [])];
                                 const gst = String(pts[idx].gstPct || "").toLowerCase();
                                 let calculatedAmount = val;
                                 if (gst !== 'inclusive' && gst !== '-' && gst !== '0' && gst !== '') {
@@ -2564,8 +2589,8 @@ export const PurchaseOrders = () => {
                                     calculatedAmount = val / (1 + pct / 100);
                                   }
                                 }
-                                pts[idx] = {...pts[idx], ifPayable: valStr as any, amount: parseFloat(calculatedAmount.toFixed(2))}; 
-                                setNewPO({ ...newPO, paymentTimelines: pts }); 
+                                pts[idx] = {...pts[idx], ifPayable: valStr as any, amount: parseFloat(calculatedAmount.toFixed(2))};
+                                setNewPO({ ...newPO, paymentTimelines: pts });
                               }}
                             />
                           </td>
@@ -2580,7 +2605,7 @@ export const PurchaseOrders = () => {
                     </tbody>
                     <tfoot>
                       <tr className="bg-[#1A365D] text-white">
-                        <td colSpan={6} className="p-2 text-right text-[10px] font-black tracking-wide">Grand Total</td>
+                        <td colSpan={7} className="p-2 text-right text-[10px] font-black tracking-wide">Grand Total</td>
                         <td className="p-2 text-right text-[13px] font-black pr-3">
                           {fmtCur(
                             (newPO.items?.reduce((s, it) => s + (it.totalWithGST || 0), 0) || 0) +
@@ -3005,12 +3030,10 @@ export const PurchaseOrders = () => {
                                selectedPO.items.reduce((s, it) => {
                                  const gstType = it.gstType || selectedPO.items[0]?.gstType || "Exclusive";
                                  if (gstType === "Exclusive") {
-                                   // Exclusive: GST is added on top of base price
-                                   const base = it.total || (it.qty * it.rate);
-                                   const gstPct = it.gstPct || selectedPO.items[0]?.gstPct || 18;
+                                   const base = it.qty * it.rate; // always raw calculation, never stored it.total
+                                   const gstPct = it.gstPct ?? (selectedPO.items[0]?.gstPct ?? 18);
                                    return s + (base * gstPct / 100);
                                  }
-                                 // Inclusive: GST is embedded in the rate — ₹0.00 additional GST
                                  return s;
                                }, 0)
                              )}
@@ -3143,6 +3166,7 @@ export const PurchaseOrders = () => {
                             <th className="p-2 text-left border-r border-[#1A365D]/30">Mode</th>
                             <th className="p-2 text-right border-r border-[#1A365D]/30">Amount</th>
                             <th className="p-2 text-center border-r border-[#1A365D]/30">GST %</th>
+                            <th className="p-2 text-right border-r border-[#1A365D]/30">GST Amt</th>
                             <th className="p-2 text-right">If Payable</th>
                           </tr>
                         </thead>
@@ -3178,27 +3202,38 @@ export const PurchaseOrders = () => {
                                     }} className="w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded px-1.5 py-1 text-xs text-right" />
                                   </td>
                                   <td className="p-1.5 border-r border-[#1A365D]/20">
-                                    <input value={pt.gstPct || ""} onChange={(e) => { 
-                                      const val = e.target.value;
-                                      const ts=[...draftTimelines]; 
-                                      const amt = parseFloat(String(ts[idx].amount)) || 0;
-                                      const gst = String(val).toLowerCase();
-                                      let calculatedPayable = amt;
-                                      if (gst !== 'inclusive' && gst !== '-' && gst !== '0' && gst !== '') {
-                                        const pct = parseFloat(gst.replace(/[^0-9.]/g, ''));
-                                        if (!isNaN(pct)) {
-                                          calculatedPayable = amt + (amt * pct / 100);
+                                    <input
+                                      value={fmtGstPct(pt.gstPct)}
+                                      onFocus={(e) => e.target.select()}
+                                      onChange={(e) => {
+                                        const val = parseGstInput(e.target.value);
+                                        const ts=[...draftTimelines];
+                                        const amt = parseFloat(String(ts[idx].amount)) || 0;
+                                        const gst = String(val).toLowerCase();
+                                        let calculatedPayable = amt;
+                                        if (gst !== 'inclusive' && gst !== '-' && gst !== '0' && gst !== '') {
+                                          const pct = parseFloat(gst.replace(/[^0-9.]/g, ''));
+                                          if (!isNaN(pct)) {
+                                            calculatedPayable = amt + (amt * pct / 100);
+                                          }
                                         }
-                                      }
-                                      ts[idx]={...ts[idx], gstPct: val, ifPayable: parseFloat(calculatedPayable.toFixed(2))}; 
-                                      setDraftTimelines(ts); 
-                                    }} className="w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded px-1.5 py-1 text-xs text-center" />
+                                        ts[idx]={...ts[idx], gstPct: val, ifPayable: parseFloat(calculatedPayable.toFixed(2))};
+                                        setDraftTimelines(ts);
+                                      }}
+                                      className="w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded px-1.5 py-1 text-xs text-center font-medium"
+                                    />
+                                  </td>
+                                  <td className="p-1.5 border-r border-[#1A365D]/20 text-right text-[11px] font-bold text-emerald-600 dark:text-emerald-400 min-w-[70px]">
+                                    {(() => {
+                                      const gstAmt = Math.max(0, (pt.ifPayable || 0) - (pt.amount || 0));
+                                      return gstAmt > 0 ? fmtCur(gstAmt) : <span className="text-gray-400 font-normal">—</span>;
+                                    })()}
                                   </td>
                                   <td className="p-1.5">
-                                    <input type="text" value={pt.ifPayable ?? ""} onChange={(e) => { 
+                                    <input type="text" value={pt.ifPayable ?? ""} onChange={(e) => {
                                       const valStr = e.target.value.replace(/[^0-9.]/g, '');
                                       const val = parseFloat(valStr) || 0;
-                                      const ts=[...draftTimelines]; 
+                                      const ts=[...draftTimelines];
                                       const gst = String(ts[idx].gstPct || "").toLowerCase();
                                       let calculatedAmount = val;
                                       if (gst !== 'inclusive' && gst !== '-' && gst !== '0' && gst !== '') {
@@ -3207,8 +3242,8 @@ export const PurchaseOrders = () => {
                                           calculatedAmount = val / (1 + pct / 100);
                                         }
                                       }
-                                      ts[idx]={...ts[idx], ifPayable: valStr as any, amount: parseFloat(calculatedAmount.toFixed(2))}; 
-                                      setDraftTimelines(ts); 
+                                      ts[idx]={...ts[idx], ifPayable: valStr as any, amount: parseFloat(calculatedAmount.toFixed(2))};
+                                      setDraftTimelines(ts);
                                     }} className="w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded px-1.5 py-1 text-xs text-right font-bold" />
                                   </td>
                                 </>
@@ -3220,7 +3255,28 @@ export const PurchaseOrders = () => {
                                   <td className="p-2 border-r border-[#1A365D]/20 font-medium">{normalizeTimelineType(pt.type)}</td>
                                   <td className="p-2 border-r border-[#1A365D]/20">{pt.mode}</td>
                                   <td className="p-2 border-r border-[#1A365D]/20 text-right">{(pt.amount || 0) > 0 ? fmtCur(pt.amount) : <span className="text-gray-400">—</span>}</td>
-                                  <td className="p-2 border-r border-[#1A365D]/20 text-center">{pt.gstPct && pt.gstPct !== "-" ? pt.gstPct : <span className="text-gray-400">—</span>}</td>
+                                  <td className="p-2 border-r border-[#1A365D]/20 text-center font-medium">
+                                    {(() => {
+                                      const g = String(pt.gstPct || "").toLowerCase().trim();
+                                      const amt = pt.amount || 0;
+                                      const payable = pt.ifPayable || 0;
+                                      if (amt > 0 && payable > amt + 0.5) {
+                                        const pct = (payable / amt - 1) * 100;
+                                        const pctStr = Number.isInteger(pct) ? pct : pct.toFixed(1);
+                                        return <span className="inline-flex items-center gap-1"><span className="font-black">{pctStr}%</span><span className="text-[9px] text-gray-400 font-normal">Exclusive</span></span>;
+                                      }
+                                      if (!g || g === '-' || g === 'inclusive' || g === 'exclusive') return <span className="text-gray-400">—</span>;
+                                      const num = parseFloat(g.replace('%', ''));
+                                      if (!isNaN(num)) return <span className="inline-flex items-center gap-1"><span className="font-black">{num}%</span><span className="text-[9px] text-gray-400 font-normal">Exclusive</span></span>;
+                                      return pt.gstPct;
+                                    })()}
+                                  </td>
+                                  <td className="p-2 border-r border-[#1A365D]/20 text-right font-bold text-emerald-600 dark:text-emerald-400">
+                                    {(() => {
+                                      const gstAmt = Math.max(0, (pt.ifPayable || 0) - (pt.amount || 0));
+                                      return gstAmt > 0 ? fmtCur(gstAmt) : <span className="text-gray-400 font-normal">—</span>;
+                                    })()}
+                                  </td>
                                   <td className="p-2 text-right font-bold text-[#1A365D] dark:text-blue-400">{(pt.ifPayable || 0) > 0 ? fmtCur(pt.ifPayable) : <span className="text-gray-400 font-normal">0.00</span>}</td>
                                 </>
                               )}
@@ -3229,7 +3285,7 @@ export const PurchaseOrders = () => {
                         </tbody>
                         <tfoot>
                           <tr className="bg-[#1A365D] text-white">
-                            <td colSpan={5} className="p-2 text-right text-[10px] font-black tracking-wide">Grand Total</td>
+                            <td colSpan={6} className="p-2 text-right text-[10px] font-black tracking-wide">Grand Total</td>
                             <td className="p-2 text-right text-[13px] font-black">
                               {/* Always show the PO's actual totalValue (matches Order Details Grand Total) */}
                               {fmtCur(selectedPO.totalValue)}
@@ -3473,6 +3529,23 @@ export const PurchaseOrders = () => {
         <Modal
           title="Cancel Purchase Order"
           onClose={() => { setCancelModal(false); setCancelNoteText(''); setCancelTargetId(null); }}
+          footer={
+            <div className="flex justify-end gap-3 w-full">
+              <Btn
+                label="Go Back"
+                outline
+                onClick={() => { setCancelModal(false); setCancelNoteText(''); setCancelTargetId(null); }}
+              />
+              <Btn
+                label="Confirm Cancellation"
+                color="red"
+                icon={X}
+                onClick={handleConfirmCancel}
+                loading={processingId === `cancel-${cancelTargetId}`}
+                disabled={!cancelNoteText.trim()}
+              />
+            </div>
+          }
         >
           <div className="space-y-5">
             {/* Warning banner */}
@@ -3501,22 +3574,6 @@ export const PurchaseOrders = () => {
               <p className="text-[11px] text-gray-400">This note will be visible to all users viewing this PO.</p>
             </div>
 
-            {/* Actions */}
-            <div className="flex justify-end gap-3 pt-1">
-              <Btn
-                label="Go Back"
-                outline
-                onClick={() => { setCancelModal(false); setCancelNoteText(''); setCancelTargetId(null); }}
-              />
-              <Btn
-                label="Confirm Cancellation"
-                color="red"
-                icon={X}
-                onClick={handleConfirmCancel}
-                loading={processingId === `cancel-${cancelTargetId}`}
-                disabled={!cancelNoteText.trim()}
-              />
-            </div>
           </div>
         </Modal>
       )}

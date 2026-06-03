@@ -403,7 +403,16 @@ export const Suppliers = () => {
       )}
 
       {viewModal && selectedSupplier && (
-        <Modal title={`Supplier Details - ${safeStr(selectedSupplier.companyName || selectedSupplier.name)}`} onClose={() => setViewModal(false)} wide>
+        <Modal 
+          title={`Supplier Details - ${safeStr(selectedSupplier.companyName || selectedSupplier.name)}`} 
+          onClose={() => setViewModal(false)} 
+          wide
+          footer={
+            <div className="flex justify-end w-full">
+              <Btn label="Close" outline onClick={() => setViewModal(false)} />
+            </div>
+          }
+        >
           <div className="space-y-8 max-h-[70vh] overflow-y-auto pr-2">
             {/* Basic Info */}
             <section>
@@ -491,20 +500,45 @@ export const Suppliers = () => {
               </div>
             </section>
           </div>
-          <div className="flex justify-end mt-8 pt-6 border-t border-gray-100 dark:border-gray-800">
-            <Btn label="Close" outline onClick={() => setViewModal(false)} />
-          </div>
         </Modal>
       )}
 
       {modal && (
-        <Modal title={`${isEditing ? "Edit Supplier" : "Supplier Registration"} - ${sections[section - 1]}`} onClose={() => {
-          setModal(false);
-          setNewSupplier(initialSupplier);
-          setSection(1);
-          setErrors({});
-          setIsEditing(false);
-        }}>
+        <Modal 
+          title={`${isEditing ? "Edit Supplier" : "Supplier Registration"} - ${sections[section - 1]}`} 
+          onClose={() => {
+            setModal(false);
+            setNewSupplier(initialSupplier);
+            setSection(1);
+            setErrors({});
+            setIsEditing(false);
+          }}
+          footer={
+            <div className="flex justify-between gap-2 w-full">
+              <Btn label="Cancel" outline onClick={() => setModal(false)} />
+              <div className="flex gap-2">
+                {section > 1 && (
+                  <Btn label="Previous" outline onClick={() => setSection(section - 1)} />
+                )}
+                {section < 6 ? (
+                  <Btn 
+                    label="Next" 
+                    onClick={() => {
+                      if (validateSection(section)) {
+                        setSection(section + 1);
+                      }
+                    }} 
+                  />
+                ) : (
+                  <Btn
+                    label={isEditing ? "Update Supplier" : "Complete Registration"}
+                    onClick={handleCreate}
+                  />
+                )}
+              </div>
+            </div>
+          }
+        >
           <div className="space-y-6">
             {/* Progress Bar */}
             <div className="flex items-center justify-between mb-8">
@@ -690,29 +724,6 @@ export const Suppliers = () => {
               )}
             </div>
 
-            <div className="flex justify-between gap-2 mt-8 pt-6 border-t border-gray-100 dark:border-gray-800">
-              <Btn label="Cancel" outline onClick={() => setModal(false)} />
-              <div className="flex gap-2">
-                {section > 1 && (
-                  <Btn label="Previous" outline onClick={() => setSection(section - 1)} />
-                )}
-                {section < 6 ? (
-                  <Btn 
-                    label="Next" 
-                    onClick={() => {
-                      if (validateSection(section)) {
-                        setSection(section + 1);
-                      }
-                    }} 
-                  />
-                ) : (
-                  <Btn
-                    label={isEditing ? "Update Supplier" : "Complete Registration"}
-                    onClick={handleCreate}
-                  />
-                )}
-              </div>
-            </div>
           </div>
         </Modal>
       )}

@@ -139,9 +139,15 @@ export const generatePOPDF = (po: PurchaseOrder, supplier?: Supplier) => {
   };
 
   const subTotal = po.items.reduce((s, it) => s + (it.qty * it.rate), 0);
-  const itemsTotalWithGST = po.items.reduce((s, it) => s + (it.totalWithGST || 0), 0);
-  const gstTotal = Math.max(0, itemsTotalWithGST - subTotal);
   const gstType = po.items[0]?.gstType || (po.totalValue > subTotal + 0.5 ? "Exclusive" : "Inclusive");
+  // Calculate GST from raw qty*rate so it matches the modal view (never relies on stored totalWithGST)
+  const gstTotal = po.items.reduce((s, it) => {
+    const itemGstType = it.gstType || gstType;
+    if (itemGstType !== "Exclusive") return s;
+    const base = it.qty * it.rate;
+    const pct = it.gstPct ?? (po.items[0]?.gstPct ?? 18);
+    return s + (base * pct / 100);
+  }, 0);
 
   const freightTotal = calcChargeTotal(po.freightAmount || 0, po.freightGstPct || 0, po.freightGstType || "Exclusive");
   const loadingTotal = calcChargeTotal(po.loadingAmount || 0, po.loadingGstPct || 0, po.loadingGstType || "Exclusive");
@@ -257,7 +263,19 @@ export const generatePOPDF = (po: PurchaseOrder, supplier?: Supplier) => {
           (pt.type || "").toUpperCase(),
           (pt.mode || "").toUpperCase(),
           pt.amount ? fmtRs(pt.amount) : "0.00",
-          pt.gstPct && pt.gstPct !== "-" ? (pt.gstPct || "").toUpperCase() : "—",
+          (() => {
+            const g = String(pt.gstPct || "").toLowerCase().trim();
+            const amt = pt.amount || 0;
+            const payable = pt.ifPayable || 0;
+            if (amt > 0 && payable > amt + 0.5) {
+              const pct = (payable / amt - 1) * 100;
+              const pctStr = Number.isInteger(pct) ? pct : pct.toFixed(1);
+              return `${pctStr}% EXCLUSIVE`;
+            }
+            if (!g || g === '-' || g === 'inclusive' || g === 'exclusive') return '—';
+            const num = parseFloat(g.replace('%', ''));
+            return !isNaN(num) ? `${num}% EXCLUSIVE` : g.toUpperCase();
+          })(),
           pt.ifPayable ? fmtRs(pt.ifPayable) : "0.00"
         ]),
         ["GRAND TOTAL", "", "", "", "", fmtRs(timelineGrandTotal)]
