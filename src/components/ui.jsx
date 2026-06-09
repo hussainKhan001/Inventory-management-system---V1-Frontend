@@ -473,15 +473,17 @@ const KPICard = /* @__PURE__ */ __name(({
     purple: "bg-violet-50 text-violet-500 dark:bg-violet-500/10 dark:text-violet-400",
     red: "bg-red-50 text-red-500 dark:bg-red-500/10 dark:text-red-400"
   };
-  return <div className="bg-white dark:bg-gray-800/80 rounded-xl border border-gray-100 dark:border-gray-700/50 shadow-sm hover:shadow-md transition-all duration-300 p-5 flex flex-col min-h-[130px]">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0 flex-1">
-          <p className="text-sm font-medium text-gray-500 dark:text-gray-400 leading-tight truncate">{label}</p>
-          <p className="text-2xl font-bold text-gray-900 dark:text-white mt-1.5 break-words">{value}</p>
-          {change !== undefined && <p className={cn("text-xs font-semibold mt-1 flex items-center gap-1", trend === "up" ? "text-emerald-600 dark:text-emerald-400" : "text-red-500 dark:text-red-400")}>
+  return <div className="bg-white dark:bg-gray-800/80 rounded-xl border border-gray-100 dark:border-gray-700/50 shadow-sm hover:shadow-md transition-all duration-300 p-5 flex flex-col justify-between min-h-[130px]">
+      <div>
+        <p className="text-sm font-medium text-gray-500 dark:text-gray-400 leading-tight truncate">{label}</p>
+        <p className="text-2xl font-bold text-gray-900 dark:text-white mt-1.5 break-words">{value}</p>
+      </div>
+      <div className="flex items-end justify-between mt-3">
+        <div>
+          {change !== undefined && <p className={cn("text-xs font-semibold flex items-center gap-1", trend === "up" ? "text-emerald-600 dark:text-emerald-400" : "text-red-500 dark:text-red-400")}>
             {trend === "up" ? "↑" : "↓"} {change}
           </p>}
-          {sub && !change && <p className="text-[11px] text-gray-400 dark:text-gray-500 mt-1 font-medium leading-relaxed">{sub}</p>}
+          {sub && <p className="text-[11px] text-gray-400 dark:text-gray-500 font-medium leading-relaxed">{sub}</p>}
         </div>
         {Icon && <div className={cn("p-2.5 rounded-lg shrink-0", iconColors[color])}>
           <Icon className="w-5 h-5 sm:w-6 sm:h-6" />
