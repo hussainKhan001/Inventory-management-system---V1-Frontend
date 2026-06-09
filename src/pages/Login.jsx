@@ -27,7 +27,7 @@ const Login = /* @__PURE__ */ __name(() => {
       setLoading(false);
     }
   }, "handleLogin");
-  return <div className="min-h-screen bg-white dark:bg-[#0F172A] flex overflow-hidden">
+  return <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex overflow-hidden">
 
       {
     /* ── Left branding panel ─────────────────────────────────────────── */
@@ -64,7 +64,7 @@ const Login = /* @__PURE__ */ __name(() => {
       {
     /* ── Right form panel ────────────────────────────────────────────── */
   }
-      <div className="w-full lg:w-1/2 flex items-center justify-center p-6 sm:p-12 relative">
+      <div className="w-full lg:w-1/2 flex items-center justify-center p-6 sm:p-12 relative bg-white dark:bg-gray-800/50">
         <div className="absolute top-6 right-6">
           <ThemeToggle theme={theme} toggleTheme={toggleTheme} />
         </div>
@@ -76,7 +76,7 @@ const Login = /* @__PURE__ */ __name(() => {
             </div>
 
             <div className="mb-10 text-center lg:text-left">
-              <h2 className="text-3xl font-black text-[#1A1A2E] dark:text-white tracking-tight mb-2">Welcome Back</h2>
+              <h2 className="text-3xl font-bold text-gray-900 dark:text-white tracking-tight mb-2">Welcome Back</h2>
               <p className="text-gray-500 dark:text-gray-400 font-medium">Please enter your details to sign in.</p>
             </div>
 
@@ -93,7 +93,7 @@ const Login = /* @__PURE__ */ __name(() => {
     value={email}
     onChange={(e) => setEmail(e.target.value)}
     required
-    className="block w-full pl-10 pr-3 py-3 bg-gray-50 dark:bg-[#1E293B] border border-gray-200 dark:border-gray-700 rounded-xl text-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all text-[#1A1A2E] dark:text-white"
+    className="block w-full pl-10 pr-3 py-3 bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600 rounded-xl text-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all text-gray-900 dark:text-white"
   />
                 </div>
               </div>
@@ -113,7 +113,7 @@ const Login = /* @__PURE__ */ __name(() => {
     value={password}
     onChange={(e) => setPassword(e.target.value)}
     required
-    className="block w-full pl-10 pr-3 py-3 bg-gray-50 dark:bg-[#1E293B] border border-gray-200 dark:border-gray-700 rounded-xl text-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all text-[#1A1A2E] dark:text-white"
+    className="block w-full pl-10 pr-3 py-3 bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600 rounded-xl text-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all text-gray-900 dark:text-white"
   />
                 </div>
               </div>

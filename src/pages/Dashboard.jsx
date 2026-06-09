@@ -116,7 +116,7 @@ const SiteEngineerDashboard = /* @__PURE__ */ __name(({ user, plans, materialReq
         {
     /* My Plans */
   }
-        <Card className="p-5 border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900">
+        <Card className="p-5 border-gray-100 dark:border-gray-700/50 bg-white dark:bg-gray-800/80">
           <SectionHeader title="My Material Plans" action={() => window.location.hash = "planning"} />
           {myPlans.length === 0 ? <EmptyState text="No plans assigned to you yet." /> : <div className="space-y-3">
               {myPlans.slice(0, 5).map((plan) => {
@@ -146,7 +146,7 @@ const SiteEngineerDashboard = /* @__PURE__ */ __name(({ user, plans, materialReq
         {
     /* My Recent MRs */
   }
-        <Card className="p-5 border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900">
+        <Card className="p-5 border-gray-100 dark:border-gray-700/50 bg-white dark:bg-gray-800/80">
           <SectionHeader title="My Material Requests" action={() => window.location.hash = "material-requirements"} />
           {myMRs.length === 0 ? <EmptyState text="No material requests raised yet." /> : <div className="space-y-2">
               {myMRs.slice(0, 6).map((mr) => <div key={mr.id} className="flex items-center justify-between p-3 rounded-xl bg-gray-50 dark:bg-gray-800/40 hover:bg-primary/5 dark:hover:bg-primary/10 transition-colors cursor-pointer" onClick={() => window.location.hash = "material-requirements"}>
@@ -166,11 +166,11 @@ const SiteEngineerDashboard = /* @__PURE__ */ __name(({ user, plans, materialReq
       {
     /* Material plan items: remaining */
   }
-      {myPlans.length > 0 && <Card className="p-5 border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900">
+      {myPlans.length > 0 && <Card className="p-5 border-gray-100 dark:border-gray-700/50 bg-white dark:bg-gray-800/80">
           <SectionHeader title="Material Balance — All Plans" />
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse min-w-[500px]">
-              <thead className="bg-gray-50 dark:bg-gray-800/50">
+              <thead className="bg-gray-50 dark:bg-gray-800/40">
                 <tr>
                   <th className="px-4 py-2.5 text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Material</th>
                   <th className="px-4 py-2.5 text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Project</th>
@@ -179,12 +179,12 @@ const SiteEngineerDashboard = /* @__PURE__ */ __name(({ user, plans, materialReq
                   <th className="px-4 py-2.5 text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider text-right">Pending</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100 dark:divide-gray-800 bg-white dark:bg-gray-900">
+              <tbody className="divide-y divide-gray-100 dark:divide-gray-700/40">
                 {myPlans.flatMap(
     (plan) => (plan.items || []).map((item, idx) => {
       const allotted = mrAllocations.filter((a) => a.sku === item.sku && a.engineerName?.trim().toLowerCase() === myName.trim().toLowerCase() && a.projectName?.trim().toLowerCase() === (plan.project || "").trim().toLowerCase()).reduce((s, a) => s + (a.allocatedQty || 0), 0);
       const pending = Math.max(0, (Number(item.required) || 0) - allotted);
-      return <tr key={`${plan.id}-${idx}`} className="hover:bg-gray-50/50 dark:hover:bg-gray-800/30 transition-colors">
+      return <tr key={`${plan.id}-${idx}`} className="hover:bg-gray-50/70 dark:hover:bg-gray-700/30 transition-colors">
                         <td className="px-4 py-2.5 text-[13px] font-medium text-gray-900 dark:text-white">{item.itemName || item.materialName || item.sku}</td>
                         <td className="px-4 py-2.5 text-[12px] text-gray-500 dark:text-gray-400">{plan.project}</td>
                         <td className="px-4 py-2.5 text-[13px] font-bold text-right text-gray-700 dark:text-gray-300">{item.required} <span className="text-[10px] font-normal">{item.unit}</span></td>
@@ -246,7 +246,7 @@ const AGMDashboard = /* @__PURE__ */ __name(({ user, plans, materialRequirements
         <KPICard label="My Projects" value={myProjects.length} icon={Boxes} color="blue" sub="Under oversight" />
         <KPICard label="Active Plans" value={myPlans.length} icon={Layers} color="orange" sub="Material plans" />
         <KPICard label="Pending L1 POs" value={pendingL1POs.length} icon={FileText} color={pendingL1POs.length > 0 ? "red" : "green"} sub="Awaiting L1 approval" />
-        <KPICard label="Pending MRs" value={pendingMRs.length} icon={ClipboardList} color={pendingMRs.length > 0 ? "amber" : "green"} sub="Awaiting store action" />
+        <KPICard label="Pending MRs" value={pendingMRs.length} icon={ClipboardList} color={pendingMRs.length > 0 ? "orange" : "green"} sub="Awaiting store action" />
       </div>
 
       {
@@ -256,7 +256,7 @@ const AGMDashboard = /* @__PURE__ */ __name(({ user, plans, materialRequirements
           <SectionHeader title={`Pending L1 Purchase Orders (${pendingL1POs.length})`} action={() => window.location.hash = "purchase-orders"} />
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse min-w-[500px]">
-              <thead className="bg-gray-50 dark:bg-gray-800/50">
+              <thead className="bg-gray-50 dark:bg-gray-800/40">
                 <tr>
                   <th className="px-4 py-2.5 text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">PO No.</th>
                   <th className="px-4 py-2.5 text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Supplier</th>
@@ -266,7 +266,7 @@ const AGMDashboard = /* @__PURE__ */ __name(({ user, plans, materialRequirements
                   <th className="px-4 py-2.5 text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider text-center">Action</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100 dark:divide-gray-800 bg-white dark:bg-gray-900">
+              <tbody className="divide-y divide-gray-100 dark:divide-gray-700/40">
                 {pendingL1POs.slice(0, 8).map((po) => <tr key={po.id} className="hover:bg-red-50/30 dark:hover:bg-red-900/10 transition-colors">
                     <td className="px-4 py-2.5 text-[13px] font-bold text-gray-900 dark:text-white">{po.id}</td>
                     <td className="px-4 py-2.5 text-[12px] text-gray-600 dark:text-gray-300 max-w-[140px] truncate">{po.supplier || "—"}</td>
@@ -307,7 +307,7 @@ const AGMDashboard = /* @__PURE__ */ __name(({ user, plans, materialRequirements
         {
     /* Project-wise material status */
   }
-        <Card className="p-5 border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900">
+        <Card className="p-5 border-gray-100 dark:border-gray-700/50 bg-white dark:bg-gray-800/80">
           <SectionHeader title="Project-wise Material Status" action={() => window.location.hash = "planning"} />
           {projectStats.length === 0 ? <EmptyState text="No projects found." /> : <div className="space-y-3">
               {projectStats.map((ps) => {
@@ -332,7 +332,7 @@ const AGMDashboard = /* @__PURE__ */ __name(({ user, plans, materialRequirements
         {
     /* Recent MRs from projects */
   }
-        <Card className="p-5 border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900">
+        <Card className="p-5 border-gray-100 dark:border-gray-700/50 bg-white dark:bg-gray-800/80">
           <SectionHeader title="Recent MRs — My Projects" action={() => window.location.hash = "material-requirements"} />
           {myMRs.length === 0 ? <EmptyState text="No MRs found for your projects." /> : <div className="space-y-2">
               {myMRs.slice(0, 6).map((mr) => <div key={mr.id} className="flex items-center justify-between p-3 rounded-xl bg-gray-50 dark:bg-gray-800/40 hover:bg-primary/5 dark:hover:bg-primary/10 transition-colors cursor-pointer" onClick={() => window.location.hash = "material-requirements"}>
@@ -369,7 +369,7 @@ const StoreInchargeDashboard = /* @__PURE__ */ __name(({ stats, materialRequirem
   }
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <KPICard label="Awaiting Review" value={storePending.length} icon={Clock} color={storePending.length > 0 ? "red" : "green"} sub="Store Pending MRs" />
-        <KPICard label="Ready to Allocate" value={approvedByStore.length} icon={CircleCheck} color={approvedByStore.length > 0 ? "amber" : "green"} sub="Approved by Store" />
+        <KPICard label="Ready to Allocate" value={approvedByStore.length} icon={CircleCheck} color={approvedByStore.length > 0 ? "orange" : "green"} sub="Approved by Store" />
         <KPICard label="Low Stock Items" value={lowStockCount} icon={AlertTriangle} color={lowStockCount > 0 ? "red" : "green"} sub="Below reorder level" />
         <KPICard label="Total SKUs" value={totalSKUs} icon={Boxes} color="blue" sub="Catalog entries" />
       </div>
@@ -378,7 +378,7 @@ const StoreInchargeDashboard = /* @__PURE__ */ __name(({ stats, materialRequirem
         {
     /* Store Pending MRs */
   }
-        <Card className="p-5 border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900">
+        <Card className="p-5 border-gray-100 dark:border-gray-700/50 bg-white dark:bg-gray-800/80">
           <SectionHeader
     title={`Store Pending MRs (${storePending.length})`}
     action={() => window.location.hash = "material-requirements"}
@@ -401,7 +401,7 @@ const StoreInchargeDashboard = /* @__PURE__ */ __name(({ stats, materialRequirem
         {
     /* Ready to Allocate */
   }
-        <Card className="p-5 border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900">
+        <Card className="p-5 border-gray-100 dark:border-gray-700/50 bg-white dark:bg-gray-800/80">
           <SectionHeader
     title={`Ready to Allocate (${approvedByStore.length})`}
     action={() => window.location.hash = "material-requirements"}
@@ -422,11 +422,11 @@ const StoreInchargeDashboard = /* @__PURE__ */ __name(({ stats, materialRequirem
       {
     /* Recent Allocations */
   }
-      <Card className="p-5 border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900">
+      <Card className="p-5 border-gray-100 dark:border-gray-700/50 bg-white dark:bg-gray-800/80">
         <SectionHeader title="Recent Allocations" action={() => window.location.hash = "material-requirements"} actionLabel="All Allocations" />
         {recentAllocations.length === 0 ? <EmptyState text="No allocations yet." /> : <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse min-w-[500px]">
-              <thead className="bg-gray-50 dark:bg-gray-800/50">
+              <thead className="bg-gray-50 dark:bg-gray-800/40">
                 <tr>
                   <th className="px-4 py-2.5 text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">MR / Item</th>
                   <th className="px-4 py-2.5 text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Engineer</th>
@@ -435,8 +435,8 @@ const StoreInchargeDashboard = /* @__PURE__ */ __name(({ stats, materialRequirem
                   <th className="px-4 py-2.5 text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Date</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100 dark:divide-gray-800 bg-white dark:bg-gray-900">
-                {recentAllocations.map((alc) => <tr key={alc.id} className="hover:bg-gray-50/50 dark:hover:bg-gray-800/30 transition-colors">
+              <tbody className="divide-y divide-gray-100 dark:divide-gray-700/40">
+                {recentAllocations.map((alc) => <tr key={alc.id} className="hover:bg-gray-50/70 dark:hover:bg-gray-700/30 transition-colors">
                     <td className="px-4 py-2.5">
                       <p className="text-[12px] font-bold text-gray-900 dark:text-white">{alc.itemName}</p>
                       <p className="text-[10px] text-gray-400">{alc.mrId}</p>
@@ -459,7 +459,7 @@ const StoreInchargeDashboard = /* @__PURE__ */ __name(({ stats, materialRequirem
     { label: "Quick Inward", sub: "Record new stock entry", icon: ArrowDownLeft, hash: "inward", color: "emerald" },
     { label: "Quick Outward", sub: "Record stock issuance", icon: ArrowUpRight, hash: "outward", color: "orange" },
     { label: "View Inventory", sub: "Check stock levels", icon: Boxes, hash: "inventory", color: "blue" }
-  ].map(({ label, sub, icon: Icon, hash, color }) => <Card key={hash} className={cn("p-4 cursor-pointer transition-all group bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-800", `hover:border-${color}-500/50`)} onClick={() => window.location.hash = hash}>
+  ].map(({ label, sub, icon: Icon, hash, color }) => <Card key={hash} className={cn("p-4 cursor-pointer transition-all group bg-white dark:bg-gray-800/80 border-gray-100 dark:border-gray-700/50", `hover:border-${color}-500/50`)} onClick={() => window.location.hash = hash}>
             <div className="flex items-center gap-3">
               <div className={cn("p-2 rounded-lg group-hover:scale-110 transition-transform", `bg-${color}-50 dark:bg-${color}-900/20 text-${color}-600`)}>
                 <Icon className="w-5 h-5" />
@@ -533,7 +533,7 @@ const AdminDashboard = /* @__PURE__ */ __name(({ stats, pos, loading, plans, mat
       <AnimatePresence>
         {(aiInsights || isAiLoading) && <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="relative overflow-hidden group">
             <div className="absolute inset-0 bg-gradient-to-r from-blue-600/5 via-purple-600/5 to-blue-600/5 dark:from-blue-500/10 dark:via-purple-500/10 dark:to-blue-500/10" />
-            <Card className="p-5 border-blue-100 dark:border-blue-900/30 bg-white/50 dark:bg-gray-900/50 backdrop-blur-sm relative z-10">
+            <Card className="p-5 border-blue-100 dark:border-blue-900/30 bg-white/50 dark:bg-gray-800/60 backdrop-blur-sm relative z-10">
               <div className="flex items-start gap-4">
                 <div className="p-3 bg-blue-600 text-white rounded-xl shadow-lg shadow-blue-500/20">
                   <Sparkles className="w-5 h-5" />
@@ -582,7 +582,7 @@ const AdminDashboard = /* @__PURE__ */ __name(({ stats, pos, loading, plans, mat
     /* Charts */
   }
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card className="p-5 border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900">
+        <Card className="p-5 border-gray-100 dark:border-gray-700/50 bg-white dark:bg-gray-800/80">
           <div className="flex items-center justify-between mb-6">
             <h3 className="text-[15px] font-bold text-gray-900 dark:text-white flex items-center gap-2"><BarChart3 className="w-4 h-4 text-blue-500" />Stock Distribution by Category</h3>
           </div>
@@ -614,7 +614,7 @@ const AdminDashboard = /* @__PURE__ */ __name(({ stats, pos, loading, plans, mat
           </div>
         </Card>
 
-        <Card className="p-5 border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900">
+        <Card className="p-5 border-gray-100 dark:border-gray-700/50 bg-white dark:bg-gray-800/80">
           <div className="flex items-center justify-between mb-6">
             <h3 className="text-[15px] font-bold text-gray-900 dark:text-white flex items-center gap-2"><PieIcon className="w-4 h-4 text-purple-500" />Value Concentration</h3>
           </div>
@@ -654,7 +654,7 @@ const AdminDashboard = /* @__PURE__ */ __name(({ stats, pos, loading, plans, mat
     { label: "Quick Inward", sub: "Record new stock entry", icon: ArrowDownLeft, hash: "inward", cls: "hover:border-emerald-500/50", iconCls: "bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600" },
     { label: "Quick Outward", sub: "Record stock issuance", icon: ArrowUpRight, hash: "outward", cls: "hover:border-orange-500/50", iconCls: "bg-orange-50 dark:bg-orange-900/20 text-orange-600" },
     { label: "Quick Transfer", sub: "Move stock between projects", icon: ArrowRightLeft, hash: "transfer-outward", cls: "hover:border-blue-500/50", iconCls: "bg-blue-50 dark:bg-blue-900/20 text-blue-500" }
-  ].map(({ label, sub, icon: Icon, hash, cls, iconCls }) => <Card key={hash} className={`p-4 cursor-pointer transition-all group bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-800 ${cls}`} onClick={() => window.location.hash = hash}>
+  ].map(({ label, sub, icon: Icon, hash, cls, iconCls }) => <Card key={hash} className={`p-4 cursor-pointer transition-all group bg-white dark:bg-gray-800/80 border-gray-100 dark:border-gray-700/50 ${cls}`} onClick={() => window.location.hash = hash}>
             <div className="flex items-center gap-3">
               <div className={`p-2 ${iconCls} rounded-lg group-hover:scale-110 transition-transform`}><Icon className="w-5 h-5" /></div>
               <div><h4 className="text-[13px] font-bold text-gray-900 dark:text-white">{label}</h4><p className="text-[11px] text-gray-500">{sub}</p></div>
@@ -667,19 +667,19 @@ const AdminDashboard = /* @__PURE__ */ __name(({ stats, pos, loading, plans, mat
   }
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2">
-          <Card className="p-0 overflow-hidden border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900">
-            <div className="p-4 border-b border-gray-200 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-800/50">
+          <Card className="p-0 overflow-hidden border-gray-100 dark:border-gray-700/50 bg-white dark:bg-gray-800/80">
+            <div className="p-4 border-b border-gray-100 dark:border-gray-700/50 bg-gray-50/50 dark:bg-gray-800/50">
               <h3 className="text-[14px] font-bold text-gray-900 dark:text-white">Recent Purchase Orders</h3>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
                 <thead>
-                  <tr className="bg-gray-50 dark:bg-gray-800/50 border-b border-gray-200 dark:border-gray-800">
+                  <tr className="bg-gray-50 dark:bg-gray-800/40 border-b border-gray-200 dark:border-gray-800">
                     {["PO no.", "Project", "Value", "Status"].map((h) => <th key={h} className="px-4 py-3 text-[11px] font-bold text-gray-500 dark:text-gray-400">{h}</th>)}
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-200 dark:divide-gray-800">
-                  {pos?.slice(-5).reverse().map((po) => <tr key={po.id} className="hover:bg-gray-50/50 dark:hover:bg-gray-800/30 transition-colors">
+                <tbody className="divide-y divide-gray-100 dark:divide-gray-700/40">
+                  {pos?.slice(-5).reverse().map((po) => <tr key={po.id} className="hover:bg-gray-50/70 dark:hover:bg-gray-700/30 transition-colors">
                       <td className="px-4 py-3 text-[13px] font-medium text-gray-900 dark:text-white">{po.id}</td>
                       <td className="px-4 py-3 text-[13px] text-gray-500 dark:text-gray-400">{po.project}</td>
                       <td className="px-4 py-3 text-[13px] font-medium text-gray-900 dark:text-white">{fmtCur(po.totalValue)}</td>
@@ -693,7 +693,7 @@ const AdminDashboard = /* @__PURE__ */ __name(({ stats, pos, loading, plans, mat
         </div>
 
         <div className="space-y-4">
-          <Card className="p-4 border-l-4 border-l-red-500 dark:bg-gray-900 border-gray-200 dark:border-gray-800">
+          <Card className="p-4 border-l-4 border-l-red-500 dark:bg-gray-800/80 border-gray-100 dark:border-gray-700/50">
             <div className="flex items-start gap-3">
               <AlertTriangle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
               <div>
@@ -703,7 +703,7 @@ const AdminDashboard = /* @__PURE__ */ __name(({ stats, pos, loading, plans, mat
               </div>
             </div>
           </Card>
-          <Card className="p-4 border-l-4 border-l-amber-500 dark:bg-gray-900 border-gray-200 dark:border-gray-800">
+          <Card className="p-4 border-l-4 border-l-amber-500 dark:bg-gray-800/80 border-gray-100 dark:border-gray-700/50">
             <div className="flex items-start gap-3">
               <FileText className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
               <div>

@@ -6,13 +6,17 @@
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
   --animate-pulse-subtle: pulse-subtle 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
   --animate-progress: progress 2s ease-in-out infinite;
+  --animate-fade-in: fade-in 0.5s ease-in-out;
+  --animate-fade-in-down: fade-in-down 0.3s ease-out;
+  --animate-fade-in-up: fade-in-up 0.3s ease-out;
+  --animate-slide-in-right: slide-in-right 0.3s ease-out;
 
   @keyframes pulse-subtle {
     0%, 100% {
-      box-shadow: 0 0 0 0 rgba(var(--color-primary-rgb, 249, 115, 22), 0.1);
+      box-shadow: 0 0 0 0 rgba(249, 115, 22, 0.1);
     }
     50% {
-      box-shadow: 0 0 0 4px rgba(var(--color-primary-rgb, 249, 115, 22), 0.2);
+      box-shadow: 0 0 0 4px rgba(249, 115, 22, 0.2);
     }
   }
 
@@ -20,6 +24,26 @@
     0% { transform: translateX(-100%) scaleX(0.3); }
     50% { transform: translateX(0%) scaleX(2); }
     100% { transform: translateX(100%) scaleX(0.3); }
+  }
+
+  @keyframes fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+
+  @keyframes fade-in-down {
+    from { opacity: 0; transform: translateY(-10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  @keyframes fade-in-up {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  @keyframes slide-in-right {
+    from { opacity: 0; transform: translateX(100%); }
+    to { opacity: 1; transform: translateX(0); }
   }
 }
 
@@ -41,11 +65,15 @@
 }
 
 @layer base {
+  html {
+    font-family: "Inter", system-ui, sans-serif;
+  }
+
   body {
-    @apply bg-white dark:bg-[#0F172A] text-gray-900 dark:text-gray-100;
+    @apply bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-gray-100 transition-colors duration-300;
     scrollbar-gutter: stable;
   }
-  
+
   * {
     @apply border-gray-200 dark:border-gray-800;
   }
@@ -53,11 +81,11 @@
   .approval-highlight {
     @apply animate-pulse-subtle border-primary/20 dark:border-primary/30 bg-primary/5 dark:bg-primary/5;
   }
-  
-  /* Custom Scrollbar */
+
+  /* Custom Scrollbar — matches NEOTERIC style */
   ::-webkit-scrollbar {
-    width: 8px;
-    height: 8px;
+    width: 6px;
+    height: 6px;
   }
 
   ::-webkit-scrollbar-track {
@@ -65,17 +93,31 @@
   }
 
   ::-webkit-scrollbar-thumb {
-    @apply bg-gray-300 dark:bg-gray-700 rounded-full hover:bg-gray-400 dark:hover:bg-gray-600 transition-colors;
+    background-color: rgba(156, 163, 175, 0.35);
+    border-radius: 10px;
+    transition: background-color 0.2s;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background-color: rgba(156, 163, 175, 0.6);
+  }
+
+  .dark ::-webkit-scrollbar-thumb {
+    background-color: rgba(75, 85, 99, 0.45);
+  }
+
+  .dark ::-webkit-scrollbar-thumb:hover {
+    background-color: rgba(75, 85, 99, 0.75);
   }
 
   /* Firefox */
   * {
     scrollbar-width: thin;
-    scrollbar-color: theme('colors.gray.300') transparent;
+    scrollbar-color: rgba(156, 163, 175, 0.35) transparent;
   }
 
   .dark * {
-    scrollbar-color: theme('colors.gray.700') transparent;
+    scrollbar-color: rgba(75, 85, 99, 0.45) transparent;
   }
 
   /* Table Sticky Fixes & Responsive Layout */
@@ -115,7 +157,7 @@
     position: sticky;
     top: 0;
     z-index: 11;
-    @apply backdrop-blur-md bg-white/90 dark:bg-[#1E293B]/95;
+    @apply backdrop-blur-md bg-white/90 dark:bg-gray-800/95;
   }
 }
 
@@ -128,7 +170,6 @@
     background-color: white !important;
     color: black !important;
   }
-  /* Optional: Ensure the PO printable area takes up the A4 page nicely */
   #printable-po {
     width: 100% !important;
     max-width: 100% !important;

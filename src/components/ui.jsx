@@ -13,7 +13,7 @@ const Card = React.memo(({
   ...props
 }) => <div
   className={cn(
-    "bg-white dark:bg-transparent rounded-lg border border-gray-100 dark:border-gray-600/80 shadow-[0_1px_4px_rgba(0,0,0,0.04)] dark:shadow-none transition-colors duration-200",
+    "bg-white dark:bg-gray-800/80 rounded-xl border border-gray-100 dark:border-gray-700/50 shadow-sm hover:shadow-md transition-all duration-200",
     className
   )}
   {...props}
@@ -331,16 +331,16 @@ const Modal = /* @__PURE__ */ __name(({ title, onClose, wide, extraWide, ultraWi
   animate={{ x: 0 }}
   transition={{ type: "spring", damping: 30, stiffness: 300 }}
   className={cn(
-    "bg-white dark:bg-[#1E293B] h-full shadow-2xl flex flex-col border-l border-gray-100 dark:border-gray-600/80 transition-colors duration-200",
+    "bg-white dark:bg-gray-800 h-full shadow-2xl flex flex-col border-l border-gray-100 dark:border-gray-700/50 transition-colors duration-200",
     ultraWide ? "w-full max-w-6xl" : extraWide ? "w-full max-w-4xl" : wide ? "w-full max-w-2xl" : "w-full max-w-md",
     className
   )}
 >
-      <div className="flex items-center justify-between px-4 sm:px-6 py-4 border-b border-[#E8ECF0] dark:border-gray-600/80 shrink-0">
-        <h2 className="text-[15px] sm:text-base font-bold text-[#1A1A2E] dark:text-[#F1F5F9] truncate pr-4">{title}</h2>
+      <div className="flex items-center justify-between px-4 sm:px-6 py-4 border-b border-gray-100 dark:border-gray-700/50 bg-gray-50/50 dark:bg-gray-800/50 shrink-0">
+        <h2 className="text-[15px] sm:text-base font-bold text-gray-900 dark:text-white truncate pr-4">{title}</h2>
         <button
   onClick={onClose}
-  className="p-1.5 sm:p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800/60 rounded-lg transition-colors shrink-0"
+  className="p-1.5 sm:p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-xl transition-colors shrink-0"
 >
           <X className="w-5 h-5" />
         </button>
@@ -349,7 +349,7 @@ const Modal = /* @__PURE__ */ __name(({ title, onClose, wide, extraWide, ultraWi
         <div className="p-4 sm:p-6 flex-1">
           {children}
         </div>
-        {footer && <div className="sticky bottom-0 z-[50] px-4 sm:px-6 py-3 sm:py-4 border-t border-[#E8ECF0] dark:border-gray-600/80 bg-gray-50 dark:bg-[#172030] mt-auto shrink-0">
+        {footer && <div className="sticky bottom-0 z-[50] px-4 sm:px-6 py-3 sm:py-4 border-t border-gray-100 dark:border-gray-700/50 bg-gray-50 dark:bg-gray-800/80 mt-auto shrink-0">
             {footer}
           </div>}
       </div>
@@ -367,7 +367,7 @@ const ConfirmModal = /* @__PURE__ */ __name(({ title, message, onConfirm, onCanc
   initial={{ scale: 0.95, opacity: 0 }}
   animate={{ scale: 1, opacity: 1 }}
   transition={{ type: "spring", damping: 30, stiffness: 300 }}
-  className="bg-white dark:bg-[#1E293B] rounded-lg shadow-2xl w-full max-w-sm flex flex-col border border-gray-100 dark:border-gray-600/80 p-6"
+  className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-sm flex flex-col border border-gray-100 dark:border-gray-700/50 p-6"
 >
       <h2 className="text-[15px] font-bold text-[#1A1A2E] dark:text-[#F1F5F9] mb-4 text-center">{title}</h2>
       <div className="flex flex-col items-center text-center">
@@ -393,15 +393,15 @@ const Table = /* @__PURE__ */ __name(({ children, className, ...props }) => <div
       {children}
     </table>
   </div>, "Table");
-const Thead = /* @__PURE__ */ __name(({ children, className, ...props }) => <thead className={cn("bg-gray-50/90 dark:bg-gray-800/90 backdrop-blur-md sticky top-0 z-30 border-b border-gray-200 dark:border-gray-600", className)} {...props}>
+const Thead = /* @__PURE__ */ __name(({ children, className, ...props }) => <thead className={cn("bg-gray-50 dark:bg-gray-800/95 backdrop-blur-md sticky top-0 z-30 border-b border-gray-100 dark:border-gray-700/50", className)} {...props}>
     {children}
   </thead>, "Thead");
-const Tbody = /* @__PURE__ */ __name(({ children, className, ...props }) => <tbody className={cn("divide-y divide-gray-100 dark:divide-gray-800", className)} {...props}>
+const Tbody = /* @__PURE__ */ __name(({ children, className, ...props }) => <tbody className={cn("divide-y divide-gray-100 dark:divide-gray-700/40", className)} {...props}>
     {children}
   </tbody>, "Tbody");
 const Tr = /* @__PURE__ */ __name(({ children, className, isPending, isNew, ...props }) => <tr
   className={cn(
-    "group hover:bg-gray-50/50 dark:hover:bg-gray-800/30 transition-all duration-200",
+    "group hover:bg-gray-50/70 dark:hover:bg-gray-700/30 transition-all duration-200",
     isPending && "bg-orange-50/30 dark:bg-orange-950/20",
     isNew && "bg-blue-50/30 dark:bg-blue-950/20",
     className
@@ -435,7 +435,7 @@ const TdText = /* @__PURE__ */ __name(({ children, className, title, ...props })
   </td>, "TdText");
 const ThemeToggle = /* @__PURE__ */ __name(({ theme, toggleTheme }) => <button
   onClick={toggleTheme}
-  className="p-2 rounded-lg bg-gray-100 dark:bg-[#334155] text-gray-600 dark:text-[#94A3B8] hover:bg-gray-200 dark:hover:bg-[#475569] transition-all duration-500 relative overflow-hidden flex items-center justify-center w-10 h-10"
+  className="p-2 rounded-xl bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-600 transition-all duration-300 relative overflow-hidden flex items-center justify-center w-10 h-10 shadow-sm"
   title={`Switch to ${theme === "light" ? "dark" : "light"} mode`}
 >
     <AnimatePresence mode="wait" initial={false}>
@@ -452,8 +452,8 @@ const ThemeToggle = /* @__PURE__ */ __name(({ theme, toggleTheme }) => <button
   </button>, "ThemeToggle");
 const PageHeader = /* @__PURE__ */ __name(({ title, sub, actions }) => <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-6 sm:mb-8">
     <div className="min-w-0">
-      <h1 className="text-xl sm:text-[26px] font-extrabold text-[#1A1A2E] dark:text-[#F1F5F9] tracking-tight">{title}</h1>
-      {sub && <p className="text-[12px] sm:text-[13px] text-gray-700 dark:text-gray-300 mt-1 sm:mt-1.5 font-medium">{sub}</p>}
+      <h1 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white tracking-tight">{title}</h1>
+      {sub && <p className="text-[12px] sm:text-[13px] text-gray-500 dark:text-gray-400 mt-1 sm:mt-1.5 font-medium">{sub}</p>}
     </div>
     {actions && <div className="flex flex-wrap items-center gap-2 sm:gap-2.5">{actions}</div>}
   </div>, "PageHeader");
@@ -462,34 +462,39 @@ const KPICard = /* @__PURE__ */ __name(({
   value,
   sub,
   color = "blue",
-  icon: Icon
+  icon: Icon,
+  change,
+  trend
 }) => {
-  const colors = {
-    orange: "bg-[#FFF7ED] text-[#F97316] dark:bg-[#451A03] dark:text-[#F97316]",
-    blue: "bg-[#EFF6FF] text-[#3B82F6] dark:bg-[#1E3A8A] dark:text-[#60A5FA]",
-    green: "bg-[#ECFDF5] text-[#10B981] dark:bg-[#064E3B] dark:text-[#34D399]",
-    purple: "bg-[#F5F3FF] text-[#8B5CF6] dark:bg-[#2E1065] dark:text-[#A78BFA]",
-    red: "bg-[#FEF2F2] text-[#EF4444] dark:bg-[#450A0A] dark:text-[#F87171]"
+  const iconColors = {
+    orange: "bg-orange-50 text-orange-500 dark:bg-orange-500/10 dark:text-orange-400",
+    blue: "bg-blue-50 text-blue-500 dark:bg-blue-500/10 dark:text-blue-400",
+    green: "bg-emerald-50 text-emerald-500 dark:bg-emerald-500/10 dark:text-emerald-400",
+    purple: "bg-violet-50 text-violet-500 dark:bg-violet-500/10 dark:text-violet-400",
+    red: "bg-red-50 text-red-500 dark:bg-red-500/10 dark:text-red-400"
   };
-  return <Card className="p-4 sm:p-6 flex items-start gap-4 sm:gap-5 hover:border-[#F97316]/30 dark:hover:border-[#F97316]/30 transition-all duration-300">
-      <div className={cn("p-2.5 sm:p-3.5 rounded-md sm:rounded-lg shrink-0", colors[color])}>
-        <Icon className="w-5 h-5 sm:w-7 sm:h-7" />
+  return <div className="bg-white dark:bg-gray-800/80 rounded-xl border border-gray-100 dark:border-gray-700/50 shadow-sm hover:shadow-md transition-all duration-300 p-5 flex flex-col min-h-[130px]">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-medium text-gray-500 dark:text-gray-400 leading-tight truncate">{label}</p>
+          <p className="text-2xl font-bold text-gray-900 dark:text-white mt-1.5 break-words">{value}</p>
+          {change !== undefined && <p className={cn("text-xs font-semibold mt-1 flex items-center gap-1", trend === "up" ? "text-emerald-600 dark:text-emerald-400" : "text-red-500 dark:text-red-400")}>
+            {trend === "up" ? "↑" : "↓"} {change}
+          </p>}
+          {sub && !change && <p className="text-[11px] text-gray-400 dark:text-gray-500 mt-1 font-medium leading-relaxed">{sub}</p>}
+        </div>
+        {Icon && <div className={cn("p-2.5 rounded-lg shrink-0", iconColors[color])}>
+          <Icon className="w-5 h-5 sm:w-6 sm:h-6" />
+        </div>}
       </div>
-      <div className="min-w-0 flex-1">
-        <p className="text-[9px] sm:text-[10px] font-bold text-gray-700 dark:text-gray-300 leading-tight">
-          {label}
-        </p>
-        <p className="text-lg sm:text-xl font-black text-[#1A1A2E] dark:text-[#F1F5F9] mt-0.5 sm:mt-1 break-words">{value}</p>
-        {sub && <p className="text-[9px] sm:text-[10px] text-[#9CA3AF] dark:text-[#64748B] mt-1 sm:mt-1 font-medium leading-relaxed">{sub}</p>}
-      </div>
-    </Card>;
+    </div>;
 }, "KPICard");
 const Pagination = /* @__PURE__ */ __name(({
   data,
   onPageChange
 }) => {
   if (!data || data.pages <= 1) return null;
-  return <div className="flex items-center justify-between px-4 py-4 bg-white dark:bg-[#1E293B] border-t border-[#E8ECF0] dark:border-[#334155] sm:px-6 rounded-b-xl transition-colors duration-200">
+  return <div className="flex items-center justify-between px-4 py-3 bg-white dark:bg-gray-800 border-t border-gray-100 dark:border-gray-700/50 sm:px-6 rounded-b-xl transition-colors duration-200">
       <div className="flex justify-between flex-1 sm:hidden">
         <Btn label="Previous" onClick={() => onPageChange(data.page - 1)} disabled={data.page === 1} outline small />
         <Btn label="Next" onClick={() => onPageChange(data.page + 1)} disabled={data.page === data.pages} outline small />

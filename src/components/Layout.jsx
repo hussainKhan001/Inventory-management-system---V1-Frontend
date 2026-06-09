@@ -150,7 +150,7 @@ const Layout = /* @__PURE__ */ __name(({ children }) => {
         return null;
     }
   }, "getCount");
-  return <div className="flex h-screen bg-gray-50 dark:bg-gray-950 font-sans text-gray-900 dark:text-gray-100 overflow-hidden transition-colors duration-300">
+  return <div className="flex h-screen bg-gray-100 dark:bg-gray-900 font-sans text-gray-900 dark:text-gray-100 overflow-hidden transition-colors duration-300">
 {
     /* Mobile Sidebar Overlay */
   }
@@ -163,29 +163,29 @@ const Layout = /* @__PURE__ */ __name(({ children }) => {
     /* Sidebar */
   }
       <div
-    className={`fixed inset-y-0 left-0 z-50 lg:relative lg:flex flex-col bg-gray-900 dark:bg-black text-white transition-all duration-300 shrink-0 [will-change:width,transform]
+    className={`fixed inset-y-0 left-0 z-50 lg:relative lg:flex flex-col bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-100 transition-all duration-300 shrink-0 [will-change:width,transform] border-r lg:border border-gray-100 dark:border-gray-700/50 shadow-[0_8px_30px_rgb(0,0,0,0.06)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.25)] lg:my-1 lg:ml-1 lg:rounded-xl overflow-hidden backdrop-blur-xl
           ${mobileMenuOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}
           ${collapsed ? "lg:w-16" : "lg:w-[230px] w-[260px]"}
         `}
   >
-        <div className="h-14 flex items-center px-4 border-b border-white/10 shrink-0">
+        <div className="h-14 flex items-center px-4 border-b border-gray-100 dark:border-gray-700/50 shrink-0">
           {settings?.logoUrl ? <img
     src={settings.logoUrl.startsWith("/") && !settings.logoUrl.startsWith("/uploads") ? settings.logoUrl : settings.logoUrl.startsWith("/uploads") ? `${window.location.protocol}//${window.location.hostname}:5000${settings.logoUrl}` : settings.logoUrl}
     alt="Logo"
-    className="w-8 h-8 object-contain shrink-0 rounded"
-  /> : <div className="w-8 h-8 bg-primary rounded flex items-center justify-center font-bold text-lg shrink-0">
+    className="w-8 h-8 object-contain shrink-0 rounded-lg"
+  /> : <div className="w-8 h-8 rounded-lg flex items-center justify-center font-bold text-base shrink-0 text-white" style={{background: `linear-gradient(135deg, #F97316, #ea580c)`}}>
               {(settings?.appName || "N").charAt(0)}
             </div>}
-          {(!collapsed || mobileMenuOpen) && <span className="ml-3 font-bold truncate">{settings?.appName || "Garden City"}</span>}
+          {(!collapsed || mobileMenuOpen) && <span className="ml-3 font-bold text-gray-900 dark:text-white truncate text-[14px]">{settings?.appName || "Garden City"}</span>}
           <button
     onClick={() => setMobileMenuOpen(false)}
-    className="ml-auto lg:hidden p-2 text-gray-400 hover:text-white"
+    className="ml-auto lg:hidden p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
   >
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto py-4 custom-scrollbar">
+        <div className="flex-1 overflow-y-auto py-3 px-2 custom-scrollbar space-y-0.5">
           {visibleNav.map((item) => {
     const count = getCount(item.id);
     const isActive = currentHash === item.id;
@@ -193,25 +193,26 @@ const Layout = /* @__PURE__ */ __name(({ children }) => {
       key={item.id}
       href={`#${item.id}`}
       onClick={() => setMobileMenuOpen(false)}
-      className={`flex items-center px-4 py-3 border-l-2 transition-all duration-300 group ${isActive ? "bg-white/10 text-white border-primary" : "text-gray-400 hover:bg-white/5 hover:text-white border-transparent hover:border-primary/50"}`}
+      className={`flex items-center px-3 py-2.5 rounded-lg transition-all duration-200 group ${isActive ? "bg-primary/10 dark:bg-primary/15 text-primary font-semibold" : "text-gray-600 dark:text-gray-400 hover:bg-gray-100/70 dark:hover:bg-gray-700/50 hover:text-gray-900 dark:hover:text-gray-100"}`}
     >
-                <item.icon className={`w-5 h-5 shrink-0 transition-colors ${isActive ? "text-primary" : "text-gray-400 group-hover:text-white"}`} />
-                {(!collapsed || mobileMenuOpen) && <div className="ml-3 flex-1 flex items-center justify-between min-w-0">
-                    <span className="text-[13px] font-medium truncate">
+                <item.icon className={`w-4.5 h-4.5 shrink-0 transition-colors ${isActive ? "text-primary" : "text-gray-400 dark:text-gray-500 group-hover:text-gray-700 dark:group-hover:text-gray-200"}`} style={{width: '18px', height: '18px'}} />
+                {(!collapsed || mobileMenuOpen) && <div className="ml-2.5 flex-1 flex items-center justify-between min-w-0">
+                    <span className="text-[13px] truncate">
                       {item.label}
                     </span>
+                    {count > 0 && !isActive && <span className="ml-2 text-[10px] font-bold bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 rounded-full px-1.5 py-0.5 shrink-0">{count > 99 ? "99+" : count}</span>}
                   </div>}
               </a>;
   })}
         </div>
 
-        <div className="p-4 border-t border-white/10 shrink-0">
+        <div className="p-2 border-t border-gray-100 dark:border-gray-700/50 shrink-0">
           <button
     onClick={handleLogout}
-    className="flex items-center w-full text-gray-400 hover:text-white transition-colors"
+    className="flex items-center w-full px-3 py-2.5 rounded-lg text-gray-500 dark:text-gray-400 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/10 transition-all duration-200 group"
   >
-            <LogOut className="w-5 h-5 shrink-0" />
-            {(!collapsed || mobileMenuOpen) && <span className="ml-3 text-[13px] font-medium">Sign Out</span>}
+            <LogOut className="w-[18px] h-[18px] shrink-0 group-hover:text-red-500 dark:group-hover:text-red-400" />
+            {(!collapsed || mobileMenuOpen) && <span className="ml-2.5 text-[13px] font-medium">Sign Out</span>}
           </button>
         </div>
       </div>
@@ -227,7 +228,7 @@ const Layout = /* @__PURE__ */ __name(({ children }) => {
             <div className="h-full bg-orange-500 animate-progress origin-left" />
           </div>}
 
-        <header className="h-14 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between px-4 shrink-0 transition-colors duration-200">
+        <header className="h-14 bg-white/80 dark:bg-gray-800/90 backdrop-blur-md border border-gray-200/50 dark:border-gray-700/50 shadow-sm flex items-center justify-between px-4 shrink-0 transition-colors duration-200 mx-1 mt-1 rounded-xl">
           <div className="flex items-center gap-4">
             <button
     onClick={() => {
@@ -237,7 +238,7 @@ const Layout = /* @__PURE__ */ __name(({ children }) => {
         setCollapsed(!collapsed);
       }
     }}
-    className="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+    className="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
   >
               <Menu className="w-5 h-5" />
             </button>
@@ -252,7 +253,7 @@ const Layout = /* @__PURE__ */ __name(({ children }) => {
             <div className="relative">
               <button
     onClick={() => setShowNotifications(!showNotifications)}
-    className="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors relative"
+    className="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors relative"
   >
                 <Bell className="w-5 h-5" />
                 {unreadCount > 0 && <span className="absolute top-1.5 right-1.5 w-4 h-4 bg-red-500 text-white text-[10px] font-bold flex items-center justify-center rounded-full border-2 border-white dark:border-gray-900">
@@ -270,9 +271,9 @@ const Layout = /* @__PURE__ */ __name(({ children }) => {
     initial={{ opacity: 0, y: 10, scale: 0.95 }}
     animate={{ opacity: 1, y: 0, scale: 1 }}
     exit={{ opacity: 0, y: 10, scale: 0.95 }}
-    className="absolute right-0 mt-2 w-80 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl shadow-xl z-50 overflow-hidden"
+    className="absolute right-0 mt-2 w-80 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-xl z-50 overflow-hidden"
   >
-                      <div className="p-4 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between bg-gray-50/50 dark:bg-gray-800/50">
+                      <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between bg-gray-50/50 dark:bg-gray-800/50">
                         <h3 className="font-bold text-sm">Notifications</h3>
                         <div className="flex gap-2">
                           {unreadCount > 0 && <button
@@ -296,7 +297,7 @@ const Layout = /* @__PURE__ */ __name(({ children }) => {
                           </div> : notifications.map((n) => <button
     key={n.id}
     onClick={() => handleNotificationClick(n)}
-    className={`w-full p-4 text-left border-b border-gray-100 dark:border-gray-800/50 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors flex gap-3 ${!n.read ? "bg-primary/5 dark:bg-primary/10" : ""}`}
+    className={`w-full p-4 text-left border-b border-gray-100 dark:border-gray-700/40 hover:bg-gray-50 dark:hover:bg-gray-700/40 transition-colors flex gap-3 ${!n.read ? "bg-primary/5 dark:bg-primary/10" : ""}`}
   >
                               <div className={`mt-1 w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${n.severity === "success" ? "bg-green-100 text-green-600 dark:bg-green-900/30" : n.severity === "warning" ? "bg-amber-100 text-orange-500 dark:bg-amber-900/30" : n.severity === "error" ? "bg-red-100 text-red-600 dark:bg-red-900/30" : "bg-blue-100 text-blue-500 dark:bg-blue-900/30"}`}>
                                 {n.severity === "success" ? <CheckCircle2 className="w-4 h-4" /> : n.severity === "warning" ? <AlertCircle className="w-4 h-4" /> : n.severity === "error" ? <X className="w-4 h-4" /> : <Info className="w-4 h-4" />}
@@ -320,7 +321,7 @@ const Layout = /* @__PURE__ */ __name(({ children }) => {
             <div className="relative">
               <button
     onClick={() => setShowProfileDropdown(!showProfileDropdown)}
-    className="flex items-center gap-3 p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+    className="flex items-center gap-3 p-1 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
   >
                 <div className="text-right hidden sm:block">
                   <div className="text-[13px] font-bold text-gray-900 dark:text-white">
@@ -347,12 +348,12 @@ const Layout = /* @__PURE__ */ __name(({ children }) => {
     initial={{ opacity: 0, y: 10, scale: 0.95 }}
     animate={{ opacity: 1, y: 0, scale: 1 }}
     exit={{ opacity: 0, y: 10, scale: 0.95 }}
-    className="absolute right-0 mt-2 w-64 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl shadow-xl z-50 overflow-hidden"
+    className="absolute right-0 mt-2 w-72 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-xl z-50 overflow-hidden"
   >
                       {
     /* User header */
   }
-                      <div className="p-4 border-b border-gray-200 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-800/50 flex items-center gap-3">
+                      <div className="p-4 border-b border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/50 flex items-center gap-3">
                         <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm shrink-0 ${role === "Super Admin" ? "bg-gradient-to-br from-purple-600 to-purple-800" : "bg-primary"}`}>
                           {user?.name?.charAt(0)}
                         </div>
@@ -370,7 +371,7 @@ const Layout = /* @__PURE__ */ __name(({ children }) => {
       setShowProfileDropdown(false);
       window.location.hash = "users-manage";
     }}
-    className="w-full flex items-center gap-3 px-3 py-2 text-[13px] font-bold text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 rounded-lg transition-all group"
+    className="w-full flex items-center gap-3 px-3 py-2 text-[13px] font-bold text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg transition-all group"
   >
                             <ShieldAlert className="w-4 h-4 text-gray-400 group-hover:text-primary" />
                             Super Admin
@@ -380,7 +381,7 @@ const Layout = /* @__PURE__ */ __name(({ children }) => {
       setShowProfileDropdown(false);
       window.location.hash = "profile";
     }}
-    className="w-full flex items-center gap-3 px-3 py-2 text-[13px] font-bold text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 rounded-lg transition-all group"
+    className="w-full flex items-center gap-3 px-3 py-2 text-[13px] font-bold text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg transition-all group"
   >
                           <Users className="w-4 h-4 text-gray-400 group-hover:text-primary" />
                           My Profile
@@ -406,7 +407,7 @@ const Layout = /* @__PURE__ */ __name(({ children }) => {
                           </button>
 
                           {showSwitchUserMenu && <div className="mt-1 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
-                              <div className="flex items-center gap-2 px-2 py-1.5 border-b border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-900">
+                              <div className="flex items-center gap-2 px-2 py-1.5 border-b border-gray-100 dark:border-gray-700 bg-white dark:bg-gray-800">
                                 <Search className="w-3 h-3 text-gray-400 shrink-0" />
                                 <input
     autoFocus
@@ -421,7 +422,7 @@ const Layout = /* @__PURE__ */ __name(({ children }) => {
                                 {filteredUsers.length === 0 ? <p className="text-[11px] text-gray-400 text-center py-3">No users found</p> : filteredUsers.map((u) => <button
     key={u._id}
     onClick={() => handleSwitchUser(u._id)}
-    className="w-full flex items-center gap-2 px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors text-left"
+    className="w-full flex items-center gap-2 px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors text-left"
   >
                                       <div className="w-6 h-6 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center text-[10px] font-bold text-gray-600 dark:text-gray-300 shrink-0">
                                         {u.name.charAt(0)}
@@ -443,7 +444,7 @@ const Layout = /* @__PURE__ */ __name(({ children }) => {
                             </button>}
                         </div>}
 
-                      <div className="border-t border-gray-100 dark:border-gray-800 p-2">
+                      <div className="border-t border-gray-100 dark:border-gray-700 p-2">
                         <button
     onClick={() => {
       setShowProfileDropdown(false);
@@ -462,8 +463,8 @@ const Layout = /* @__PURE__ */ __name(({ children }) => {
           </div>
         </header>
 
-        <main className={`flex-1 overflow-y-auto px-4 py-6 sm:px-6 md:px-8 bg-gray-50 dark:bg-gray-950 ${isSwitched ? "pt-14" : ""}`}>
-          <div className="mx-auto w-full">
+        <main className={`flex-1 overflow-y-auto px-3 py-3 bg-gray-100 dark:bg-gray-900 custom-scrollbar ${isSwitched ? "pt-14" : ""}`}>
+          <div className="mx-auto w-full min-h-full bg-white dark:bg-gray-800/50 rounded-xl border border-gray-100/80 dark:border-gray-700/30 shadow-sm p-4 sm:p-5">
             {children}
           </div>
         </main>
