@@ -105,7 +105,7 @@ const SiteEngineerDashboard = /* @__PURE__ */ __name(({ user, plans, materialReq
       {
     /* KPIs */
   }
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <KPICard label="My Plans" value={myPlans.length} icon={Layers} color="blue" sub="Active material plans" />
         <KPICard label="Total Required" value={totalRequired} icon={Package} color="orange" sub="Units across all plans" />
         <KPICard label="Allotted" value={totalAllotted} icon={CheckSquare} color="green" sub="Units received" />
@@ -242,7 +242,7 @@ const AGMDashboard = /* @__PURE__ */ __name(({ user, plans, materialRequirements
       {
     /* KPIs */
   }
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <KPICard label="My Projects" value={myProjects.length} icon={Boxes} color="blue" sub="Under oversight" />
         <KPICard label="Active Plans" value={myPlans.length} icon={Layers} color="orange" sub="Material plans" />
         <KPICard label="Pending L1 POs" value={pendingL1POs.length} icon={FileText} color={pendingL1POs.length > 0 ? "red" : "green"} sub="Awaiting L1 approval" />
@@ -367,7 +367,7 @@ const StoreInchargeDashboard = /* @__PURE__ */ __name(({ stats, materialRequirem
       {
     /* KPIs */
   }
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <KPICard label="Awaiting Review" value={storePending.length} icon={Clock} color={storePending.length > 0 ? "red" : "green"} sub="Store Pending MRs" />
         <KPICard label="Ready to Allocate" value={approvedByStore.length} icon={CircleCheck} color={approvedByStore.length > 0 ? "orange" : "green"} sub="Approved by Store" />
         <KPICard label="Low Stock Items" value={lowStockCount} icon={AlertTriangle} color={lowStockCount > 0 ? "red" : "green"} sub="Below reorder level" />
@@ -509,7 +509,7 @@ const AdminDashboard = /* @__PURE__ */ __name(({ stats, pos, loading, plans, mat
   if (loading && !stats.totalSKUs) {
     return <div className="space-y-6">
         <PageHeader title="Dashboard" sub="Loading overview..." />
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 sm:gap-5">
           {[1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-32 rounded-2xl" />)}
         </div>
         <Skeleton className="h-80 rounded-2xl" />
@@ -556,7 +556,7 @@ const AdminDashboard = /* @__PURE__ */ __name(({ stats, pos, loading, plans, mat
       {
     /* KPIs */
   }
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 sm:gap-6">
         <KPICard label="Total Items" value={totalSKUs} icon={BarChart3} color="blue" sub="Unique catalog SKUs" />
         <KPICard label="Available Items" value={totalSKUs - outOfStock} icon={CheckSquare} color="green" sub="Items in stock" />
         <KPICard label="Allocated" value={`${allocatedStock?.toLocaleString() || 0} Units`} icon={ArrowRightLeft} color="orange" sub="Reserved for MRs" />

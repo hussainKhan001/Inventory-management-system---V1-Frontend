@@ -193,7 +193,7 @@ const Layout = /* @__PURE__ */ __name(({ children }) => {
       key={item.id}
       href={`#${item.id}`}
       onClick={() => setMobileMenuOpen(false)}
-      className={`flex items-center px-3 py-2.5 rounded-lg transition-all duration-200 group ${isActive ? "bg-primary/10 dark:bg-primary/15 text-primary font-semibold" : "text-gray-600 dark:text-gray-400 hover:bg-gray-100/70 dark:hover:bg-gray-700/50 hover:text-gray-900 dark:hover:text-gray-100"}`}
+      className={`flex items-center py-2.5 rounded-lg transition-all duration-200 group ${collapsed && !mobileMenuOpen ? "justify-center px-2" : "px-3"} ${isActive ? "bg-primary/10 dark:bg-primary/15 text-primary font-semibold" : "text-gray-600 dark:text-gray-400 hover:bg-gray-100/70 dark:hover:bg-gray-700/50 hover:text-gray-900 dark:hover:text-gray-100"}`}
     >
                 <item.icon className={`w-4.5 h-4.5 shrink-0 transition-colors ${isActive ? "text-primary" : "text-gray-400 dark:text-gray-500 group-hover:text-gray-700 dark:group-hover:text-gray-200"}`} style={{width: '18px', height: '18px'}} />
                 {(!collapsed || mobileMenuOpen) && <div className="ml-2.5 flex-1 flex items-center justify-between min-w-0">
@@ -209,7 +209,7 @@ const Layout = /* @__PURE__ */ __name(({ children }) => {
         <div className="p-2 border-t border-gray-100 dark:border-gray-700/50 shrink-0">
           <button
     onClick={handleLogout}
-    className="flex items-center w-full px-3 py-2.5 rounded-lg text-gray-500 dark:text-gray-400 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/10 transition-all duration-200 group"
+    className={`flex items-center w-full py-2.5 rounded-lg text-gray-500 dark:text-gray-400 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/10 transition-all duration-200 group ${collapsed && !mobileMenuOpen ? "justify-center px-2" : "px-3"}`}
   >
             <LogOut className="w-[18px] h-[18px] shrink-0 group-hover:text-red-500 dark:group-hover:text-red-400" />
             {(!collapsed || mobileMenuOpen) && <span className="ml-2.5 text-[13px] font-medium">Sign Out</span>}
@@ -228,8 +228,8 @@ const Layout = /* @__PURE__ */ __name(({ children }) => {
             <div className="h-full bg-orange-500 animate-progress origin-left" />
           </div>}
 
-        <header className="h-14 bg-white/80 dark:bg-gray-800/90 backdrop-blur-md border border-gray-200/50 dark:border-gray-700/50 shadow-sm flex items-center justify-between px-4 shrink-0 transition-colors duration-200 mx-1 mt-1 rounded-xl">
-          <div className="flex items-center gap-4">
+        <header className="h-14 bg-white/80 dark:bg-gray-800/90 backdrop-blur-md border border-gray-200/50 dark:border-gray-700/50 shadow-sm flex items-center justify-between px-3 sm:px-4 shrink-0 transition-colors duration-200 mx-1 mt-1 rounded-xl">
+          <div className="flex items-center gap-2 sm:gap-3">
             <button
     onClick={() => {
       if (window.innerWidth < 1024) {
@@ -249,14 +249,14 @@ const Layout = /* @__PURE__ */ __name(({ children }) => {
               </span>
             </div>
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-1.5 sm:gap-3">
             <div className="relative">
               <button
     onClick={() => setShowNotifications(!showNotifications)}
     className="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors relative"
   >
                 <Bell className="w-5 h-5" />
-                {unreadCount > 0 && <span className="absolute top-1.5 right-1.5 w-4 h-4 bg-red-500 text-white text-[10px] font-bold flex items-center justify-center rounded-full border-2 border-white dark:border-gray-900">
+                {unreadCount > 0 && <span className="absolute top-1 right-1 min-w-[16px] h-4 px-1 bg-red-500 text-white text-[9px] font-bold flex items-center justify-center rounded-full">
                     {unreadCount}
                   </span>}
               </button>
@@ -324,12 +324,12 @@ const Layout = /* @__PURE__ */ __name(({ children }) => {
     className="flex items-center gap-3 p-1 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
   >
                 <div className="text-right hidden sm:block">
-                  <div className="text-[13px] font-bold text-gray-900 dark:text-white">
-                    {user?.name}
+                  <div className="text-[13px] font-semibold text-gray-900 dark:text-white leading-tight">
+                    {user?.name === role ? role : user?.name}
                   </div>
-                  <div className="text-[11px] text-gray-500 dark:text-gray-400">
+                  {user?.name !== role && <div className="text-[11px] text-gray-500 dark:text-gray-400 leading-tight mt-0.5">
                     {role}
-                  </div>
+                  </div>}
                 </div>
                 <div
     className={`w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-sm ${role === "Super Admin" ? "bg-gradient-to-br from-purple-600 to-purple-800" : "bg-primary"}`}
@@ -463,8 +463,8 @@ const Layout = /* @__PURE__ */ __name(({ children }) => {
           </div>
         </header>
 
-        <main className={`flex-1 overflow-y-auto px-3 py-3 bg-gray-100 dark:bg-gray-900 custom-scrollbar ${isSwitched ? "pt-14" : ""}`}>
-          <div className="mx-auto w-full min-h-full bg-white dark:bg-gray-800/50 rounded-xl border border-gray-100/80 dark:border-gray-700/30 shadow-sm p-4 sm:p-5">
+        <main className={`flex-1 overflow-y-auto bg-gray-100 dark:bg-gray-900 custom-scrollbar px-2 sm:px-3 ${isSwitched ? "pt-14 pb-2" : "py-2 sm:py-3"}`}>
+          <div className="mx-auto w-full min-h-full bg-white dark:bg-gray-800/50 rounded-xl border border-gray-100/80 dark:border-gray-700/30 shadow-sm p-4 sm:p-6">
             {children}
           </div>
         </main>
