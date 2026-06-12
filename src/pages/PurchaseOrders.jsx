@@ -102,6 +102,7 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
   const [filterProject, setFilterProject] = useState("");
   const [filterSupplier, setFilterSupplier] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
+  const [occupiedMRs, setOccupiedMRs] = useState(null);
   const supplierOptions = React.useMemo(() => {
     const optionsMap = /* @__PURE__ */ new Map();
     suppliers.forEach((s) => {
@@ -226,6 +227,7 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
     fetchResource("catalogue", 1, 1e3, true);
     fetchResource("material-requirements", 1, 100, true, "", null, false, false);
     fetchResource("quotations", 1, 1e3, true);
+    api.get("pos/occupied-mrs").then((res) => setOccupiedMRs(res.data || [])).catch(() => setOccupiedMRs([]));
   }, [fetchResource, page, debouncedSearch, startDate, endDate, filterProject, filterSupplier, filterStatus]);
   const loadMore = useCallback(() => {
     if (posPagination && page < posPagination.pages && !loading) {
@@ -272,13 +274,13 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
     unloadingGstPct: 0,
     unloadingGstType: "Exclusive",
     paymentTimelines: [
-      { date: todayStr(), type: "Advance", mode: "Bank Transfer", amount: 0, gstPct: "Inclusive", ifPayable: 0 },
-      { date: todayStr(), type: "On Delivery", mode: "Bank Transfer", amount: 0, gstPct: "-", ifPayable: 0 },
+      { date: todayStr(), type: "Advance", mode: "Bank Transfer", amount: 0, gstPct: 18, gstType: "Inclusive", ifPayable: 0 },
+      { date: todayStr(), type: "On Delivery", mode: "Bank Transfer", amount: 0, gstPct: 0, gstType: "Inclusive", ifPayable: 0 },
       { date: (() => {
         const d = new Date(todayStr());
         d.setDate(d.getDate() + 10);
         return d.toISOString().split("T")[0];
-      })(), type: "After 10 Days of Delivery", mode: "Bank Transfer", amount: 0, gstPct: "Inclusive", ifPayable: 0 }
+      })(), type: "After 10 Days of Delivery", mode: "Bank Transfer", amount: 0, gstPct: 18, gstType: "Inclusive", ifPayable: 0 }
     ]
   };
   const formatPrettyDate = /* @__PURE__ */ __name((dateString) => {
@@ -321,9 +323,9 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
         pts[1].ifPayable = 0;
         pts[2].amount = Math.round(grandBase * 100) / 100;
         pts[2].ifPayable = Math.round(grandTotal * 100) / 100;
-        if (pts[2].gstPct === "Inclusive" || pts[2].gstPct === "-") {
-          const firstItemGstPct = newPO.items[0]?.gstPct;
-          if (firstItemGstPct != null) pts[2].gstPct = String(firstItemGstPct);
+        const firstItem = newPO.items[0];
+        if (firstItem?.gstPct != null) {
+          pts[2] = { ...pts[2], gstPct: Number(firstItem.gstPct), gstType: firstItem.gstType || "Exclusive" };
         }
         setNewPO((prev) => ({ ...prev, paymentTimelines: pts, totalAmount: grandTotal }));
       }
@@ -438,21 +440,19 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
     [COMPANIES]
   );
   const mrOptions = React.useMemo(() => {
+    if (occupiedMRs === null) return [];
+    const occupied = new Set(
+      occupiedMRs.map((o) => `${o.mrId}|${o.workType || "General"}`)
+    );
+    const isOccupied = (mrId, category) =>
+      occupied.has(`${mrId}|${category}`) || (occupied.has(`${mrId}|General`) && category === "General");
     const list = [];
     (materialRequirements || []).forEach((m) => {
       if (m && (m.status === "Approved by AGM" || m.status === "Approved by Store" || m.status === "Quotation Phase")) {
         if (m.approvals && m.approvals.length > 0) {
           m.approvals.forEach((app) => {
             const category = app.category || "General";
-            const supplierObj = (suppliers || []).find(
-              (s) => s.companyName === app.supplierName || s.name === app.supplierName || s.id === app.supplierId || s._id === app.supplierId
-            );
-            const supplierId = supplierObj?.id || app.supplierId || app.supplierName;
-            const supplierName = supplierObj?.companyName || supplierObj?.name || app.supplierName;
-            const poExists = pos.some(
-              (po) => po.mrId === m.id && (po.supplier === supplierId || po.supplier === supplierName || po.supplier === app.supplierName) && (po.workType === category || category === "General" && !po.workType) && po.status !== "Rejected" && po.status !== "Blocked"
-            );
-            if (!poExists) {
+            if (!isOccupied(m.id, category) && !app.poCreated) {
               list.push({
                 label: `${m.mrNumber || m.id} - ${m.project} (${category}) - ${app.supplierName}`,
                 value: `${m.id}|${category}|${app.quotationId}`
@@ -460,8 +460,7 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
             }
           });
         } else if (m.approvedQuotationId) {
-          const poExists = pos.some((po) => po.mrId === m.id && po.status !== "Rejected" && po.status !== "Blocked");
-          if (!poExists) {
+          if (!isOccupied(m.id, "General")) {
             list.push({
               label: `${m.mrNumber || m.id} - ${m.project} (Legacy)`,
               value: `${m.id}|General|${m.approvedQuotationId}`
@@ -471,7 +470,7 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
       }
     });
     return list;
-  }, [materialRequirements, pos, suppliers]);
+  }, [materialRequirements, occupiedMRs]);
   const normalizeTimelineType = /* @__PURE__ */ __name((type) => {
     if (type === "Progress") return "On Delivery";
     if (type === "Final Balance") return "After 10 Days of Delivery";
@@ -495,6 +494,12 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
     return g;
   }, "fmtGstPct");
   const parseGstInput = /* @__PURE__ */ __name((raw) => raw.replace(/\s*%?\s*exclusive\s*/i, "").trim(), "parseGstInput");
+  const normalizeTimelineGST = /* @__PURE__ */ __name((pt) => {
+    const raw = String(pt.gstPct || "").toLowerCase().trim();
+    const num = parseFloat(raw.replace(/[^0-9.]/g, ""));
+    const resolvedType = pt.gstType === "Exclusive" ? "Exclusive" : "Inclusive";
+    return { ...pt, gstPct: isNaN(num) || !num ? 18 : num, gstType: resolvedType };
+  }, "normalizeTimelineGST");
   const calcChargeTotal = /* @__PURE__ */ __name((amount, gstPct, gstType) => {
     if (!amount) return 0;
     return gstType === "Exclusive" ? amount * (1 + gstPct / 100) : amount;
@@ -592,6 +597,7 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
       setNewPO(initialPO);
       setErrors({});
       fetchResource("material-requirements", 1, 100, true, "", null, false, false);
+      api.get("pos/occupied-mrs").then((res) => setOccupiedMRs(res.data || [])).catch(() => setOccupiedMRs([]));
     } catch (error) {
       toast.error(`Failed to create PO: ${error.message}`);
     }
@@ -601,6 +607,7 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
     try {
       await deletePO(deleteConfirm);
       setDeleteConfirm(null);
+      api.get("pos/occupied-mrs").then((res) => setOccupiedMRs(res.data || [])).catch(() => {});
     } catch (error) {
       toast.error(`Failed to delete PO: ${error.message}`);
     }
@@ -705,6 +712,7 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
       }
       await fetchResource("pos", 1, 50, true);
       await fetchResource("quotations", 1, 50, true);
+      api.get("pos/occupied-mrs").then((res2) => setOccupiedMRs(res2.data || [])).catch(() => {});
       toast.success(res.message || "PO cancelled. Linked quotation reset to Pending.");
       setCancelModal(false);
       setCancelTargetId(null);
@@ -730,7 +738,7 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
     const supplier = suppliers.find(
       (s) => s.id === po.supplier || s._id === po.supplier || (s.companyName || s.name || "").toLowerCase() === (po.supplier || "").toLowerCase()
     );
-    generatePOPDF(po, supplier);
+    generatePOPDF(po, supplier, settings);
   }, "downloadPDF");
   const addItem = /* @__PURE__ */ __name((invItem) => {
     const item = {
@@ -766,7 +774,11 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
       item.totalWithGST = item.total * (1 + gstPct / 100);
     }
     items[index] = item;
-    setNewPO({ ...newPO, items });
+    const updates = { items };
+    if (field === "gstType") {
+      updates.paymentTimelines = (newPO.paymentTimelines || []).map((pt) => ({ ...pt, gstType: value }));
+    }
+    setNewPO({ ...newPO, ...updates });
   }, "updateItem");
   const removeItem = /* @__PURE__ */ __name((index) => {
     const items = [...newPO.items || []];
@@ -1509,9 +1521,9 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
             const deliveryPlus10 = d10.toISOString().split("T")[0];
             const existing = newPO.paymentTimelines || [];
             updatedPOBase.paymentTimelines = [
-              { date: poDate, type: "Advance", mode: existing[0]?.mode || "Bank Transfer", amount: existing[0]?.amount || 0, gstPct: existing[0]?.gstPct || "Inclusive", ifPayable: existing[0]?.ifPayable || 0 },
-              { date: deliveryDate, type: "On Delivery", mode: existing[1]?.mode || "Bank Transfer", amount: existing[1]?.amount || 0, gstPct: existing[1]?.gstPct || "-", ifPayable: existing[1]?.ifPayable || 0 },
-              { date: deliveryPlus10, type: "After 10 Days of Delivery", mode: existing[2]?.mode || "Bank Transfer", amount: existing[2]?.amount || 0, gstPct: existing[2]?.gstPct || "Inclusive", ifPayable: existing[2]?.ifPayable || 0 }
+              { date: poDate, type: "Advance", mode: existing[0]?.mode || "Bank Transfer", amount: existing[0]?.amount || 0, gstPct: existing[0]?.gstPct ?? 18, gstType: existing[0]?.gstType || "Inclusive", ifPayable: existing[0]?.ifPayable || 0 },
+              { date: deliveryDate, type: "On Delivery", mode: existing[1]?.mode || "Bank Transfer", amount: existing[1]?.amount || 0, gstPct: existing[1]?.gstPct ?? 0, gstType: existing[1]?.gstType || "Inclusive", ifPayable: existing[1]?.ifPayable || 0 },
+              { date: deliveryPlus10, type: "After 10 Days of Delivery", mode: existing[2]?.mode || "Bank Transfer", amount: existing[2]?.amount || 0, gstPct: existing[2]?.gstPct ?? 18, gstType: existing[2]?.gstType || "Inclusive", ifPayable: existing[2]?.ifPayable || 0 }
             ];
           }
           setNewPO(updatedPOBase);
@@ -1541,8 +1553,9 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
       }
     }}
     options={mrOptions}
+    placeholder={occupiedMRs === null ? "Loading MR list..." : "Select..."}
     error={errors.mrId}
-    disabled={autoLinking}
+    disabled={autoLinking || occupiedMRs === null}
   />
                   </div>
                 </div>
@@ -2400,7 +2413,7 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
     type="button"
     onClick={() => {
       const pts = [...newPO.paymentTimelines || []];
-      pts.push({ date: todayStr(), type: "Milestone", mode: "Bank Transfer", amount: 0, gstPct: "Inclusive", ifPayable: 0 });
+      pts.push({ date: todayStr(), type: "Milestone", mode: "Bank Transfer", amount: 0, gstPct: 18, gstType: "Exclusive", ifPayable: 0 });
       setNewPO({ ...newPO, paymentTimelines: pts });
     }}
     className="text-white text-[9px] border border-white/40 px-2.5 py-0.5 rounded hover:bg-white/10 transition-colors flex items-center gap-1"
@@ -2417,6 +2430,7 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
                         <th className="p-2 text-left border-r border-[#1A365D]/30">Mode</th>
                         <th className="p-2 text-right border-r border-[#1A365D]/30">Amount</th>
                         <th className="p-2 text-center border-r border-[#1A365D]/30">GST %</th>
+                        <th className="p-2 text-center border-r border-[#1A365D]/30">GST Type</th>
                         <th className="p-2 text-right border-r border-[#1A365D]/30">GST Amt</th>
                         <th className="p-2 text-right border-r border-[#1A365D]/30">If Payable</th>
                         <th className="p-2 w-8" />
@@ -2466,13 +2480,10 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
       const valStr = e.target.value.replace(/[^0-9.]/g, "");
       const val = parseFloat(valStr) || 0;
       const pts = [...newPO.paymentTimelines || []];
-      const gst = String(pts[idx].gstPct || "").toLowerCase();
+      const norm = normalizeTimelineGST(pts[idx]);
       let calculatedPayable = val;
-      if (gst !== "inclusive" && gst !== "-" && gst !== "0" && gst !== "") {
-        const pct = parseFloat(gst.replace(/[^0-9.]/g, ""));
-        if (!isNaN(pct)) {
-          calculatedPayable = val + val * pct / 100;
-        }
+      if (norm.gstType === "Exclusive" && norm.gstPct > 0) {
+        calculatedPayable = val + val * norm.gstPct / 100;
       }
       pts[idx] = { ...pts[idx], amount: valStr, ifPayable: parseFloat(calculatedPayable.toFixed(2)) };
       setNewPO({ ...newPO, paymentTimelines: pts });
@@ -2481,25 +2492,27 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
                           </td>
                           <td className="p-1.5 border-r border-[#1A365D]/20">
                             <input
+    type="number"
+    min="0"
+    max="100"
     className="w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded px-1.5 py-1 text-xs text-center font-medium"
-    value={fmtGstPct(pt.gstPct)}
+    value={normalizeTimelineGST(pt).gstPct}
     onFocus={(e) => e.target.select()}
     onChange={(e) => {
-      const val = parseGstInput(e.target.value);
+      const pct = parseFloat(e.target.value) || 0;
       const pts = [...newPO.paymentTimelines || []];
-      const amt = parseFloat(String(pts[idx].amount)) || 0;
-      const gst = String(val).toLowerCase();
-      let calculatedPayable = amt;
-      if (gst !== "inclusive" && gst !== "-" && gst !== "0" && gst !== "") {
-        const pct = parseFloat(gst.replace(/[^0-9.]/g, ""));
-        if (!isNaN(pct)) {
-          calculatedPayable = amt + amt * pct / 100;
-        }
-      }
-      pts[idx] = { ...pts[idx], gstPct: val, ifPayable: parseFloat(calculatedPayable.toFixed(2)) };
+      const norm = normalizeTimelineGST(pts[idx]);
+      const amt = parseFloat(String(norm.amount)) || 0;
+      let calculatedPayable = norm.gstType === "Exclusive" && pct > 0 ? amt + amt * pct / 100 : amt;
+      pts[idx] = { ...pts[idx], gstPct: pct, ifPayable: parseFloat(calculatedPayable.toFixed(2)) };
       setNewPO({ ...newPO, paymentTimelines: pts });
     }}
   />
+                          </td>
+                          <td className="p-1.5 border-r border-[#1A365D]/20 text-center">
+                            <span className="text-[11px] font-medium text-gray-700 dark:text-gray-300">
+                              {normalizeTimelineGST(pt).gstType}
+                            </span>
                           </td>
                           <td className="p-1.5 border-r border-[#1A365D]/20 text-right text-[11px] font-bold text-emerald-600 dark:text-emerald-400 min-w-[70px]">
                             {(() => {
@@ -2516,13 +2529,10 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
       const valStr = e.target.value.replace(/[^0-9.]/g, "");
       const val = parseFloat(valStr) || 0;
       const pts = [...newPO.paymentTimelines || []];
-      const gst = String(pts[idx].gstPct || "").toLowerCase();
+      const norm = normalizeTimelineGST(pts[idx]);
       let calculatedAmount = val;
-      if (gst !== "inclusive" && gst !== "-" && gst !== "0" && gst !== "") {
-        const pct = parseFloat(gst.replace(/[^0-9.]/g, ""));
-        if (!isNaN(pct)) {
-          calculatedAmount = val / (1 + pct / 100);
-        }
+      if (norm.gstType === "Exclusive" && norm.gstPct > 0) {
+        calculatedAmount = val / (1 + norm.gstPct / 100);
       }
       pts[idx] = { ...pts[idx], ifPayable: valStr, amount: parseFloat(calculatedAmount.toFixed(2)) };
       setNewPO({ ...newPO, paymentTimelines: pts });
@@ -2545,7 +2555,7 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
                     </tbody>
                     <tfoot>
                       <tr className="bg-[#1A365D] text-white">
-                        <td colSpan={7} className="p-2 text-right text-[10px] font-black tracking-wide">Grand Total</td>
+                        <td colSpan={8} className="p-2 text-right text-[10px] font-black tracking-wide">Grand Total</td>
                         <td className="p-2 text-right text-[13px] font-black pr-3">
                           {fmtCur(
     (newPO.items?.reduce((s, it) => s + (it.totalWithGST || 0), 0) || 0) + calcChargeTotal(newPO.freightAmount || 0, newPO.freightGstPct || 0, newPO.freightGstType || "Exclusive") + calcChargeTotal(newPO.loadingAmount || 0, newPO.loadingGstPct || 0, newPO.loadingGstType || "Exclusive") + calcChargeTotal(newPO.unloadingAmount || 0, newPO.unloadingGstPct || 0, newPO.unloadingGstType || "Exclusive")
@@ -3186,6 +3196,10 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
                                   <td className="p-2 border-r border-[#1A365D]/20 text-right">{(pt.amount || 0) > 0 ? fmtCur(pt.amount) : <span className="text-gray-400">—</span>}</td>
                                   <td className="p-2 border-r border-[#1A365D]/20 text-center font-medium">
                                     {(() => {
+      const gstLabel = pt.gstType || "Exclusive";
+      if (gstLabel === "Inclusive") {
+        return <span className="text-[10px] text-gray-500 dark:text-gray-400 font-medium">Inclusive</span>;
+      }
       const g = String(pt.gstPct || "").toLowerCase().trim();
       const amt = pt.amount || 0;
       const payable = pt.ifPayable || 0;
@@ -3194,10 +3208,10 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
         const pctStr = Number.isInteger(pct) ? pct : pct.toFixed(1);
         return <span className="inline-flex items-center gap-1"><span className="font-black">{pctStr}%</span><span className="text-[9px] text-gray-400 font-normal">Exclusive</span></span>;
       }
-      if (!g || g === "-" || g === "inclusive" || g === "exclusive") return <span className="text-gray-400">—</span>;
+      if (!g || g === "-" || g === "exclusive") return <span className="text-gray-400">—</span>;
       const num = parseFloat(g.replace("%", ""));
-      if (!isNaN(num)) return <span className="inline-flex items-center gap-1"><span className="font-black">{num}%</span><span className="text-[9px] text-gray-400 font-normal">Exclusive</span></span>;
-      return pt.gstPct;
+      if (!isNaN(num) && num > 0) return <span className="inline-flex items-center gap-1"><span className="font-black">{num}%</span><span className="text-[9px] text-gray-400 font-normal">Exclusive</span></span>;
+      return <span className="text-gray-400">—</span>;
     })()}
                                   </td>
                                   <td className="p-2 border-r border-[#1A365D]/20 text-right font-bold text-emerald-600 dark:text-emerald-400">
@@ -3237,7 +3251,7 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
                         <div className="p-2 bg-[#1A365D]/10 dark:bg-[#1A365D]/30 font-black text-center border-b border-[#1A365D]">PURCHASE COORDINATOR</div>
                         <div className="p-2.5 min-h-[35px] flex items-center bg-white dark:bg-gray-900/50">
                           <span className="text-gray-500 mr-2">NAME:</span>
-                          <span className="font-bold">Vijay Kushwah</span>
+                          <span className="font-bold">{settings?.approvers?.purchaseCoord || "Purchase Coordinator"}</span>
                         </div>
                         <div className="p-2.5 min-h-[35px] flex items-center bg-white dark:bg-gray-900/50">
                           <span className="text-gray-500 mr-2">DATE:</span>
@@ -3254,7 +3268,7 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
                         <div className="p-2 bg-[#1A365D]/10 dark:bg-[#1A365D]/30 font-black text-center border-b border-[#1A365D]">AGM PURCHASE (L1)</div>
                         <div className="p-2.5 min-h-[35px] flex items-center bg-white dark:bg-gray-900/50">
                           <span className="text-gray-500 mr-2">NAME:</span>
-                          <span className="font-bold">AKHILESH SINGH</span>
+                          <span className="font-bold">{(settings?.approvers?.l1 || "L1 Approver").toUpperCase()}</span>
                         </div>
                         <div className="p-2.5 min-h-[35px] flex items-center bg-white dark:bg-gray-900/50">
                           <span className="text-gray-500 mr-2">DATE:</span>
@@ -3274,7 +3288,7 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
                         <div className="p-2 bg-[#1A365D]/10 dark:bg-[#1A365D]/30 font-black text-center border-b border-[#1A365D]">PROJECT HEAD / HEAD (L2)</div>
                         <div className="p-2.5 min-h-[35px] flex items-center bg-white dark:bg-gray-900/50">
                           <span className="text-gray-500 mr-2">NAME:</span>
-                          <span className="font-bold">JINESH JAIN</span>
+                          <span className="font-bold">{(settings?.approvers?.l2 || "L2 Approver").toUpperCase()}</span>
                         </div>
                         <div className="p-2.5 min-h-[35px] flex items-center bg-white dark:bg-gray-900/50">
                           <span className="text-gray-500 mr-2">DATE:</span>
@@ -3294,7 +3308,7 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
                         <div className="p-2 bg-[#1A365D]/10 dark:bg-[#1A365D]/30 font-black text-center border-b border-[#1A365D]">DIRECTOR (L3)</div>
                         <div className="p-2.5 min-h-[35px] flex items-center bg-white dark:bg-gray-900/50">
                           <span className="text-gray-500 mr-2">NAME:</span>
-                          <span className="font-bold">RAHUL GUPTA</span>
+                          <span className="font-bold">{(settings?.approvers?.l3 || "L3 Approver").toUpperCase()}</span>
                         </div>
                         <div className="p-2.5 min-h-[35px] flex items-center bg-white dark:bg-gray-900/50">
                           <span className="text-gray-500 mr-2">DATE:</span>

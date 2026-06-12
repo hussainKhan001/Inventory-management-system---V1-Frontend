@@ -473,7 +473,7 @@ const StoreInchargeDashboard = /* @__PURE__ */ __name(({ stats, materialRequirem
       </div>
     </div>;
 }, "StoreInchargeDashboard");
-const AdminDashboard = /* @__PURE__ */ __name(({ stats, pos, loading, plans, materialRequirements, planRevisions }) => {
+const AdminDashboard = /* @__PURE__ */ __name(({ stats, pos, loading, plans, materialRequirements, planRevisions, settings }) => {
   const [aiInsights, setAiInsights] = useState(null);
   const [isAiLoading, setIsAiLoading] = useState(false);
   useEffect(() => {
@@ -517,7 +517,7 @@ const AdminDashboard = /* @__PURE__ */ __name(({ stats, pos, loading, plans, mat
   }
   return <div className="space-y-6 pb-12">
       <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
-        <PageHeader title="Dashboard" sub="Garden City Store Intelligence Overview" />
+        <PageHeader title="Dashboard" sub={`${settings?.appName || "Garden City"} Store Intelligence Overview`} />
         <div className="flex items-center gap-3">
           <Btn label="Daily Report" icon={FileText} className="hidden sm:flex" onClick={() => window.location.hash = "daily-report"} />
           <div className="flex items-center gap-2 px-3 py-1.5 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 rounded-full text-[12px] font-medium border border-emerald-100 dark:border-emerald-900/30">
@@ -541,7 +541,7 @@ const AdminDashboard = /* @__PURE__ */ __name(({ stats, pos, loading, plans, mat
                 <div className="flex-1 space-y-2">
                   <div className="flex items-center justify-between">
                     <h3 className="text-[14px] font-bold text-gray-900 dark:text-white flex items-center gap-2">
-                      Garden City AI intelligence
+                      {settings?.appName || "Garden City"} AI intelligence
                       <span className="text-[10px] px-1.5 py-0.5 bg-blue-100 dark:bg-blue-900/50 text-blue-500 dark:text-blue-400 rounded">Beta</span>
                     </h3>
                     <TrendingUp className="w-4 h-4 text-gray-400" />
@@ -729,7 +729,8 @@ const Dashboard = /* @__PURE__ */ __name(() => {
     role,
     user,
     fetchResource,
-    hasPermission
+    hasPermission,
+    settings
   } = useAppStore();
   useEffect(() => {
     fetchResource("planning", 1, 500, true);
@@ -743,7 +744,7 @@ const Dashboard = /* @__PURE__ */ __name(() => {
   const showStore = hasPermission("VIEW_STORE_DASHBOARD") || role === "Store Incharge";
   const showAdmin = hasPermission("VIEW_ADMIN_DASHBOARD") || ["Super Admin", "Director", "admin"].includes(role || "");
   if (showAdmin) {
-    return <AdminDashboard stats={stats} pos={pos} loading={loading} plans={plans} materialRequirements={materialRequirements} planRevisions={planRevisions} />;
+    return <AdminDashboard stats={stats} pos={pos} loading={loading} plans={plans} materialRequirements={materialRequirements} planRevisions={planRevisions} settings={settings} />;
   }
   if (showAGM) {
     return <AGMDashboard user={user} plans={plans} materialRequirements={materialRequirements} mrAllocations={mrAllocations} planRevisions={planRevisions} pos={pos} role={role} />;
@@ -754,7 +755,7 @@ const Dashboard = /* @__PURE__ */ __name(() => {
   if (showEngineer) {
     return <SiteEngineerDashboard user={user} plans={plans} materialRequirements={materialRequirements} mrAllocations={mrAllocations} />;
   }
-  return <AdminDashboard stats={stats} pos={pos} loading={loading} plans={plans} materialRequirements={materialRequirements} planRevisions={planRevisions} />;
+  return <AdminDashboard stats={stats} pos={pos} loading={loading} plans={plans} materialRequirements={materialRequirements} planRevisions={planRevisions} settings={settings} />;
 }, "Dashboard");
 export {
   Dashboard

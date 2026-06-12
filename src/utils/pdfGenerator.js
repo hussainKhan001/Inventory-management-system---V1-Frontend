@@ -5,7 +5,7 @@ import autoTable from "jspdf-autotable";
 import { safeStr } from "../utils";
 const primaryColor = [26, 54, 93];
 const grayBg = [245, 245, 245];
-const generatePOPDF = /* @__PURE__ */ __name((po, supplier) => {
+const generatePOPDF = /* @__PURE__ */ __name((po, supplier, settings = {}) => {
   const doc = new jsPDF({ orientation: "p", unit: "mm", format: "a4" });
   const formatPrettyDate = /* @__PURE__ */ __name((d) => {
     if (!d) return "NA";
@@ -230,6 +230,8 @@ const generatePOPDF = /* @__PURE__ */ __name((po, supplier) => {
           (pt.mode || "").toUpperCase(),
           pt.amount ? fmtRs(pt.amount) : "0.00",
           (() => {
+            const gstLabel = (pt.gstType || "Exclusive").toUpperCase();
+            if (gstLabel === "INCLUSIVE") return "INCLUSIVE";
             const g = String(pt.gstPct || "").toLowerCase().trim();
             const amt = pt.amount || 0;
             const payable = pt.ifPayable || 0;
@@ -238,9 +240,9 @@ const generatePOPDF = /* @__PURE__ */ __name((po, supplier) => {
               const pctStr = Number.isInteger(pct) ? pct : pct.toFixed(1);
               return `${pctStr}% EXCLUSIVE`;
             }
-            if (!g || g === "-" || g === "inclusive" || g === "exclusive") return "\u2014";
+            if (!g || g === "-" || g === "exclusive") return "\u2014";
             const num = parseFloat(g.replace("%", ""));
-            return !isNaN(num) ? `${num}% EXCLUSIVE` : g.toUpperCase();
+            return !isNaN(num) && num > 0 ? `${num}% EXCLUSIVE` : "\u2014";
           })(),
           pt.ifPayable ? fmtRs(pt.ifPayable) : "0.00"
         ]),
@@ -297,12 +299,13 @@ const generatePOPDF = /* @__PURE__ */ __name((po, supplier) => {
   doc.setFontSize(9.5);
   doc.text("APPROVALS & AUTHORIZATION", 105, y + 5.5, { align: "center" });
   y += 8;
+  const approvers = settings.approvers || {};
   autoTable(doc, {
     startY: y,
     margin: { left: 10, right: 10 },
     head: [["PURCHASE COORD", "AGM (L1)", "PM / HEAD (L2)", "DIRECTOR (L3)"]],
     body: [
-      ["Vijay Kushwah", "Akhilesh Singh", "Jinesh Jain", "Rahul Gupta"],
+      [approvers.purchaseCoord || "Purchase Coord", approvers.l1 || "L1 Approver", approvers.l2 || "L2 Approver", approvers.l3 || "L3 Approver"],
       ["Date: " + formatPrettyDate(po.date), "Date: " + (po.approvalL1At ? formatPrettyDate(po.approvalL1At) : "Pending"), "Date: " + (po.approvalL2At ? formatPrettyDate(po.approvalL2At) : "Pending"), "Date: " + (po.approvalL3At ? formatPrettyDate(po.approvalL3At) : "Pending")],
       [
         "INVOKE: INITIATED",

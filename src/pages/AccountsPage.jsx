@@ -41,7 +41,7 @@ const EMAILJS_SERVICE_ID = "YOUR_SERVICE_ID";
 const EMAILJS_TEMPLATE_ID = "YOUR_TEMPLATE_ID";
 emailjs.init(EMAILJS_PUBLIC_KEY);
 const AccountsPage = /* @__PURE__ */ __name(() => {
-  const { pos, updatePO, user, fetchResource, suppliers, uploadImage, hasPermission } = useAppStore();
+  const { pos, updatePO, user, fetchResource, suppliers, uploadImage, hasPermission, settings } = useAppStore();
   const [filter, setFilter] = useState("All");
   const [selectedPO, setSelectedPO] = useState(null);
   const [previewPO, setPreviewPO] = useState(null);
@@ -693,7 +693,7 @@ const DetailPanel = /* @__PURE__ */ __name(({
                 <button
       onClick={() => {
         const supplier = suppliers.find((s) => s.id === po.supplier || s.name === po.supplier);
-        generatePOPDF(po, supplier);
+        generatePOPDF(po, supplier, settings);
       }}
       className="flex items-center justify-center gap-2 py-3 bg-orange-50 dark:bg-orange-500/10 text-orange-600 dark:text-orange-400 rounded-xl text-[11px] font-black hover:bg-orange-100 transition-all border border-orange-100 dark:border-orange-500/20"
     >

@@ -46,6 +46,11 @@ const MaterialRequirementPage = /* @__PURE__ */ __name(() => {
   const isMRLocked = /* @__PURE__ */ __name((mrId) => {
     return pos.some((po) => po.mrId === mrId);
   }, "isMRLocked");
+  const isItemPOCreated = /* @__PURE__ */ __name((item, mr) => {
+    if (!mr?.approvals?.length) return false;
+    const cat = item.category || "General";
+    return mr.approvals.some((a) => (a.category || "General") === cat && a.poCreated === true);
+  }, "isItemPOCreated");
   const { projects: PROJECTS, units: UNITS, requesters: REQUESTERS, workTypes: WORK_TYPES } = settings;
   const [activeTab, setActiveTab] = useState("requirements");
   const [search, setSearch] = useState("");
@@ -827,11 +832,16 @@ const MaterialRequirementPage = /* @__PURE__ */ __name(() => {
                   </div>
                   <div className="p-4 bg-white dark:bg-gray-900">
                     <div className="flex flex-wrap gap-2">
-                      {req.items.map((item, idx) => <div key={idx} className="px-3 py-1.5 bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-lg flex flex-col gap-1">
+                      {req.items.map((item, idx) => <div key={idx} className={cn("px-3 py-1.5 bg-gray-50 dark:bg-gray-800 border rounded-lg flex flex-col gap-1", isItemPOCreated(item, req) ? "border-blue-200 dark:border-blue-800/60 bg-blue-50/40 dark:bg-blue-950/20" : "border-gray-100 dark:border-gray-700")}>
                           <div className="flex items-center gap-2">
                             <Package className="w-3.5 h-3.5 text-primary" />
                             <div className="flex flex-col">
-                              <span className="text-[13px] font-medium text-gray-700 dark:text-gray-300">{item.materialName}</span>
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-[13px] font-medium text-gray-700 dark:text-gray-300">{item.materialName}</span>
+                                {isItemPOCreated(item, req) && <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 rounded-md border border-blue-200 dark:border-blue-700/50 text-[9px] font-black tracking-widest shrink-0">
+                                    <CheckCircle className="w-2.5 h-2.5" /> PO
+                                  </span>}
+                              </div>
                               <div className="flex items-center gap-1.5 mt-1">
                                 {item.condition && <Badge text={item.condition} color="blue" small />}
                                 {item.sku && item.sku !== "N/A" && <span className="text-[10px] text-gray-400 font-mono italic leading-none">{item.sku}</span>}
@@ -1308,6 +1318,10 @@ const MaterialRequirementPage = /* @__PURE__ */ __name(() => {
                                   </div> : <div className="flex items-center gap-1 px-2.5 py-0.5 bg-red-50/80 dark:bg-red-950/20 text-red-500 dark:text-red-400 rounded-lg border border-red-200/50 dark:border-red-800/30 shadow-xs shrink-0">
                                     <span className="text-[9px] font-extrabold tracking-widest italic">Not Linked</span>
                                   </div>}
+                                {isItemPOCreated(item, selectedRequirement) && <div className="flex items-center gap-1 px-2.5 py-0.5 bg-blue-50/80 dark:bg-blue-950/20 text-blue-600 dark:text-blue-400 rounded-lg border border-blue-200/50 dark:border-blue-800/40 shadow-xs shrink-0">
+                                    <CheckCircle className="w-3 h-3 shrink-0" />
+                                    <span className="text-[9px] font-black tracking-widest">PO Created</span>
+                                  </div>}
                                 <button
     disabled={isMRLocked(selectedRequirement.id)}
     onClick={() => {
@@ -1586,6 +1600,10 @@ const MaterialRequirementPage = /* @__PURE__ */ __name(() => {
                       </div>
                       <div className="flex flex-col items-end gap-2 shrink-0">
                         <StatusBadge status={item.status} />
+                        {isItemPOCreated(item, selectedRequirement) && <div className="flex items-center gap-1 px-2 py-0.5 bg-blue-50 dark:bg-blue-950/30 text-blue-600 dark:text-blue-400 rounded-lg border border-blue-200/60 dark:border-blue-800/40 shrink-0">
+                            <CheckCircle className="w-3 h-3 shrink-0" />
+                            <span className="text-[9px] font-black tracking-widest">PO Created</span>
+                          </div>}
                         <button
     onClick={() => {
       const newItems = [...selectedRequirement.items];

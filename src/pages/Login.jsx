@@ -7,7 +7,7 @@ import { Btn, ThemeToggle } from "../components/ui";
 import toast from "react-hot-toast";
 import { motion } from "motion/react";
 const Login = /* @__PURE__ */ __name(() => {
-  const { login, theme, toggleTheme } = useAppStore();
+  const { login, theme, toggleTheme, settings } = useAppStore();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -44,10 +44,10 @@ const Login = /* @__PURE__ */ __name(() => {
               N
             </div>
             <h1 className="text-5xl font-black text-white tracking-tight mb-6 leading-tight">
-              Neoteric <span className="text-orange-500">Properties</span>
+              {settings?.companyFullName?.split(" ").slice(0, -1).join(" ") || "Neoteric"} <span className="text-orange-500">{settings?.companyFullName?.split(" ").slice(-1)[0] || "Properties"}</span>
             </h1>
             <p className="text-xl text-gray-400 font-medium mb-12 leading-relaxed">
-              The next generation of property management. Streamlining inventory, procurement, and site operations for Garden City.
+              The next generation of property management. Streamlining inventory, procurement, and site operations for {settings?.appName || "Garden City"}.
             </p>
             <div className="space-y-4">
               {["Real-time Inventory Tracking", "Automated Purchase Orders", "Multi-level Approval Workflow", "Site-wise Material Planning"].map((f, i) => <motion.div key={f} initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.4, delay: 0.4 + i * 0.1 }} className="flex items-center gap-3 text-gray-300">
@@ -129,7 +129,7 @@ const Login = /* @__PURE__ */ __name(() => {
               </a>
             </div>
             <p className="text-[11px] text-gray-400 font-medium tracking-widest">
-              &copy; 2026 Neoteric properties &bull; Garden city portal
+              &copy; {new Date().getFullYear()} {settings?.companyFullName || settings?.appName || "Neoteric Properties"} &bull; {settings?.appName || "Garden City"} portal
             </p>
           </div>
         </div>

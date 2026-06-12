@@ -125,7 +125,7 @@ const DatePicker = React.memo(({
           {label} {required && <span className="text-red-500">*</span>}
         </label>}
       
-      <div className={cn("relative", open ? "z-[60]" : "z-10")}>
+      <div className={cn("relative", open ? "z-[999]" : "z-10")}>
         <DatePickerTrigger
     onClick={openCalendar}
     onClear={clearDate}
@@ -142,7 +142,7 @@ const DatePicker = React.memo(({
         {
     /* Calendar Dropdown */
   }
-        {open && <div className="absolute top-[calc(100%+8px)] left-0 z-[100] w-[272px] bg-white dark:bg-transparent border border-gray-200 dark:border-gray-700/80 rounded-lg shadow-xl dark:shadow-2xl dark:shadow-black/60 p-4 select-none">
+        {open && <div className="absolute top-[calc(100%+8px)] left-0 z-[999] w-[272px] bg-white dark:bg-[#1E293B] border border-gray-200 dark:border-gray-700/80 rounded-lg shadow-xl dark:shadow-2xl dark:shadow-black/60 p-4 select-none">
             {
     /* Month navigation */
   }

@@ -68,7 +68,7 @@ const Layout = /* @__PURE__ */ __name(({ children }) => {
     window.addEventListener("hashchange", handleHashChange);
     return () => window.removeEventListener("hashchange", handleHashChange);
   }, []);
-  const canSwitchUsers = ["Super Admin", "superadmin", "admin", "Director", "AGM"].includes(role || "");
+  const canSwitchUsers = ["Super Admin", "superadmin"].includes(role || "") || isSwitched;
   React.useEffect(() => {
     if (showProfileDropdown && canSwitchUsers && users.length === 0) {
       fetchUsers();
@@ -170,7 +170,7 @@ const Layout = /* @__PURE__ */ __name(({ children }) => {
   >
         <div className="h-14 flex items-center px-4 border-b border-gray-100 dark:border-gray-700/50 shrink-0">
           {settings?.logoUrl ? <img
-    src={settings.logoUrl.startsWith("/") && !settings.logoUrl.startsWith("/uploads") ? settings.logoUrl : settings.logoUrl.startsWith("/uploads") ? `${window.location.protocol}//${window.location.hostname}:5000${settings.logoUrl}` : settings.logoUrl}
+    src={settings.logoUrl.startsWith("/") && !settings.logoUrl.startsWith("/uploads") ? settings.logoUrl : settings.logoUrl.startsWith("/uploads") ? `${import.meta.env.VITE_BACKEND_URL || `${window.location.protocol}//${window.location.hostname}:5000`}${settings.logoUrl}` : settings.logoUrl}
     alt="Logo"
     className="w-8 h-8 object-contain shrink-0 rounded-lg"
   /> : <div className="w-8 h-8 rounded-lg flex items-center justify-center font-bold text-base shrink-0 text-white" style={{background: `linear-gradient(135deg, #F97316, #ea580c)`}}>
@@ -228,7 +228,7 @@ const Layout = /* @__PURE__ */ __name(({ children }) => {
             <div className="h-full bg-orange-500 animate-progress origin-left" />
           </div>}
 
-        <header className="h-14 bg-white/80 dark:bg-gray-800/90 backdrop-blur-md border border-gray-200/50 dark:border-gray-700/50 shadow-sm flex items-center justify-between px-3 sm:px-4 shrink-0 transition-colors duration-200 mx-1 mt-1 rounded-xl">
+        <header className="relative z-[60] h-14 bg-white/80 dark:bg-gray-800/90 backdrop-blur-md border border-gray-200/50 dark:border-gray-700/50 shadow-sm flex items-center justify-between px-3 sm:px-4 shrink-0 transition-colors duration-200 mx-1 mt-1 rounded-xl">
           <div className="flex items-center gap-2 sm:gap-3">
             <button
     onClick={() => {

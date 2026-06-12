@@ -239,5 +239,6 @@ const ROUTES = [
   }
 ];
 export {
-  ROUTES
+  ROUTES,
+  ALL_ROLES
 };

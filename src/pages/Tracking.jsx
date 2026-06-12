@@ -105,13 +105,13 @@ const TrackingPage = /* @__PURE__ */ __name(() => {
       <div className="flex flex-col items-center">
         <div className={cn(
     "w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center transition-all duration-500",
-    completed ? "bg-emerald-500 text-white shadow-lg shadow-emerald-500/20" : active ? "bg-orange-500 text-white shadow-lg shadow-orange-500/20 ring-4 ring-orange-500/10" : "bg-gray-200 dark:bg-gray-800 text-gray-400"
+    completed ? "bg-emerald-500 text-white shadow-lg shadow-emerald-500/20" : active ? "bg-orange-500 text-white shadow-lg shadow-orange-500/20 ring-4 ring-orange-500/10" : "bg-gray-200 dark:bg-gray-700 text-gray-400"
   )}>
           {completed ? <CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5" /> : active ? <Clock className="w-4 h-4 sm:w-5 sm:h-5 animate-pulse" /> : <AlertCircle className="w-4 h-4 sm:w-5 sm:h-5" />}
         </div>
         {!isLast && <div className={cn(
     "w-0.5 flex-1 min-h-[20px] sm:min-h-[30px] my-0.5 transition-all duration-700",
-    completed ? "bg-emerald-500" : "bg-gray-200 dark:bg-gray-800"
+    completed ? "bg-emerald-500" : "bg-gray-200 dark:bg-gray-700/50"
   )} />}
       </div>
       <div className="flex-1 pb-4 sm:pb-6">
@@ -130,24 +130,23 @@ const TrackingPage = /* @__PURE__ */ __name(() => {
           </div>}
         <div className={cn(
     "rounded-xl border transition-all duration-300",
-    active ? "bg-white dark:bg-gray-900 border-orange-200 dark:border-orange-900/30 p-3 shadow-sm ring-1 ring-orange-500/5" : completed ? "border-gray-100 dark:border-gray-800 bg-gray-50/30 dark:bg-gray-900/20 p-3" : "border-gray-50 dark:border-gray-800/50 p-3 opacity-60"
+    active ? "bg-white dark:bg-gray-800/80 border-orange-200 dark:border-orange-900/30 p-3 shadow-sm ring-1 ring-orange-500/5" : completed ? "border-gray-100 dark:border-gray-700/50 bg-gray-50/30 dark:bg-gray-800/30 p-3" : "border-gray-50 dark:border-gray-700/30 p-3 opacity-60"
   )}>
           {children}
         </div>
       </div>
     </div>, "Step");
-  return <div className="min-h-screen bg-gray-50 dark:bg-gray-950 font-sans text-gray-900 dark:text-gray-100 p-4 sm:p-6 lg:p-8">
-      <div className="space-y-6 max-w-5xl mx-auto">
+  return <div className="space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
         <PageHeader
     title="MR Lifecycle Tracking"
     sub="End-to-end audit trail from requirement to fulfillment"
     className="mb-0"
   />
-        <p className="text-[10px] font-black text-gray-400 self-start sm:self-center">System version 2.4.1</p>
+        <p className="text-[10px] font-black text-gray-400 self-start sm:self-center">System version {import.meta.env.VITE_APP_VERSION || "2.4.1"}</p>
       </div>
 
-      <Card className="p-1 mb-6 shadow-sm border-gray-200 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-900/50">
+      <Card className="p-1 mb-6 shadow-sm border-gray-100 dark:border-gray-700/50 bg-gray-50/50 dark:bg-gray-700/20">
         <form onSubmit={handleSearch} className="flex flex-col sm:flex-row gap-2">
           <div className="relative flex-1 group">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 group-focus-within:text-orange-500 transition-colors" />
@@ -187,7 +186,7 @@ const TrackingPage = /* @__PURE__ */ __name(() => {
               {(() => {
     const isCompleted = ["PAID", "PO CLOSED", "GRN FULFILLED", "FULFILLED"].includes(data.po?.status?.toUpperCase() || "") || data.po?.accountStatus === "paid";
     return <Card className={cn(
-      "relative p-4 border-l-4 bg-white dark:bg-gray-900 shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-4",
+      "relative p-4 border-l-4 bg-white dark:bg-gray-800/80 shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-4",
       isCompleted ? "border-emerald-500" : "border-orange-500"
     )}>
                     <div className="flex items-center gap-4">
@@ -231,7 +230,7 @@ const TrackingPage = /* @__PURE__ */ __name(() => {
     /* Summary Header */
   }
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <Card className="p-3.5 flex items-center gap-4 bg-white dark:bg-gray-900 border-gray-100 dark:border-gray-800 shadow-sm group hover:border-blue-500/30 transition-all">
+            <Card className="p-3.5 flex items-center gap-4 bg-white dark:bg-gray-800/80 border-gray-100 dark:border-gray-700/50 shadow-sm group hover:border-blue-500/30 transition-all">
               <div className="w-10 h-10 rounded-xl bg-blue-50 dark:bg-blue-900/20 flex items-center justify-center text-blue-500 shadow-sm group-hover:bg-blue-600 group-hover:text-white transition-all duration-300">
                 <ClipboardList className="w-5 h-5" />
               </div>
@@ -240,7 +239,7 @@ const TrackingPage = /* @__PURE__ */ __name(() => {
                 <p className="text-sm font-bold text-gray-900 dark:text-white truncate mt-1">{data.mr.mrNumber || data.mr.id}</p>
               </div>
             </Card>
-            <Card className="p-3.5 flex items-center gap-4 bg-white dark:bg-gray-900 border-gray-100 dark:border-gray-800 shadow-sm group hover:border-orange-500/30 transition-all">
+            <Card className="p-3.5 flex items-center gap-4 bg-white dark:bg-gray-800/80 border-gray-100 dark:border-gray-700/50 shadow-sm group hover:border-orange-500/30 transition-all">
               <div className="w-10 h-10 rounded-xl bg-orange-50 dark:bg-orange-900/20 flex items-center justify-center text-orange-600 shadow-sm group-hover:bg-orange-600 group-hover:text-white transition-all duration-300">
                 <ShoppingCart className="w-5 h-5" />
               </div>
@@ -249,7 +248,7 @@ const TrackingPage = /* @__PURE__ */ __name(() => {
                 <p className="text-sm font-bold text-gray-900 dark:text-white truncate mt-1">{data.po ? data.po.id : "No PO Linked"}</p>
               </div>
             </Card>
-            <Card className="p-3.5 flex items-center gap-4 bg-white dark:bg-gray-900 border-gray-100 dark:border-gray-800 shadow-sm group hover:border-emerald-500/30 transition-all">
+            <Card className="p-3.5 flex items-center gap-4 bg-white dark:bg-gray-800/80 border-gray-100 dark:border-gray-700/50 shadow-sm group hover:border-emerald-500/30 transition-all">
               <div className="w-10 h-10 rounded-xl bg-emerald-50 dark:bg-emerald-900/20 flex items-center justify-center text-emerald-600 shadow-sm group-hover:bg-emerald-600 group-hover:text-white transition-all duration-300">
                 <Truck className="w-5 h-5" />
               </div>
@@ -350,7 +349,7 @@ const TrackingPage = /* @__PURE__ */ __name(() => {
                         <div
     onClick={() => !isPublic && (window.location.hash = `pos?id=${data.po.id}`)}
     className={cn(
-      "flex items-center justify-between p-3 bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm transition-colors",
+      "flex items-center justify-between p-3 bg-white dark:bg-gray-800/80 rounded-xl border border-gray-100 dark:border-gray-700/50 shadow-sm transition-colors",
       !isPublic ? "cursor-pointer hover:border-orange-500 group" : ""
     )}
   >
@@ -363,7 +362,7 @@ const TrackingPage = /* @__PURE__ */ __name(() => {
                              {!isPublic && <ArrowRight className="w-3 h-3 text-gray-300 group-hover:text-orange-500 transition-colors" />}
                            </div>
                         </div>
-                        <div className="p-3 bg-gray-50 dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700">
+                        <div className="p-3 bg-gray-50/80 dark:bg-gray-700/30 rounded-xl border border-gray-100 dark:border-gray-700/50">
                            <p className="text-[9px] font-black text-gray-400 tracking-widest mb-1.5 flex items-center gap-1.5"><Building className="w-3 h-3" /> Vendor Details</p>
                            <p className="text-[13px] font-bold text-gray-700 dark:text-gray-300 truncate">
                              {data.quotations.find((q) => q.status === "Approved")?.supplierName || data.po.companyName || data.po.supplier || "N/A"}
@@ -426,7 +425,7 @@ const TrackingPage = /* @__PURE__ */ __name(() => {
                       <p className="text-xs font-bold text-gray-700 dark:text-gray-300">Goods Receipt Summary ({data.grns.length})</p>
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                      {data.grns.map((grn, idx) => <div key={idx} className="p-3 bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm group hover:border-emerald-500/30 transition-all">
+                      {data.grns.map((grn, idx) => <div key={idx} className="p-3 bg-white dark:bg-gray-800/80 rounded-xl border border-gray-100 dark:border-gray-700/50 shadow-sm group hover:border-emerald-500/30 transition-all">
                           <div className="flex justify-between items-start mb-2">
                              <div>
                                 <p className="text-[10px] font-black text-gray-400 tracking-widest">{grn.id}</p>
@@ -454,7 +453,7 @@ const TrackingPage = /* @__PURE__ */ __name(() => {
     isLast
   >
                 {data.po?.accountStatus ? <div className="space-y-4">
-                     <div className="flex items-center gap-4 p-3 bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm">
+                     <div className="flex items-center gap-4 p-3 bg-white dark:bg-gray-800/80 rounded-xl border border-gray-100 dark:border-gray-700/50 shadow-sm">
                         <div className={cn(
     "w-10 h-10 rounded-xl flex items-center justify-center shadow-sm",
     data.po.accountStatus === "paid" ? "bg-emerald-500 text-white" : "bg-blue-500 text-white shadow-blue-500/20"
@@ -498,8 +497,8 @@ const TrackingPage = /* @__PURE__ */ __name(() => {
     /* Side Panel: Material Status */
   }
             <div className="lg:w-80 space-y-6">
-              <Card className="p-0 overflow-hidden shadow-xl shadow-gray-200/50 dark:shadow-none border-gray-200 dark:border-gray-800 lg:sticky lg:top-24">
-                <div className="p-4 bg-gray-50 dark:bg-gray-800/50 border-b border-gray-100 dark:border-gray-700">
+              <Card className="p-0 overflow-hidden shadow-sm border-gray-100 dark:border-gray-700/50 lg:sticky lg:top-24">
+                <div className="p-4 bg-gray-50/80 dark:bg-gray-700/30 border-b border-gray-100 dark:border-gray-700/50">
                   <h5 className="text-[11px] font-black text-gray-900 dark:text-white tracking-widest flex items-center gap-2">
                     <Package className="w-4 h-4 text-orange-500" /> Material checklist
                   </h5>
@@ -537,7 +536,6 @@ const TrackingPage = /* @__PURE__ */ __name(() => {
             </div>
           </div>
         </div>}
-    </div>
     </div>;
 }, "TrackingPage");
 const ApprovalItem = /* @__PURE__ */ __name(({ label, status, date, isActive }) => {
@@ -546,7 +544,7 @@ const ApprovalItem = /* @__PURE__ */ __name(({ label, status, date, isActive }) 
   const isRejected = status === "Rejected";
   return <div className={cn(
     "flex items-center justify-between p-2 rounded-xl transition-all duration-300",
-    isActive ? "bg-orange-50 dark:bg-orange-500/5 ring-1 ring-orange-200 dark:ring-orange-500/20" : "bg-gray-50/30 dark:bg-gray-800/20 border border-gray-100 dark:border-gray-800"
+    isActive ? "bg-orange-50 dark:bg-orange-500/5 ring-1 ring-orange-200 dark:ring-orange-500/20" : "bg-gray-50/30 dark:bg-gray-700/20 border border-gray-100 dark:border-gray-700/50"
   )}>
       <div className="flex items-center gap-2.5 min-w-0">
         <div className={cn(

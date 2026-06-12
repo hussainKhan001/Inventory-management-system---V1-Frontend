@@ -206,6 +206,7 @@ const SettingsPage = /* @__PURE__ */ __name(() => {
         {[
     { id: "branding", label: "Branding & Theme", icon: Palette },
     { id: "policies", label: "Compliance & Policies", icon: Coins },
+    { id: "approvers", label: "Approvers & Workflow", icon: Users },
     { id: "master-data", label: "Master Data Databases", icon: DatabaseIcon }
   ].map((t) => <button
     key={t.id}
@@ -236,6 +237,22 @@ const SettingsPage = /* @__PURE__ */ __name(() => {
     placeholder="E.g. Garden City Inventory"
     value={settings.appName || ""}
     onChange={(e) => isSuperAdmin && setSettings({ ...settings, appName: e.target.value })}
+    disabled={!isSuperAdmin}
+  />
+
+              <Field
+    label="Company Full Legal Name"
+    placeholder="E.g. Neoteric Properties Pvt. Ltd."
+    value={settings.companyFullName || ""}
+    onChange={(e) => isSuperAdmin && setSettings({ ...settings, companyFullName: e.target.value })}
+    disabled={!isSuperAdmin}
+  />
+
+              <Field
+    label="Login Footer Text (optional)"
+    placeholder="E.g. © 2025 Your Company"
+    value={settings.footerText || ""}
+    onChange={(e) => isSuperAdmin && setSettings({ ...settings, footerText: e.target.value })}
     disabled={!isSuperAdmin}
   />
 
@@ -538,6 +555,82 @@ const SettingsPage = /* @__PURE__ */ __name(() => {
   />
               </div>}
           </div>
+        </Card>}
+
+      {
+    /* APPROVERS TAB */
+  }
+      {activeTab === "approvers" && <Card className="p-6 space-y-6 border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-800/50 shadow-sm animate-in fade-in slide-in-from-bottom-4 duration-300">
+          <div className="border-b border-gray-100 dark:border-gray-700/50 pb-3 flex items-center justify-between">
+            <div>
+              <h3 className="text-[16px] font-black text-gray-900 dark:text-white tracking-tight">Approval Hierarchy</h3>
+              <p className="text-xs text-gray-500 mt-0.5">Names printed on PO PDF under the approval signature section</p>
+            </div>
+            <Users className="w-5 h-5 text-gray-400" />
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className={`space-y-4 ${!isSuperAdmin ? "opacity-60 pointer-events-none" : ""}`}>
+              <Field
+    label="Purchase Coordinator (Initiator)"
+    placeholder="e.g. Vijay Kushwah"
+    value={settings.approvers?.purchaseCoord || ""}
+    onChange={(e) => isSuperAdmin && setSettings({ ...settings, approvers: { ...settings.approvers, purchaseCoord: e.target.value } })}
+    disabled={!isSuperAdmin}
+  />
+              <Field
+    label="L1 Approver — AGM Purchase"
+    placeholder="e.g. Akhilesh Singh"
+    value={settings.approvers?.l1 || ""}
+    onChange={(e) => isSuperAdmin && setSettings({ ...settings, approvers: { ...settings.approvers, l1: e.target.value } })}
+    disabled={!isSuperAdmin}
+  />
+              <Field
+    label="L2 Approver — Project Head / Manager"
+    placeholder="e.g. Jinesh Jain"
+    value={settings.approvers?.l2 || ""}
+    onChange={(e) => isSuperAdmin && setSettings({ ...settings, approvers: { ...settings.approvers, l2: e.target.value } })}
+    disabled={!isSuperAdmin}
+  />
+              <Field
+    label="L3 Approver — Director (Final Sign-off)"
+    placeholder="e.g. Rahul Gupta"
+    value={settings.approvers?.l3 || ""}
+    onChange={(e) => isSuperAdmin && setSettings({ ...settings, approvers: { ...settings.approvers, l3: e.target.value } })}
+    disabled={!isSuperAdmin}
+  />
+            </div>
+
+            <div className="p-5 rounded-2xl bg-orange-50/50 dark:bg-orange-900/10 border border-orange-100 dark:border-orange-900/20 self-start">
+              <h4 className="text-[11px] font-black text-orange-600 dark:text-orange-400 tracking-widest mb-3 flex items-center gap-2">
+                <FileText className="w-4 h-4" /> Preview — PO PDF Signature Row
+              </h4>
+              <div className="grid grid-cols-2 gap-2 text-center">
+                {[
+    { role: "PURCHASE COORD", name: settings.approvers?.purchaseCoord || "—" },
+    { role: "AGM (L1)", name: settings.approvers?.l1 || "—" },
+    { role: "PM / HEAD (L2)", name: settings.approvers?.l2 || "—" },
+    { role: "DIRECTOR (L3)", name: settings.approvers?.l3 || "—" }
+  ].map((a) => <div key={a.role} className="p-3 bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700/50">
+                    <p className="text-[9px] font-black text-gray-400 tracking-widest mb-1">{a.role}</p>
+                    <p className="text-[12px] font-bold text-gray-800 dark:text-gray-200 truncate">{a.name}</p>
+                    <div className="mt-2 h-px bg-gray-200 dark:bg-gray-700" />
+                    <p className="text-[8px] text-gray-400 mt-1">Signature</p>
+                  </div>)}
+              </div>
+              <p className="text-[9px] text-gray-400 mt-3 italic">This appears at the bottom of every generated PO PDF.</p>
+            </div>
+          </div>
+
+          {isSuperAdmin && <div className="pt-4 border-t border-gray-100 dark:border-gray-700/50 flex justify-end">
+              <Btn
+    label="Save Approvers"
+    icon={Check}
+    onClick={handleCommitSettings}
+    loading={actionLoading}
+    shadow
+  />
+            </div>}
         </Card>}
 
       {

@@ -118,17 +118,25 @@ const AppProvider = /* @__PURE__ */ __name(({ children }) => {
     workTypes: WORK_TYPES,
     companies: MY_COMPANIES,
     appName: "Garden City",
+    companyFullName: "Neoteric Properties",
+    footerText: "",
     logoUrl: "",
     faviconUrl: "",
     themeColor: "#F97316",
-    fontFamily: "Inter"
+    fontFamily: "Inter",
+    approvers: {
+      purchaseCoord: "Vijay Kushwah",
+      l1: "Akhilesh Singh",
+      l2: "Jinesh Jain",
+      l3: "Rahul Gupta"
+    }
   });
   const saveSettings = /* @__PURE__ */ __name(async (data) => {
     setActionLoading(true);
     try {
       const res = await api.putSimple("settings", data);
       const serverData = res.data || res;
-      setSettings(serverData);
+      setSettings((prev) => ({ ...prev, ...serverData, approvers: { ...prev.approvers, ...(serverData.approvers || {}) } }));
       toast.success("Settings saved successfully");
     } catch (error) {
       console.error("Failed to save settings:", error);
@@ -466,10 +474,18 @@ const AppProvider = /* @__PURE__ */ __name(({ children }) => {
                 workTypes: Array.isArray(serverData.workTypes) ? serverData.workTypes : prev.workTypes ?? WORK_TYPES,
                 companies: Array.isArray(serverData.companies) ? serverData.companies : prev.companies ?? MY_COMPANIES,
                 appName: serverData.appName ?? prev.appName ?? "Garden City",
+                companyFullName: serverData.companyFullName ?? prev.companyFullName ?? "Neoteric Properties",
+                footerText: serverData.footerText ?? prev.footerText ?? "",
                 logoUrl: serverData.logoUrl ?? prev.logoUrl ?? "",
                 faviconUrl: serverData.faviconUrl ?? prev.faviconUrl ?? "",
                 themeColor: serverData.themeColor ?? prev.themeColor ?? "#F97316",
-                fontFamily: serverData.fontFamily ?? prev.fontFamily ?? "Inter"
+                fontFamily: serverData.fontFamily ?? prev.fontFamily ?? "Inter",
+                approvers: serverData.approvers ?? prev.approvers ?? {
+                  purchaseCoord: "Vijay Kushwah",
+                  l1: "Akhilesh Singh",
+                  l2: "Jinesh Jain",
+                  l3: "Rahul Gupta"
+                }
               };
               const isEmpty = !serverData.projects?.length && !serverData.requesters?.length && !serverData.categories?.length && !serverData.units?.length && !serverData.workTypes?.length && !serverData.companies?.length;
               if (resource === "settings" && isEmpty) {

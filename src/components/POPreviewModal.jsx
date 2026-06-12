@@ -4,6 +4,7 @@ import { X, Download, Check } from "lucide-react";
 import { Modal, StatusBadge } from "./ui";
 import { fmtCur, safeStr, formatPrettyDate } from "../utils";
 import { generatePOPDF } from "../utils/pdfGenerator";
+import { useAppStore } from "../store";
 const POPreviewModal = /* @__PURE__ */ __name(({
   po,
   supplier,
@@ -11,6 +12,7 @@ const POPreviewModal = /* @__PURE__ */ __name(({
   onApprove,
   onReject
 }) => {
+  const { settings } = useAppStore();
   if (!po) return null;
   return <Modal
     title={`Purchase Order Details - ${po.id}`}
@@ -30,7 +32,7 @@ const POPreviewModal = /* @__PURE__ */ __name(({
               <X className="w-4 h-4" /> Reject PO
             </button>}
           <button
-      onClick={() => generatePOPDF(po, supplier)}
+      onClick={() => generatePOPDF(po, supplier, settings)}
       className="px-6 py-2.5 bg-orange-500 hover:bg-orange-600 text-white rounded-xl text-[13px] font-black shadow-lg shadow-orange-500/20 flex items-center gap-2 transition-all active:scale-95 tracking-widest"
     >
             <Download className="w-4 h-4" /> Download PO PDF
@@ -291,7 +293,7 @@ const POPreviewModal = /* @__PURE__ */ __name(({
             <div className="grid grid-cols-1 sm:grid-cols-4 border border-[#1A365D] rounded-b-lg overflow-hidden divide-y sm:divide-y-0 sm:divide-x divide-[#1A365D]">
               <div className="p-3">
                 <p className="text-[9px] font-bold text-gray-400 mb-2">Purchase Coordinator</p>
-                <p className="text-[11px] font-bold mb-1">Vijay Kushwah</p>
+                <p className="text-[11px] font-bold mb-1">{settings?.approvers?.purchaseCoord || "Purchase Coordinator"}</p>
                 <p className="text-[10px] text-gray-500 mb-4">{formatPrettyDate(po.date)}</p>
                 <div className="h-10 border-t border-dashed border-gray-200 mt-2 flex items-center justify-center">
                   <div className="border border-blue-400 px-1 py-0.5 rounded rotate-[-2deg] opacity-70">
@@ -301,7 +303,7 @@ const POPreviewModal = /* @__PURE__ */ __name(({
               </div>
               <div className="p-3">
                 <p className="text-[9px] font-bold text-gray-400 mb-2">AGM Purchase (L1)</p>
-                <p className="text-[11px] font-bold mb-1">Akhilesh Singh</p>
+                <p className="text-[11px] font-bold mb-1">{settings?.approvers?.l1 || "L1 Approver"}</p>
                 <p className="text-[10px] text-gray-500 mb-4">{po.approvalL1At ? formatPrettyDate(po.approvalL1At) : "Pending"}</p>
                 <div className="h-10 border-t border-dashed border-gray-200 mt-2 flex items-center justify-center">
                    {po.approvalL1 === "Approved" ? <div className="border-2 border-emerald-500/50 px-1 py-0.5 rounded rotate-[-5deg]">
@@ -313,7 +315,7 @@ const POPreviewModal = /* @__PURE__ */ __name(({
               </div>
               <div className="p-3">
                 <p className="text-[9px] font-bold text-gray-400 mb-2">Project Head / Head (L2)</p>
-                <p className="text-[11px] font-bold mb-1">Jinesh Jain</p>
+                <p className="text-[11px] font-bold mb-1">{settings?.approvers?.l2 || "L2 Approver"}</p>
                 <p className="text-[10px] text-gray-500 mb-4">{po.approvalL2At ? formatPrettyDate(po.approvalL2At) : "Pending"}</p>
                 <div className="h-10 border-t border-dashed border-gray-200 mt-2 flex items-center justify-center">
                    {po.approvalL2 === "Approved" ? <div className="border-2 border-emerald-500/50 px-1 py-0.5 rounded rotate-[-5deg]">
@@ -325,7 +327,7 @@ const POPreviewModal = /* @__PURE__ */ __name(({
               </div>
               <div className="p-3">
                 <p className="text-[9px] font-bold text-gray-400 mb-2">Director (L3)</p>
-                <p className="text-[11px] font-bold mb-1">Rahul Gupta</p>
+                <p className="text-[11px] font-bold mb-1">{settings?.approvers?.l3 || "L3 Approver"}</p>
                 <p className="text-[10px] text-gray-500 mb-4">{po.approvalL3At ? formatPrettyDate(po.approvalL3At) : "Pending"}</p>
                 <div className="h-10 border-t border-dashed border-gray-200 mt-2 flex items-center justify-center">
                    {po.approvalL3 === "Approved" ? <div className="border-2 border-emerald-500/50 px-1 py-0.5 rounded rotate-[-5deg]">
