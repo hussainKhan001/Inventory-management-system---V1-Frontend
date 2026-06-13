@@ -228,7 +228,7 @@ const Layout = /* @__PURE__ */ __name(({ children }) => {
             <div className="h-full bg-orange-500 animate-progress origin-left" />
           </div>}
 
-        <header className="relative z-[60] h-14 bg-white/80 dark:bg-gray-800/90 backdrop-blur-md border border-gray-200/50 dark:border-gray-700/50 shadow-sm flex items-center justify-between px-3 sm:px-4 shrink-0 transition-colors duration-200 mx-1 mt-1 rounded-xl">
+        <header className="relative z-30 h-14 bg-white/80 dark:bg-gray-800/90 backdrop-blur-md border border-gray-200/50 dark:border-gray-700/50 shadow-sm flex items-center justify-between px-3 sm:px-4 shrink-0 transition-colors duration-200 mx-1 mt-1 rounded-xl">
           <div className="flex items-center gap-2 sm:gap-3">
             <button
     onClick={() => {

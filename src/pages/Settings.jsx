@@ -18,7 +18,8 @@ import {
   Image as ImageIcon,
   Globe,
   Upload,
-  Coins
+  Coins,
+  Pencil,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 const ListManager = /* @__PURE__ */ __name(({
@@ -103,6 +104,8 @@ const SettingsPage = /* @__PURE__ */ __name(() => {
     workTypes: ""
   });
   const [newCompany, setNewCompany] = useState({ name: "", gstin: "", address: "" });
+  const [editingCompanyIdx, setEditingCompanyIdx] = useState(null);
+  const [editCompanyDraft, setEditCompanyDraft] = useState({ name: "", gstin: "", address: "" });
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [uploadingFavicon, setUploadingFavicon] = useState(false);
   const logoInputRef = useRef(null);
@@ -152,6 +155,22 @@ const SettingsPage = /* @__PURE__ */ __name(() => {
     } catch (err) {
     }
   }, "removeCompany");
+
+  const saveEditCompany = async () => {
+    if (!editCompanyDraft.name.trim()) return;
+    const updatedCompanies = (settings.companies || []).map((co, i) =>
+      i === editingCompanyIdx ? { ...editCompanyDraft } : co
+    );
+    const updatedSettings = { ...settings, companies: updatedCompanies };
+    setSettings(updatedSettings);
+    setEditingCompanyIdx(null);
+    try {
+      await saveSettings(updatedSettings);
+      toast.success("Company updated");
+    } catch (err) {
+      toast.error("Failed to save");
+    }
+  };
   const handleFileUpload = /* @__PURE__ */ __name(async (file, type) => {
     if (!file) return;
     try {
@@ -205,6 +224,7 @@ const SettingsPage = /* @__PURE__ */ __name(() => {
       <div className="flex gap-1 bg-gray-100/60 dark:bg-gray-800/40 p-1.5 rounded-xl border border-gray-100 dark:border-gray-800/60 overflow-x-auto no-scrollbar">
         {[
     { id: "branding", label: "Branding & Theme", icon: Palette },
+    { id: "companies", label: "My Companies", icon: Building },
     { id: "policies", label: "Compliance & Policies", icon: Coins },
     { id: "approvers", label: "Approvers & Workflow", icon: Users },
     { id: "master-data", label: "Master Data Databases", icon: DatabaseIcon }
@@ -634,6 +654,150 @@ const SettingsPage = /* @__PURE__ */ __name(() => {
         </Card>}
 
       {
+    /* COMPANIES TAB */
+  }
+      {activeTab === "companies" && (
+        <Card className="p-6 border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 shadow-sm animate-in fade-in slide-in-from-bottom-4 duration-300">
+          <div className="border-b border-gray-100 dark:border-gray-800 pb-4 mb-6 flex items-center justify-between">
+            <div>
+              <h3 className="text-[13px] font-black text-gray-900 dark:text-white flex items-center gap-2">
+                <Building className="w-4 h-4 text-primary" /> My Companies (Legal Entities)
+              </h3>
+              <p className="text-[11px] text-gray-400 mt-1">These are the billing companies used in Purchase Orders.</p>
+            </div>
+            {isSuperAdmin && (settings.companies || []).length > 0 && (
+              <Btn
+                label="Save to Database"
+                icon={Check}
+                small
+                onClick={async () => { try { await saveSettings(settings); toast.success("Companies saved!"); } catch { toast.error("Save failed"); } }}
+                loading={actionLoading}
+              />
+            )}
+          </div>
+
+          {/* Add new company form */}
+          {isSuperAdmin && (
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6 p-4 bg-gray-50 dark:bg-gray-800/40 rounded-xl border border-dashed border-gray-200 dark:border-gray-700">
+              <Field
+                label="Company Name"
+                placeholder="Legal Name"
+                value={newCompany.name}
+                onChange={(e) => setNewCompany({ ...newCompany, name: e.target.value })}
+              />
+              <Field
+                label="GSTIN"
+                placeholder="e.g. 23AACCG4572A1Z5"
+                value={newCompany.gstin}
+                onChange={(e) => setNewCompany({ ...newCompany, gstin: e.target.value })}
+              />
+              <div className="flex gap-2 items-end">
+                <div className="flex-1">
+                  <Field
+                    label="Address"
+                    placeholder="Full registered address"
+                    value={newCompany.address}
+                    onChange={(e) => setNewCompany({ ...newCompany, address: e.target.value })}
+                  />
+                </div>
+                <button
+                  onClick={addCompany}
+                  className="mb-1 px-4 py-2 bg-primary text-white rounded-xl hover:bg-primary/90 transition-all flex items-center gap-1.5 text-[12px] font-bold cursor-pointer shrink-0"
+                >
+                  <Plus className="w-4 h-4" /> Add
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Company list */}
+          <div className="space-y-3">
+            {(settings.companies || []).map((co, idx) => (
+              <div key={idx} className={`flex items-center justify-between p-4 bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-xl transition-all ${isSuperAdmin ? "group hover:border-primary/30 hover:shadow-sm" : ""}`}>
+                <div className="flex items-start gap-3 flex-1 min-w-0">
+                  <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+                    <Building className="w-4 h-4 text-primary" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[13px] font-bold text-gray-900 dark:text-white">{co.name}</p>
+                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-1">
+                      {co.gstin && <p className="text-[10px] font-mono text-primary font-bold bg-primary/5 px-1.5 py-0.5 rounded">GST: {co.gstin}</p>}
+                      {co.address && <p className="text-[10px] text-gray-500 truncate max-w-sm">{co.address}</p>}
+                    </div>
+                  </div>
+                </div>
+                {isSuperAdmin && (
+                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all ml-2">
+                    <button
+                      onClick={() => { setEditingCompanyIdx(idx); setEditCompanyDraft({ ...co }); }}
+                      className="p-2 text-gray-400 hover:text-primary hover:bg-primary/10 rounded-xl transition-all cursor-pointer"
+                      title="Edit"
+                    >
+                      <Pencil className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => removeCompany(idx)}
+                      className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/10 rounded-xl transition-all cursor-pointer"
+                      title="Delete"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                )}
+              </div>
+            ))}
+            {(!settings.companies || settings.companies.length === 0) && (
+              <div className="text-center py-12">
+                <Building className="w-10 h-10 text-gray-200 dark:text-gray-700 mx-auto mb-3" />
+                <p className="text-[13px] text-gray-400 font-medium">No companies added yet</p>
+                <p className="text-[11px] text-gray-300 dark:text-gray-600 mt-1">Add your first legal entity above</p>
+              </div>
+            )}
+          </div>
+
+          {/* Edit Company Modal */}
+          {editingCompanyIdx !== null && (
+            <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+              <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl w-full max-w-md border border-gray-200 dark:border-gray-700">
+                <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 dark:border-gray-800">
+                  <h3 className="text-[14px] font-black text-gray-900 dark:text-white flex items-center gap-2">
+                    <Building className="w-4 h-4 text-primary" /> Edit Company
+                  </h3>
+                  <button onClick={() => setEditingCompanyIdx(null)} className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
+                    <CloseIcon className="w-4 h-4 text-gray-400" />
+                  </button>
+                </div>
+                <div className="p-6 space-y-4">
+                  <Field
+                    label="Company Name"
+                    placeholder="Legal Name"
+                    value={editCompanyDraft.name}
+                    onChange={e => setEditCompanyDraft({ ...editCompanyDraft, name: e.target.value })}
+                  />
+                  <Field
+                    label="GSTIN"
+                    placeholder="e.g. 23AACCG4572A1Z5"
+                    value={editCompanyDraft.gstin}
+                    onChange={e => setEditCompanyDraft({ ...editCompanyDraft, gstin: e.target.value })}
+                  />
+                  <Field
+                    label="Address"
+                    placeholder="Full registered address"
+                    value={editCompanyDraft.address}
+                    onChange={e => setEditCompanyDraft({ ...editCompanyDraft, address: e.target.value })}
+                  />
+                </div>
+                <div className="flex justify-end gap-3 px-6 py-4 border-t border-gray-100 dark:border-gray-800">
+                  <Btn label="Cancel" outline onClick={() => setEditingCompanyIdx(null)} />
+                  <Btn label="Save Changes" icon={Check} onClick={saveEditCompany} loading={actionLoading} />
+                </div>
+              </div>
+            </div>
+          )}
+        </Card>
+      )}
+
+      {
     /* MASTER DATA TAB */
   }
       {activeTab === "master-data" && <Card className="p-6 space-y-6 border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 shadow-sm animate-in fade-in slide-in-from-bottom-4 duration-300">
@@ -697,68 +861,6 @@ const SettingsPage = /* @__PURE__ */ __name(() => {
     disabled={!isSuperAdmin}
   />
 
-            {
-    /* Company Management */
-  }
-            <div className="p-5 rounded-2xl bg-gray-50/50 dark:bg-gray-800/10 border border-gray-100 dark:border-gray-800 md:col-span-2">
-              <h4 className="text-[12px] font-bold text-gray-700 dark:text-gray-300 tracking-widest mb-4 flex items-center gap-2">
-                <Building className="w-4 h-4 text-primary" />
-                My Companies (Legal Entities)
-              </h4>
-              
-              {isSuperAdmin && <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
-                  <Field
-    label="Company Name"
-    small
-    placeholder="Legal Name"
-    value={newCompany.name}
-    onChange={(e) => setNewCompany({ ...newCompany, name: e.target.value })}
-  />
-                  <Field
-    label="GSTIN"
-    small
-    placeholder="GST Number"
-    value={newCompany.gstin}
-    onChange={(e) => setNewCompany({ ...newCompany, gstin: e.target.value })}
-  />
-                  <div className="flex gap-2 items-end">
-                    <div className="flex-1">
-                      <Field
-    label="Address"
-    small
-    placeholder="Full Address"
-    value={newCompany.address}
-    onChange={(e) => setNewCompany({ ...newCompany, address: e.target.value })}
-  />
-                    </div>
-                    <button
-    onClick={addCompany}
-    className="mb-4 p-2 bg-primary text-white rounded-xl hover:bg-primary/90 transition-all h-[40px] w-[40px] flex items-center justify-center cursor-pointer shrink-0"
-  >
-                      <Plus className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>}
-
-              <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
-                {settings.companies?.map((co, idx) => <div key={idx} className={`flex items-center justify-between p-4 bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-xl transition-all ${isSuperAdmin ? "group hover:border-primary/30" : ""}`}>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-[13px] font-bold text-gray-900 dark:text-white truncate">{co.name}</p>
-                      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-1">
-                        {co.gstin && <p className="text-[10px] font-mono text-primary font-bold">GST: {co.gstin}</p>}
-                        <p className="text-[10px] text-gray-500 truncate max-w-md">{co.address}</p>
-                      </div>
-                    </div>
-                    {isSuperAdmin && <button
-    onClick={() => removeCompany(idx)}
-    className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/10 rounded-xl transition-all opacity-0 group-hover:opacity-100 cursor-pointer"
-  >
-                        <Trash2 className="w-4.5 h-4.5" />
-                      </button>}
-                  </div>)}
-                {(!settings.companies || settings.companies.length === 0) && <p className="text-center py-8 text-xs text-gray-400 italic">No companies configured yet</p>}
-              </div>
-            </div>
           </div>
 
           {isSuperAdmin && <div className="pt-4 border-t border-gray-100 dark:border-gray-800 flex justify-end">

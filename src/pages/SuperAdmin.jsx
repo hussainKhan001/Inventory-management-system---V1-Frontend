@@ -62,6 +62,7 @@ const PERMISSION_GROUPS = [
       "EDIT_MR_PURCHASE",
       "APPROVE_MR_STORE",
       "APPROVE_MR_AGM",
+      "REVISE_MR",
       "GET_QUOTATION_LINK",
       "TOGGLE_QUOTATION_LINK"
     ]

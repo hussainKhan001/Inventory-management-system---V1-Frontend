@@ -472,7 +472,7 @@ const AppProvider = /* @__PURE__ */ __name(({ children }) => {
                 categories: Array.isArray(serverData.categories) ? serverData.categories : prev.categories ?? CATEGORIES,
                 units: Array.isArray(serverData.units) ? serverData.units : prev.units ?? UNITS,
                 workTypes: Array.isArray(serverData.workTypes) ? serverData.workTypes : prev.workTypes ?? WORK_TYPES,
-                companies: Array.isArray(serverData.companies) ? serverData.companies : prev.companies ?? MY_COMPANIES,
+                companies: serverData.companies?.length ? serverData.companies : prev.companies?.length ? prev.companies : MY_COMPANIES,
                 appName: serverData.appName ?? prev.appName ?? "Garden City",
                 companyFullName: serverData.companyFullName ?? prev.companyFullName ?? "Neoteric Properties",
                 footerText: serverData.footerText ?? prev.footerText ?? "",

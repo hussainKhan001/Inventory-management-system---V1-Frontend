@@ -321,7 +321,7 @@ const SField = React.memo(({
 const Modal = /* @__PURE__ */ __name(({ title, onClose, wide, extraWide, ultraWide, children, footer, className }) => <motion.div
   initial={{ opacity: 0 }}
   animate={{ opacity: 1 }}
-  className="fixed inset-0 z-[60] flex justify-end bg-[#0F172A]/60 backdrop-blur-sm"
+  className="fixed inset-0 z-[80] flex justify-end bg-[#0F172A]/60 backdrop-blur-sm"
   onClick={(e) => {
     if (e.target === e.currentTarget) onClose?.();
   }}
@@ -358,7 +358,7 @@ const Modal = /* @__PURE__ */ __name(({ title, onClose, wide, extraWide, ultraWi
 const ConfirmModal = /* @__PURE__ */ __name(({ title, message, onConfirm, onCancel, loading, confirmLabel = "Confirm", confirmColor = "red" }) => <motion.div
   initial={{ opacity: 0 }}
   animate={{ opacity: 1 }}
-  className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-[#0F172A]/70 backdrop-blur-sm"
+  className="fixed inset-0 z-[90] flex items-center justify-center p-4 bg-[#0F172A]/70 backdrop-blur-sm"
   onClick={(e) => {
     if (e.target === e.currentTarget) onCancel?.();
   }}

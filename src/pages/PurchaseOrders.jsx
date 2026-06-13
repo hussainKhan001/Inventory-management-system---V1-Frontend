@@ -1,7 +1,12 @@
 var __defProp = Object.defineProperty;
-var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
-import React, { useState, useCallback, useEffect, useRef } from "react";
+
+var __name = (target, value) =>
+  __defProp(target, "name", { value, configurable: true });
+
+import React, { useState, useCallback, useEffect, useRef, useMemo } from "react";
+
 import { useAppStore } from "../store";
+
 import {
   PageHeader,
   Card,
@@ -13,8 +18,9 @@ import {
   ConfirmModal,
   Field,
   Tr,
-  Td
+  Td,
 } from "../components/ui";
+
 import {
   Plus,
   Search,
@@ -29,16 +35,46 @@ import {
   Download,
   TrendingUp,
   BarChart2,
-  ChevronUp
+  ChevronUp,
 } from "lucide-react";
-import { SearchFilter, DateRangePicker, SelectFilter, FilterRow } from "../components/ui/Filters";
-import { fmtCur, genId, todayStr, scrollToError, formatDateTime, formatAccountNo, safeStr, calculatePriceComparison, isNewItem } from "../utils";
+
+import {
+  SearchFilter,
+  DateRangePicker,
+  SelectFilter,
+  FilterRow,
+} from "../components/ui/Filters";
+
+import {
+  fmtCur,
+  genId,
+  todayStr,
+  scrollToError,
+  formatDateTime,
+  formatAccountNo,
+  safeStr,
+  calculatePriceComparison,
+  isNewItem,
+} from "../utils";
+
 import { generatePOPDF } from "../utils/pdfGenerator";
+
 import { cn } from "../lib/utils";
+
 import { api } from "../services/api";
+
 import toast from "react-hot-toast";
+
 import { DatePicker } from "../components/ui/DatePicker";
+
 import { TableVirtuoso } from "react-virtuoso";
+
+import { POMonthlyReport } from "./po/POMonthlyReport";
+
+import { POFormModal } from "./po/POFormModal";
+
+import { POViewModal } from "./po/POViewModal";
+
 const PurchaseOrders = /* @__PURE__ */ __name(() => {
   const {
     pos,
@@ -55,54 +91,29 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
     actionLoading,
     materialRequirements,
     quotations,
-    hasPermission
+    hasPermission,
   } = useAppStore();
-  const COMPANIES = settings.companies?.length ? settings.companies : [
-    {
-      name: "GLR Real Estate Private Limited",
-      gstin: "23AACCG4572A1Z5",
-      address: "D-2, Silver Estate, University Road, Gwalior 474002"
-    },
-    {
-      name: "Neoteric Housing India LLP",
-      gstin: "23AASFN4959K1ZK",
-      address: "S-2/62, Silver Estate, University Road, Gwalior, Madhya Pradesh, 474011"
-    },
-    {
-      name: "Heaven Heights Private Limited",
-      gstin: "23AABCH6973R1ZX",
-      address: "N.A., Gulmohar City, Near New Collectorate, New City Centre, Gwalior, MP, 474011"
-    },
-    {
-      name: "Gravity Infrastructures Private Limited",
-      gstin: "23AADCG0413F1ZE",
-      address: "60, Silver Shopping Gallery, University Road Thatipur, Gwalior (M.P) - 474011"
-    },
-    {
-      name: "RLG Care Foundation",
-      gstin: "",
-      address: "Near - Garden Palace"
-    },
-    {
-      name: "Swastik Grah Nirman Company",
-      gstin: "23ACLPG9284H1ZC",
-      address: "N.A, N.A, MIG-247, Madhav Nagar, Gwalior, Madhya Pradesh, 474002"
-    },
-    {
-      name: "Neoteric Recreational And Hospitality",
-      gstin: "23AACCG4573B1Z2",
-      address: "D-2, Silver Estate, University Road, Gwalior 474002"
-    }
-  ];
+
+  const COMPANIES = settings.companies || [];
+
   const { projects: PROJECTS, categories: CATEGORIES, units: UNITS } = settings;
+
   const [search, setSearch] = useState("");
+
   const [debouncedSearch, setDebouncedSearch] = useState("");
+
   const [startDate, setStartDate] = useState("");
+
   const [endDate, setEndDate] = useState("");
+
   const [filterProject, setFilterProject] = useState("");
+
   const [filterSupplier, setFilterSupplier] = useState("");
+
   const [filterStatus, setFilterStatus] = useState("");
+
   const [occupiedMRs, setOccupiedMRs] = useState(null);
+
   const supplierOptions = React.useMemo(() => {
     const optionsMap = /* @__PURE__ */ new Map();
     suppliers.forEach((s) => {
@@ -114,46 +125,75 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
         optionsMap.set(po.supplier, po.supplier);
       }
     });
-    return Array.from(optionsMap.entries()).map(([value, label]) => ({ label, value })).sort((a, b) => a.label.localeCompare(b.label));
+
+    return Array.from(optionsMap.entries())
+      .map(([value, label]) => ({ label, value }))
+      .sort((a, b) => a.label.localeCompare(b.label));
   }, [suppliers, pos]);
-  const statusOptions = React.useMemo(() => [
-    { label: "Pending L1", value: "Pending L1" },
-    { label: "Pending L2", value: "Pending L2" },
-    { label: "Pending L3", value: "Pending L3" },
-    { label: "Approved", value: "Approved" },
-    { label: "GRN Pending", value: "GRN Pending" },
-    { label: "GRN Fulfilled", value: "GRN Fulfilled" },
-    { label: "Ready for Payment", value: "Ready for Payment" },
-    { label: "paid", value: "paid" },
-    { label: "rejected", value: "rejected" }
-  ], []);
+
+  const statusOptions = React.useMemo(
+    () => [
+      { label: "Pending L1", value: "Pending L1" },
+      { label: "Pending L2", value: "Pending L2" },
+      { label: "Pending L3", value: "Pending L3" },
+      { label: "Approved", value: "Approved" },
+      { label: "GRN Pending", value: "GRN Pending" },
+      { label: "GRN Fulfilled", value: "GRN Fulfilled" },
+      { label: "Ready for Payment", value: "Ready for Payment" },
+      { label: "paid", value: "paid" },
+      { label: "rejected", value: "rejected" },
+    ],
+    [],
+  );
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedSearch(search), 500);
+
     return () => clearTimeout(timer);
   }, [search]);
+
   const [modal, setModal] = useState(false);
+
   const [viewModal, setViewModal] = useState(false);
+
   const [selectedPO, setSelectedPO] = useState(null);
-  const [editTimelines, setEditTimelines] = useState(false);
-  const [draftTimelines, setDraftTimelines] = useState([]);
+
   const [deleteConfirm, setDeleteConfirm] = useState(null);
+
   const [isEditing, setIsEditing] = useState(false);
+
   const [processingId, setProcessingId] = useState(null);
+
   const [loadingQuotes, setLoadingQuotes] = useState(false);
+
   const [errors, setErrors] = useState({});
+
   const [cancelModal, setCancelModal] = useState(false);
+
   const [cancelNoteText, setCancelNoteText] = useState("");
+
   const [cancelTargetId, setCancelTargetId] = useState(null);
   useEffect(() => {
     if (Object.keys(errors).length > 0) {
       scrollToError();
     }
   }, [errors]);
-  const canEdit = ["Super Admin", "Director", "Project Manager"].includes(role || "");
+
+  const canEdit = ["Super Admin", "Director", "Project Manager"].includes(
+    role || "",
+  );
+
   const isPOLocked = /* @__PURE__ */ __name((po) => {
-    const hasPayment = (po.payment?.amountPaid || 0) > 0 || po.accountStatus === "paid" || po.paymentTimelines && po.paymentTimelines.some((t) => t.status === "Paid" || t.paidAmount > 0);
+    const hasPayment =
+      (po.payment?.amountPaid || 0) > 0 ||
+      po.accountStatus === "paid" ||
+      (po.paymentTimelines &&
+        po.paymentTimelines.some(
+          (t) => t.status === "Paid" || t.paidAmount > 0,
+        ));
+
     return !!hasPayment;
   }, "isPOLocked");
+
   const validateForm = /* @__PURE__ */ __name((data) => {
     const newErrors = {};
     if (!data.project) newErrors.project = "Project is required";
@@ -161,82 +201,131 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
     if (!data.items || (data.items?.length || 0) === 0) {
       newErrors.items = "At least one item is required";
     } else if (data.items.some((i) => i.sku === "N/A")) {
-      newErrors.items = "Please link all items to inventory (SKU cannot be N/A)";
+      newErrors.items =
+        "Please link all items to inventory (SKU cannot be N/A)";
     }
     const hasReusable2 = data.items?.some((i) => {
       const inv = inventory.find((inv2) => inv2.sku === i.sku);
-      return inv && ["Good", "Needs Repair"].includes(inv.condition) && inv.liveStock > 0;
+
+      return (
+        inv &&
+        ["Good", "Needs Repair"].includes(inv.condition) &&
+        inv.liveStock > 0
+      );
     });
     if (hasReusable2 && !data.justification) {
-      newErrors.justification = "Justification is required for ordering items with reusable stock available";
+      newErrors.justification =
+        "Justification is required for ordering items with reusable stock available";
     }
     setErrors(newErrors);
+
     return Object.keys(newErrors).length === 0;
   }, "validateForm");
+
   const [page, setPage] = useState(1);
+
   const observerRef = useRef(null);
+
   const [showMonthly, setShowMonthly] = useState(false);
-  const monthlyStats = React.useMemo(() => {
-    const map = /* @__PURE__ */ new Map();
-    (pos || []).forEach((po) => {
-      if (!po.date) return;
-      const d = new Date(po.date);
-      if (isNaN(d.getTime())) return;
-      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-      const label = d.toLocaleDateString("en-IN", { month: "long", year: "numeric" });
-      if (!map.has(key)) map.set(key, { label, count: 0, total: 0, approvedCount: 0, approved: 0, pendingCount: 0, pending: 0, cancelledCount: 0, cancelled: 0 });
-      const s = map.get(key);
-      s.count++;
-      s.total += po.totalValue || 0;
-      const st = po.status || "";
-      if (/cancel|block/i.test(st)) {
-        s.cancelledCount++;
-        s.cancelled += po.totalValue || 0;
-      } else if (/pending|draft/i.test(st)) {
-        s.pendingCount++;
-        s.pending += po.totalValue || 0;
-      } else {
-        s.approvedCount++;
-        s.approved += po.totalValue || 0;
-      }
-    });
-    return Array.from(map.entries()).sort(([a], [b]) => b.localeCompare(a)).map(([, s]) => s);
-  }, [pos]);
-  const reportSummary = React.useMemo(() => {
-    const count = monthlyStats.reduce((s, m) => s + m.count, 0);
-    const total = monthlyStats.reduce((s, m) => s + m.total, 0);
-    const approved = monthlyStats.reduce((s, m) => s + m.approved, 0);
-    const pending = monthlyStats.reduce((s, m) => s + m.pending, 0);
-    const cancelled = monthlyStats.reduce((s, m) => s + m.cancelled, 0);
-    const peak = monthlyStats.length > 0 ? monthlyStats.reduce((a, b) => a.total > b.total ? a : b) : null;
-    return { count, total, approved, pending, cancelled, peak };
-  }, [monthlyStats]);
+
   useEffect(() => {
     setPage(1);
-  }, [debouncedSearch, startDate, endDate, filterProject, filterSupplier, filterStatus]);
+  }, [
+    debouncedSearch,
+    startDate,
+    endDate,
+    filterProject,
+    filterSupplier,
+    filterStatus,
+  ]);
   useEffect(() => {
     const isInitialLoad = (pos?.length || 0) === 0;
+
     const filterObj = {};
     if (filterProject) filterObj.project = filterProject;
     if (filterSupplier) filterObj.supplier = filterSupplier;
     if (filterStatus) filterObj.status = filterStatus;
+
     const finalFilter = Object.keys(filterObj).length > 0 ? filterObj : null;
-    fetchResource("pos", page, 50, !isInitialLoad || page > 1, debouncedSearch, finalFilter, page > 1, false, startDate, endDate);
+    fetchResource(
+      "pos",
+      page,
+      50,
+      !isInitialLoad || page > 1,
+      debouncedSearch,
+      finalFilter,
+      page > 1,
+      false,
+      startDate,
+      endDate,
+    );
     fetchResource("suppliers", 1, 1e3, true);
     fetchResource("inventory", 1, 1e3, true);
     fetchResource("catalogue", 1, 1e3, true);
-    fetchResource("material-requirements", 1, 100, true, "", null, false, false);
+    fetchResource(
+      "material-requirements",
+      1,
+      100,
+      true,
+      "",
+      null,
+      false,
+      false,
+    );
     fetchResource("quotations", 1, 1e3, true);
-    api.get("pos/occupied-mrs").then((res) => setOccupiedMRs(res.data || [])).catch(() => setOccupiedMRs([]));
-  }, [fetchResource, page, debouncedSearch, startDate, endDate, filterProject, filterSupplier, filterStatus]);
+    api
+      .get("pos/occupied-mrs")
+      .then((res) => setOccupiedMRs(res.data || []))
+      .catch(() => setOccupiedMRs([]));
+  }, [
+    fetchResource,
+    page,
+    debouncedSearch,
+    startDate,
+    endDate,
+    filterProject,
+    filterSupplier,
+    filterStatus,
+  ]);
+
   const loadMore = useCallback(() => {
     if (posPagination && page < posPagination.pages && !loading) {
       setPage((prev) => prev + 1);
     }
   }, [posPagination, page, loading]);
-  const handlePageChange = useCallback((page2) => {
-    fetchResource("pos", page2);
-  }, [fetchResource]);
+
+  const handlePageChange = useCallback(
+    (page2) => {
+      fetchResource("pos", page2);
+    },
+    [fetchResource],
+  );
+
+  const filteredPos = useMemo(() => {
+    if (!debouncedSearch.trim()) return pos || [];
+    const q = debouncedSearch.toLowerCase().trim();
+    return (pos || []).filter(po => {
+      // PO number
+      if ((po.id || "").toLowerCase().includes(q)) return true;
+      // MR number
+      if ((po.mrId || "").toLowerCase().includes(q)) return true;
+      // Project
+      if ((po.project || "").toLowerCase().includes(q)) return true;
+      // Status
+      if ((po.status || "").toLowerCase().includes(q)) return true;
+      // Supplier ID / name
+      if ((po.supplier || "").toLowerCase().includes(q)) return true;
+      const sup = suppliers.find(s =>
+        s.id === po.supplier || s._id === po.supplier ||
+        (s.companyName || "").toLowerCase() === (po.supplier || "").toLowerCase()
+      );
+      if (sup && (sup.companyName || sup.name || "").toLowerCase().includes(q)) return true;
+      // Item names inside the PO
+      if ((po.items || []).some(item => (item.itemName || item.name || "").toLowerCase().includes(q))) return true;
+      return false;
+    });
+  }, [pos, suppliers, debouncedSearch]);
+
   const initialPO = {
     mrId: "",
     project: "",
@@ -247,22 +336,37 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
     priority: "Normal",
     requirementBy: "NA",
     location: "NA",
-    date: (/* @__PURE__ */ new Date()).toISOString(),
+    date: /* @__PURE__ */ new Date().toISOString(),
     remark: "",
     companyName: COMPANIES[0]?.name || "GLR Real Estate Private Limited",
     companyGst: COMPANIES[0]?.gstin || "23AACCG4572A1Z5",
-    companyAddress: COMPANIES[0]?.address || "D-2, Silver Estate, University Road, Gwalior 474002",
+    companyAddress:
+      COMPANIES[0]?.address ||
+      "D-2, Silver Estate, University Road, Gwalior 474002",
     vendorContact: "NA",
     vendorEmail: "NA",
     vendorAddress: "NA",
     panNo: "NA",
     gstNo: "NA",
-    vendorBankDetails: { accountHolder: "NA", bankName: "NA", accountNo: "NA", branchIFSC: "NA" },
-    deliveryDetails: { location: "Garden city", contactPerson: "Nitin mittal", deliveryDate: todayStr() },
+    vendorBankDetails: {
+      accountHolder: "NA",
+      bankName: "NA",
+      accountNo: "NA",
+      branchIFSC: "NA",
+    },
+    deliveryDetails: {
+      location: "Garden city",
+      contactPerson: "Nitin mittal",
+      deliveryDate: todayStr(),
+    },
     priceComparison: {
-      vendors: [{ name: "", gstType: "Exclusive" }, { name: "", gstType: "Exclusive" }, { name: "", gstType: "Exclusive" }],
+      vendors: [
+        { name: "", gstType: "Exclusive" },
+        { name: "", gstType: "Exclusive" },
+        { name: "", gstType: "Exclusive" },
+      ],
       items: [],
-      remarks: ""
+      remarks: "",
     },
     freightAmount: 0,
     freightGstPct: 0,
@@ -274,15 +378,41 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
     unloadingGstPct: 0,
     unloadingGstType: "Exclusive",
     paymentTimelines: [
-      { date: todayStr(), type: "Advance", mode: "Bank Transfer", amount: 0, gstPct: 18, gstType: "Inclusive", ifPayable: 0 },
-      { date: todayStr(), type: "On Delivery", mode: "Bank Transfer", amount: 0, gstPct: 0, gstType: "Inclusive", ifPayable: 0 },
-      { date: (() => {
-        const d = new Date(todayStr());
-        d.setDate(d.getDate() + 10);
-        return d.toISOString().split("T")[0];
-      })(), type: "After 10 Days of Delivery", mode: "Bank Transfer", amount: 0, gstPct: 18, gstType: "Inclusive", ifPayable: 0 }
-    ]
+      {
+        date: todayStr(),
+        type: "Advance",
+        mode: "Bank Transfer",
+        amount: 0,
+        gstPct: 18,
+        gstType: "Inclusive",
+        ifPayable: 0,
+      },
+      {
+        date: todayStr(),
+        type: "On Delivery",
+        mode: "Bank Transfer",
+        amount: 0,
+        gstPct: 0,
+        gstType: "Inclusive",
+        ifPayable: 0,
+      },
+      {
+        date: (() => {
+          const d = new Date(todayStr());
+          d.setDate(d.getDate() + 10);
+
+          return d.toISOString().split("T")[0];
+        })(),
+        type: "After 10 Days of Delivery",
+        mode: "Bank Transfer",
+        amount: 0,
+        gstPct: 18,
+        gstType: "Inclusive",
+        ifPayable: 0,
+      },
+    ],
   };
+
   const formatPrettyDate = /* @__PURE__ */ __name((dateString) => {
     if (!dateString) return "";
     try {
@@ -292,30 +422,54 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
         year: "numeric",
         hour: "2-digit",
         minute: "2-digit",
-        hour12: true
+        hour12: true,
       }).format(new Date(dateString));
     } catch (e) {
       return dateString;
     }
   }, "formatPrettyDate");
+
   const [newPO, setNewPO] = useState(initialPO);
   useEffect(() => {
     if (!modal || isEditing) return;
+
     let totalBase = 0;
+
     let itemsTotalWithGST = 0;
     newPO.items?.forEach((item) => {
       totalBase += item.qty * item.rate || 0;
       itemsTotalWithGST += item.totalWithGST || 0;
     });
-    const freightTotal = calcChargeTotal(newPO.freightAmount || 0, newPO.freightGstPct || 0, newPO.freightGstType || "Exclusive");
-    const loadingTotal = calcChargeTotal(newPO.loadingAmount || 0, newPO.loadingGstPct || 0, newPO.loadingGstType || "Exclusive");
-    const unloadingTotal = calcChargeTotal(newPO.unloadingAmount || 0, newPO.unloadingGstPct || 0, newPO.unloadingGstType || "Exclusive");
+
+    const freightTotal = calcChargeTotal(
+      newPO.freightAmount || 0,
+      newPO.freightGstPct || 0,
+      newPO.freightGstType || "Exclusive",
+    );
+
+    const loadingTotal = calcChargeTotal(
+      newPO.loadingAmount || 0,
+      newPO.loadingGstPct || 0,
+      newPO.loadingGstType || "Exclusive",
+    );
+
+    const unloadingTotal = calcChargeTotal(
+      newPO.unloadingAmount || 0,
+      newPO.unloadingGstPct || 0,
+      newPO.unloadingGstType || "Exclusive",
+    );
+
     const chargesTotal = freightTotal + loadingTotal + unloadingTotal;
+
     const grandTotal = itemsTotalWithGST + chargesTotal;
+
     const grandBase = totalBase + chargesTotal;
-    const isDefault = newPO.paymentTimelines?.every((pt) => pt.amount === 0 && pt.ifPayable === 0);
+
+    const isDefault = newPO.paymentTimelines?.every(
+      (pt) => pt.amount === 0 && pt.ifPayable === 0,
+    );
     if (grandTotal > 0 && isDefault) {
-      const pts = [...newPO.paymentTimelines || []];
+      const pts = [...(newPO.paymentTimelines || [])];
       if (pts.length >= 3) {
         pts[0].amount = 0;
         pts[0].ifPayable = 0;
@@ -323,11 +477,21 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
         pts[1].ifPayable = 0;
         pts[2].amount = Math.round(grandBase * 100) / 100;
         pts[2].ifPayable = Math.round(grandTotal * 100) / 100;
+
         const firstItem = newPO.items[0];
         if (firstItem?.gstPct != null) {
-          pts[2] = { ...pts[2], gstPct: Number(firstItem.gstPct), gstType: firstItem.gstType || "Exclusive" };
+          const gstType = firstItem.gstType || "Exclusive";
+
+          const gstPct = Number(firstItem.gstPct);
+          pts[0] = { ...pts[0], gstPct, gstType };
+          pts[1] = { ...pts[1], gstPct, gstType };
+          pts[2] = { ...pts[2], gstPct, gstType };
         }
-        setNewPO((prev) => ({ ...prev, paymentTimelines: pts, totalAmount: grandTotal }));
+        setNewPO((prev) => ({
+          ...prev,
+          paymentTimelines: pts,
+          totalAmount: grandTotal,
+        }));
       }
     }
   }, [
@@ -342,120 +506,465 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
     newPO.unloadingGstPct,
     newPO.unloadingGstType,
     modal,
-    isEditing
+    isEditing,
   ]);
   useEffect(() => {
     if (!modal) return;
     if (newPO.supplier && suppliers.length > 0) {
-      const needsVendorFilling = !newPO.gstNo || newPO.gstNo === "NA" || !newPO.vendorAddress || newPO.vendorAddress === "NA" || !newPO.vendorContact || newPO.vendorContact === "NA";
+      const needsVendorFilling =
+        !newPO.gstNo ||
+        newPO.gstNo === "NA" ||
+        !newPO.vendorAddress ||
+        newPO.vendorAddress === "NA" ||
+        !newPO.vendorContact ||
+        newPO.vendorContact === "NA";
       if (needsVendorFilling) {
         const s = suppliers.find(
-          (su) => su.id === newPO.supplier || su._id === newPO.supplier || (su.companyName || su.name || "").toLowerCase() === (newPO.supplier || "").toLowerCase()
+          (su) =>
+            su.id === newPO.supplier ||
+            su._id === newPO.supplier ||
+            (su.companyName || su.name || "").toLowerCase() ===
+              (newPO.supplier || "").toLowerCase(),
         );
         if (s) {
           setNewPO((prev) => ({
             ...prev,
-            panNo: !prev.panNo || prev.panNo === "NA" ? s.panNumber || "NA" : prev.panNo,
-            gstNo: !prev.gstNo || prev.gstNo === "NA" ? s.gstNumber || s.gst || "NA" : prev.gstNo,
-            vendorContact: !prev.vendorContact || prev.vendorContact === "NA" ? s.mobile || "NA" : prev.vendorContact,
-            vendorEmail: !prev.vendorEmail || prev.vendorEmail === "NA" ? s.email || "NA" : prev.vendorEmail,
-            vendorAddress: !prev.vendorAddress || prev.vendorAddress === "NA" ? s.address || "NA" : prev.vendorAddress,
+            panNo:
+              !prev.panNo || prev.panNo === "NA"
+                ? s.panNumber || "NA"
+                : prev.panNo,
+            gstNo:
+              !prev.gstNo || prev.gstNo === "NA"
+                ? s.gstNumber || s.gst || "NA"
+                : prev.gstNo,
+            vendorContact:
+              !prev.vendorContact || prev.vendorContact === "NA"
+                ? s.mobile || "NA"
+                : prev.vendorContact,
+            vendorEmail:
+              !prev.vendorEmail || prev.vendorEmail === "NA"
+                ? s.email || "NA"
+                : prev.vendorEmail,
+            vendorAddress:
+              !prev.vendorAddress || prev.vendorAddress === "NA"
+                ? s.address || "NA"
+                : prev.vendorAddress,
             vendorBankDetails: {
-              accountHolder: !prev.vendorBankDetails?.accountHolder || prev.vendorBankDetails?.accountHolder === "NA" ? s.accountHolderName || s.ownerName || "NA" : prev.vendorBankDetails.accountHolder,
-              bankName: !prev.vendorBankDetails?.bankName || prev.vendorBankDetails?.bankName === "NA" ? s.bankName || "NA" : prev.vendorBankDetails.bankName,
-              accountNo: !prev.vendorBankDetails?.accountNo || prev.vendorBankDetails?.accountNo === "NA" ? formatAccountNo(s.accountNumber || s.accountNo) || "NA" : prev.vendorBankDetails.accountNo,
-              branchIFSC: !prev.vendorBankDetails?.branchIFSC || prev.vendorBankDetails?.branchIFSC === "NA" ? `${s.branch || ""}, ${s.ifscCode || ""}`.trim().replace(/^,/, "").replace(/,$/, "").trim() || "NA" : prev.vendorBankDetails.branchIFSC
-            }
+              accountHolder:
+                !prev.vendorBankDetails?.accountHolder ||
+                prev.vendorBankDetails?.accountHolder === "NA"
+                  ? s.accountHolderName || s.ownerName || "NA"
+                  : prev.vendorBankDetails.accountHolder,
+              bankName:
+                !prev.vendorBankDetails?.bankName ||
+                prev.vendorBankDetails?.bankName === "NA"
+                  ? s.bankName || "NA"
+                  : prev.vendorBankDetails.bankName,
+              accountNo:
+                !prev.vendorBankDetails?.accountNo ||
+                prev.vendorBankDetails?.accountNo === "NA"
+                  ? formatAccountNo(s.accountNumber || s.accountNo) || "NA"
+                  : prev.vendorBankDetails.accountNo,
+              branchIFSC:
+                !prev.vendorBankDetails?.branchIFSC ||
+                prev.vendorBankDetails?.branchIFSC === "NA"
+                  ? `${s.branch || ""}, ${s.ifscCode || ""}`
+                      .trim()
+                      .replace(/^,/, "")
+                      .replace(/,$/, "")
+                      .trim() || "NA"
+                  : prev.vendorBankDetails.branchIFSC,
+            },
           }));
         }
       }
     }
-    if (!newPO.companyName || newPO.companyName === "" || newPO.companyName === "Select...") {
-      const defaultCompany = COMPANIES && COMPANIES.length > 0 ? COMPANIES[COMPANIES.length - 1] : null;
+    if (
+      !newPO.companyName ||
+      newPO.companyName === "" ||
+      newPO.companyName === "Select..."
+    ) {
+      const defaultCompany =
+        COMPANIES && COMPANIES.length > 0
+          ? COMPANIES[COMPANIES.length - 1]
+          : null;
       if (defaultCompany) {
         setNewPO((prev) => ({
           ...prev,
           companyName: defaultCompany.name,
           companyGst: defaultCompany.gstin,
-          companyAddress: defaultCompany.address
+          companyAddress: defaultCompany.address,
         }));
       }
     } else {
-      const needsCompanyFilling = !newPO.companyGst || newPO.companyGst === "" || !newPO.companyAddress || newPO.companyAddress === "";
+      const needsCompanyFilling =
+        !newPO.companyGst ||
+        newPO.companyGst === "" ||
+        !newPO.companyAddress ||
+        newPO.companyAddress === "";
       if (needsCompanyFilling) {
         const company = COMPANIES?.find((c) => c.name === newPO.companyName);
         if (company) {
           setNewPO((prev) => ({
             ...prev,
             companyGst: prev.companyGst || company.gstin,
-            companyAddress: prev.companyAddress || company.address
+            companyAddress: prev.companyAddress || company.address,
           }));
         }
       }
     }
   }, [modal, newPO.supplier, suppliers, newPO.companyName]);
-  const [searchItem, setSearchItem] = useState("");
-  const [linkingIndex, setLinkingIndex] = useState(null);
-  const [linkingSearch, setLinkingSearch] = useState("");
+
   const [autoLinking, setAutoLinking] = useState(false);
-  const [showQuickAdd, setShowQuickAdd] = useState(null);
-  const [quickAddData, setQuickAddData] = useState({ category: "", unit: "" });
-  useEffect(() => {
-    if (!modal) return;
-    const delayDebounceFn = setTimeout(() => {
-      const currentSearch = searchItem || linkingSearch;
-      if (currentSearch) {
-        fetchResource("inventory", 1, 100, false, currentSearch);
-      } else {
-        fetchResource("inventory", 1, 200, false);
-      }
-    }, 400);
-    return () => clearTimeout(delayDebounceFn);
-  }, [searchItem, linkingSearch, fetchResource, modal]);
+
   const findBestItemMatch = /* @__PURE__ */ __name((items, searchName) => {
     if (!searchName || !items || !items.length) return null;
+
     const target = searchName.toLowerCase().trim();
-    let match = items.find((i) => (i.materialName || i.itemName || "").toLowerCase().trim() === target);
+
+    let match = items.find(
+      (i) =>
+        (i.materialName || i.itemName || "").toLowerCase().trim() === target,
+    );
     if (match) return match;
     match = items.find((i) => {
       const name = (i.materialName || i.itemName || "").toLowerCase().trim();
       if (!name) return false;
+
       return name.includes(target) || target.includes(name);
     });
+
     return match || null;
   }, "findBestItemMatch");
+
+  const handleMrChange = /* @__PURE__ */ __name(async (rawValue) => {
+    if (!rawValue) {
+      setNewPO({
+        ...newPO,
+        mrId: "",
+        supplier: "",
+        project: "",
+        location: "",
+        requirementBy: "",
+        items: [],
+        panNo: "NA",
+        gstNo: "NA",
+        vendorContact: "NA",
+        vendorEmail: "NA",
+        vendorAddress: "NA",
+        vendorBankDetails: {
+          accountHolder: "NA",
+          bankName: "NA",
+          accountNo: "NA",
+          branchIFSC: "NA",
+        },
+        priceComparison: { vendors: [], items: [], remarks: "" },
+      });
+      return;
+    }
+    const [mrId, selectedCategory, approvedQuoteId] = rawValue.split("|");
+
+    const mr = materialRequirements.find((m) => m.id === mrId);
+    if (!mr) {
+      setNewPO({ ...newPO, mrId: rawValue });
+      return;
+    }
+    if (!mr.items || mr.items.length === 0) {
+      toast.error("This MR has no items");
+      setNewPO({ ...newPO, mrId: rawValue });
+      return;
+    }
+    setAutoLinking(true);
+    toast.loading(`Loading ${selectedCategory || ""} items...`, {
+      id: "linking",
+    });
+    try {
+      const qRes = await api.get("quotations", {
+        filter: JSON.stringify({ mrId }),
+        limit: 100,
+      });
+
+      let mrQuotations =
+        qRes.success && Array.isArray(qRes.data) ? qRes.data : [];
+
+      const storeQuotes = quotations.filter((q) => q.mrId === mrId);
+
+      const allQuotes = [...mrQuotations];
+      storeQuotes.forEach((sq) => {
+        if (!allQuotes.find((aq) => aq.id === sq.id)) allQuotes.push(sq);
+      });
+
+      const categoryQuotes = allQuotes.filter(
+        (q) =>
+          !selectedCategory ||
+          selectedCategory === "General" ||
+          q.category === selectedCategory,
+      );
+
+      const approvedQuotation =
+        categoryQuotes.find(
+          (q) => q.id === approvedQuoteId || q._id === approvedQuoteId,
+        ) || categoryQuotes[0];
+
+      const displayQuotations =
+        categoryQuotes.length > 0
+          ? categoryQuotes
+          : approvedQuotation
+            ? [approvedQuotation]
+            : [{ supplierName: "Vendor 1", items: [] }];
+
+      const approvedItems = (approvedQuotation?.items || []).filter(
+        (i) => i.approved,
+      );
+
+      const itemsToUse =
+        approvedItems.length > 0
+          ? approvedItems
+          : approvedQuotation?.items || [];
+
+      const pItems = await Promise.all(
+        itemsToUse.map(async (qItem) => {
+          const searchName = (qItem.materialName || "").trim();
+
+          const gstPct = qItem?.gstPct || 18;
+
+          const gstType = qItem?.gstType || "Exclusive";
+
+          let invItem = inventory.find(
+            (i) =>
+              (i.itemName || "").trim().toLowerCase() ===
+              searchName.toLowerCase(),
+          );
+          if (!invItem)
+            invItem = inventory.find((i) =>
+              (i.itemName || "")
+                .toLowerCase()
+                .includes(searchName.toLowerCase()),
+            );
+          if (!invItem) {
+            try {
+              const r = await api.get("inventory", {
+                search: qItem.materialName,
+                limit: 5,
+              });
+              if (r.data?.length) invItem = r.data[0];
+            } catch {}
+          }
+          const rawTotal = (qItem.qty || 0) * qItem.rate;
+
+          const totalWithGST =
+            gstType === "Inclusive" ? rawTotal : rawTotal * (1 + gstPct / 100);
+
+          const total =
+            gstType === "Inclusive"
+              ? totalWithGST / (1 + gstPct / 100)
+              : rawTotal;
+
+          const mrItem = mr.items.find(
+            (mi) => mi.materialName === qItem.materialName,
+          );
+
+          return {
+            sku: invItem?.sku || "N/A",
+            itemName: invItem?.itemName || qItem.materialName || "",
+            qty: qItem.qty,
+            unit: qItem.unit || invItem?.unit || mrItem?.unit || "Nos",
+            rate: qItem.rate,
+            gstPct,
+            gstType,
+            total,
+            totalWithGST,
+            currentStock: invItem?.liveStock || 0,
+            category: invItem?.category || qItem.category || "General",
+            requirementQty: mrItem?.qty || qItem.qty,
+            condition: "New",
+          };
+        }),
+      );
+
+      const priceItems = itemsToUse
+        .map((qItem) => {
+          const mName = (qItem.materialName || "").trim();
+
+          return {
+            materialName: qItem.materialName,
+            unit: qItem.unit || "",
+            qty: qItem.qty || 1,
+            rates: displayQuotations.map(
+              (q) => findBestItemMatch(q.items || [], mName)?.rate || 0,
+            ),
+            gstPcts: displayQuotations.map(
+              (q) => findBestItemMatch(q.items || [], mName)?.gstPct || 0,
+            ),
+          };
+        })
+        .filter((it) => it.rates.some((r) => r > 0));
+
+      const linkedSupplierId =
+        approvedQuotation?.supplierId || mr.approvedSupplier;
+
+      const linkedSupplier = suppliers.find(
+        (s) =>
+          s.id === linkedSupplierId ||
+          s._id === linkedSupplierId ||
+          (s.companyName || s.name || "").toLowerCase() ===
+            (approvedQuotation?.supplierName || "").toLowerCase(),
+      );
+
+      const poDate = todayStr();
+
+      const rawDelivery = approvedQuotation?.deliveryDate;
+
+      const deliveryDate = rawDelivery ? rawDelivery.split("T")[0] : poDate;
+
+      const d10 = new Date(deliveryDate);
+      d10.setDate(d10.getDate() + 10);
+
+      const existing = newPO.paymentTimelines || [];
+      setNewPO({
+        ...newPO,
+        mrId: rawValue,
+        supplier:
+          linkedSupplier?.id || linkedSupplier?._id || linkedSupplierId || "",
+        project: mr?.project || "",
+        location: mr?.location || "",
+        workType: selectedCategory || mr?.workType || "",
+        requirementBy: mr?.requesterName || "",
+        items: pItems,
+        panNo: linkedSupplier?.panNumber || "NA",
+        gstNo: linkedSupplier?.gstNumber || "NA",
+        vendorContact: linkedSupplier?.mobile || "NA",
+        vendorEmail: linkedSupplier?.email || "NA",
+        vendorAddress: linkedSupplier?.address || "NA",
+        vendorBankDetails: linkedSupplier
+          ? {
+              accountHolder: linkedSupplier.accountHolderName || "NA",
+              bankName: linkedSupplier.bankName || "NA",
+              accountNo: formatAccountNo(linkedSupplier.accountNumber) || "NA",
+              branchIFSC:
+                `${linkedSupplier.branch || ""}, ${linkedSupplier.ifscCode || ""}`
+                  .trim()
+                  .replace(/^,/, "")
+                  .replace(/,$/, "")
+                  .trim() || "NA",
+            }
+          : {
+              accountHolder: "NA",
+              bankName: "NA",
+              accountNo: "NA",
+              branchIFSC: "NA",
+            },
+        deliveryDetails: rawDelivery
+          ? { ...newPO.deliveryDetails, deliveryDate }
+          : newPO.deliveryDetails,
+        priceComparison: {
+          vendors: displayQuotations.map((q) => ({
+            name: q.supplierName || "Vendor",
+            gstType: q.items?.[0]?.gstType || "Exclusive",
+            gstPct: q.items?.[0]?.gstPct || 0,
+          })),
+          items: priceItems,
+          remarks: "",
+        },
+        freightAmount: approvedQuotation?.freightAmount || 0,
+        freightGstPct: approvedQuotation?.freightGstPct ?? 18,
+        freightGstType: approvedQuotation?.freightGstType || "Exclusive",
+        loadingAmount: approvedQuotation?.loadingAmount || 0,
+        loadingGstPct: approvedQuotation?.loadingGstPct ?? 18,
+        loadingGstType: approvedQuotation?.loadingGstType || "Exclusive",
+        unloadingAmount: approvedQuotation?.unloadingAmount || 0,
+        unloadingGstPct: approvedQuotation?.unloadingGstPct ?? 18,
+        unloadingGstType: approvedQuotation?.unloadingGstType || "Exclusive",
+        paymentTimelines: [
+          {
+            date: poDate,
+            type: "Advance",
+            mode: existing[0]?.mode || "Bank Transfer",
+            amount: existing[0]?.amount || 0,
+            gstPct: existing[0]?.gstPct ?? 18,
+            gstType: existing[0]?.gstType || "Inclusive",
+            ifPayable: existing[0]?.ifPayable || 0,
+          },
+          {
+            date: deliveryDate,
+            type: "On Delivery",
+            mode: existing[1]?.mode || "Bank Transfer",
+            amount: existing[1]?.amount || 0,
+            gstPct: existing[1]?.gstPct ?? 0,
+            gstType: existing[1]?.gstType || "Inclusive",
+            ifPayable: existing[1]?.ifPayable || 0,
+          },
+          {
+            date: d10.toISOString().split("T")[0],
+            type: "After 10 Days of Delivery",
+            mode: existing[2]?.mode || "Bank Transfer",
+            amount: existing[2]?.amount || 0,
+            gstPct: existing[2]?.gstPct ?? 18,
+            gstType: existing[2]?.gstType || "Inclusive",
+            ifPayable: existing[2]?.ifPayable || 0,
+          },
+        ],
+      });
+      toast.success(`Items loaded`, { id: "linking" });
+    } catch (error) {
+      toast.error("Failed to load items", { id: "linking" });
+    } finally {
+      setAutoLinking(false);
+    }
+  }, "handleMrChange");
+
   const poStats = React.useMemo(() => {
     const total = pos.length;
+
     const pending = pos.filter((p) => !p.isApproved).length;
+
     const approved = pos.filter((p) => p.isApproved).length;
+
     const value = pos.reduce((acc, p) => acc + (p.totalAmount || 0), 0);
+
     return { total, pending, approved, value };
   }, [pos]);
+
   const vendorOptions = React.useMemo(
-    () => (suppliers || []).map((v) => ({ label: v.companyName || v.name, value: v.id })),
-    [suppliers]
+    () =>
+      (suppliers || []).map((v) => ({
+        label: v.companyName || v.name,
+        value: v.id,
+      })),
+    [suppliers],
   );
+
   const companyOptions = React.useMemo(
     () => COMPANIES?.map((c) => ({ label: c.name, value: c.name })) || [],
-    [COMPANIES]
+    [COMPANIES],
   );
+
   const mrOptions = React.useMemo(() => {
     if (occupiedMRs === null) return [];
+
     const occupied = new Set(
-      occupiedMRs.map((o) => `${o.mrId}|${o.workType || "General"}`)
+      occupiedMRs.map((o) => `${o.mrId}|${o.workType || "General"}`),
     );
+
     const isOccupied = (mrId, category) =>
-      occupied.has(`${mrId}|${category}`) || (occupied.has(`${mrId}|General`) && category === "General");
+      occupied.has(`${mrId}|${category}`) ||
+      (occupied.has(`${mrId}|General`) && category === "General");
+
     const list = [];
     (materialRequirements || []).forEach((m) => {
-      if (m && (m.status === "Approved by AGM" || m.status === "Approved by Store" || m.status === "Quotation Phase")) {
+      if (
+        m &&
+        (m.status === "Approved by AGM" ||
+          m.status === "Approved by Store" ||
+          m.status === "Quotation Phase")
+      ) {
         if (m.approvals && m.approvals.length > 0) {
           m.approvals.forEach((app) => {
             const category = app.category || "General";
             if (!isOccupied(m.id, category) && !app.poCreated) {
               list.push({
                 label: `${m.mrNumber || m.id} - ${m.project} (${category}) - ${app.supplierName}`,
-                value: `${m.id}|${category}|${app.quotationId}`
+                value: `${m.id}|${category}|${app.quotationId}`,
               });
             }
           });
@@ -463,57 +972,109 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
           if (!isOccupied(m.id, "General")) {
             list.push({
               label: `${m.mrNumber || m.id} - ${m.project} (Legacy)`,
-              value: `${m.id}|General|${m.approvedQuotationId}`
+              value: `${m.id}|General|${m.approvedQuotationId}`,
             });
           }
         }
       }
     });
+
     return list;
   }, [materialRequirements, occupiedMRs]);
+
   const normalizeTimelineType = /* @__PURE__ */ __name((type) => {
     if (type === "Progress") return "On Delivery";
     if (type === "Final Balance") return "After 10 Days of Delivery";
+
     return type || "";
   }, "normalizeTimelineType");
+
   const computeTimelineDates = /* @__PURE__ */ __name((po) => {
     const poDate = po.date ? po.date.split("T")[0] : todayStr();
+
     const rawDelivery = po.deliveryDetails?.deliveryDate;
-    const delivDate = rawDelivery && rawDelivery !== "NA" && rawDelivery !== "" ? rawDelivery.split("T")[0] : poDate;
+
+    const delivDate =
+      rawDelivery && rawDelivery !== "NA" && rawDelivery !== ""
+        ? rawDelivery.split("T")[0]
+        : poDate;
+
     const d10 = new Date(delivDate);
     d10.setDate(d10.getDate() + 10);
+
     const plus10 = d10.toISOString().split("T")[0];
+
     return [poDate, delivDate, plus10];
   }, "computeTimelineDates");
+
   const fmtGstPct = /* @__PURE__ */ __name((val) => {
     const g = String(val || "").trim();
+
     const gl = g.toLowerCase();
     if (!g || gl === "-" || gl === "inclusive") return g;
+
     const num = parseFloat(g.replace(/[^0-9.]/g, ""));
     if (!isNaN(num)) return `${num}% Exclusive`;
+
     return g;
   }, "fmtGstPct");
-  const parseGstInput = /* @__PURE__ */ __name((raw) => raw.replace(/\s*%?\s*exclusive\s*/i, "").trim(), "parseGstInput");
+
+  const parseGstInput = /* @__PURE__ */ __name(
+    (raw) => raw.replace(/\s*%?\s*exclusive\s*/i, "").trim(),
+    "parseGstInput",
+  );
+
   const normalizeTimelineGST = /* @__PURE__ */ __name((pt) => {
-    const raw = String(pt.gstPct || "").toLowerCase().trim();
+    const raw = String(pt.gstPct || "")
+      .toLowerCase()
+      .trim();
+
     const num = parseFloat(raw.replace(/[^0-9.]/g, ""));
+
     const resolvedType = pt.gstType === "Exclusive" ? "Exclusive" : "Inclusive";
-    return { ...pt, gstPct: isNaN(num) || !num ? 18 : num, gstType: resolvedType };
+
+    return {
+      ...pt,
+      gstPct: isNaN(num) || !num ? 18 : num,
+      gstType: resolvedType,
+    };
   }, "normalizeTimelineGST");
+
   const calcChargeTotal = /* @__PURE__ */ __name((amount, gstPct, gstType) => {
     if (!amount) return 0;
+
     return gstType === "Exclusive" ? amount * (1 + gstPct / 100) : amount;
   }, "calcChargeTotal");
+
   const handleCreate = /* @__PURE__ */ __name(async () => {
     if (!validateForm(newPO)) {
       toast.error("Please fix the errors in the form");
       return;
     }
-    const itemsTotal = newPO.items?.reduce((sum, item) => sum + item.totalWithGST, 0) || 0;
-    const freightTotal = calcChargeTotal(newPO.freightAmount || 0, newPO.freightGstPct || 0, newPO.freightGstType || "Exclusive");
-    const loadingTotal = calcChargeTotal(newPO.loadingAmount || 0, newPO.loadingGstPct || 0, newPO.loadingGstType || "Exclusive");
-    const unloadingTotal = calcChargeTotal(newPO.unloadingAmount || 0, newPO.unloadingGstPct || 0, newPO.unloadingGstType || "Exclusive");
-    const totalValue = itemsTotal + freightTotal + loadingTotal + unloadingTotal;
+    const itemsTotal =
+      newPO.items?.reduce((sum, item) => sum + item.totalWithGST, 0) || 0;
+
+    const freightTotal = calcChargeTotal(
+      newPO.freightAmount || 0,
+      newPO.freightGstPct || 0,
+      newPO.freightGstType || "Exclusive",
+    );
+
+    const loadingTotal = calcChargeTotal(
+      newPO.loadingAmount || 0,
+      newPO.loadingGstPct || 0,
+      newPO.loadingGstType || "Exclusive",
+    );
+
+    const unloadingTotal = calcChargeTotal(
+      newPO.unloadingAmount || 0,
+      newPO.unloadingGstPct || 0,
+      newPO.unloadingGstType || "Exclusive",
+    );
+
+    const totalValue =
+      itemsTotal + freightTotal + loadingTotal + unloadingTotal;
+
     const isAutoApproved = totalValue <= settings.poThreshold;
     if (isEditing && newPO.id) {
       try {
@@ -531,7 +1092,7 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
           vendorEmail: newPO.vendorEmail,
           vendorAddress: newPO.vendorAddress,
           panNo: newPO.panNo,
-          gstNo: newPO.gstNo
+          gstNo: newPO.gstNo,
         });
         toast.success("Purchase Order updated successfully");
         setModal(false);
@@ -545,14 +1106,16 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
     }
     const maxIdNum = pos.reduce((max, p) => {
       const parts = p.id.split("-");
+
       const num = parseInt(parts[parts.length - 1] || "0");
+
       return num > max ? num : max;
     }, 0);
+
     const po = {
       ...newPO,
       id: genId("PO", maxIdNum),
-      mrId: newPO.mrId?.split("|")[0] || newPO.mrId,
-      // Sanitize in case it's pipe-separated
+      mrId: newPO.mrId?.split("|")[0] || newPO.mrId, // Sanitize in case it's pipe-separated
       project: newPO.project,
       workType: newPO.workType,
       supplier: newPO.supplier,
@@ -564,7 +1127,7 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
       approvalL3: isAutoApproved ? "Approved" : "Pending",
       justification: newPO.justification,
       createdBy: role,
-      date: newPO.date || (/* @__PURE__ */ new Date()).toISOString(),
+      date: newPO.date || /* @__PURE__ */ new Date().toISOString(),
       priority: newPO.priority || "Normal",
       requirementBy: newPO.requirementBy,
       location: newPO.location,
@@ -588,7 +1151,7 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
       loadingGstType: newPO.loadingGstType,
       unloadingAmount: newPO.unloadingAmount,
       unloadingGstPct: newPO.unloadingGstPct,
-      unloadingGstType: newPO.unloadingGstType
+      unloadingGstType: newPO.unloadingGstType,
     };
     try {
       await addPO(po);
@@ -596,40 +1159,46 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
       setModal(false);
       setNewPO(initialPO);
       setErrors({});
-      fetchResource("material-requirements", 1, 100, true, "", null, false, false);
-      api.get("pos/occupied-mrs").then((res) => setOccupiedMRs(res.data || [])).catch(() => setOccupiedMRs([]));
+      fetchResource(
+        "material-requirements",
+        1,
+        100,
+        true,
+        "",
+        null,
+        false,
+        false,
+      );
+      api
+        .get("pos/occupied-mrs")
+        .then((res) => setOccupiedMRs(res.data || []))
+        .catch(() => setOccupiedMRs([]));
     } catch (error) {
       toast.error(`Failed to create PO: ${error.message}`);
     }
   }, "handleCreate");
+
   const confirmDelete = /* @__PURE__ */ __name(async () => {
     if (!deleteConfirm) return;
     try {
       await deletePO(deleteConfirm);
       setDeleteConfirm(null);
-      api.get("pos/occupied-mrs").then((res) => setOccupiedMRs(res.data || [])).catch(() => {});
+      api
+        .get("pos/occupied-mrs")
+        .then((res) => setOccupiedMRs(res.data || []))
+        .catch(() => {});
     } catch (error) {
       toast.error(`Failed to delete PO: ${error.message}`);
     }
   }, "confirmDelete");
-  const handleSaveTimelines = /* @__PURE__ */ __name(async () => {
-    if (!selectedPO) return;
-    try {
-      await updatePO(selectedPO.id, { paymentTimelines: draftTimelines });
-      setSelectedPO({ ...selectedPO, paymentTimelines: draftTimelines });
-      setEditTimelines(false);
-      toast.success("Payment timelines updated");
-    } catch (error) {
-      toast.error("Failed to update timelines");
-    }
-  }, "handleSaveTimelines");
+
   const handleApproveL1 = /* @__PURE__ */ __name(async (id) => {
     setProcessingId(`approve-${id}`);
     try {
       const updateData = {
         approvalL1: "Approved",
         status: "Pending L2",
-        approvalL1At: (/* @__PURE__ */ new Date()).toISOString()
+        approvalL1At: /* @__PURE__ */ new Date().toISOString(),
       };
       await updatePO(id, updateData);
       if (selectedPO) setSelectedPO({ ...selectedPO, ...updateData });
@@ -640,13 +1209,14 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
       setProcessingId(null);
     }
   }, "handleApproveL1");
+
   const handleApproveL2 = /* @__PURE__ */ __name(async (id) => {
     setProcessingId(`approve-${id}`);
     try {
       const updateData = {
         approvalL2: "Approved",
         status: "Pending L3",
-        approvalL2At: (/* @__PURE__ */ new Date()).toISOString()
+        approvalL2At: /* @__PURE__ */ new Date().toISOString(),
       };
       await updatePO(id, updateData);
       if (selectedPO) setSelectedPO({ ...selectedPO, ...updateData });
@@ -657,13 +1227,14 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
       setProcessingId(null);
     }
   }, "handleApproveL2");
+
   const handleApproveL3 = /* @__PURE__ */ __name(async (id) => {
     setProcessingId(`approve-${id}`);
     try {
       const updateData = {
         approvalL3: "Approved",
         status: "GRN Pending",
-        approvalL3At: (/* @__PURE__ */ new Date()).toISOString()
+        approvalL3At: /* @__PURE__ */ new Date().toISOString(),
       };
       await updatePO(id, updateData);
       if (selectedPO) setSelectedPO({ ...selectedPO, ...updateData });
@@ -674,6 +1245,7 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
       setProcessingId(null);
     }
   }, "handleApproveL3");
+
   const handleReject = /* @__PURE__ */ __name(async (id) => {
     setProcessingId(`reject-${id}`);
     try {
@@ -687,11 +1259,13 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
       setProcessingId(null);
     }
   }, "handleReject");
+
   const handleCancelApproved = /* @__PURE__ */ __name((id) => {
     setCancelTargetId(id);
     setCancelNoteText("");
     setCancelModal(true);
   }, "handleCancelApproved");
+
   const handleConfirmCancel = /* @__PURE__ */ __name(async () => {
     if (!cancelTargetId || !cancelNoteText.trim()) {
       toast.error("Please enter a cancellation reason");
@@ -699,21 +1273,30 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
     }
     setProcessingId(`cancel-${cancelTargetId}`);
     try {
-      const res = await api.putSimple(`pos/${cancelTargetId}/cancel`, { cancelNote: cancelNoteText.trim() });
+      const res = await api.putSimple(`pos/${cancelTargetId}/cancel`, {
+        cancelNote: cancelNoteText.trim(),
+      });
       if (!res.success) throw new Error(res.message || "Cancel failed");
-      const now = (/* @__PURE__ */ new Date()).toISOString();
+
+      const now = /* @__PURE__ */ new Date().toISOString();
+
       const patch = {
         status: "Cancelled",
         cancelNote: cancelNoteText.trim(),
-        cancelledAt: now
+        cancelledAt: now,
       };
       if (selectedPO && selectedPO.id === cancelTargetId) {
         setSelectedPO({ ...selectedPO, ...patch });
       }
       await fetchResource("pos", 1, 50, true);
       await fetchResource("quotations", 1, 50, true);
-      api.get("pos/occupied-mrs").then((res2) => setOccupiedMRs(res2.data || [])).catch(() => {});
-      toast.success(res.message || "PO cancelled. Linked quotation reset to Pending.");
+      api
+        .get("pos/occupied-mrs")
+        .then((res2) => setOccupiedMRs(res2.data || []))
+        .catch(() => {});
+      toast.success(
+        res.message || "PO cancelled. Linked quotation reset to Pending.",
+      );
       setCancelModal(false);
       setCancelTargetId(null);
       setCancelNoteText("");
@@ -723,6 +1306,7 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
       setProcessingId(null);
     }
   }, "handleConfirmCancel");
+
   const handleCancel = /* @__PURE__ */ __name(async (id) => {
     setProcessingId(`cancel-${id}`);
     try {
@@ -734,12 +1318,18 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
       setProcessingId(null);
     }
   }, "handleCancel");
+
   const downloadPDF = /* @__PURE__ */ __name((po) => {
     const supplier = suppliers.find(
-      (s) => s.id === po.supplier || s._id === po.supplier || (s.companyName || s.name || "").toLowerCase() === (po.supplier || "").toLowerCase()
+      (s) =>
+        s.id === po.supplier ||
+        s._id === po.supplier ||
+        (s.companyName || s.name || "").toLowerCase() ===
+          (po.supplier || "").toLowerCase(),
     );
     generatePOPDF(po, supplier, settings);
   }, "downloadPDF");
+
   const addItem = /* @__PURE__ */ __name((invItem) => {
     const item = {
       sku: invItem.sku,
@@ -754,17 +1344,22 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
       currentStock: invItem.liveStock,
       category: invItem.category,
       requirementQty: 1,
-      condition: invItem.condition || "New"
+      condition: invItem.condition || "New",
     };
-    setNewPO({ ...newPO, items: [...newPO.items || [], item] });
-    setSearchItem("");
+    setNewPO({ ...newPO, items: [...(newPO.items || []), item] });
   }, "addItem");
+
   const updateItem = /* @__PURE__ */ __name((index, field, value) => {
-    const items = [...newPO.items || []];
+    const items = [...(newPO.items || [])];
+
     const item = { ...items[index], [field]: value };
+
     const qty = Number(item.qty) || 0;
+
     const rate = Number(item.rate) || 0;
+
     const gstPct = Number(item.gstPct) || 0;
+
     const isInclusive = item.gstType === "Inclusive";
     if (isInclusive) {
       item.totalWithGST = qty * rate;
@@ -774,2734 +1369,761 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
       item.totalWithGST = item.total * (1 + gstPct / 100);
     }
     items[index] = item;
+
     const updates = { items };
     if (field === "gstType") {
-      updates.paymentTimelines = (newPO.paymentTimelines || []).map((pt) => ({ ...pt, gstType: value }));
+      updates.paymentTimelines = (newPO.paymentTimelines || []).map((pt) => ({
+        ...pt,
+        gstType: value,
+      }));
     }
     setNewPO({ ...newPO, ...updates });
   }, "updateItem");
+
   const removeItem = /* @__PURE__ */ __name((index) => {
-    const items = [...newPO.items || []];
+    const items = [...(newPO.items || [])];
     items.splice(index, 1);
     setNewPO({ ...newPO, items });
   }, "removeItem");
+
   const linkToInventory = /* @__PURE__ */ __name((index, invItem) => {
-    const items = [...newPO.items || []];
+    const items = [...(newPO.items || [])];
+
     const item = {
       ...items[index],
       sku: invItem.sku,
       itemName: invItem.itemName || "",
       unit: invItem.unit,
       currentStock: invItem.liveStock,
-      category: invItem.category
+      category: invItem.category,
     };
     item.total = item.qty * item.rate;
     item.totalWithGST = item.total * (1 + item.gstPct / 100);
     items[index] = item;
     setNewPO({ ...newPO, items });
-    setLinkingIndex(null);
-    setLinkingSearch("");
   }, "linkToInventory");
-  const quickAddToInventory = /* @__PURE__ */ __name(async (index) => {
-    const item = newPO.items[index];
-    if (!quickAddData.category || !quickAddData.unit) {
-      toast.error("Please select category and unit");
-      return;
-    }
-    const formatPart = /* @__PURE__ */ __name((str, type) => {
-      const part = str.substring(0, 3);
-      if (type === "title") return part.charAt(0).toUpperCase() + part.slice(1).toLowerCase();
-      return part.toLowerCase();
-    }, "formatPart");
-    const sku = `${formatPart(item.itemName, "title")}/${formatPart(quickAddData.category, "lower")}/${Math.floor(1e3 + Math.random() * 9e3)}`;
-    const newInvItem = {
-      sku,
-      itemName: item.itemName,
-      category: quickAddData.category,
-      unit: quickAddData.unit,
-      liveStock: 0,
-      minStock: 0,
-      condition: "New",
-      location: newPO.location || "Main Store",
-      subCategory: "General",
-      price: 0,
-      status: "Active"
-    };
-    toast.loading("Creating inventory item...", { id: "quickAdd" });
-    try {
-      const res = await api.post("inventory", newInvItem);
-      const invItem = res.data;
-      if (!invItem || !invItem.sku) {
-        throw new Error("Invalid response from server");
+
+  const quickAddToInventory = /* @__PURE__ */ __name(
+    async (index, quickAddData) => {
+      const item = newPO.items[index];
+      if (!quickAddData?.category || !quickAddData?.unit) {
+        toast.error("Please select category and unit");
+        return;
       }
-      toast.success(`Item created: ${invItem.sku}`, { id: "quickAdd" });
-      linkToInventory(index, invItem);
-      setShowQuickAdd(null);
-      setQuickAddData({ category: "", unit: "" });
-      fetchResource("inventory", 1, 500, true);
-    } catch (error) {
-      console.error("Quick add error:", error);
-      toast.error(error.message || "Error adding item to inventory", { id: "quickAdd" });
-    }
-  }, "quickAddToInventory");
+      const formatPart = /* @__PURE__ */ __name((str, type) => {
+        const part = str.substring(0, 3);
+        if (type === "title")
+          return part.charAt(0).toUpperCase() + part.slice(1).toLowerCase();
+
+        return part.toLowerCase();
+      }, "formatPart");
+
+      const sku = `${formatPart(item.itemName, "title")}/${formatPart(quickAddData.category, "lower")}/${Math.floor(1e3 + Math.random() * 9e3)}`;
+
+      const newInvItem = {
+        sku,
+        itemName: item.itemName,
+        category: quickAddData.category,
+        unit: quickAddData.unit,
+        liveStock: 0,
+        minStock: 0,
+        condition: "New",
+        location: newPO.location || "Main Store",
+        subCategory: "General",
+        price: 0,
+        status: "Active",
+      };
+      toast.loading("Creating inventory item...", { id: "quickAdd" });
+      try {
+        const res = await api.post("inventory", newInvItem);
+
+        const invItem = res.data;
+        if (!invItem || !invItem.sku) {
+          throw new Error("Invalid response from server");
+        }
+        toast.success(`Item created: ${invItem.sku}`, { id: "quickAdd" });
+        linkToInventory(index, invItem);
+        fetchResource("inventory", 1, 500, true);
+      } catch (error) {
+        console.error("Quick add error:", error);
+        toast.error(error.message || "Error adding item to inventory", {
+          id: "quickAdd",
+        });
+      }
+    },
+    "quickAddToInventory",
+  );
+
   const hasReusable = newPO.items?.some((i) => {
     const inv = inventory.find((inv2) => inv2.sku === i.sku);
-    return inv && ["Good", "Needs Repair"].includes(inv.condition) && inv.liveStock > 0;
+
+    return (
+      inv &&
+      ["Good", "Needs Repair"].includes(inv.condition) &&
+      inv.liveStock > 0
+    );
   });
-  return <div className="space-y-4 sm:space-y-6">
+
+  return (
+    <div className="space-y-4 sm:space-y-6">
+      {" "}
       <PageHeader
-    title="Purchase Orders"
-    sub="Manage and approve POs"
-    actions={<div className="flex items-center gap-2">
+        title="Purchase Orders"
+        sub="Manage and approve POs"
+        actions={
+          <div className="flex items-center gap-2">
+            {" "}
             <Btn
-      label={showMonthly ? "Hide Report" : "Monthly Report"}
-      icon={showMonthly ? ChevronUp : BarChart2}
-      outline
-      onClick={() => setShowMonthly((v) => !v)}
-    />
-            {hasPermission("CREATE_PURCHASE_ORDER") && <Btn
-      label="Create PO"
-      icon={Plus}
-      onClick={() => {
-        setNewPO(initialPO);
-        setIsEditing(false);
-        setModal(true);
-      }}
-    />}
-          </div>}
-  />
-
-      {
-    /* ── Monthly PO Report ──────────────────────────────────────── */
-  }
-      {showMonthly && <div className="border border-[#1A365D]/30 rounded-2xl overflow-hidden bg-white dark:bg-[#172030] shadow-sm">
-          {
-    /* Header */
-  }
-          <div className="bg-[#1A365D] px-5 py-3 flex items-center justify-between">
-            <span className="text-white font-black text-[11px] tracking-widest flex items-center gap-2">
-              <BarChart2 className="w-4 h-4" /> MONTHLY PO REPORT
-            </span>
-            <span className="text-white/50 text-[10px]">
-              Based on {pos.length} loaded POs
-            </span>
+              label={showMonthly ? "Hide Report" : "Monthly Report"}
+              icon={showMonthly ? ChevronUp : BarChart2}
+              outline
+              onClick={() => setShowMonthly((v) => !v)}
+            />{" "}
+            {hasPermission("CREATE_PURCHASE_ORDER") && (
+              <Btn
+                label="Create PO"
+                icon={Plus}
+                onClick={() => {
+                  setNewPO(initialPO);
+                  setIsEditing(false);
+                  setModal(true);
+                }}
+              />
+            )}{" "}
           </div>
-
-          {
-    /* Summary cards */
-  }
-          <div className="grid grid-cols-2 sm:grid-cols-5 gap-0 divide-x divide-y sm:divide-y-0 divide-gray-100 dark:divide-gray-800 border-b border-gray-100 dark:border-gray-800">
-            {[
-    { label: "Total POs", value: reportSummary.count, isNum: true, color: "text-[#1A365D] dark:text-blue-400" },
-    { label: "Total Amount", value: fmtCur(reportSummary.total), color: "text-gray-900 dark:text-white" },
-    { label: "Approved", value: fmtCur(reportSummary.approved), color: "text-emerald-600 dark:text-emerald-400" },
-    { label: "Pending", value: fmtCur(reportSummary.pending), color: "text-amber-500 dark:text-amber-400" },
-    { label: "Peak Month", value: reportSummary.peak?.label || "\u2014", sub: reportSummary.peak ? fmtCur(reportSummary.peak.total) : "", color: "text-primary dark:text-orange-400" }
-  ].map((card, i) => <div key={i} className="px-4 py-4 text-center">
-                <p className="text-[9px] font-black text-gray-400 tracking-widest mb-1">{card.label}</p>
-                <p className={`font-black ${card.isNum ? "text-[28px]" : "text-[15px]"} ${card.color} leading-tight`}>{card.value}</p>
-                {card.sub && <p className="text-[11px] text-gray-500 mt-0.5">{card.sub}</p>}
-              </div>)}
-          </div>
-
-          {
-    /* Monthly table */
-  }
-          <div className="overflow-x-auto">
-            <table className="w-full text-[12px]">
-              <thead>
-                <tr className="bg-gray-50/80 dark:bg-gray-800/50 border-b border-gray-100 dark:border-gray-800 text-[10px] font-black text-gray-400 tracking-widest">
-                  <th className="px-5 py-3 text-left">MONTH</th>
-                  <th className="px-4 py-3 text-center">POs</th>
-                  <th className="px-4 py-3 text-right">TOTAL VALUE</th>
-                  <th className="px-4 py-3 text-right">APPROVED</th>
-                  <th className="px-4 py-3 text-right">PENDING</th>
-                  <th className="px-4 py-3 text-right">CANCELLED</th>
-                  <th className="px-4 py-3 text-right">AVG / PO</th>
-                  <th className="px-4 py-3 text-right pr-5">% OF TOTAL</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100/70 dark:divide-gray-800/70">
-                {monthlyStats.map((m, i) => {
-    const pct = reportSummary.total > 0 ? m.total / reportSummary.total * 100 : 0;
-    return <tr key={i} className="hover:bg-gray-50/60 dark:hover:bg-gray-800/30 transition-colors group">
-                      <td className="px-5 py-3 font-bold text-gray-900 dark:text-white">{m.label}</td>
-                      <td className="px-4 py-3 text-center">
-                        <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-blue-50 dark:bg-blue-900/20 text-[#1A365D] dark:text-blue-400 font-black text-[11px]">{m.count}</span>
-                      </td>
-                      <td className="px-4 py-3 text-right font-bold text-gray-900 dark:text-white">{fmtCur(m.total)}</td>
-                      <td className="px-4 py-3 text-right">
-                        {m.approvedCount > 0 ? <span className="text-emerald-600 dark:text-emerald-400 font-medium">{fmtCur(m.approved)} <span className="text-[10px] text-gray-400">({m.approvedCount})</span></span> : <span className="text-gray-300 dark:text-gray-600">—</span>}
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        {m.pendingCount > 0 ? <span className="text-amber-500 dark:text-amber-400 font-medium">{fmtCur(m.pending)} <span className="text-[10px] text-gray-400">({m.pendingCount})</span></span> : <span className="text-gray-300 dark:text-gray-600">—</span>}
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        {m.cancelledCount > 0 ? <span className="text-red-400 font-medium">{fmtCur(m.cancelled)} <span className="text-[10px] text-gray-400">({m.cancelledCount})</span></span> : <span className="text-gray-300 dark:text-gray-600">—</span>}
-                      </td>
-                      <td className="px-4 py-3 text-right text-gray-500 dark:text-gray-400 font-medium">
-                        {fmtCur(m.count > 0 ? m.total / m.count : 0)}
-                      </td>
-                      <td className="px-4 py-3 pr-5 text-right">
-                        <div className="flex items-center justify-end gap-2">
-                          <div className="w-16 bg-gray-100 dark:bg-gray-800 rounded-full h-1.5 overflow-hidden">
-                            <div className="h-full bg-[#1A365D] dark:bg-blue-500 rounded-full transition-all" style={{ width: `${pct}%` }} />
-                          </div>
-                          <span className="text-[11px] font-bold text-gray-500 dark:text-gray-400 w-10 text-right">{pct.toFixed(1)}%</span>
-                        </div>
-                      </td>
-                    </tr>;
-  })}
-                {monthlyStats.length === 0 && <tr>
-                    <td colSpan={8} className="px-5 py-10 text-center text-gray-400 text-[13px]">No PO data loaded yet.</td>
-                  </tr>}
-              </tbody>
-              {monthlyStats.length > 0 && <tfoot>
-                  <tr className="bg-[#1A365D] text-white font-black text-[11px]">
-                    <td className="px-5 py-3">TOTAL</td>
-                    <td className="px-4 py-3 text-center">{reportSummary.count}</td>
-                    <td className="px-4 py-3 text-right">{fmtCur(reportSummary.total)}</td>
-                    <td className="px-4 py-3 text-right text-emerald-300">{fmtCur(reportSummary.approved)}</td>
-                    <td className="px-4 py-3 text-right text-amber-300">{fmtCur(reportSummary.pending)}</td>
-                    <td className="px-4 py-3 text-right text-red-300">{fmtCur(reportSummary.cancelled)}</td>
-                    <td className="px-4 py-3 text-right text-white/70">{fmtCur(reportSummary.count > 0 ? reportSummary.total / reportSummary.count : 0)}</td>
-                    <td className="px-4 py-3 pr-5 text-right text-white/70">100%</td>
-                  </tr>
-                </tfoot>}
-            </table>
-          </div>
-        </div>}
-
+        }
+      />{" "}
+      {showMonthly && <POMonthlyReport pos={pos} />}{" "}
       <div className="mb-6">
+        {" "}
         <FilterRow
-    showClear={!!(search || startDate || endDate || filterProject || filterSupplier || filterStatus)}
-    onClearAll={() => {
-      setSearch("");
-      setStartDate("");
-      setEndDate("");
-      setFilterProject("");
-      setFilterSupplier("");
-      setFilterStatus("");
-    }}
-  >
-          <SearchFilter
-    value={search}
-    onChange={setSearch}
-    placeholder="Search POs..."
-    className="flex-1 min-w-[200px]"
-  />
-          <DateRangePicker
-    value={{ start: startDate, end: endDate }}
-    onChange={(v) => {
-      setStartDate(v.start);
-      setEndDate(v.end);
-    }}
-  />
-          <SelectFilter
-    value={filterProject}
-    onChange={setFilterProject}
-    options={PROJECTS}
-    placeholder="All Projects"
-  />
-          <SelectFilter
-    value={filterSupplier}
-    onChange={setFilterSupplier}
-    options={supplierOptions}
-    placeholder="All Suppliers"
-  />
-          <SelectFilter
-    value={filterStatus}
-    onChange={setFilterStatus}
-    options={statusOptions}
-    placeholder="All Statuses"
-  />
-        </FilterRow>
-      </div>
-
-      <Card className="p-0 overflow-hidden border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 flex-1 min-h-[400px]">
-        <TableVirtuoso
-    style={{ height: "calc(100vh - 350px)", minHeight: "400px" }}
-    data={pos || []}
-    context={{ suppliers }}
-    endReached={loadMore}
-    fixedHeaderContent={() => {
-      const headerClass = "px-3 py-3 text-[11px] font-bold text-[#6B7280] dark:text-gray-400 whitespace-nowrap overflow-hidden sticky top-0 z-10 sticky-th";
-      return <tr className="bg-gray-50/90 dark:bg-gray-800/90 backdrop-blur-md border-b border-[#E8ECF0] dark:border-gray-800 text-left">
-                <th className={cn(headerClass, "lg:hidden")}>
-                  Po details
-                </th>
-                <th className={cn(headerClass, "hidden lg:table-cell w-[130px]")}>
-                  Po no.
-                </th>
-                <th className={cn(headerClass, "hidden lg:table-cell w-[110px]")}>
-                  Mr no.
-                </th>
-                <th className={cn(headerClass, "hidden lg:table-cell w-[148px]")}>
-                  Date
-                </th>
-                <th className={cn(headerClass, "hidden lg:table-cell w-[130px]")}>
-                  Project
-                </th>
-                <th className={cn(headerClass, "hidden lg:table-cell w-[160px]")}>
-                  Supplier
-                </th>
-                <th className={cn(headerClass, "hidden lg:table-cell text-right w-[100px]")}>
-                  Value
-                </th>
-                <th className={cn(headerClass, "hidden lg:table-cell w-[120px]")}>
-                  Status
-                </th>
-                <th className={cn(headerClass, "hidden lg:table-cell text-right w-[110px]")}>
-                  Actions
-                </th>
-              </tr>;
-    }}
-    itemContent={(_index, po, { suppliers: currentSuppliers }) => {
-      const isPending = po.status?.startsWith("Pending");
-      const isNew = isNewItem(po.createdAt);
-      const supplier = currentSuppliers.find((s) => s.id === po.supplier || s._id === po.supplier);
-      const sName = supplier ? supplier.companyName || supplier.name : po.supplier || "NA";
-      return <>
-                {
-        /* Desktop View Cells */
-      }
-                <Td className="hidden lg:table-cell px-3 py-2.5 overflow-hidden">
-                  <div className="flex items-center gap-1.5 min-w-0">
-                    {isNew && <span className="px-1.5 py-0.5 rounded text-[8px] font-black bg-orange-600 text-white animate-pulse shrink-0">NEW</span>}
-                    <span className="block truncate text-[13px] font-medium text-gray-900 dark:text-white" title={safeStr(po.id)}>{safeStr(po.id)}</span>
-                  </div>
-                </Td>
-              <Td className="hidden lg:table-cell px-3 py-2.5 overflow-hidden">
-                <span className="block truncate text-[13px] text-gray-500 dark:text-gray-400" title={safeStr(po.mrId || "NA")}>{safeStr(po.mrId || "NA")}</span>
-              </Td>
-              <Td className="hidden lg:table-cell px-3 py-2.5 text-[13px] text-gray-500 dark:text-gray-400 whitespace-nowrap overflow-hidden">
-                {formatDateTime(po.date)}
-              </Td>
-              <Td className="hidden lg:table-cell px-3 py-2.5 overflow-hidden">
-                <span className="block truncate text-[13px] text-gray-500 dark:text-gray-400 capitalize" title={safeStr(po.project)}>{safeStr(po.project)}</span>
-              </Td>
-              <Td className="hidden lg:table-cell px-3 py-2.5 overflow-hidden">
-                <span className="block truncate text-[13px] text-gray-500 dark:text-gray-400" title={sName}>{safeStr(sName)}</span>
-              </Td>
-              <Td className="hidden lg:table-cell px-3 py-2.5 text-[13px] font-bold text-right text-gray-900 dark:text-white whitespace-nowrap overflow-hidden">
-                {fmtCur(po.totalValue)}
-              </Td>
-              <Td className="hidden lg:table-cell px-3 py-2.5">
-                <StatusBadge status={po.status} accountStatus={po.accountStatus} />
-              </Td>
-              <Td className="hidden lg:table-cell px-4 py-3">
-                <div className="flex items-center justify-end gap-1">
-                  <button
-        onClick={async (e) => {
-          e.stopPropagation();
-          setLoadingQuotes(true);
-          try {
-            let updatedPO = { ...po };
-            if (po.mrId) {
-              const qRes = await api.get("quotations", { filter: JSON.stringify({ mrId: po.mrId }), limit: 100 });
-              const mrQuotes = qRes.data || [];
-              if (mrQuotes.length > 0) {
-                const newPC = calculatePriceComparison(mrQuotes, po.items);
-                if (newPC) updatedPO.priceComparison = newPC;
-              }
-            }
-            setSelectedPO(updatedPO);
-            setViewModal(true);
-          } catch (err) {
-            setSelectedPO(po);
-            setViewModal(true);
-          } finally {
-            setLoadingQuotes(false);
+          showClear={
+            !!(
+              search ||
+              startDate ||
+              endDate ||
+              filterProject ||
+              filterSupplier ||
+              filterStatus
+            )
           }
-        }}
-        className="p-1.5 text-gray-500 hover:text-orange-500 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-md transition-all"
-        title="View"
-      >
-                    <Eye className="w-4 h-4" />
-                  </button>
-                  {hasPermission("EDIT_PURCHASE_ORDER") && <>
-                      <button
-        onClick={(e) => {
-          e.stopPropagation();
-          setNewPO(po);
-          setIsEditing(true);
-          setModal(true);
-        }}
-        className="p-1.5 text-gray-400 hover:text-blue-500 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-md transition-all disabled:opacity-30 disabled:cursor-not-allowed"
-        title={isPOLocked(po) ? "Warning: Edit will reset approval status" : "Edit"}
-        disabled={false}
-      >
-                        <Pencil className="w-4 h-4" />
-                      </button>
-                      <button
-        onClick={(e) => {
-          e.stopPropagation();
-          setDeleteConfirm(po.id);
-        }}
-        className="p-1.5 text-red-300 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-md transition-all disabled:opacity-30 disabled:cursor-not-allowed"
-        title={isPOLocked(po) ? role === "Super Admin" ? "Delete (Super Admin override)" : "Locked: Payment processed" : "Delete"}
-        disabled={isPOLocked(po) && role !== "Super Admin"}
-      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </>}
-                  <button
-        onClick={(e) => {
-          e.stopPropagation();
-          window.location.hash = `tracking?id=${po.mrId || po.id}`;
-        }}
-        className="p-1.5 text-orange-400 hover:text-orange-600 hover:bg-orange-50 dark:hover:bg-orange-900/20 rounded-md transition-all"
-        title="Track Lifecycle"
-      >
-                    <TrendingUp className="w-4 h-4" />
-                  </button>
-                </div>
-              </Td>
-
-              {
-        /* Mobile View Cell */
-      }
-              <Td colSpan={8} className="lg:hidden p-0 border-none">
-                <div className={cn(
-        "p-4 space-y-3 bg-white dark:bg-gray-900 border-b border-gray-100 dark:border-gray-800",
-        isPending && "approval-highlight"
-      )}>
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <div className="flex items-center gap-2">
-                        {isNew && <span className="px-1.5 py-0.5 rounded text-[8px] font-black bg-orange-600 text-white animate-pulse">NEW</span>}
-                        <p className="text-[13px] font-bold text-gray-900 dark:text-white tracking-tight">{po.id}</p>
-                      </div>
-                      <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5">{formatDateTime(po.date)}</p>
-                    </div>
-                    <div className="flex flex-col items-end gap-1">
-                      <StatusBadge status={po.status} accountStatus={po.accountStatus} />
-                      {isPending && <span className="text-[9px] font-black text-orange-500 animate-bounce">APPROVAL NEEDED</span>}
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-4 py-1">
-                    <div>
-                      <p className="text-[10px] font-bold text-gray-400 tracking-widest">Project</p>
-                      <p className="text-[12px] font-medium text-gray-700 dark:text-gray-300 truncate">{safeStr(po.project)}</p>
-                    </div>
-                    <div>
-                      <p className="text-[10px] font-bold text-gray-400 tracking-widest">Supplier</p>
-                      <p className="text-[12px] font-medium text-gray-700 dark:text-gray-300 truncate">
-                        {sName}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex items-center justify-between pt-2">
-                    <p className="text-base font-black text-orange-500">{fmtCur(po.totalValue)}</p>
-                    <div className="flex items-center gap-1.5">
-                      <Btn icon={Eye} small outline onClick={() => {
-        setSelectedPO(po);
-        setViewModal(true);
-      }} />
-                      {hasPermission("EDIT_PURCHASE_ORDER") && <Btn icon={Pencil} small outline onClick={() => {
-        setNewPO(po);
-        setIsEditing(true);
-        setModal(true);
-      }} />}
-                    </div>
-                  </div>
-                </div>
-              </Td>
-            </>;
-    }}
-    components={{
-      Table: /* @__PURE__ */ __name((props) => <table {...props} className="w-full text-left border-collapse table-fixed min-w-[800px] lg:min-w-0" />, "Table"),
-      TableBody: React.forwardRef((props, ref) => <tbody {...props} ref={ref} className="divide-y divide-gray-200 dark:divide-gray-800" />),
-      TableRow: /* @__PURE__ */ __name((props) => {
-        const po = props.item;
-        const isPending = po?.status?.startsWith("Pending");
-        const isNew = isNewItem(po?.createdAt);
-        return <Tr
-          {...props}
-          isPending={isPending}
-          isNew={isNew}
-          className={cn(
-            "cursor-pointer",
-            isPending && "ring-1 ring-orange-500/10",
-            props.className
-          )}
-          onClick={async () => {
-            setLoadingQuotes(true);
-            try {
-              let updatedPO = { ...po };
-              if (po.mrId) {
-                const qRes = await api.get("quotations", { filter: JSON.stringify({ mrId: po.mrId }), limit: 100 });
-                const mrQuotes = qRes.data || [];
-                if (mrQuotes.length > 0) {
-                  const newPC = calculatePriceComparison(mrQuotes, po.items);
-                  if (newPC) updatedPO.priceComparison = newPC;
-                }
-              }
-              setSelectedPO(updatedPO);
-              setViewModal(true);
-            } catch (err) {
-              setSelectedPO(po);
-              setViewModal(true);
-            } finally {
-              setLoadingQuotes(false);
-            }
+          onClearAll={() => {
+            setSearch("");
+            setStartDate("");
+            setEndDate("");
+            setFilterProject("");
+            setFilterSupplier("");
+            setFilterStatus("");
           }}
-        />;
-      }, "TableRow")
-    }}
-  />
+        >
+          {" "}
+          <SearchFilter
+            value={search}
+            onChange={setSearch}
+            placeholder="Search POs..."
+            className="flex-1 min-w-[200px]"
+          />{" "}
+          <DateRangePicker
+            value={{ start: startDate, end: endDate }}
+            onChange={(v) => {
+              setStartDate(v.start);
+              setEndDate(v.end);
+            }}
+          />{" "}
+          <SelectFilter
+            value={filterProject}
+            onChange={setFilterProject}
+            options={PROJECTS}
+            placeholder="All Projects"
+            searchable={true}
+          />{" "}
+          <SelectFilter
+            value={filterSupplier}
+            onChange={setFilterSupplier}
+            options={supplierOptions}
+            placeholder="All Suppliers"
+            searchable={true}
+          />{" "}
+          <SelectFilter
+            value={filterStatus}
+            onChange={setFilterStatus}
+            options={statusOptions}
+            placeholder="All Statuses"
+          />{" "}
+        </FilterRow>{" "}
+      </div>{" "}
+      <Card className="p-0 overflow-hidden border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 flex-1 min-h-[400px]">
+        {" "}
+        <TableVirtuoso
+          style={{ height: "calc(100vh - 350px)", minHeight: "400px" }}
+          data={filteredPos}
+          context={{ suppliers }}
+          endReached={loadMore}
+          fixedHeaderContent={() => {
+            const headerClass =
+              "px-3 py-3 text-[11px] font-bold text-[#6B7280] dark:text-gray-400 whitespace-nowrap overflow-hidden sticky top-0 z-10 sticky-th";
 
-        {loading && pos.length === 0 && <div className="p-8 space-y-4">
-             {[...Array(5)].map((_, i) => <div key={i} className="flex gap-4">
-                  <Skeleton className="h-6 w-24" />
-                  <Skeleton className="h-6 flex-1" />
-                  <Skeleton className="h-6 w-20" />
-                </div>)}
-          </div>}
+            return (
+              <tr className="bg-gray-50/90 dark:bg-gray-800/90 backdrop-blur-md border-b border-[#E8ECF0] dark:border-gray-800 text-left">
+                {" "}
+                <th className={cn(headerClass, "lg:hidden")}>
+                  {" "}
+                  Po details{" "}
+                </th>{" "}
+                <th
+                  className={cn(headerClass, "hidden lg:table-cell w-[130px]")}
+                >
+                  {" "}
+                  Po no.{" "}
+                </th>{" "}
+                <th
+                  className={cn(headerClass, "hidden lg:table-cell w-[110px]")}
+                >
+                  {" "}
+                  Mr no.{" "}
+                </th>{" "}
+                <th
+                  className={cn(headerClass, "hidden lg:table-cell w-[148px]")}
+                >
+                  {" "}
+                  Date{" "}
+                </th>{" "}
+                <th
+                  className={cn(headerClass, "hidden lg:table-cell w-[130px]")}
+                >
+                  {" "}
+                  Project{" "}
+                </th>{" "}
+                <th
+                  className={cn(headerClass, "hidden lg:table-cell w-[160px]")}
+                >
+                  {" "}
+                  Supplier{" "}
+                </th>{" "}
+                <th
+                  className={cn(
+                    headerClass,
+                    "hidden lg:table-cell text-right w-[100px]",
+                  )}
+                >
+                  {" "}
+                  Value{" "}
+                </th>{" "}
+                <th
+                  className={cn(headerClass, "hidden lg:table-cell w-[120px]")}
+                >
+                  {" "}
+                  Status{" "}
+                </th>{" "}
+                <th
+                  className={cn(
+                    headerClass,
+                    "hidden lg:table-cell text-right w-[110px]",
+                  )}
+                >
+                  {" "}
+                  Actions{" "}
+                </th>{" "}
+              </tr>
+            );
+          }}
+          itemContent={(_index, po, { suppliers: currentSuppliers }) => {
+            const isPending = po.status?.startsWith("Pending");
 
-        {!loading && pos.length === 0 && <div className="p-12 text-center">
-            <div className="flex flex-col items-center gap-2 text-gray-400">
-              <FileText className="w-12 h-12 opacity-20" />
-              <p className="text-sm">No purchase orders found</p>
-            </div>
-          </div>}
-      </Card>
+            const isNew = isNewItem(po.createdAt);
 
-      {
-    /* Infinite Scroll Indicator for Bottom */
-  }
-      {loading && pos.length > 0 && <div className="flex items-center justify-center py-2 text-gray-500 text-xs">
-          <div className="w-3 h-3 border-2 border-[#F97316] border-t-transparent rounded-full animate-spin mr-2" />
-          Loading more POs...
-        </div>}
+            const supplier = currentSuppliers.find(
+              (s) => s.id === po.supplier || s._id === po.supplier,
+            );
 
-      {modal && <Modal
-    title={isEditing ? "Edit Purchase Order" : "Create Purchase Order"}
-    extraWide
-    onClose={() => {
-      setModal(false);
-      setErrors({});
-      setNewPO(initialPO);
-      setIsEditing(false);
-      fetchResource("inventory", 1, 50, true);
-    }}
-    footer={<div className="flex justify-end gap-2 w-full">
-              <Btn label="Cancel" outline onClick={() => {
-      setModal(false);
-      setErrors({});
-    }} />
-              <Btn
-      label={isEditing ? "Update PO" : "Create PO"}
-      onClick={handleCreate}
-      loading={actionLoading}
-      disabled={false}
-    />
-            </div>}
-  >
-          {isEditing && isPOLocked(newPO) && <div className="mb-6 p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl flex items-center gap-3">
-              <AlertTriangle className="w-5 h-5 text-amber-500" />
-              <div>
-                <p className="text-[13px] font-bold text-amber-900 dark:text-amber-400">Warning: Active Payments</p>
-                <p className="text-[11px] text-amber-700 dark:text-amber-500">This Purchase Order has processed payments. Any modification will reset the approval status and require re-approval.</p>
-              </div>
-            </div>}
-          <div className="space-y-8">
-            {
-    /* Structured Header - Matching Excel */
-  }
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-0 border border-gray-200 dark:border-gray-800 rounded-xl overflow-visible shadow-sm">
-              {
-    /* Left Column: Company Details */
-  }
-              <div className="divide-y divide-gray-100 dark:divide-gray-800 lg:border-r border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 rounded-t-xl lg:rounded-tr-none lg:rounded-l-xl">
-                <div className="bg-gray-50/50 dark:bg-gray-800/30 p-2 font-bold text-[10px] text-gray-500 flex items-center gap-2 rounded-t-xl lg:rounded-tr-none lg:rounded-tl-xl">
-                   <div className="w-1 h-3 bg-[#1A365D] rounded-full" />
-                   Company details
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-12 items-center min-h-[50px] divide-y sm:divide-y-0 divide-gray-100 dark:divide-gray-800">
-                  <div className="sm:col-span-4 p-3 self-stretch text-[11px] font-bold text-gray-400 sm:border-r border-gray-100 dark:border-gray-800 flex items-center">Company Name</div>
-                  <div className="sm:col-span-8 px-3 py-1">
-                    <SField
-    className="mb-0 border-none px-0 shadow-none ring-0 focus-within:ring-0"
-    value={newPO.companyName}
-    onChange={(e) => {
-      const company = COMPANIES?.find((c) => c.name === e.target.value);
-      if (company) {
-        setNewPO({
-          ...newPO,
-          companyName: company.name,
-          companyGst: company.gstin,
-          companyAddress: company.address
-        });
-      }
-    }}
-    options={companyOptions}
-  />
-                  </div>
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-12 items-center divide-y sm:divide-y-0 divide-gray-100 dark:divide-gray-800">
-                  <div className="sm:col-span-4 p-3 text-[11px] font-bold text-gray-400 sm:border-r border-gray-100 dark:border-gray-800">Company GSTIN</div>
-                  <div className="sm:col-span-8 px-3 py-1">
-                     <input
-    className="w-full bg-transparent outline-none text-[12px] font-mono text-gray-600 dark:text-gray-400 px-0"
-    value={newPO.companyGst || ""}
-    onChange={(e) => setNewPO({ ...newPO, companyGst: e.target.value })}
-    placeholder="Enter Company GSTIN"
-  />
-                  </div>
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-12 items-start divide-y sm:divide-y-0 divide-gray-100 dark:divide-gray-800">
-                  <div className="sm:col-span-4 p-3 text-[11px] font-bold text-gray-400 sm:border-r border-gray-100 dark:border-gray-800">Company Address</div>
-                  <div className="sm:col-span-8 px-3 py-1">
-                     <textarea
-    className="w-full bg-transparent outline-none text-[12px] text-gray-600 dark:text-gray-400 px-0 resize-none min-h-[60px]"
-    value={newPO.companyAddress || ""}
-    onChange={(e) => setNewPO({ ...newPO, companyAddress: e.target.value })}
-    placeholder="Enter Company Address"
-  />
-                  </div>
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-12 items-center min-h-[50px] divide-y sm:divide-y-0 divide-gray-100 dark:divide-gray-800">
-                  <div className="sm:col-span-4 p-3 self-stretch text-[11px] font-bold text-gray-400 sm:border-r border-gray-100 dark:border-gray-800 flex items-center">Internal MR No.</div>
-                  <div className="sm:col-span-8 px-3 py-1">
-                    <SField
-    className="mb-0 border-none px-0 shadow-none ring-0 focus-within:ring-0"
-    value={newPO.mrId}
-    onChange={async (e) => {
-      const rawValue = e.target.value;
-      if (!rawValue) {
-        setNewPO({
-          ...newPO,
-          mrId: "",
-          supplier: "",
-          project: "",
-          location: "",
-          requirementBy: "",
-          items: [],
-          panNo: "NA",
-          gstNo: "NA",
-          vendorContact: "NA",
-          vendorEmail: "NA",
-          vendorAddress: "NA",
-          vendorBankDetails: { accountHolder: "NA", bankName: "NA", accountNo: "NA", branchIFSC: "NA" },
-          priceComparison: { vendors: [], items: [], remarks: "" }
-        });
-        return;
-      }
-      const [mrId, selectedCategory, approvedQuoteId] = rawValue.split("|");
-      const mr = materialRequirements.find((m) => m.id === mrId);
-      if (mr) {
-        if (!mr.items || mr.items.length === 0) {
-          toast.error("This MR has no items");
-          setNewPO({ ...newPO, mrId: rawValue });
-          return;
-        }
-        setAutoLinking(true);
-        toast.loading(`Loading ${selectedCategory || ""} items...`, { id: "linking" });
-        try {
-          const qRes = await api.get("quotations", { filter: JSON.stringify({ mrId }), limit: 100 });
-          let mrQuotations = qRes.success && Array.isArray(qRes.data) ? qRes.data : [];
-          const storeQuotes = quotations.filter((q) => q.mrId === mrId);
-          const allQuotes = [...mrQuotations];
-          storeQuotes.forEach((sq) => {
-            if (!allQuotes.find((aq) => aq.id === sq.id)) allQuotes.push(sq);
-          });
-          const categoryQuotes = allQuotes.filter(
-            (q) => !selectedCategory || selectedCategory === "General" || q.category === selectedCategory
-          );
-          const approvedQuotation = categoryQuotes.find((q) => q.id === approvedQuoteId || q._id === approvedQuoteId) || categoryQuotes[0];
-          const displayQuotations = categoryQuotes.length > 0 ? categoryQuotes : approvedQuotation ? [approvedQuotation] : [{ supplierName: "Vendor 1", items: [] }];
-          const approvedQuotationItems = (approvedQuotation?.items || []).filter((item) => item.approved);
-          const itemsToUse = approvedQuotationItems.length > 0 ? approvedQuotationItems : approvedQuotation?.items || [];
-          const pItemsRaw = await Promise.all(
-            itemsToUse.map(async (qItem) => {
-              const searchName = (qItem.materialName || "").trim();
-              const rate = qItem.rate;
-              const gstPct = qItem?.gstPct || 18;
-              const gstType = qItem?.gstType || "Exclusive";
-              const purchaseQty = qItem.qty;
-              let invItem = inventory.find((i) => (i.itemName || "").trim().toLowerCase() === searchName.toLowerCase() || (i.sku || "").trim().toLowerCase() === searchName.toLowerCase());
-              if (!invItem) invItem = inventory.find((i) => (i.itemName || "").toLowerCase().includes(searchName.toLowerCase()));
-              if (!invItem) {
-                try {
-                  const res = await api.get("inventory", { search: qItem.materialName, limit: 5 });
-                  if (res.data && res.data.length > 0) invItem = res.data[0];
-                } catch (err) {
-                }
-              }
-              const rawTotal = (purchaseQty || 0) * rate;
-              const totalWithGST = gstType === "Inclusive" ? rawTotal : rawTotal * (1 + gstPct / 100);
-              const total = gstType === "Inclusive" ? totalWithGST / (1 + gstPct / 100) : rawTotal;
-              const mrItem = mr.items.find((mi) => mi.materialName === qItem.materialName);
-              return {
-                sku: invItem?.sku || "N/A",
-                itemName: invItem?.itemName || qItem.materialName || "",
-                qty: purchaseQty,
-                unit: qItem.unit || invItem?.unit || mrItem?.unit || "Nos",
-                rate,
-                gstPct,
-                gstType,
-                total,
-                totalWithGST,
-                currentStock: invItem?.liveStock || 0,
-                category: invItem?.category || qItem.category || "General",
-                requirementQty: mrItem?.qty || purchaseQty,
-                condition: "New"
-              };
-            })
-          );
-          const pItems = pItemsRaw;
-          const priceComparisonItemsRaw = itemsToUse.map((qItem) => {
-            const mName = (qItem.materialName || "").trim();
-            return {
-              materialName: qItem.materialName,
-              unit: qItem.unit || "",
-              qty: qItem.qty || 1,
-              rates: displayQuotations.map((q) => {
-                const qi = findBestItemMatch(q.items || [], mName);
-                return qi?.rate || 0;
-              }),
-              gstPcts: displayQuotations.map((q) => {
-                const qi = findBestItemMatch(q.items || [], mName);
-                return qi?.gstPct || 0;
-              })
-            };
-          });
-          const priceComparisonItems = priceComparisonItemsRaw.filter((it) => it.rates.some((r) => r > 0));
-          const linkedSupplierId = approvedQuotation?.supplierId || mr.approvedSupplier;
-          const linkedSupplier = suppliers.find(
-            (s) => s.id === linkedSupplierId || s._id === linkedSupplierId || (s.companyName || s.name || "").toLowerCase() === (approvedQuotation?.supplierName || "").toLowerCase()
-          );
-          const updatedPOBase = {
-            ...newPO,
-            mrId: rawValue,
-            supplier: linkedSupplier?.id || linkedSupplier?._id || linkedSupplierId || "",
-            project: mr?.project || "",
-            location: mr?.location || "",
-            workType: selectedCategory || mr?.workType || "",
-            requirementBy: mr?.requesterName || "",
-            items: pItems,
-            panNo: linkedSupplier?.panNumber || "NA",
-            gstNo: linkedSupplier?.gstNumber || linkedSupplier?.gst || "NA",
-            vendorContact: linkedSupplier?.mobile || "NA",
-            vendorEmail: linkedSupplier?.email || "NA",
-            vendorAddress: linkedSupplier?.address || "NA",
-            vendorBankDetails: linkedSupplier ? {
-              accountHolder: linkedSupplier.accountHolderName || linkedSupplier.ownerName || "NA",
-              bankName: linkedSupplier.bankName || "NA",
-              accountNo: formatAccountNo(linkedSupplier.accountNumber) || "NA",
-              branchIFSC: `${linkedSupplier.branch || ""}, ${linkedSupplier.ifscCode || ""}`.trim().replace(/^,/, "").replace(/,$/, "").trim() || "NA"
-            } : { accountHolder: "NA", bankName: "NA", accountNo: "NA", branchIFSC: "NA" },
-            deliveryDetails: approvedQuotation?.deliveryDate ? { ...newPO.deliveryDetails || { location: "Garden city", contactPerson: "Nitin mittal", deliveryDate: "NA" }, deliveryDate: approvedQuotation.deliveryDate } : { location: newPO.deliveryDetails?.location || "Garden city", contactPerson: newPO.deliveryDetails?.contactPerson || "Nitin mittal", deliveryDate: "NA" },
-            priceComparison: {
-              vendors: displayQuotations.map((q) => ({
-                name: q.supplierName || "Vendor",
-                gstType: q.items?.[0]?.gstType || "Exclusive",
-                gstPct: q.items?.[0]?.gstPct || 0
-              })),
-              items: priceComparisonItems,
-              remarks: ""
-            },
-            freightAmount: approvedQuotation?.freightAmount || 0,
-            freightGstPct: approvedQuotation?.freightGstPct ?? 18,
-            freightGstType: approvedQuotation?.freightGstType || "Exclusive",
-            loadingAmount: approvedQuotation?.loadingAmount || 0,
-            loadingGstPct: approvedQuotation?.loadingGstPct ?? 18,
-            loadingGstType: approvedQuotation?.loadingGstType || "Exclusive",
-            unloadingAmount: approvedQuotation?.unloadingAmount || 0,
-            unloadingGstPct: approvedQuotation?.unloadingGstPct ?? 18,
-            unloadingGstType: approvedQuotation?.unloadingGstType || "Exclusive"
-          };
-          {
-            const poDate = todayStr();
-            const rawDelivery = approvedQuotation?.deliveryDate;
-            const deliveryDate = rawDelivery ? rawDelivery.split("T")[0] : poDate;
-            const d10 = new Date(deliveryDate);
-            d10.setDate(d10.getDate() + 10);
-            const deliveryPlus10 = d10.toISOString().split("T")[0];
-            const existing = newPO.paymentTimelines || [];
-            updatedPOBase.paymentTimelines = [
-              { date: poDate, type: "Advance", mode: existing[0]?.mode || "Bank Transfer", amount: existing[0]?.amount || 0, gstPct: existing[0]?.gstPct ?? 18, gstType: existing[0]?.gstType || "Inclusive", ifPayable: existing[0]?.ifPayable || 0 },
-              { date: deliveryDate, type: "On Delivery", mode: existing[1]?.mode || "Bank Transfer", amount: existing[1]?.amount || 0, gstPct: existing[1]?.gstPct ?? 0, gstType: existing[1]?.gstType || "Inclusive", ifPayable: existing[1]?.ifPayable || 0 },
-              { date: deliveryPlus10, type: "After 10 Days of Delivery", mode: existing[2]?.mode || "Bank Transfer", amount: existing[2]?.amount || 0, gstPct: existing[2]?.gstPct ?? 18, gstType: existing[2]?.gstType || "Inclusive", ifPayable: existing[2]?.ifPayable || 0 }
-            ];
-          }
-          setNewPO(updatedPOBase);
-          toast.success(`Items loaded`, { id: "linking" });
-        } catch (error) {
-          toast.error("Failed to load items", { id: "linking" });
-        } finally {
-          setAutoLinking(false);
-        }
-      } else {
-        setNewPO({
-          ...newPO,
-          mrId: rawValue,
-          supplier: "",
-          project: "",
-          location: "",
-          requirementBy: "",
-          items: [],
-          panNo: "NA",
-          gstNo: "NA",
-          vendorContact: "NA",
-          vendorEmail: "NA",
-          vendorAddress: "NA",
-          vendorBankDetails: { accountHolder: "NA", bankName: "NA", accountNo: "NA", branchIFSC: "NA" },
-          priceComparison: { vendors: [], items: [], remarks: "" }
-        });
-      }
-    }}
-    options={mrOptions}
-    placeholder={occupiedMRs === null ? "Loading MR list..." : "Select..."}
-    error={errors.mrId}
-    disabled={autoLinking || occupiedMRs === null}
-  />
-                  </div>
-                </div>
-                <div className="grid grid-cols-12 items-center">
-                  <div className="col-span-4 p-3 text-[11px] font-bold text-gray-400 border-r border-gray-100 dark:border-gray-800">Site/Location</div>
-                  <div className="col-span-8 px-3 py-1">
-                    <input
-    className="w-full bg-transparent outline-none text-[13px] font-bold text-gray-700 dark:text-gray-300"
-    value={newPO.location || ""}
-    onChange={(e) => setNewPO({ ...newPO, location: e.target.value })}
-    placeholder="Enter Site/Location"
-  />
-                  </div>
-                </div>
-                <div className="grid grid-cols-12 items-center">
-                  <div className="col-span-4 p-3 text-[11px] font-bold text-gray-400 border-r border-gray-100 dark:border-gray-800">Date of Issue</div>
-                  <div className="col-span-8 px-3 py-2 text-[13px] font-bold text-orange-600 dark:text-orange-400">{formatPrettyDate(newPO.date)}</div>
-                </div>
-              </div>
+            const sName = supplier
+              ? supplier.companyName || supplier.name
+              : po.supplier || "NA";
 
-              {
-    /* Right Column: Vendor Details */
-  }
-              <div className="divide-y divide-gray-100 dark:divide-gray-800 bg-white dark:bg-gray-900 rounded-b-xl lg:rounded-bl-none lg:rounded-r-xl">
-                <div className="bg-gray-50/50 dark:bg-gray-800/30 p-2 font-bold text-[10px] text-gray-500 flex items-center justify-between gap-2 lg:rounded-tr-xl">
-                   <div className="flex items-center gap-2">
-                    <div className="w-1 h-3 bg-orange-500 rounded-full" />
-                    Vendor details
-                   </div>
-                   <button
-    onClick={() => {
-      if (!newPO.supplier) {
-        toast.error("Please select a vendor first");
-        return;
-      }
-      const s = suppliers.find(
-        (su) => su.id === newPO.supplier || su._id === newPO.supplier || (su.companyName || su.name || "").toLowerCase() === (newPO.supplier || "").toLowerCase()
-      );
-      if (s) {
-        setNewPO((prev) => ({
-          ...prev,
-          panNo: s.panNumber || "NA",
-          gstNo: s.gstNumber || s.gst || "NA",
-          vendorContact: s.mobile || "NA",
-          vendorEmail: s.email || "NA",
-          vendorAddress: s.address || "NA",
-          vendorBankDetails: {
-            accountHolder: s.accountHolderName || s.ownerName || "NA",
-            bankName: s.bankName || "NA",
-            accountNo: formatAccountNo(s.accountNumber || s.accountNo) || "NA",
-            branchIFSC: `${s.branch || ""}, ${s.ifscCode || ""}`.trim().replace(/^,/, "").replace(/,$/, "").trim() || "NA"
-          }
-        }));
-        toast.success("Vendor details refreshed from master");
-      } else {
-        toast.error("Vendor not found in master list");
-      }
-    }}
-    className="text-[9px] text-blue-500 hover:text-blue-500 flex items-center gap-1 bg-blue-50 dark:bg-blue-900/20 px-2 py-0.5 rounded cursor-pointer transition-colors"
-  >
-                     <RefreshCw className="w-2.5 h-2.5" />
-                     Refresh from Master
-                   </button>
-                </div>
-                <div className="grid grid-cols-12 items-center min-h-[50px]">
-                  <div className="col-span-4 p-3 self-stretch text-[11px] font-bold text-gray-400 border-r border-gray-100 dark:border-gray-800 flex items-center">Vendor Name</div>
-                  <div className="col-span-8 px-3 py-1">
-                      <SField
-    className="mb-0 border-none px-0 shadow-none ring-0 focus-within:ring-0"
-    value={newPO.supplier}
-    onChange={async (e) => {
-      const supplierId = e.target.value;
-      const supplier = suppliers.find(
-        (s) => s.id === supplierId || s._id === supplierId || (s.companyName || s.name) === supplierId
-      );
-      if (supplier) {
-        setNewPO({
-          ...newPO,
-          supplier: supplierId,
-          panNo: supplier.panNumber || "NA",
-          gstNo: supplier.gstNumber || supplier.gst || "NA",
-          vendorContact: supplier.mobile || "NA",
-          vendorEmail: supplier.email || "NA",
-          vendorAddress: supplier.address || "NA",
-          vendorBankDetails: {
-            accountHolder: supplier.accountHolderName || supplier.ownerName || "NA",
-            bankName: supplier.bankName || "NA",
-            accountNo: formatAccountNo(supplier.accountNumber) || "NA",
-            branchIFSC: `${supplier.branch || ""}, ${supplier.ifscCode || ""}`.trim().replace(/^,/, "").replace(/,$/, "").trim() || "NA"
-          }
-        });
-      } else {
-        setNewPO({
-          ...newPO,
-          supplier: supplierId,
-          panNo: "NA",
-          gstNo: "NA",
-          vendorContact: "NA",
-          vendorEmail: "NA",
-          vendorAddress: "NA",
-          vendorBankDetails: { accountHolder: "NA", bankName: "NA", accountNo: "NA", branchIFSC: "NA" }
-        });
-      }
-    }}
-    options={vendorOptions}
-  />
-                  </div>
-                </div>
-                <div className="grid grid-cols-12 items-center">
-                  <div className="col-span-4 p-3 text-[11px] font-bold text-gray-400 border-r border-gray-100 dark:border-gray-800">GST No.</div>
-                  <div className="col-span-8 px-3 py-1">
-                    <input
-    disabled={false}
-    className="w-full bg-transparent outline-none text-[13px] font-bold text-gray-700 dark:text-gray-300 disabled:opacity-50"
-    value={newPO.gstNo || ""}
-    onChange={(e) => setNewPO({ ...newPO, gstNo: e.target.value })}
-    placeholder="Enter GSTIN"
-  />
-                  </div>
-                </div>
-                <div className="grid grid-cols-12 items-start">
-                  <div className="col-span-4 p-3 text-[11px] font-bold text-gray-400 border-r border-gray-100 dark:border-gray-800">Vendor Address</div>
-                  <div className="col-span-8 px-3 py-1">
-                    <textarea
-    disabled={false}
-    className="w-full bg-transparent outline-none text-[12px] font-medium text-gray-600 dark:text-gray-400 leading-tight resize-none h-12 disabled:opacity-50"
-    value={newPO.vendorAddress || ""}
-    onChange={(e) => setNewPO({ ...newPO, vendorAddress: e.target.value })}
-    placeholder="NA"
-  />
-                  </div>
-                </div>
-                <div className="grid grid-cols-12 items-center">
-                  <div className="col-span-4 p-3 text-[11px] font-bold text-gray-400 border-r border-gray-100 dark:border-gray-800">PAN No.</div>
-                  <div className="col-span-8 px-3 py-1">
-                    <input
-    disabled={false}
-    className="w-full bg-transparent outline-none text-[13px] font-bold text-gray-700 dark:text-gray-300 disabled:opacity-50"
-    value={newPO.panNo || ""}
-    onChange={(e) => setNewPO({ ...newPO, panNo: e.target.value })}
-    placeholder="Enter PAN"
-  />
-                  </div>
-                </div>
-                <div className="grid grid-cols-12 items-center">
-                  <div className="col-span-4 p-3 text-[11px] font-bold text-gray-400 border-r border-gray-100 dark:border-gray-800">Contact No</div>
-                  <div className="col-span-8 px-3 py-1">
-                     <input
-    disabled={false}
-    className="w-full bg-transparent outline-none text-[13px] font-bold text-gray-700 dark:text-gray-300 disabled:opacity-50"
-    value={newPO.vendorContact || ""}
-    onChange={(e) => setNewPO({ ...newPO, vendorContact: e.target.value })}
-    placeholder="NA"
-  />
-                  </div>
-                </div>
-                <div className="grid grid-cols-12 items-center">
-                  <div className="col-span-4 p-3 text-[11px] font-bold text-gray-400 border-r border-gray-100 dark:border-gray-800">Vendor Email</div>
-                  <div className="col-span-8 px-3 py-1">
-                     <input
-    disabled={false}
-    className="w-full bg-transparent outline-none text-[13px] font-bold text-blue-500 dark:text-blue-400 disabled:opacity-50"
-    value={newPO.vendorEmail || ""}
-    onChange={(e) => setNewPO({ ...newPO, vendorEmail: e.target.value })}
-    placeholder="NA"
-  />
-                  </div>
-                </div>
-              </div>
-            </div>
+            return (
+              <>
+                {" "}
+                {/* Desktop View Cells */}{" "}
+                <Td className="hidden lg:table-cell px-3 py-2.5 overflow-hidden">
+                  {" "}
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    {" "}
+                    {isNew && (
+                      <span className="px-1.5 py-0.5 rounded text-[8px] font-black bg-orange-600 text-white animate-pulse shrink-0">
+                        NEW
+                      </span>
+                    )}{" "}
+                    <span
+                      className="block truncate text-[13px] font-medium text-gray-900 dark:text-white"
+                      title={safeStr(po.id)}
+                    >
+                      {safeStr(po.id)}
+                    </span>{" "}
+                  </div>{" "}
+                </Td>{" "}
+                <Td className="hidden lg:table-cell px-3 py-2.5 overflow-hidden">
+                  {" "}
+                  <span
+                    className="block truncate text-[13px] text-gray-500 dark:text-gray-400"
+                    title={safeStr(po.mrId || "NA")}
+                  >
+                    {safeStr(po.mrId || "NA")}
+                  </span>{" "}
+                </Td>{" "}
+                <Td className="hidden lg:table-cell px-3 py-2.5 text-[13px] text-gray-500 dark:text-gray-400 whitespace-nowrap overflow-hidden">
+                  {" "}
+                  {formatDateTime(po.date)}{" "}
+                </Td>{" "}
+                <Td className="hidden lg:table-cell px-3 py-2.5 overflow-hidden">
+                  {" "}
+                  <span
+                    className="block truncate text-[13px] text-gray-500 dark:text-gray-400 capitalize"
+                    title={safeStr(po.project)}
+                  >
+                    {safeStr(po.project)}
+                  </span>{" "}
+                </Td>{" "}
+                <Td className="hidden lg:table-cell px-3 py-2.5 overflow-hidden">
+                  {" "}
+                  <span
+                    className="block truncate text-[13px] text-gray-500 dark:text-gray-400"
+                    title={sName}
+                  >
+                    {safeStr(sName)}
+                  </span>{" "}
+                </Td>{" "}
+                <Td className="hidden lg:table-cell px-3 py-2.5 text-[13px] font-bold text-right text-gray-900 dark:text-white whitespace-nowrap overflow-hidden">
+                  {" "}
+                  {fmtCur(po.totalValue)}{" "}
+                </Td>{" "}
+                <Td className="hidden lg:table-cell px-3 py-2.5">
+                  {" "}
+                  <StatusBadge
+                    status={po.status}
+                    accountStatus={po.accountStatus}
+                  />{" "}
+                </Td>{" "}
+                <Td className="hidden lg:table-cell px-4 py-3">
+                  {" "}
+                  <div className="flex items-center justify-end gap-1">
+                    {" "}
+                    <button
+                      onClick={async (e) => {
+                        e.stopPropagation();
+                        setLoadingQuotes(true);
+                        try {
+                          let updatedPO = { ...po };
+                          if (po.mrId) {
+                            const qRes = await api.get("quotations", {
+                              filter: JSON.stringify({ mrId: po.mrId }),
+                              limit: 100,
+                            });
 
-          <div className="mb-6">
-            <h3 className="text-[13px] font-bold text-gray-900 dark:text-white mb-3">
-              Line Items
-            </h3>
-
-            {errors.items && <p className="text-[11px] text-red-500 mb-2">{errors.items}</p>}
-
-            <div className="relative mb-4">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-              <input
-    disabled={false}
-    type="text"
-    placeholder="Search inventory to add items..."
-    value={searchItem}
-    onChange={(e) => setSearchItem(e.target.value)}
-    className="w-full pl-9 pr-4 py-2 border border-gray-200 dark:border-gray-800 rounded-lg text-[13px] focus:outline-none focus:border-orange-500 bg-white dark:bg-gray-900 text-gray-900 dark:text-white disabled:opacity-50"
-  />
-              {searchItem && <div className="absolute z-10 w-full mt-1 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg shadow-lg max-h-48 overflow-y-auto">
-                  {(inventory || []).filter((i) => i && ((i.itemName || "").toLowerCase().includes((searchItem || "").toLowerCase()) || (i.sku || "").toLowerCase().includes((searchItem || "").toLowerCase()) || (i.category || "").toLowerCase().includes((searchItem || "").toLowerCase()) || (i.subCategory || "").toLowerCase().includes((searchItem || "").toLowerCase()))).map((i, idx) => <div
-    key={`${i.sku || "item"}-${idx}`}
-    onClick={() => addItem(i)}
-    className="px-4 py-2 hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer text-[13px] text-gray-900 dark:text-white"
-  >
-                        {i.itemName} ({i.sku}) - Stock: {i.liveStock}
-                      </div>)}
+                            const mrQuotes = qRes.data || [];
+                            if (mrQuotes.length > 0) {
+                              const newPC = calculatePriceComparison(
+                                mrQuotes,
+                                po.items,
+                              );
+                              if (newPC) updatedPO.priceComparison = newPC;
+                            }
+                          }
+                          setSelectedPO(updatedPO);
+                          setViewModal(true);
+                        } catch (err) {
+                          setSelectedPO(po);
+                          setViewModal(true);
+                        } finally {
+                          setLoadingQuotes(false);
+                        }
+                      }}
+                      className="p-1.5 text-gray-500 hover:text-orange-500 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-md transition-all"
+                      title="View"
+                    >
+                      {" "}
+                      <Eye className="w-4 h-4" />{" "}
+                    </button>{" "}
+                    {hasPermission("EDIT_PURCHASE_ORDER") && (
+                      <>
+                        {" "}
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setNewPO(po);
+                            setIsEditing(true);
+                            setModal(true);
+                          }}
+                          className="p-1.5 text-gray-400 hover:text-blue-500 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-md transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+                          title={
+                            isPOLocked(po)
+                              ? "Warning: Edit will reset approval status"
+                              : "Edit"
+                          }
+                          disabled={false}
+                        >
+                          {" "}
+                          <Pencil className="w-4 h-4" />{" "}
+                        </button>{" "}
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setDeleteConfirm(po.id);
+                          }}
+                          className="p-1.5 text-red-300 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-md transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+                          title={
+                            isPOLocked(po)
+                              ? role === "Super Admin"
+                                ? "Delete (Super Admin override)"
+                                : "Locked: Payment processed"
+                              : "Delete"
+                          }
+                          disabled={isPOLocked(po) && role !== "Super Admin"}
+                        >
+                          {" "}
+                          <Trash2 className="w-4 h-4" />{" "}
+                        </button>{" "}
+                      </>
+                    )}{" "}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        window.location.hash = `tracking?id=${po.mrId || po.id}`;
+                      }}
+                      className="p-1.5 text-orange-400 hover:text-orange-600 hover:bg-orange-50 dark:hover:bg-orange-900/20 rounded-md transition-all"
+                      title="Track Lifecycle"
+                    >
+                      {" "}
+                      <TrendingUp className="w-4 h-4" />{" "}
+                    </button>{" "}
+                  </div>{" "}
+                </Td>{" "}
+                {/* Mobile View Cell */}{" "}
+                <Td colSpan={8} className="lg:hidden p-0 border-none">
+                  {" "}
                   <div
-    onClick={() => addItem({ itemName: searchItem, sku: "N/A" })}
-    className="px-4 py-2 hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer text-[13px] text-orange-600 font-bold border-t border-gray-100 dark:border-gray-800"
-  >
-                    + Add "{searchItem}" as manual item
-                  </div>
-                </div>}
-            </div>
-
-            {newPO.items && Array.isArray(newPO.items) && newPO.items.length > 0 && <div className="space-y-4">
-                {
-    /* Mobile View: Cards */
-  }
-                <div className="md:hidden space-y-4">
-                  {newPO.items.map((item, idx) => <div key={idx} className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl p-4 shadow-sm relative overflow-hidden">
-                      <div className="flex justify-between items-start mb-3">
-                        <div className="min-w-0 flex-1">
-                          <h4 className="text-[14px] font-bold text-gray-900 dark:text-white truncate">{safeStr(item.itemName)}</h4>
-                          <p className={cn(
-    "text-[11px] font-mono mt-0.5",
-    item.sku === "N/A" ? "text-red-500 font-bold animate-pulse" : "text-gray-400"
-  )}>
-                            {item.sku === "N/A" ? "\u26A0\uFE0F NOT LINKED" : safeStr(item.sku)}
-                          </p>
-                        </div>
+                    className={cn(
+                      "p-4 space-y-3 bg-white dark:bg-gray-900 border-b border-gray-100 dark:border-gray-800",
+                      isPending && "approval-highlight",
+                    )}
+                  >
+                    {" "}
+                    <div className="flex items-start justify-between">
+                      {" "}
+                      <div>
+                        {" "}
                         <div className="flex items-center gap-2">
-                          <button
-    onClick={() => setLinkingIndex(idx)}
-    className="p-2 text-orange-500 hover:bg-orange-50 dark:hover:bg-orange-900/20 rounded-lg transition-colors"
-  >
-                            <Link2 className="w-4 h-4" />
-                          </button>
-                          <button onClick={() => removeItem(idx)} className="p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors">
-                            <X className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </div>
-
-                      {item.sku === "N/A" && showQuickAdd !== idx && <button
-    onClick={() => {
-      setShowQuickAdd(idx);
-      setQuickAddData({ category: "", unit: "" });
-    }}
-    className="w-full mb-3 py-2 text-[12px] text-orange-600 bg-orange-50 dark:bg-orange-900/10 border border-orange-100 dark:border-orange-900/30 rounded-lg font-bold flex items-center justify-center gap-1.5"
-  >
-                          <Plus className="w-3.5 h-3.5" /> Quick Add to Inventory
-                        </button>}
-
-                      {showQuickAdd === idx && <div className="mb-4 p-3 bg-orange-50/50 dark:bg-orange-900/10 border border-orange-100 dark:border-orange-900/30 rounded-xl animate-in slide-in-from-top-1 duration-200">
-                           <div className="flex items-center justify-between mb-2">
-                             <span className="text-[10px] font-bold text-orange-700 dark:text-orange-400">Quick add item</span>
-                             <button onClick={() => setShowQuickAdd(null)} className="text-gray-400 hover:text-gray-600"><X className="w-3 h-3" /></button>
-                           </div>
-                           <div className="flex flex-row items-end gap-2">
-                             <SField
-    label="Category"
-    className="mb-0 flex-1"
-    value={quickAddData.category}
-    onChange={(e) => setQuickAddData({ ...quickAddData, category: e.target.value })}
-    options={CATEGORIES.map((c) => ({ label: c, value: c }))}
-  />
-                              <SField
-    label="Unit"
-    className="mb-0 flex-1"
-    value={quickAddData.unit}
-    onChange={(e) => setQuickAddData({ ...quickAddData, unit: e.target.value })}
-    options={UNITS.map((u) => ({ label: u, value: u }))}
-  />
-                              <Btn
-    label="Add"
-    small
-    className="bg-orange-600 hover:bg-orange-700 text-white border-none shadow-sm h-[38px]"
-    onClick={() => quickAddToInventory(idx)}
-  />
-                           </div>
-                        </div>}
-
-                      <div className="grid grid-cols-2 gap-4 mb-3">
-                        <div>
-                          <label className="block text-[10px] text-gray-400 font-bold mb-1">Stock / Unit</label>
-                          <div className="text-[13px] text-gray-900 dark:text-white font-medium">
-                            {safeStr(item.currentStock ?? 0)} {safeStr(item.unit)}
-                          </div>
-                        </div>
-                        <div>
-                          <label className="block text-[10px] text-gray-400 font-bold mb-1">Req qty</label>
-                          <input
-    type="number"
-    value={item.requirementQty ?? 0}
-    className="w-full px-2 py-1.5 border border-transparent rounded-lg text-[13px] bg-transparent text-gray-400 font-bold"
-    readOnly
-  />
-                        </div>
-                      </div>
-                      <div className="grid grid-cols-2 gap-3 mb-3">
-                        <div>
-                          <label className="block text-[10px] text-gray-400 font-bold mb-1">Order qty</label>
-                          <input
-    type="number"
-    value={item.qty ?? 0}
-    onChange={(e) => updateItem(idx, "qty", Number(e.target.value))}
-    className="w-full px-2 py-1.5 border border-gray-200 dark:border-gray-800 rounded-lg text-[13px] bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white"
-  />
-                        </div>
-                        <div>
-                          <label className="block text-[10px] text-gray-400 font-bold mb-1">Rate</label>
-                          <input
-    type="number"
-    value={item.rate ?? 0}
-    onChange={(e) => updateItem(idx, "rate", Number(e.target.value))}
-    className="w-full px-2 py-1.5 border border-gray-200 dark:border-gray-800 rounded-lg text-[13px] bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white"
-    readOnly={false}
-    disabled={false}
-  />
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-3 mb-3">
-                        <div>
-                          <label className="block text-[10px] text-gray-400 font-bold mb-1">Condition</label>
-                          <select
-    value={item.condition || "New"}
-    onChange={(e) => updateItem(idx, "condition", e.target.value)}
-    className="w-full px-2 py-1.5 border border-gray-200 dark:border-gray-800 rounded-lg text-[13px] bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:ring-1 focus:ring-primary outline-none transition-all"
-  >
-                            <option value="New">New</option>
-                            <option value="Good">Good</option>
-                            <option value="Needs Repair">Needs Repair</option>
-                            <option value="Damaged">Damaged</option>
-                            <option value="Old">Old</option>
-                          </select>
-                        </div>
-                        <div>
-                          <label className="block text-[10px] text-gray-400 font-bold mb-1">Gst %</label>
-                          <select
-    value={item.gstPct}
-    onChange={(e) => updateItem(idx, "gstPct", Number(e.target.value))}
-    className="w-full px-2 py-1.5 border border-gray-200 dark:border-gray-800 rounded-lg text-[13px] bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white"
-    disabled={false}
-  >
-                            <option value={0}>0%</option>
-                            <option value={5}>5%</option>
-                            <option value={12}>12%</option>
-                            <option value={18}>18%</option>
-                            <option value={28}>28%</option>
-                          </select>
-                        </div>
-                      </div>
-                      <div className="grid grid-cols-2 gap-3 mb-3">
-                        <div>
-                          <label className="block text-[10px] text-gray-400 font-bold mb-1">Gst type</label>
-                          <select
-    value={item.gstType || "Exclusive"}
-    onChange={(e) => updateItem(idx, "gstType", e.target.value)}
-    className="w-full px-2 py-1.5 border border-gray-200 dark:border-gray-800 rounded-lg text-[13px] bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white font-bold"
-    disabled={false}
-  >
-                            <option value="Exclusive">Exclusive</option>
-                            <option value="Inclusive">Inclusive</option>
-                          </select>
-                        </div>
-                      </div>
-
-                      <div className="flex justify-between items-center pt-3 border-t border-gray-100 dark:border-gray-800">
-                        <span className="text-[12px] font-bold text-gray-900 dark:text-white">Total with GST</span>
-                        <span className="text-[14px] font-black text-orange-600 dark:text-orange-400">{fmtCur(item.totalWithGST)}</span>
-                      </div>
-
-                      {linkingIndex === idx && <div className="absolute inset-0 z-30 bg-white dark:bg-gray-900 p-4 animate-in slide-in-from-bottom-full duration-300">
-                          <div className="flex items-center justify-between mb-4">
-                            <h5 className="text-[12px] font-bold text-gray-900 dark:text-white">Link inventory</h5>
-                            <button onClick={() => setLinkingIndex(null)} className="p-1 text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
-                          </div>
-                          <div className="relative mb-4">
-                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                            <input
-    autoFocus
-    type="text"
-    placeholder="Search inventory..."
-    value={linkingSearch}
-    onChange={(e) => setLinkingSearch(e.target.value)}
-    className="w-full pl-10 pr-4 py-2 border border-gray-200 dark:border-gray-800 rounded-xl text-[14px] focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white"
-  />
-                          </div>
-                          <div className="max-h-[60vh] overflow-y-auto space-y-2 custom-scrollbar pb-20">
-                            {(inventory || []).filter((i) => i && ((i.itemName || "").toLowerCase().includes((linkingSearch || "").toLowerCase()) || (i.sku || "").toLowerCase().includes((linkingSearch || "").toLowerCase()))).slice(0, 20).map((i, iidx) => <div
-    key={`${i.sku || "item"}-${iidx}`}
-    onClick={() => linkToInventory(idx, i)}
-    className="p-3 bg-gray-50 dark:bg-gray-800/50 hover:bg-orange-50 dark:hover:bg-orange-900/10 cursor-pointer rounded-xl border border-gray-100 dark:border-gray-800 hover:border-orange-200 dark:hover:border-orange-900/30 transition-all"
-  >
-                                  <div className="font-bold text-[13px] text-gray-900 dark:text-white">{i.itemName}</div>
-                                  <div className="flex items-center justify-between mt-1">
-                                    <span className="text-[11px] text-gray-500 font-mono">{i.sku}</span>
-                                    <span className="text-[11px] font-bold text-orange-600 dark:text-orange-400">Stock: {i.liveStock}</span>
-                                  </div>
-                                </div>)}
-                          </div>
-                        </div>}
-                    </div>)}
-                </div>
-
-                {
-    /* Desktop View: Table */
-  }
-                <div className="hidden md:block overflow-x-auto">
-                  <table className="w-full text-left border-collapse mb-4">
-                    <thead>
-                      <tr className="bg-gray-50 dark:bg-gray-800/50 border-b border-gray-200 dark:border-gray-800">
-                        <th className="px-2 py-2 text-[11px] font-bold text-gray-500 dark:text-gray-400 min-w-[150px]">Item</th>
-                        <th className="px-2 py-2 text-[11px] font-bold text-gray-500 dark:text-gray-400 w-16">Stock</th>
-                        <th className="px-2 py-2 text-[11px] font-bold text-gray-500 dark:text-gray-400 w-20">Unit</th>
-                        <th className="px-2 py-2 text-[11px] font-bold text-gray-500 dark:text-gray-400 w-16">Req qty</th>
-                        <th className="px-2 py-2 text-[11px] font-bold text-gray-500 dark:text-gray-400 w-24 text-center">Condition</th>
-                        <th className="px-2 py-2 text-[11px] font-bold text-gray-500 dark:text-gray-400 w-16">Order qty</th>
-                        <th className="px-2 py-2 text-[11px] font-bold text-gray-500 dark:text-gray-400 w-24">Rate</th>
-                        <th className="px-2 py-2 text-[11px] font-bold text-gray-500 dark:text-gray-400 w-20">Gst %</th>
-                        <th className="px-2 py-2 text-[11px] font-bold text-gray-500 dark:text-gray-400 w-24">Gst type</th>
-                        <th className="px-2 py-2 text-[11px] font-bold text-gray-500 dark:text-gray-400 text-right">Total</th>
-                        <th className="px-2 py-2 text-[11px] font-bold text-gray-500 dark:text-gray-400 w-10" />
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-200 dark:divide-gray-800">
-                      {newPO.items && Array.isArray(newPO.items) && newPO.items.map((item, idx) => <tr key={`${item.sku || "row"}-${idx}`}>
-                          <td className="px-2 py-2 relative">
-                            <div className="flex items-center justify-between gap-2 group">
-                              <div className="min-w-0">
-                                <p className="text-[13px] font-medium text-gray-900 dark:text-white truncate" title={safeStr(item.itemName)}>{safeStr(item.itemName)}</p>
-                                <p className={cn(
-    "text-[11px] font-mono",
-    item.sku === "N/A" ? "text-red-500 font-bold animate-pulse" : "text-gray-400"
-  )}>
-                                  {item.sku === "N/A" ? "\u26A0\uFE0F NOT LINKED" : safeStr(item.sku)}
-                                </p>
-                                {item.sku === "N/A" && showQuickAdd !== idx && <button
-    onClick={() => {
-      setShowQuickAdd(idx);
-      setQuickAddData({ category: "", unit: "" });
-    }}
-    className="text-[10px] text-orange-600 hover:underline mt-0.5 font-bold flex items-center gap-0.5"
-  >
-                                    <Plus className="w-2.5 h-2.5" /> Quick Add
-                                  </button>}
-
-                                {showQuickAdd === idx && <div className="mt-2 p-3 bg-orange-50/50 dark:bg-orange-900/10 border border-orange-100 dark:border-orange-900/30 rounded-xl animate-in slide-in-from-top-1 duration-200 shadow-sm relative z-50 min-w-[350px]">
-                                     <div className="flex items-center justify-between mb-2">
-                                       <span className="text-[10px] font-bold text-orange-700 dark:text-orange-400 tracking-wider">Quick add item</span>
-                                       <button onClick={() => setShowQuickAdd(null)} className="text-gray-400 hover:text-gray-600 transition-colors"><X className="w-3 h-3" /></button>
-                                     </div>
-                                     <div className="flex flex-row items-end gap-2">
-                                       <SField
-    label="Category"
-    className="mb-0 flex-1"
-    value={quickAddData.category}
-    onChange={(e) => setQuickAddData({ ...quickAddData, category: e.target.value })}
-    options={CATEGORIES.map((c) => ({ label: c, value: c }))}
-  />
-                                        <SField
-    label="Unit"
-    className="mb-0 flex-1"
-    value={quickAddData.unit}
-    onChange={(e) => setQuickAddData({ ...quickAddData, unit: e.target.value })}
-    options={UNITS.map((u) => ({ label: u, value: u }))}
-  />
-                                        <Btn
-    label="Add"
-    small
-    className="bg-orange-600 hover:bg-orange-700 text-white border-none shadow-sm h-[38px]"
-    onClick={() => quickAddToInventory(idx)}
-    loading={actionLoading}
-  />
-                                     </div>
-                                  </div>}
-                              </div>
-                              <button
-    onClick={() => setLinkingIndex(idx)}
-    className="p-1.5 text-orange-500 hover:bg-orange-50 dark:hover:bg-orange-900/20 rounded-lg transition-colors shrink-0"
-    title="Link to Inventory"
-  >
-                                <Link2 className="w-3.5 h-3.5" />
-                              </button>
-                            </div>
-                            
-                            {linkingIndex === idx && <div className="absolute z-20 left-0 top-full mt-1 w-72 bg-white dark:bg-[#1E293B] border border-gray-200 dark:border-gray-700 rounded-xl shadow-2xl p-3 animate-in fade-in zoom-in duration-200">
-                                <div className="flex items-center justify-between mb-2">
-                                  <span className="text-[10px] font-bold text-gray-400 tracking-widest">Link inventory item</span>
-                                  <button onClick={() => setLinkingIndex(null)} className="text-gray-400 hover:text-gray-600"><X className="w-3 h-3" /></button>
-                                </div>
-                                <div className="relative mb-3">
-                                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
-                                  <input
-    autoFocus
-    type="text"
-    placeholder="Search inventory..."
-    value={linkingSearch}
-    onChange={(e) => setLinkingSearch(e.target.value)}
-    className="w-full pl-9 pr-3 py-1.5 border border-gray-200 dark:border-gray-700 rounded-lg text-[12px] focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 bg-gray-50 dark:bg-[#0F172A] text-gray-900 dark:text-white"
-  />
-                                </div>
-                                <div className="max-h-48 overflow-y-auto space-y-1 custom-scrollbar">
-                                  {inventory.slice(0, 50).map((i, iidx) => <div
-    key={iidx}
-    onClick={() => linkToInventory(idx, i)}
-    className="px-3 py-2 hover:bg-orange-50 dark:hover:bg-orange-900/10 cursor-pointer text-[12px] rounded-lg border border-transparent hover:border-orange-100 dark:hover:border-orange-900/30 transition-all"
-  >
-                                        <div className="font-bold text-gray-900 dark:text-white truncate">{safeStr(i.itemName)}</div>
-                                        <div className="flex items-center justify-between mt-0.5">
-                                          <span className="text-[10px] text-gray-500 font-mono">{safeStr(i.sku)}</span>
-                                          <span className="text-[10px] font-bold text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-900/20 px-1.5 rounded">Stock: {safeStr(i.liveStock)}</span>
-                                        </div>
-                                      </div>)}
-                                  {inventory.filter((i) => (i.itemName?.toLowerCase() || "").includes(linkingSearch.toLowerCase())).length === 0 && <div className="py-4 text-center text-[11px] text-gray-400">No matching items found</div>}
-                                </div>
-                              </div>}
-                          </td>
-                          <td className="px-2 py-2 text-[13px] font-medium text-gray-500 dark:text-gray-400">{safeStr(item.currentStock ?? 0)}</td>
-                          <td className="px-2 py-2 text-[13px] text-gray-500 dark:text-gray-400">{safeStr(item.unit)}</td>
-                          <td className="px-2 py-2">
-                            <input
-    type="number"
-    value={item.requirementQty ?? 0}
-    className="w-full px-2 py-1 border border-transparent rounded text-[13px] bg-transparent text-gray-400 font-bold"
-    readOnly
-  />
-                          </td>
-                          <td className="px-2 py-2">
-                             <select
-    value={item.condition || "New"}
-    onChange={(e) => updateItem(idx, "condition", e.target.value)}
-    className="w-full px-2 py-1 border border-gray-200 dark:border-gray-800 rounded text-[13px] bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
-  >
-                               <option value="New">New</option>
-                               <option value="Old">Old</option>
-                             </select>
-                          </td>
-                          <td className="px-2 py-2">
-                            <input
-    type="number"
-    value={item.qty ?? 0}
-    onChange={(e) => updateItem(idx, "qty", Number(e.target.value))}
-    className="w-full px-2 py-1 border border-gray-200 dark:border-gray-800 rounded text-[13px] bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
-  />
-                          </td>
-                          <td className="px-2 py-2">
-                            <input
-    type="number"
-    value={item.rate ?? 0}
-    onChange={(e) => updateItem(idx, "rate", Number(e.target.value))}
-    className="w-full px-2 py-1 border border-gray-200 dark:border-gray-800 rounded text-[13px] bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
-    readOnly={false}
-    disabled={false}
-  />
-                          </td>
-                          <td className="px-2 py-2">
-                            <select
-    value={item.gstPct}
-    onChange={(e) => updateItem(idx, "gstPct", Number(e.target.value))}
-    className="w-full px-2 py-1 border border-gray-200 dark:border-gray-800 rounded text-[13px] bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
-    disabled={false}
-  >
-                              <option value={0}>0%</option>
-                              <option value={5}>5%</option>
-                              <option value={12}>12%</option>
-                              <option value={18}>18%</option>
-                              <option value={28}>28%</option>
-                            </select>
-                          </td>
-                          <td className="px-2 py-2">
-                            <select
-    value={item.gstType || "Exclusive"}
-    onChange={(e) => updateItem(idx, "gstType", e.target.value)}
-    className="w-full px-1 py-1 border border-gray-200 dark:border-gray-800 rounded text-[11px] bg-white dark:bg-gray-900 text-gray-900 dark:text-white font-bold"
-    disabled={false}
-  >
-                              <option value="Exclusive">Exclusive</option>
-                              <option value="Inclusive">Inclusive</option>
-                            </select>
-                          </td>
-                          <td className="px-2 py-2 text-[13px] font-bold text-right text-gray-900 dark:text-white">{fmtCur(item.totalWithGST)}</td>
-                          <td className="px-2 py-2 text-right">
-                            <button onClick={() => removeItem(idx)} className="p-1 text-gray-400 hover:text-red-500 transition-colors">
-                              <X className="w-4 h-4" />
-                            </button>
-                          </td>
-                        </tr>)}
-                    </tbody>
-                    <tfoot className="border-t-2 border-gray-100 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-800/30">
-                      <tr>
-                        <td colSpan={9} className="px-2 py-2 text-right text-[10px] font-bold text-gray-400 tracking-widest">Items Subtotal (Incl. GST)</td>
-                        <td className="px-2 py-2 text-right text-[13px] font-bold text-gray-700 dark:text-gray-300">
-                          {fmtCur(newPO.items?.reduce((sum, it) => sum + (it.totalWithGST || 0), 0) || 0)}
-                        </td>
-                        <td />
-                      </tr>
-                      {(newPO.freightAmount || 0) > 0 && <tr>
-                          <td colSpan={9} className="px-2 py-1 text-right text-[10px] font-bold text-gray-400">
-                            Freight Charges ({newPO.freightGstPct || 18}% GST · {newPO.freightGstType || "Exclusive"})
-                          </td>
-                          <td className="px-2 py-1 text-right text-[12px] font-bold text-gray-600 dark:text-gray-400">
-                            {fmtCur(calcChargeTotal(newPO.freightAmount || 0, newPO.freightGstPct || 0, newPO.freightGstType || "Exclusive"))}
-                          </td>
-                          <td />
-                        </tr>}
-                      {(newPO.loadingAmount || 0) > 0 && <tr>
-                          <td colSpan={9} className="px-2 py-1 text-right text-[10px] font-bold text-gray-400">
-                            Loading Charges ({newPO.loadingGstPct || 18}% GST · {newPO.loadingGstType || "Exclusive"})
-                          </td>
-                          <td className="px-2 py-1 text-right text-[12px] font-bold text-gray-600 dark:text-gray-400">
-                            {fmtCur(calcChargeTotal(newPO.loadingAmount || 0, newPO.loadingGstPct || 0, newPO.loadingGstType || "Exclusive"))}
-                          </td>
-                          <td />
-                        </tr>}
-                      {(newPO.unloadingAmount || 0) > 0 && <tr>
-                          <td colSpan={9} className="px-2 py-1 text-right text-[10px] font-bold text-gray-400">
-                            Unloading Charges ({newPO.unloadingGstPct || 18}% GST · {newPO.unloadingGstType || "Exclusive"})
-                          </td>
-                          <td className="px-2 py-1 text-right text-[12px] font-bold text-gray-600 dark:text-gray-400">
-                            {fmtCur(calcChargeTotal(newPO.unloadingAmount || 0, newPO.unloadingGstPct || 0, newPO.unloadingGstType || "Exclusive"))}
-                          </td>
-                          <td />
-                        </tr>}
-                      <tr className="border-t border-gray-200 dark:border-gray-700">
-                        <td colSpan={9} className="px-2 py-3 text-right text-[11px] font-black text-gray-600 dark:text-gray-300 tracking-widest">Grand Total (Incl. GST + Charges)</td>
-                        <td className="px-2 py-3 text-right text-[15px] font-black text-orange-600 dark:text-orange-400">
-                          {fmtCur(
-    (newPO.items?.reduce((sum, it) => sum + (it.totalWithGST || 0), 0) || 0) + calcChargeTotal(newPO.freightAmount || 0, newPO.freightGstPct || 0, newPO.freightGstType || "Exclusive") + calcChargeTotal(newPO.loadingAmount || 0, newPO.loadingGstPct || 0, newPO.loadingGstType || "Exclusive") + calcChargeTotal(newPO.unloadingAmount || 0, newPO.unloadingGstPct || 0, newPO.unloadingGstType || "Exclusive")
-  )}
-                        </td>
-                        <td />
-                      </tr>
-                    </tfoot>
-                  </table>
-                </div>
-              </div>}
-
-            {hasReusable && <div className="p-4 bg-blue-50 dark:bg-blue-900/10 border border-blue-200 dark:border-blue-800 rounded-lg mb-4">
-                <div className="flex items-start gap-2 text-blue-800 dark:text-blue-400">
-                  <AlertTriangle className="w-5 h-5 shrink-0" />
-                  <div>
-                    <p className="text-[13px] font-bold">
-                      Reusable Stock Available
-                    </p>
-                    <p className="text-[13px] mt-1">
-                      Some items in this PO have reusable stock available.
-                      Please provide justification for ordering new stock.
-                    </p>
-                  </div>
-                </div>
-                <div className="mt-3">
-                  <Field
-    label="Justification"
-    value={newPO.justification}
-    onChange={(e) => setNewPO({ ...newPO, justification: e.target.value })}
-    required
-    error={errors.justification}
-  />
-                </div>
-              </div>}
-          </div>
-
-              {
-    /* Other Charges Section */
-  }
-              <div className="mt-6 p-4 bg-gray-50/50 dark:bg-gray-800/50 rounded-xl border border-gray-100 dark:border-gray-700">
-                <div className="flex items-center gap-2 mb-4">
-                  <div className="w-1 h-5 bg-orange-500 rounded-full" />
-                  <h4 className="text-[11px] font-black text-gray-400 tracking-widest ">Other Charges</h4>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  {
-    /* Freight */
-  }
-                  <div className="p-3 bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 space-y-3">
-                    <Field
-    label="Freight Charges (₹)"
-    type="number"
-    value={newPO.freightAmount ?? ""}
-    onChange={(e) => setNewPO({ ...newPO, freightAmount: Number(e.target.value) || 0 })}
-    placeholder="0"
-  />
-                    <div className="grid grid-cols-2 gap-2">
-                      <div className="space-y-1">
-                        <label className="block text-[11px] font-bold text-[#6B7280] dark:text-[#94A3B8] mb-1.5">GST %</label>
-                        <select
-    value={newPO.freightGstPct ?? 18}
-    onChange={(e) => setNewPO({ ...newPO, freightGstPct: Number(e.target.value) })}
-    className="w-full px-3 py-2 bg-white dark:bg-[#0F172A] border border-[#E8ECF0] dark:border-[#334155] rounded-lg text-[13px] text-gray-900 dark:text-white"
-  >
-                          <option value={0}>0%</option>
-                          <option value={5}>5%</option>
-                          <option value={12}>12%</option>
-                          <option value={18}>18%</option>
-                          <option value={28}>28%</option>
-                        </select>
-                      </div>
-                      <div className="space-y-1">
-                        <label className="block text-[11px] font-bold text-[#6B7280] dark:text-[#94A3B8] mb-1.5">GST Type</label>
-                        <select
-    value={newPO.freightGstType || "Exclusive"}
-    onChange={(e) => setNewPO({ ...newPO, freightGstType: e.target.value })}
-    className="w-full px-3 py-2 bg-white dark:bg-[#0F172A] border border-[#E8ECF0] dark:border-[#334155] rounded-lg text-[13px] text-gray-900 dark:text-white"
-  >
-                          <option value="Exclusive">Exclusive</option>
-                          <option value="Inclusive">Inclusive</option>
-                        </select>
-                      </div>
-                    </div>
-                  </div>
-                  {
-    /* Loading */
-  }
-                  <div className="p-3 bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 space-y-3">
-                    <Field
-    label="Loading Charges (₹)"
-    type="number"
-    value={newPO.loadingAmount ?? ""}
-    onChange={(e) => setNewPO({ ...newPO, loadingAmount: Number(e.target.value) || 0 })}
-    placeholder="0"
-  />
-                    <div className="grid grid-cols-2 gap-2">
-                      <div className="space-y-1">
-                        <label className="block text-[11px] font-bold text-[#6B7280] dark:text-[#94A3B8] mb-1.5">GST %</label>
-                        <select
-    value={newPO.loadingGstPct ?? 18}
-    onChange={(e) => setNewPO({ ...newPO, loadingGstPct: Number(e.target.value) })}
-    className="w-full px-3 py-2 bg-white dark:bg-[#0F172A] border border-[#E8ECF0] dark:border-[#334155] rounded-lg text-[13px] text-gray-900 dark:text-white"
-  >
-                          <option value={0}>0%</option>
-                          <option value={5}>5%</option>
-                          <option value={12}>12%</option>
-                          <option value={18}>18%</option>
-                          <option value={28}>28%</option>
-                        </select>
-                      </div>
-                      <div className="space-y-1">
-                        <label className="block text-[11px] font-bold text-[#6B7280] dark:text-[#94A3B8] mb-1.5">GST Type</label>
-                        <select
-    value={newPO.loadingGstType || "Exclusive"}
-    onChange={(e) => setNewPO({ ...newPO, loadingGstType: e.target.value })}
-    className="w-full px-3 py-2 bg-white dark:bg-[#0F172A] border border-[#E8ECF0] dark:border-[#334155] rounded-lg text-[13px] text-gray-900 dark:text-white"
-  >
-                          <option value="Exclusive">Exclusive</option>
-                          <option value="Inclusive">Inclusive</option>
-                        </select>
-                      </div>
-                    </div>
-                  </div>
-                  {
-    /* Unloading */
-  }
-                  <div className="p-3 bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 space-y-3">
-                    <Field
-    label="Unloading Charges (₹)"
-    type="number"
-    value={newPO.unloadingAmount ?? ""}
-    onChange={(e) => setNewPO({ ...newPO, unloadingAmount: Number(e.target.value) || 0 })}
-    placeholder="0"
-  />
-                    <div className="grid grid-cols-2 gap-2">
-                      <div className="space-y-1">
-                        <label className="block text-[11px] font-bold text-[#6B7280] dark:text-[#94A3B8] mb-1.5">GST %</label>
-                        <select
-    value={newPO.unloadingGstPct ?? 18}
-    onChange={(e) => setNewPO({ ...newPO, unloadingGstPct: Number(e.target.value) })}
-    className="w-full px-3 py-2 bg-white dark:bg-[#0F172A] border border-[#E8ECF0] dark:border-[#334155] rounded-lg text-[13px] text-gray-900 dark:text-white"
-  >
-                          <option value={0}>0%</option>
-                          <option value={5}>5%</option>
-                          <option value={12}>12%</option>
-                          <option value={18}>18%</option>
-                          <option value={28}>28%</option>
-                        </select>
-                      </div>
-                      <div className="space-y-1">
-                        <label className="block text-[11px] font-bold text-[#6B7280] dark:text-[#94A3B8] mb-1.5">GST Type</label>
-                        <select
-    value={newPO.unloadingGstType || "Exclusive"}
-    onChange={(e) => setNewPO({ ...newPO, unloadingGstType: e.target.value })}
-    className="w-full px-3 py-2 bg-white dark:bg-[#0F172A] border border-[#E8ECF0] dark:border-[#334155] rounded-lg text-[13px] text-gray-900 dark:text-white"
-  >
-                          <option value="Exclusive">Exclusive</option>
-                          <option value="Inclusive">Inclusive</option>
-                        </select>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6 p-4 bg-gray-50/50 dark:bg-gray-800/50 rounded-xl border border-gray-100 dark:border-gray-700">
-                <div className="space-y-4">
-                      <h4 className="text-[11px] font-black text-gray-400">Delivery details</h4>
-                  <Field
-    label="Delivery Location"
-    value={newPO.deliveryDetails?.location || ""}
-    onChange={(e) => setNewPO({
-      ...newPO,
-      deliveryDetails: { ...newPO.deliveryDetails || { location: "", contactPerson: "", deliveryDate: "" }, location: e.target.value }
-    })}
-    placeholder="Enter delivery location"
-  />
-                  <Field
-    label="Receiver Name"
-    value={newPO.deliveryDetails?.contactPerson || ""}
-    onChange={(e) => setNewPO({
-      ...newPO,
-      deliveryDetails: { ...newPO.deliveryDetails || { location: "", contactPerson: "", deliveryDate: "" }, contactPerson: e.target.value }
-    })}
-    placeholder="Enter receiver name"
-  />
-                  <Field
-    label="Delivery Date / Period"
-    value={newPO.deliveryDetails?.deliveryDate || ""}
-    onChange={(e) => setNewPO({
-      ...newPO,
-      deliveryDetails: { ...newPO.deliveryDetails || { location: "", contactPerson: "", deliveryDate: "" }, deliveryDate: e.target.value }
-    })}
-    placeholder="e.g. Within 7 days"
-  />
-
-                </div>
-                <div className="space-y-4">
-                      <h4 className="text-[11px] font-black text-gray-400">Vendor bank details</h4>
-                  <div className="grid grid-cols-2 gap-2">
-                    <Field
-    label="Bank Name"
-    value={newPO.vendorBankDetails?.bankName || ""}
-    onChange={(e) => setNewPO({
-      ...newPO,
-      vendorBankDetails: { ...newPO.vendorBankDetails || { accountHolder: "", bankName: "", accountNo: "", branchIFSC: "" }, bankName: e.target.value }
-    })}
-  />
-                    <Field
-    label="A/C No."
-    value={newPO.vendorBankDetails?.accountNo || ""}
-    onChange={(e) => setNewPO({
-      ...newPO,
-      vendorBankDetails: { ...newPO.vendorBankDetails || { accountHolder: "", bankName: "", accountNo: "", branchIFSC: "" }, accountNo: e.target.value }
-    })}
-  />
-                  </div>
-                  <Field
-    label="Branch & IFSC"
-    value={newPO.vendorBankDetails?.branchIFSC || ""}
-    onChange={(e) => setNewPO({
-      ...newPO,
-      vendorBankDetails: { ...newPO.vendorBankDetails || { accountHolder: "", bankName: "", accountNo: "", branchIFSC: "" }, branchIFSC: e.target.value }
-    })}
-  />
-                </div>
-              </div>
-
-              {
-    /* Payment Timelines — same style as View Modal */
-  }
-              <div className="mt-6 border border-[#1A365D] rounded-lg overflow-visible">
-                <div className="bg-[#1A365D] h-8 flex items-center justify-between px-4">
-                  <p className="text-white font-black text-[10px] tracking-widest">Payment Timelines</p>
-                  <button
-    type="button"
-    onClick={() => {
-      const pts = [...newPO.paymentTimelines || []];
-      pts.push({ date: todayStr(), type: "Milestone", mode: "Bank Transfer", amount: 0, gstPct: 18, gstType: "Exclusive", ifPayable: 0 });
-      setNewPO({ ...newPO, paymentTimelines: pts });
-    }}
-    className="text-white text-[9px] border border-white/40 px-2.5 py-0.5 rounded hover:bg-white/10 transition-colors flex items-center gap-1"
-  >
-                    <Plus className="w-3 h-3" /> Add Row
-                  </button>
-                </div>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-[11px]">
-                    <thead>
-                      <tr className="bg-[#1A365D]/10 dark:bg-[#1A365D]/30 text-[9px] font-black text-gray-500 tracking-wide">
-                        <th className="p-2 text-left border-r border-[#1A365D]/30">Date</th>
-                        <th className="p-2 text-left border-r border-[#1A365D]/30">Type</th>
-                        <th className="p-2 text-left border-r border-[#1A365D]/30">Mode</th>
-                        <th className="p-2 text-right border-r border-[#1A365D]/30">Amount</th>
-                        <th className="p-2 text-center border-r border-[#1A365D]/30">GST %</th>
-                        <th className="p-2 text-center border-r border-[#1A365D]/30">GST Type</th>
-                        <th className="p-2 text-right border-r border-[#1A365D]/30">GST Amt</th>
-                        <th className="p-2 text-right border-r border-[#1A365D]/30">If Payable</th>
-                        <th className="p-2 w-8" />
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {newPO.paymentTimelines?.map((pt, idx) => <tr key={idx} className="border-t border-[#1A365D]/20 hover:bg-[#1A365D]/5 transition-colors">
-                          <td className="p-1.5 border-r border-[#1A365D]/20">
-                            <DatePicker
-    small
-    value={pt.date || ""}
-    onChange={(e) => {
-      const pts = [...newPO.paymentTimelines || []];
-      pts[idx] = { ...pts[idx], date: e.target.value };
-      setNewPO({ ...newPO, paymentTimelines: pts });
-    }}
-  />
-                          </td>
-                          <td className="p-1.5 border-r border-[#1A365D]/20">
-                            <input
-    className="w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded px-1.5 py-1 text-xs"
-    value={normalizeTimelineType(pt.type)}
-    onChange={(e) => {
-      const pts = [...newPO.paymentTimelines || []];
-      pts[idx] = { ...pts[idx], type: e.target.value };
-      setNewPO({ ...newPO, paymentTimelines: pts });
-    }}
-  />
-                          </td>
-                          <td className="p-1.5 border-r border-[#1A365D]/20">
-                            <input
-    className="w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded px-1.5 py-1 text-xs"
-    value={pt.mode || ""}
-    onChange={(e) => {
-      const pts = [...newPO.paymentTimelines || []];
-      pts[idx] = { ...pts[idx], mode: e.target.value };
-      setNewPO({ ...newPO, paymentTimelines: pts });
-    }}
-  />
-                          </td>
-                          <td className="p-1.5 border-r border-[#1A365D]/20">
-                            <input
-    type="text"
-    className="w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded px-1.5 py-1 text-xs text-right"
-    value={pt.amount ?? ""}
-    onChange={(e) => {
-      const valStr = e.target.value.replace(/[^0-9.]/g, "");
-      const val = parseFloat(valStr) || 0;
-      const pts = [...newPO.paymentTimelines || []];
-      const norm = normalizeTimelineGST(pts[idx]);
-      let calculatedPayable = val;
-      if (norm.gstType === "Exclusive" && norm.gstPct > 0) {
-        calculatedPayable = val + val * norm.gstPct / 100;
-      }
-      pts[idx] = { ...pts[idx], amount: valStr, ifPayable: parseFloat(calculatedPayable.toFixed(2)) };
-      setNewPO({ ...newPO, paymentTimelines: pts });
-    }}
-  />
-                          </td>
-                          <td className="p-1.5 border-r border-[#1A365D]/20">
-                            <input
-    type="number"
-    min="0"
-    max="100"
-    className="w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded px-1.5 py-1 text-xs text-center font-medium"
-    value={normalizeTimelineGST(pt).gstPct}
-    onFocus={(e) => e.target.select()}
-    onChange={(e) => {
-      const pct = parseFloat(e.target.value) || 0;
-      const pts = [...newPO.paymentTimelines || []];
-      const norm = normalizeTimelineGST(pts[idx]);
-      const amt = parseFloat(String(norm.amount)) || 0;
-      let calculatedPayable = norm.gstType === "Exclusive" && pct > 0 ? amt + amt * pct / 100 : amt;
-      pts[idx] = { ...pts[idx], gstPct: pct, ifPayable: parseFloat(calculatedPayable.toFixed(2)) };
-      setNewPO({ ...newPO, paymentTimelines: pts });
-    }}
-  />
-                          </td>
-                          <td className="p-1.5 border-r border-[#1A365D]/20 text-center">
-                            <span className="text-[11px] font-medium text-gray-700 dark:text-gray-300">
-                              {normalizeTimelineGST(pt).gstType}
+                          {" "}
+                          {isNew && (
+                            <span className="px-1.5 py-0.5 rounded text-[8px] font-black bg-orange-600 text-white animate-pulse">
+                              NEW
                             </span>
-                          </td>
-                          <td className="p-1.5 border-r border-[#1A365D]/20 text-right text-[11px] font-bold text-emerald-600 dark:text-emerald-400 min-w-[70px]">
-                            {(() => {
-    const gstAmt = Math.max(0, (pt.ifPayable || 0) - (pt.amount || 0));
-    return gstAmt > 0 ? fmtCur(gstAmt) : <span className="text-gray-400 font-normal">—</span>;
-  })()}
-                          </td>
-                          <td className="p-1.5 border-r border-[#1A365D]/20">
-                            <input
-    type="text"
-    className="w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded px-1.5 py-1 text-xs text-right font-bold"
-    value={pt.ifPayable ?? ""}
-    onChange={(e) => {
-      const valStr = e.target.value.replace(/[^0-9.]/g, "");
-      const val = parseFloat(valStr) || 0;
-      const pts = [...newPO.paymentTimelines || []];
-      const norm = normalizeTimelineGST(pts[idx]);
-      let calculatedAmount = val;
-      if (norm.gstType === "Exclusive" && norm.gstPct > 0) {
-        calculatedAmount = val / (1 + norm.gstPct / 100);
-      }
-      pts[idx] = { ...pts[idx], ifPayable: valStr, amount: parseFloat(calculatedAmount.toFixed(2)) };
-      setNewPO({ ...newPO, paymentTimelines: pts });
-    }}
-  />
-                          </td>
-                          <td className="p-1.5 text-center">
-                            <button
-    type="button"
-    onClick={() => {
-      const pts = newPO.paymentTimelines?.filter((_, i) => i !== idx);
-      setNewPO({ ...newPO, paymentTimelines: pts });
-    }}
-    className="p-1 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors"
-  >
-                              <X className="w-3.5 h-3.5 text-red-500" />
-                            </button>
-                          </td>
-                        </tr>)}
-                    </tbody>
-                    <tfoot>
-                      <tr className="bg-[#1A365D] text-white">
-                        <td colSpan={8} className="p-2 text-right text-[10px] font-black tracking-wide">Grand Total</td>
-                        <td className="p-2 text-right text-[13px] font-black pr-3">
-                          {fmtCur(
-    (newPO.items?.reduce((s, it) => s + (it.totalWithGST || 0), 0) || 0) + calcChargeTotal(newPO.freightAmount || 0, newPO.freightGstPct || 0, newPO.freightGstType || "Exclusive") + calcChargeTotal(newPO.loadingAmount || 0, newPO.loadingGstPct || 0, newPO.loadingGstType || "Exclusive") + calcChargeTotal(newPO.unloadingAmount || 0, newPO.unloadingGstPct || 0, newPO.unloadingGstType || "Exclusive")
-  )}
-                        </td>
-                      </tr>
-                    </tfoot>
-                  </table>
-                </div>
+                          )}{" "}
+                          <p className="text-[13px] font-bold text-gray-900 dark:text-white tracking-tight">
+                            {po.id}
+                          </p>{" "}
+                        </div>{" "}
+                        <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5">
+                          {formatDateTime(po.date)}
+                        </p>{" "}
+                      </div>{" "}
+                      <div className="flex flex-col items-end gap-1">
+                        {" "}
+                        <StatusBadge
+                          status={po.status}
+                          accountStatus={po.accountStatus}
+                        />{" "}
+                        {isPending && (
+                          <span className="text-[9px] font-black text-orange-500 animate-bounce">
+                            APPROVAL NEEDED
+                          </span>
+                        )}{" "}
+                      </div>{" "}
+                    </div>{" "}
+                    <div className="grid grid-cols-2 gap-4 py-1">
+                      {" "}
+                      <div>
+                        {" "}
+                        <p className="text-[10px] font-bold text-gray-400 tracking-widest">
+                          Project
+                        </p>{" "}
+                        <p className="text-[12px] font-medium text-gray-700 dark:text-gray-300 truncate">
+                          {safeStr(po.project)}
+                        </p>{" "}
+                      </div>{" "}
+                      <div>
+                        {" "}
+                        <p className="text-[10px] font-bold text-gray-400 tracking-widest">
+                          Supplier
+                        </p>{" "}
+                        <p className="text-[12px] font-medium text-gray-700 dark:text-gray-300 truncate">
+                          {" "}
+                          {sName}{" "}
+                        </p>{" "}
+                      </div>{" "}
+                    </div>{" "}
+                    <div className="flex items-center justify-between pt-2">
+                      {" "}
+                      <p className="text-base font-black text-orange-500">
+                        {fmtCur(po.totalValue)}
+                      </p>{" "}
+                      <div className="flex items-center gap-1.5">
+                        {" "}
+                        <Btn
+                          icon={Eye}
+                          small
+                          outline
+                          onClick={() => {
+                            setSelectedPO(po);
+                            setViewModal(true);
+                          }}
+                        />{" "}
+                        {hasPermission("EDIT_PURCHASE_ORDER") && (
+                          <Btn
+                            icon={Pencil}
+                            small
+                            outline
+                            onClick={() => {
+                              setNewPO(po);
+                              setIsEditing(true);
+                              setModal(true);
+                            }}
+                          />
+                        )}{" "}
+                      </div>{" "}
+                    </div>{" "}
+                  </div>{" "}
+                </Td>{" "}
+              </>
+            );
+          }}
+          components={{
+            Table: /* @__PURE__ */ __name(
+              (props) => (
+                <table
+                  {...props}
+                  className="w-full text-left border-collapse table-fixed min-w-[800px] lg:min-w-0"
+                />
+              ),
+              "Table",
+            ),
+            TableBody: React.forwardRef((props, ref) => (
+              <tbody
+                {...props}
+                ref={ref}
+                className="divide-y divide-gray-200 dark:divide-gray-800"
+              />
+            )),
+            TableRow: /* @__PURE__ */ __name((props) => {
+              const po = props.item;
+
+              const isPending = po?.status?.startsWith("Pending");
+
+              const isNew = isNewItem(po?.createdAt);
+
+              return (
+                <Tr
+                  {...props}
+                  isPending={isPending}
+                  isNew={isNew}
+                  className={cn(
+                    "cursor-pointer",
+                    isPending && "ring-1 ring-orange-500/10",
+                    props.className,
+                  )}
+                  onClick={async () => {
+                    setLoadingQuotes(true);
+                    try {
+                      let updatedPO = { ...po };
+                      if (po.mrId) {
+                        const qRes = await api.get("quotations", {
+                          filter: JSON.stringify({ mrId: po.mrId }),
+                          limit: 100,
+                        });
+
+                        const mrQuotes = qRes.data || [];
+                        if (mrQuotes.length > 0) {
+                          const newPC = calculatePriceComparison(
+                            mrQuotes,
+                            po.items,
+                          );
+                          if (newPC) updatedPO.priceComparison = newPC;
+                        }
+                      }
+                      setSelectedPO(updatedPO);
+                      setViewModal(true);
+                    } catch (err) {
+                      setSelectedPO(po);
+                      setViewModal(true);
+                    } finally {
+                      setLoadingQuotes(false);
+                    }
+                  }}
+                />
+              );
+            }, "TableRow"),
+          }}
+        />{" "}
+        {loading && pos.length === 0 && (
+          <div className="p-8 space-y-4">
+            {" "}
+            {[...Array(5)].map((_, i) => (
+              <div key={i} className="flex gap-4">
+                {" "}
+                <Skeleton className="h-6 w-24" />{" "}
+                <Skeleton className="h-6 flex-1" />{" "}
+                <Skeleton className="h-6 w-20" />{" "}
               </div>
-
-              <div className="mt-4">
-                <label className="block text-[11px] font-bold text-[#6B7280] dark:text-[#94A3B8] mb-1.5">Remarks / Notes</label>
-                <textarea
-    className="w-full px-3 py-2 bg-white dark:bg-[#0F172A] border border-[#E8ECF0] dark:border-[#334155] rounded-lg text-[13px] h-20 text-gray-900 dark:text-white"
-    value={newPO.remark || ""}
-    onChange={(e) => setNewPO({ ...newPO, remark: e.target.value })}
-    placeholder="Additional terms or messages..."
-  />
-              </div>
-
-              {
-    /* Price Comparison Section */
-  }
-              <div className="mt-8 border-t border-gray-200 dark:border-gray-800 pt-6">
-                <div className="flex items-center justify-between mb-4">
-                    <div className="flex items-center gap-2">
-                      <div className="w-1.5 h-6 bg-orange-500 rounded-full" />
-                      <h4 className="text-[14px] font-black text-gray-900 dark:text-white">Quotation comparison</h4>
-                    </div>
-                  <div className="flex items-center gap-2">
-                    <Btn
-    label="Auto-Link Items"
-    small
-    icon={RefreshCw}
-    outline
-    onClick={() => {
-      const mrId = newPO.mrId;
-      const mr = materialRequirements.find((m) => m.id === mrId);
-      if (!mr) {
-        toast.error("Please select an MR first");
-        return;
-      }
-      const relatedQuotations = quotations.filter((q) => q.mrId === mrId);
-      const displayQuotations = relatedQuotations.length > 0 ? relatedQuotations : [{ supplierName: "Vendor 1", items: [] }];
-      const itemsRaw = (newPO.items || []).map((it) => {
-        const mName = (it.itemName || "").trim();
-        let qty = it.qty || 1;
-        if (mName.toLowerCase().includes("chimney") && !mName.toLowerCase().includes("pipe") && !mName.toLowerCase().includes("reducer")) {
-          qty = 3;
-        }
-        return {
-          materialName: it.itemName,
-          unit: it.unit,
-          qty,
-          rates: displayQuotations.map((q) => {
-            const qi = findBestItemMatch(q.items || [], mName);
-            return qi?.rate || 0;
-          }),
-          gstPcts: displayQuotations.map((q) => {
-            const qi = findBestItemMatch(q.items || [], mName);
-            return qi?.gstPct || 0;
-          })
-        };
-      });
-      const items = itemsRaw.filter((it) => it.rates.some((r) => r > 0));
-      setNewPO({
-        ...newPO,
-        priceComparison: {
-          vendors: displayQuotations.map((q) => ({
-            name: q.supplierName || "Vendor",
-            gstType: q.items?.[0]?.gstType || "Inclusive",
-            gstPct: q.items?.[0]?.gstPct || 0
-          })),
-          items,
-          remarks: ""
-        }
-      });
-    }}
-  />
-                  </div>
-                </div>
-
-                <div className="overflow-x-auto border border-gray-200 dark:border-gray-700 rounded-xl shadow-sm">
-                  <table className="w-full text-left border-collapse bg-white dark:bg-gray-900">
-                    <thead>
-                      <tr className="bg-gray-50 dark:bg-gray-800 text-gray-500 dark:text-gray-400">
-                        <th className="px-4 py-3 text-[11px] font-bold w-12 border-r border-gray-200 dark:border-gray-700">S.no</th>
-                        <th className="px-4 py-3 text-[11px] font-bold border-r border-gray-200 dark:border-gray-700 min-w-[200px]">Description</th>
-                        <th className="px-4 py-3 text-[11px] font-bold border-r border-gray-200 dark:border-gray-700 w-16 text-center">Uqc</th>
-                        {(newPO.priceComparison?.vendors || []).map((v, vIdx) => <th key={vIdx} className="px-1 py-3 border-r border-gray-200 dark:border-gray-700 w-40 min-w-[120px] bg-gray-50/50 dark:bg-gray-800/30">
-                            <div className="w-full p-2 text-[12px] font-bold text-center text-gray-900 dark:text-white truncate">
-                              {v.name || `Vendor ${vIdx + 1}`}
-                            </div>
-                          </th>)}
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-                      {newPO.priceComparison?.items?.map((it, idx) => <tr key={idx} className="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
-                          <td className="px-4 py-2.5 text-[12px] border-r border-gray-200 dark:border-gray-700 text-center font-medium">{idx + 1}</td>
-                          <td className="px-4 py-2.5 border-r border-gray-200 dark:border-gray-700">
-                             <div className="text-[12px] font-medium text-gray-900 dark:text-white">
-                               {it.materialName}
-                             </div>
-                          </td>
-                          <td className="px-4 py-2.5 border-r border-gray-200 dark:border-gray-700 text-center">
-                             <div className="text-[12px] text-gray-500">
-                               {it.unit}
-                             </div>
-                          </td>
-                          {(it.rates || []).map((rate, rIdx) => <td key={rIdx} className="px-4 py-2.5 border-r border-gray-200 dark:border-gray-700 text-center">
-                              <div className="flex flex-col items-center">
-                                <span className={cn(
-    "text-[12px] font-bold",
-    rIdx === 0 ? "text-orange-600" : rIdx === 1 ? "text-blue-500" : "text-emerald-600"
-  )}>
-                                  {rate ? fmtCur(rate) : "\u2014"}
-                                </span>
-                                {it.gstPcts?.[rIdx] !== void 0 && it.gstPcts[rIdx] > 0 && <span className="text-[9px] text-gray-400 font-medium">
-                                    +{it.gstPcts[rIdx]}% GST
-                                  </span>}
-                              </div>
-                            </td>)}
-                        </tr>)}
-                      {
-    /* GST Row */
-  }
-                      <tr className="bg-gray-50/50 dark:bg-gray-800/30">
-                        <td className="border-r border-gray-200 dark:border-gray-700" />
-                        <td className="px-4 py-2.5 text-[11px] font-black text-gray-500 border-r border-gray-200 dark:border-gray-700">Gst % / status</td>
-                        <td className="border-r border-gray-200 dark:border-gray-700" />
-                        {(newPO.priceComparison?.vendors || []).map((v, vIdx) => <td key={vIdx} className="px-4 py-2.5 border-r border-gray-200 dark:border-gray-700 text-center">
-                             <div className="text-[11px] font-bold text-gray-500">
-                               {v.gstType || "Inclusive"}
-                             </div>
-                          </td>)}
-                      </tr>
-                      {
-    /* Total Calculations */
-  }
-                      <tr className="bg-orange-50/30 dark:bg-orange-400/5">
-                        <td className="border-r border-gray-200 dark:border-gray-700" />
-                        <td className="px-4 py-3 text-[12px] font-black text-gray-900 dark:text-white border-r border-gray-200 dark:border-gray-700">Grand total</td>
-                        <td className="border-r border-gray-200 dark:border-gray-700" />
-                        {(newPO.priceComparison?.vendors || []).map((v, vIdx) => <td key={vIdx} className="px-4 py-3 text-[14px] text-center font-black border-r border-gray-200 dark:border-gray-700">
-                             <span className={cn(
-    vIdx === 0 ? "text-orange-600" : vIdx === 1 ? "text-blue-500" : "text-emerald-600"
-  )}>
-                               {fmtCur(newPO.priceComparison?.items?.reduce((sum, it) => {
-    const rate = it.rates?.[vIdx] || 0;
-    const qty = it.qty || 1;
-    const gstPct = it.gstPcts?.[vIdx] || 0;
-    const gstType = v.gstType || "Inclusive";
-    const itemTotal = rate * qty;
-    const itemTotalWithGst = gstType === "Inclusive" ? itemTotal : itemTotal * (1 + gstPct / 100);
-    return sum + itemTotalWithGst;
-  }, 0) || 0)}
-                             </span>
-                          </td>)}
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-
-                <div className="mt-4">
-                  <label className="block text-[11px] font-bold text-gray-400 mb-1.5 flex items-center justify-between">
-                    <span>Comparison remarks</span>
-                    <span className="text-[10px] lowercase font-normal italic">e.g. Recommended lowest vendor...</span>
-                  </label>
-                  <input
-    type="text"
-    className="w-full px-4 py-2.5 bg-white dark:bg-[#0F172A] border border-[#E8ECF0] dark:border-[#334155] rounded-xl text-[13px] text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all font-medium"
-    placeholder="Type remarks here..."
-    value={newPO.priceComparison?.remarks || ""}
-    onChange={(e) => setNewPO({
-      ...newPO,
-      priceComparison: { ...newPO.priceComparison || { vendors: [], items: [], remarks: "" }, remarks: e.target.value }
-    })}
-  />
-                </div>
-              </div>
-            </div>
-            {
-    /* Spacer to allow DatePicker popups to drop down without getting clipped by the bottom edge */
-  }
-            <div className="h-48 shrink-0" />
-        </Modal>}
-
-      {viewModal && selectedPO && <Modal
-    title={`Purchase Order Details - ${selectedPO.id}`}
-    extraWide
-    onClose={() => {
-      setViewModal(false);
-      setSelectedPO(null);
-      setEditTimelines(false);
-    }}
-    footer={<div className="flex justify-end gap-3 w-full">
-              {selectedPO?.status === "Pending L1" && hasPermission("APPROVE_PURCHASE_ORDER_L1") && <Btn label="Approve L1" color="green" onClick={() => handleApproveL1(selectedPO.id)} loading={processingId === `approve-${selectedPO.id}`} />}
-              {selectedPO?.status === "Pending L2" && hasPermission("APPROVE_PURCHASE_ORDER_L2") && <Btn label="Approve L2" color="green" onClick={() => handleApproveL2(selectedPO.id)} loading={processingId === `approve-${selectedPO.id}`} />}
-              {selectedPO?.status === "Pending L3" && hasPermission("APPROVE_PURCHASE_ORDER_L3") && <Btn label="Approve L3 (Director)" color="green" onClick={() => handleApproveL3(selectedPO.id)} loading={processingId === `approve-${selectedPO.id}`} />}
-              {["Pending L1", "Pending L2", "Pending L3"].includes(selectedPO?.status || "") && (hasPermission("REJECT_PURCHASE_ORDER") || selectedPO?.status === "Pending L1" && hasPermission("APPROVE_PURCHASE_ORDER_L1") || selectedPO?.status === "Pending L2" && hasPermission("APPROVE_PURCHASE_ORDER_L2") || selectedPO?.status === "Pending L3" && hasPermission("APPROVE_PURCHASE_ORDER_L3")) && <Btn label="Reject PO" color="red" onClick={() => handleReject(selectedPO.id)} loading={processingId === `reject-${selectedPO.id}`} />}
-              {selectedPO?.status === "Approved" && (role === "AGM" || role === "Super Admin" || role === "admin" || role === "superadmin") && <Btn
-      label="Cancel PO"
-      color="red"
-      icon={X}
-      onClick={() => handleCancelApproved(selectedPO.id)}
-      loading={processingId === `cancel-${selectedPO.id}`}
-    />}
-              <Btn label="Download PO PDF" icon={Download} onClick={() => downloadPDF(selectedPO)} className="bg-orange-500 hover:bg-orange-600 text-white border-none shadow-lg shadow-orange-500/20 font-bold" />
-              <Btn label="Close" outline onClick={() => {
-      setViewModal(false);
-      setSelectedPO(null);
-      setEditTimelines(false);
-    }} className="px-8 border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800" />
-            </div>}
-  >
-          {(() => {
-    if (!selectedPO) return null;
-    const supplier = suppliers.find((s) => s.id === selectedPO.supplier || s._id === selectedPO.supplier);
-    const filteredPriceComparisonItems = (selectedPO.priceComparison?.items || []).filter((it) => {
-      if (!selectedPO.workType || selectedPO.workType === "General") return true;
-      return it.category === selectedPO.workType || !it.category;
-    });
-    const relevantVendorIndices = (selectedPO.priceComparison?.vendors || []).map((_, idx) => idx).filter((vIdx) => filteredPriceComparisonItems.some((it) => (it.rates?.[vIdx] || 0) > 0));
-    const hasRelevantComparison = filteredPriceComparisonItems.length > 0 && relevantVendorIndices.length > 0;
-    return <>
-                <div id="printable-po" className="p-1 sm:p-2 bg-white dark:bg-gray-900 text-[#1A365D] dark:text-gray-200 font-sans">
-                  {
-      /* Cancellation Banner — shown only when PO is Cancelled */
-    }
-                  {selectedPO.status === "Cancelled" && <div className="no-print mb-5 p-4 bg-red-50 dark:bg-red-950/40 border border-red-300 dark:border-red-800 rounded-xl flex items-start gap-3">
-                      <X className="w-5 h-5 text-red-500 mt-0.5 flex-shrink-0" />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-bold text-red-700 dark:text-red-400">Purchase Order Cancelled</p>
-                        {selectedPO.cancelNote && <p className="text-xs text-red-600 dark:text-red-400 mt-1">
-                            <span className="font-semibold">Reason: </span>{selectedPO.cancelNote}
-                          </p>}
-                        {(selectedPO.cancelledBy || selectedPO.cancelledAt) && <p className="text-[11px] text-red-500 dark:text-red-500 mt-1 opacity-80">
-                            Cancelled{selectedPO.cancelledBy ? ` by ${selectedPO.cancelledBy}` : ""}
-                            {selectedPO.cancelledAt ? ` on ${formatDateTime(selectedPO.cancelledAt)}` : ""}
-                          </p>}
-                        <p className="text-[11px] text-red-500 dark:text-red-500 mt-1 opacity-70">
-                          The linked Quotation has been reset to Pending — suppliers may re-submit quotes.
-                        </p>
-                      </div>
-                    </div>}
-                  {
-      /* Company & Vendor Combined Header */
-    }
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-0 border border-[#1A365D] mb-6 rounded-lg overflow-hidden shadow-sm">
-                    {
-      /* Left Side: Company Info */
-    }
-                    <div className="divide-y divide-gray-100 dark:divide-gray-800 lg:border-r border-[#1A365D]">
-                      <div className="grid grid-cols-12 min-h-[35px]">
-                        <div className="col-span-4 bg-[#1A365D]/5 dark:bg-[#1A365D]/20 p-2 font-bold text-[9px] text-gray-500 border-r border-[#1A365D] flex items-center">Company name</div>
-                        <div className="col-span-8 p-2 font-bold text-[11px]">{selectedPO.companyName || "Neoteric Recreational And Hospitality"}</div>
-                      </div>
-                      <div className="grid grid-cols-12 min-h-[35px]">
-                        <div className="col-span-4 bg-[#1A365D]/5 dark:bg-[#1A365D]/20 p-2 font-bold text-[9px] text-gray-500 border-r border-[#1A365D] flex items-center">Company gstin</div>
-                        <div className="col-span-8 p-2 font-mono text-[11px] font-bold">{selectedPO.companyGst || "23AACCG4573B1Z2"}</div>
-                      </div>
-                      <div className="grid grid-cols-12 min-h-[45px]">
-                        <div className="col-span-4 bg-[#1A365D]/5 dark:bg-[#1A365D]/20 p-2 font-bold text-[9px] text-gray-500 border-r border-[#1A365D] flex items-center">Company address</div>
-                        <div className="col-span-8 p-2 text-[10px] leading-tight font-medium">{selectedPO.companyAddress || "Gwalior MP"}</div>
-                      </div>
-                      <div className="grid grid-cols-12 min-h-[35px]">
-                        <div className="col-span-4 bg-[#1A365D]/5 dark:bg-[#1A365D]/20 p-2 font-bold text-[9px] text-gray-500 border-r border-[#1A365D] flex items-center">Internal mr no.</div>
-                        <div className="col-span-8 p-2 font-bold text-[11px] text-indigo-600 dark:text-blue-400">{selectedPO.mrId || "GCH 2762"}</div>
-                      </div>
-                      <div className="grid grid-cols-12 min-h-[35px]">
-                        <div className="col-span-4 bg-[#1A365D]/5 dark:bg-[#1A365D]/20 p-2 font-bold text-[9px] text-gray-500 border-r border-[#1A365D] flex items-center">Site/location</div>
-                        <div className="col-span-8 p-2 font-bold text-[11px]">{selectedPO.project || selectedPO.location || "Westgate"}</div>
-                      </div>
-                      <div className="grid grid-cols-12 min-h-[35px]">
-                        <div className="col-span-4 bg-[#1A365D]/5 dark:bg-[#1A365D]/20 p-2 font-bold text-[9px] text-gray-500 border-r border-[#1A365D] flex items-center">Date of issue</div>
-                        <div className="col-span-8 p-2 font-bold text-[11px]">{formatPrettyDate(selectedPO.date)}</div>
-                      </div>
-                    </div>
-
-                    {
-      /* Right Side: Vendor Info */
-    }
-                    <div className="divide-y divide-gray-100 dark:divide-gray-800">
-                      <div className="grid grid-cols-12 min-h-[35px]">
-                        <div className="col-span-4 bg-[#1A365D]/5 dark:bg-[#1A365D]/20 p-2 font-bold text-[9px] text-gray-500 border-r border-[#1A365D] flex items-center">Vendor name</div>
-                        <div className="col-span-8 p-2 font-black text-[12px]">{supplier ? supplier.companyName || supplier.name : selectedPO.supplier || "NA"}</div>
-                      </div>
-                      <div className="grid grid-cols-12 min-h-[35px]">
-                        <div className="col-span-4 bg-[#1A365D]/5 dark:bg-[#1A365D]/20 p-2 font-bold text-[9px] text-gray-500 border-r border-[#1A365D] flex items-center">Vendor address</div>
-                        <div className="col-span-8 p-2 text-[10px] leading-tight font-medium">{selectedPO.vendorAddress || supplier?.address || "NA"}</div>
-                      </div>
-                      <div className="grid grid-cols-12 min-h-[35px]">
-                        <div className="col-span-4 bg-[#1A365D]/5 dark:bg-[#1A365D]/20 p-2 font-bold text-[9px] text-gray-500 border-r border-[#1A365D] flex items-center">Vendor contact</div>
-                        <div className="col-span-8 p-2 font-bold text-[11px]">{selectedPO.vendorContact || supplier?.mobile || "NA"}</div>
-                      </div>
-                      <div className="grid grid-cols-12 min-h-[35px]">
-                        <div className="col-span-4 bg-[#1A365D]/5 dark:bg-[#1A365D]/20 p-2 font-bold text-[9px] text-gray-500 border-r border-[#1A365D] flex items-center">Vendor email id</div>
-                        <div className="col-span-8 p-2 font-medium text-[11px] text-blue-500 lowercase">{selectedPO.vendorEmail || supplier?.email || "NA"}</div>
-                      </div>
-                      <div className="grid grid-cols-12 min-h-[35px]">
-                        <div className="col-span-4 bg-[#1A365D]/5 dark:bg-[#1A365D]/20 p-2 font-bold text-[9px] text-gray-500 border-r border-[#1A365D] flex items-center">Gst no. (Vendor)</div>
-                        <div className="col-span-8 p-2 font-mono text-[11px] font-bold">{selectedPO.gstNo || supplier?.gstNumber || "NA"}</div>
-                      </div>
-                      <div className="grid grid-cols-12 min-h-[35px]">
-                        <div className="col-span-4 bg-[#1A365D]/5 dark:bg-[#1A365D]/20 p-2 font-bold text-[9px] text-gray-500 border-r border-[#1A365D] flex items-center">Pan no.</div>
-                        <div className="col-span-8 p-2 font-mono text-[11px] font-bold">{selectedPO.panNo || supplier?.panNumber || "NA"}</div>
-                      </div>
-                    </div>
-                  </div>
-
-                {
-      /* Main Info Blocks */
-    }
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-0 border border-[#1A365D] rounded-lg overflow-hidden mb-6 bg-white dark:bg-gray-900">
-                  <div className="p-3 border-b border-[#1A365D] md:border-b-0 md:border-r border-[#1A365D]">
-                    <p className="text-[10px] text-gray-400 font-bold mb-1">Po issue date</p>
-                    <p className="text-[13px] font-black text-orange-600">{formatPrettyDate(selectedPO.date)}</p>
-                  </div>
-                  <div className="p-3 border-b border-[#1A365D] md:border-b-0 md:border-r border-[#1A365D]">
-                    <p className="text-[10px] text-gray-400 font-bold mb-1">Requirement by</p>
-                    <p className="text-[13px] font-bold">{selectedPO.requirementBy || "NA"}</p>
-                  </div>
-                  <div className="p-3 bg-gray-50/50 dark:bg-gray-800/30 flex items-center justify-between gap-2">
-                    <div>
-                      <p className="text-[10px] text-gray-400 font-bold mb-1">Approval status</p>
-                      <StatusBadge status={selectedPO.status} accountStatus={selectedPO.accountStatus} />
-                    </div>
-                    <p className="text-[14px] font-black text-[#1A365D] dark:text-blue-400 opacity-20 rotate-[-15deg] border-2 border-current px-2 rounded hidden sm:block">Verified</p>
-                  </div>
-                </div>
-
-                <div className="space-y-6">
-                  <div>
-                    <div className="bg-[#1A365D] h-7 flex items-center justify-center">
-                      <p className="text-white font-black text-[10px] tracking-widest">Order details</p>
-                    </div>
-                    <table className="w-full border-collapse border-[#1A365D]">
-                      <thead>
-                        <tr className="bg-[#1A365D] text-[10px] font-bold text-white">
-                          <th className="border border-[#1A365D] p-1.5 text-center w-12">S.no.</th>
-                          <th className="border border-[#1A365D] p-1.5 text-left min-w-[250px] tracking-tighter">Name / description</th>
-                          <th className="border border-[#1A365D] p-1.5 text-center w-20">Uqc</th>
-                          <th className="border border-[#1A365D] p-1.5 text-center w-20">Qty</th>
-                          <th className="border border-[#1A365D] p-1.5 text-right w-28 tracking-tighter">Rate (Rs)</th>
-                          <th className="border border-[#1A365D] p-1.5 text-right w-32 tracking-tighter">Amount (Rs)</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-                        {selectedPO.items.map((item, idx) => <tr key={idx} className="text-[11px] hover:bg-gray-50/50 dark:hover:bg-gray-800/30">
-                            <td className="border border-[#1A365D] p-1.5 text-center font-bold">{idx + 1}</td>
-                            <td className="border border-[#1A365D] p-1.5">
-                               <p className="font-bold leading-tight">{safeStr(item.itemName)}</p>
-                            </td>
-                            <td className="border border-[#1A365D] p-1.5 text-center font-bold text-gray-500">{safeStr(item.unit || "NOS")}</td>
-                            <td className="border border-[#1A365D] p-1.5 text-center font-black text-gray-800 dark:text-slate-200">{item.qty}</td>
-                            <td className="border border-[#1A365D] p-1.5 text-right font-medium text-slate-700 dark:text-slate-300">{fmtCur(item.rate)}</td>
-                            <td className="border border-[#1A365D] p-1.5 text-right font-black text-gray-800 dark:text-slate-200">
-                              {
-      /* Amount = qty × rate (rate already includes GST for Inclusive; base price for Exclusive) */
-    }
-                              {fmtCur((item.gstType || "Exclusive") === "Inclusive" ? item.totalWithGST || item.qty * item.rate : item.total || item.qty * item.rate)}
-                            </td>
-                          </tr>)}
-                      </tbody>
-                      <tfoot>
-                         {
-      /* Items Subtotal */
-    }
-                         <tr className="bg-white dark:bg-gray-900 border-b border-[#1A365D]">
-                           <td colSpan={4} className="border-x border-[#1A365D] p-1.5" />
-                           <td className="border border-[#1A365D] p-1.5 text-right text-[10px] font-black bg-gray-50/50 dark:bg-slate-800/40">Items Subtotal (Rs)</td>
-                           <td className="border border-[#1A365D] p-1.5 text-right text-[11px] font-black text-slate-800 dark:text-slate-200">
-                             {fmtCur(selectedPO.items.reduce(
-      (s, it) => s + ((it.gstType || "Exclusive") === "Inclusive" ? it.totalWithGST || it.qty * it.rate : it.total || it.qty * it.rate),
-      0
-    ))}
-                           </td>
-                         </tr>
-                         {
-      /* GST Row */
-    }
-                         <tr className="bg-white dark:bg-gray-900 border-b border-[#1A365D]">
-                           <td colSpan={4} className="border-x border-[#1A365D] p-1.5" />
-                           <td className="border border-[#1A365D] p-1.5 text-right text-[10px] font-black bg-gray-50/50 dark:bg-slate-800/40">
-                             Gst {selectedPO.items[0]?.gstPct || 18}% (Items)
-                           </td>
-                           <td className="border border-[#1A365D] p-1.5 text-right text-[11px] font-black text-slate-700 dark:text-slate-300">
-                             {fmtCur(
-      selectedPO.items.reduce((s, it) => {
-        const gstType = it.gstType || selectedPO.items[0]?.gstType || "Exclusive";
-        if (gstType === "Exclusive") {
-          const base = it.qty * it.rate;
-          const gstPct = it.gstPct ?? (selectedPO.items[0]?.gstPct ?? 18);
-          return s + base * gstPct / 100;
-        }
-        return s;
-      }, 0)
-    )}
-                             <span className="ml-1 text-[9px] italic text-slate-400 font-normal">
-                               ({selectedPO.items[0]?.gstType || "Exclusive"})
-                             </span>
-                           </td>
-                         </tr>
-                         {
-      /* Freight — always shown */
-    }
-                         <tr className="bg-white dark:bg-gray-900 border-b border-[#1A365D]">
-                           <td colSpan={4} className="border-x border-[#1A365D] p-1.5" />
-                           <td className="border border-[#1A365D] p-1.5 text-right text-[10px] font-black bg-gray-50/50 dark:bg-slate-800/40">
-                             Freight Charges ({selectedPO.freightGstPct ?? 18}% GST · {selectedPO.freightGstType || "Exclusive"})
-                           </td>
-                           <td className="border border-[#1A365D] p-1.5 text-right text-[11px] font-bold text-slate-700 dark:text-slate-300">
-                             {fmtCur(calcChargeTotal(selectedPO.freightAmount || 0, selectedPO.freightGstPct || 0, selectedPO.freightGstType || "Exclusive"))}
-                           </td>
-                         </tr>
-                         {
-      /* Loading — always shown */
-    }
-                         <tr className="bg-white dark:bg-gray-900 border-b border-[#1A365D]">
-                           <td colSpan={4} className="border-x border-[#1A365D] p-1.5" />
-                           <td className="border border-[#1A365D] p-1.5 text-right text-[10px] font-black bg-gray-50/50 dark:bg-slate-800/40">
-                             Loading Charges ({selectedPO.loadingGstPct ?? 18}% GST · {selectedPO.loadingGstType || "Exclusive"})
-                           </td>
-                           <td className="border border-[#1A365D] p-1.5 text-right text-[11px] font-bold text-slate-700 dark:text-slate-300">
-                             {fmtCur(calcChargeTotal(selectedPO.loadingAmount || 0, selectedPO.loadingGstPct || 0, selectedPO.loadingGstType || "Exclusive"))}
-                           </td>
-                         </tr>
-                         {
-      /* Unloading — always shown */
-    }
-                         <tr className="bg-white dark:bg-gray-900 border-b border-[#1A365D]">
-                           <td colSpan={4} className="border-x border-[#1A365D] p-1.5" />
-                           <td className="border border-[#1A365D] p-1.5 text-right text-[10px] font-black bg-gray-50/50 dark:bg-slate-800/40">
-                             Unloading Charges ({selectedPO.unloadingGstPct ?? 18}% GST · {selectedPO.unloadingGstType || "Exclusive"})
-                           </td>
-                           <td className="border border-[#1A365D] p-1.5 text-right text-[11px] font-bold text-slate-700 dark:text-slate-300">
-                             {fmtCur(calcChargeTotal(selectedPO.unloadingAmount || 0, selectedPO.unloadingGstPct || 0, selectedPO.unloadingGstType || "Exclusive"))}
-                           </td>
-                         </tr>
-                         {
-      /* Grand Total */
-    }
-                         <tr className="bg-gray-100 dark:bg-gray-800 text-[#1A365D] dark:text-blue-400 font-black">
-                           <td colSpan={4} className="border-x border-b border-[#1A365D] p-1.5" />
-                           <td className="border border-[#1A365D] p-1.5 text-right text-[11px] font-black bg-[#1A365D] text-white">Grand Total (Rs)</td>
-                           <td className="border border-[#1A365D] p-2 text-right text-[14px] bg-[#1A365D] text-white">{fmtCur(selectedPO.totalValue)}</td>
-                         </tr>
-                      </tfoot>
-                    </table>
-                  {
-      /* Footer Tables: Bank, Delivery, Approval */
-    }
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {
-      /* Bank Details Table */
-    }
-                    <div className="border border-[#1A365D] rounded-lg overflow-hidden">
-                      <div className="bg-[#1A365D] h-7 flex items-center justify-center">
-                        <p className="text-white font-black text-[10px] tracking-widest">Bank details (Vendor)</p>
-                      </div>
-                      <div className="divide-y divide-[#1A365D]">
-                        <div className="grid grid-cols-12 min-h-[30px]">
-                          <div className="col-span-4 bg-[#1A365D]/5 dark:bg-[#1A365D]/20 p-2 font-bold text-[9px] text-gray-500 border-r border-[#1A365D] flex items-center">A/C holder</div>
-                          <div className="col-span-8 p-2 font-bold text-[11px]">{selectedPO.vendorBankDetails?.accountHolder || (supplier?.accountHolderName || "Sanghi Tyres")}</div>
-                        </div>
-                        <div className="grid grid-cols-12 min-h-[30px]">
-                          <div className="col-span-4 bg-[#1A365D]/5 dark:bg-[#1A365D]/20 p-2 font-bold text-[9px] text-gray-500 border-r border-[#1A365D] flex items-center">Bank name</div>
-                          <div className="col-span-8 p-2 font-bold text-[11px]">{selectedPO.vendorBankDetails?.bankName || (supplier?.bankName || "Axis Bank")}</div>
-                        </div>
-                        <div className="grid grid-cols-12 min-h-[30px]">
-                          <div className="col-span-4 bg-[#1A365D]/5 dark:bg-[#1A365D]/20 p-2 font-bold text-[9px] text-gray-500 border-r border-[#1A365D] flex items-center">A/C no.</div>
-                          <div className="col-span-8 p-2 font-mono text-[11px] font-bold">{selectedPO.vendorBankDetails?.accountNo || (supplier?.accountNumber || "919030017419752")}</div>
-                        </div>
-                        <div className="grid grid-cols-12 min-h-[30px]">
-                          <div className="col-span-4 bg-[#1A365D]/5 dark:bg-[#1A365D]/20 p-2 font-bold text-[9px] text-gray-500 border-r border-[#1A365D] flex items-center">Branch & Ifsc</div>
-                          <div className="col-span-8 p-2 font-bold text-[11px]">{selectedPO.vendorBankDetails?.branchIFSC || `${supplier?.branch || "Phoolbaug, Gwalior"} & ${supplier?.ifscCode || "UTIB0002974"}`}</div>
-                        </div>
-                      </div>
-                    </div>
-
-                    {
-      /* Delivery Details Table */
-    }
-                    <div className="border border-[#1A365D] rounded-lg overflow-hidden">
-                      <div className="bg-[#1A365D] h-7 flex items-center justify-center">
-                        <p className="text-white font-black text-[10px] tracking-widest">Delivery details</p>
-                      </div>
-                      <div className="divide-y divide-[#1A365D]">
-                        <div className="grid grid-cols-12 min-h-[30px]">
-                          <div className="col-span-4 bg-[#1A365D]/5 dark:bg-[#1A365D]/20 p-2 font-bold text-[9px] text-gray-500 border-r border-[#1A365D] flex items-center">Delivery location</div>
-                          <div className="col-span-8 p-2 font-bold text-[11px]">{selectedPO.deliveryDetails?.location || "Westgate"}</div>
-                        </div>
-                        <div className="grid grid-cols-12 min-h-[30px]">
-                          <div className="col-span-4 bg-[#1A365D]/5 dark:bg-[#1A365D]/20 p-2 font-bold text-[9px] text-gray-500 border-r border-[#1A365D] flex items-center">Delivery date</div>
-                          <div className="col-span-8 p-2 font-bold text-[11px] text-orange-600">{selectedPO.deliveryDetails?.deliveryDate ? formatPrettyDate(selectedPO.deliveryDetails.deliveryDate) : "2026-04-08"}</div>
-                        </div>
-                        <div className="grid grid-cols-12 min-h-[30px]">
-                          <div className="col-span-4 bg-[#1A365D]/5 dark:bg-[#1A365D]/20 p-2 font-bold text-[9px] text-gray-500 border-r border-[#1A365D] flex items-center">Receiver name</div>
-                          <div className="col-span-8 p-2 font-bold text-[11px]">{selectedPO.deliveryDetails?.contactPerson || "Nitin Mittal"}</div>
-                        </div>
-                        <div className="grid grid-cols-12 min-h-[30px]">
-                          <div className="col-span-4 bg-[#1A365D]/5 dark:bg-[#1A365D]/20 p-2 font-bold text-[9px] text-gray-500 border-r border-[#1A365D] flex items-center">Contact person</div>
-                          <div className="col-span-8 p-2 font-bold text-[11px]">{selectedPO.vendorContact || "9109104035"}</div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {
-      /* Payment Timelines Table */
-    }
-                  <div className="mt-4 border border-[#1A365D] rounded-lg overflow-hidden">
-                    <div className="bg-[#1A365D] h-8 flex items-center justify-between px-4">
-                      <p className="text-white font-black text-[10px] tracking-widest">Payment Timelines</p>
-                      {!editTimelines ? <button
-      onClick={() => {
-        const dates = computeTimelineDates(selectedPO);
-        setDraftTimelines((selectedPO.paymentTimelines || []).map((pt, i) => ({
-          ...pt,
-          type: normalizeTimelineType(pt.type),
-          date: i < 3 ? dates[i] : pt.date
-          // Recalculate first 3 row dates
-        })));
-        setEditTimelines(true);
-      }}
-      className="text-white text-[9px] border border-white/40 px-2.5 py-0.5 rounded hover:bg-white/10 transition-colors"
-    >Edit</button> : <div className="flex gap-2">
-                          <button onClick={handleSaveTimelines} className="text-white text-[9px] bg-green-600/30 border border-green-400/50 px-2.5 py-0.5 rounded hover:bg-green-600/50 transition-colors">Save</button>
-                          <button onClick={() => setEditTimelines(false)} className="text-white text-[9px] border border-white/30 px-2.5 py-0.5 rounded hover:bg-white/10 transition-colors">Cancel</button>
-                        </div>}
-                    </div>
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-[11px]">
-                        <thead>
-                          <tr className="bg-[#1A365D]/10 dark:bg-[#1A365D]/30 text-[9px] font-black text-gray-500 tracking-wide">
-                            <th className="p-2 text-left border-r border-[#1A365D]/30">Date</th>
-                            <th className="p-2 text-left border-r border-[#1A365D]/30">Type</th>
-                            <th className="p-2 text-left border-r border-[#1A365D]/30">Mode</th>
-                            <th className="p-2 text-right border-r border-[#1A365D]/30">Amount</th>
-                            <th className="p-2 text-center border-r border-[#1A365D]/30">GST %</th>
-                            <th className="p-2 text-right border-r border-[#1A365D]/30">GST Amt</th>
-                            <th className="p-2 text-right">If Payable</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {(editTimelines ? draftTimelines : selectedPO.paymentTimelines || []).map((pt, idx) => <tr key={idx} className="border-t border-[#1A365D]/20 hover:bg-[#1A365D]/5 transition-colors">
-                              {editTimelines ? <>
-                                  <td className="p-1.5 border-r border-[#1A365D]/20">
-                                    <DatePicker small value={pt.date || ""} onChange={(e) => {
-      const ts = [...draftTimelines];
-      ts[idx] = { ...ts[idx], date: e.target.value };
-      setDraftTimelines(ts);
-    }} />
-                                  </td>
-                                  <td className="p-1.5 border-r border-[#1A365D]/20">
-                                    <input value={pt.type || ""} onChange={(e) => {
-      const ts = [...draftTimelines];
-      ts[idx] = { ...ts[idx], type: e.target.value };
-      setDraftTimelines(ts);
-    }} className="w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded px-1.5 py-1 text-xs" />
-                                  </td>
-                                  <td className="p-1.5 border-r border-[#1A365D]/20">
-                                    <input value={pt.mode || ""} onChange={(e) => {
-      const ts = [...draftTimelines];
-      ts[idx] = { ...ts[idx], mode: e.target.value };
-      setDraftTimelines(ts);
-    }} className="w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded px-1.5 py-1 text-xs" />
-                                  </td>
-                                  <td className="p-1.5 border-r border-[#1A365D]/20">
-                                    <input type="text" value={pt.amount ?? ""} onChange={(e) => {
-      const valStr = e.target.value.replace(/[^0-9.]/g, "");
-      const val = parseFloat(valStr) || 0;
-      const ts = [...draftTimelines];
-      const gst = String(ts[idx].gstPct || "").toLowerCase();
-      let calculatedPayable = val;
-      if (gst !== "inclusive" && gst !== "-" && gst !== "0" && gst !== "") {
-        const pct = parseFloat(gst.replace(/[^0-9.]/g, ""));
-        if (!isNaN(pct)) {
-          calculatedPayable = val + val * pct / 100;
-        }
-      }
-      ts[idx] = { ...ts[idx], amount: valStr, ifPayable: parseFloat(calculatedPayable.toFixed(2)) };
-      setDraftTimelines(ts);
-    }} className="w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded px-1.5 py-1 text-xs text-right" />
-                                  </td>
-                                  <td className="p-1.5 border-r border-[#1A365D]/20">
-                                    <input
-      value={fmtGstPct(pt.gstPct)}
-      onFocus={(e) => e.target.select()}
-      onChange={(e) => {
-        const val = parseGstInput(e.target.value);
-        const ts = [...draftTimelines];
-        const amt = parseFloat(String(ts[idx].amount)) || 0;
-        const gst = String(val).toLowerCase();
-        let calculatedPayable = amt;
-        if (gst !== "inclusive" && gst !== "-" && gst !== "0" && gst !== "") {
-          const pct = parseFloat(gst.replace(/[^0-9.]/g, ""));
-          if (!isNaN(pct)) {
-            calculatedPayable = amt + amt * pct / 100;
-          }
-        }
-        ts[idx] = { ...ts[idx], gstPct: val, ifPayable: parseFloat(calculatedPayable.toFixed(2)) };
-        setDraftTimelines(ts);
-      }}
-      className="w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded px-1.5 py-1 text-xs text-center font-medium"
-    />
-                                  </td>
-                                  <td className="p-1.5 border-r border-[#1A365D]/20 text-right text-[11px] font-bold text-emerald-600 dark:text-emerald-400 min-w-[70px]">
-                                    {(() => {
-      const gstAmt = Math.max(0, (pt.ifPayable || 0) - (pt.amount || 0));
-      return gstAmt > 0 ? fmtCur(gstAmt) : <span className="text-gray-400 font-normal">—</span>;
-    })()}
-                                  </td>
-                                  <td className="p-1.5">
-                                    <input type="text" value={pt.ifPayable ?? ""} onChange={(e) => {
-      const valStr = e.target.value.replace(/[^0-9.]/g, "");
-      const val = parseFloat(valStr) || 0;
-      const ts = [...draftTimelines];
-      const gst = String(ts[idx].gstPct || "").toLowerCase();
-      let calculatedAmount = val;
-      if (gst !== "inclusive" && gst !== "-" && gst !== "0" && gst !== "") {
-        const pct = parseFloat(gst.replace(/[^0-9.]/g, ""));
-        if (!isNaN(pct)) {
-          calculatedAmount = val / (1 + pct / 100);
-        }
-      }
-      ts[idx] = { ...ts[idx], ifPayable: valStr, amount: parseFloat(calculatedAmount.toFixed(2)) };
-      setDraftTimelines(ts);
-    }} className="w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded px-1.5 py-1 text-xs text-right font-bold" />
-                                  </td>
-                                </> : <>
-                                  <td className="p-2 border-r border-[#1A365D]/20">
-                                    {formatPrettyDate(idx < 3 ? computeTimelineDates(selectedPO)[idx] : pt.date)}
-                                  </td>
-                                  <td className="p-2 border-r border-[#1A365D]/20 font-medium">{normalizeTimelineType(pt.type)}</td>
-                                  <td className="p-2 border-r border-[#1A365D]/20">{pt.mode}</td>
-                                  <td className="p-2 border-r border-[#1A365D]/20 text-right">{(pt.amount || 0) > 0 ? fmtCur(pt.amount) : <span className="text-gray-400">—</span>}</td>
-                                  <td className="p-2 border-r border-[#1A365D]/20 text-center font-medium">
-                                    {(() => {
-      const gstLabel = pt.gstType || "Exclusive";
-      if (gstLabel === "Inclusive") {
-        return <span className="text-[10px] text-gray-500 dark:text-gray-400 font-medium">Inclusive</span>;
-      }
-      const g = String(pt.gstPct || "").toLowerCase().trim();
-      const amt = pt.amount || 0;
-      const payable = pt.ifPayable || 0;
-      if (amt > 0 && payable > amt + 0.5) {
-        const pct = (payable / amt - 1) * 100;
-        const pctStr = Number.isInteger(pct) ? pct : pct.toFixed(1);
-        return <span className="inline-flex items-center gap-1"><span className="font-black">{pctStr}%</span><span className="text-[9px] text-gray-400 font-normal">Exclusive</span></span>;
-      }
-      if (!g || g === "-" || g === "exclusive") return <span className="text-gray-400">—</span>;
-      const num = parseFloat(g.replace("%", ""));
-      if (!isNaN(num) && num > 0) return <span className="inline-flex items-center gap-1"><span className="font-black">{num}%</span><span className="text-[9px] text-gray-400 font-normal">Exclusive</span></span>;
-      return <span className="text-gray-400">—</span>;
-    })()}
-                                  </td>
-                                  <td className="p-2 border-r border-[#1A365D]/20 text-right font-bold text-emerald-600 dark:text-emerald-400">
-                                    {(() => {
-      const gstAmt = Math.max(0, (pt.ifPayable || 0) - (pt.amount || 0));
-      return gstAmt > 0 ? fmtCur(gstAmt) : <span className="text-gray-400 font-normal">—</span>;
-    })()}
-                                  </td>
-                                  <td className="p-2 text-right font-bold text-[#1A365D] dark:text-blue-400">{(pt.ifPayable || 0) > 0 ? fmtCur(pt.ifPayable) : <span className="text-gray-400 font-normal">0.00</span>}</td>
-                                </>}
-                            </tr>)}
-                        </tbody>
-                        <tfoot>
-                          <tr className="bg-[#1A365D] text-white">
-                            <td colSpan={6} className="p-2 text-right text-[10px] font-black tracking-wide">Grand Total</td>
-                            <td className="p-2 text-right text-[13px] font-black">
-                              {
-      /* Always show the PO's actual totalValue (matches Order Details Grand Total) */
-    }
-                              {fmtCur(selectedPO.totalValue)}
-                            </td>
-                          </tr>
-                        </tfoot>
-                      </table>
-                    </div>
-                  </div>
-
-                  {
-      /* Approval & Signatures Table */
-    }
-                  <div className="border border-[#1A365D] rounded-lg overflow-hidden mt-6 mb-8 shadow-sm">
-                    <div className="bg-[#1A365D] h-8 flex items-center justify-center">
-                      <p className="text-white font-black text-[10px] tracking-widest px-4">Approval workflow & signatures</p>
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-3 divide-y md:divide-y-0 md:divide-x divide-[#1A365D]">
-                      <div className="flex flex-col text-[9px] divide-y divide-[#1A365D]">
-                        <div className="p-2 bg-[#1A365D]/10 dark:bg-[#1A365D]/30 font-black text-center border-b border-[#1A365D]">PURCHASE COORDINATOR</div>
-                        <div className="p-2.5 min-h-[35px] flex items-center bg-white dark:bg-gray-900/50">
-                          <span className="text-gray-500 mr-2">NAME:</span>
-                          <span className="font-bold">{settings?.approvers?.purchaseCoord || "Purchase Coordinator"}</span>
-                        </div>
-                        <div className="p-2.5 min-h-[35px] flex items-center bg-white dark:bg-gray-900/50">
-                          <span className="text-gray-500 mr-2">DATE:</span>
-                          <span className="font-mono font-bold">{formatPrettyDate(selectedPO.date)}</span>
-                        </div>
-                        <div className="p-4 h-16 flex items-center justify-center bg-slate-50/30 dark:bg-slate-900/10 select-none">
-                          <div className="flex flex-col items-center">
-                             <div className="text-blue-500 font-black text-[12px] border-2 border-blue-500/50 px-2 py-0.5 rounded rotate-[-3deg] tracking-tighter opacity-80 mb-1">Initiated</div>
-                             <span className="text-[7px] text-blue-400 tracking-widest font-bold">Digital auth</span>
-                          </div>
-                        </div>
-                      </div>
-                      <div className="flex flex-col text-[9px] divide-y divide-[#1A365D]">
-                        <div className="p-2 bg-[#1A365D]/10 dark:bg-[#1A365D]/30 font-black text-center border-b border-[#1A365D]">AGM PURCHASE (L1)</div>
-                        <div className="p-2.5 min-h-[35px] flex items-center bg-white dark:bg-gray-900/50">
-                          <span className="text-gray-500 mr-2">NAME:</span>
-                          <span className="font-bold">{(settings?.approvers?.l1 || "L1 Approver").toUpperCase()}</span>
-                        </div>
-                        <div className="p-2.5 min-h-[35px] flex items-center bg-white dark:bg-gray-900/50">
-                          <span className="text-gray-500 mr-2">DATE:</span>
-                          <span className="font-mono font-bold capitalize">{selectedPO.approvalL1At ? formatPrettyDate(selectedPO.approvalL1At) : " "}</span>
-                        </div>
-                        <div className="p-4 h-16 flex items-center justify-center bg-slate-50/30 dark:bg-slate-900/10 select-none">
-                          {selectedPO.approvalL1 === "Approved" ? <div className="flex flex-col items-center">
-                               <div className="text-emerald-500 font-black text-[14px] border-2 border-emerald-500 px-2 py-0.5 rounded rotate-[-5deg] tracking-tighter opacity-80 mb-1">Approved</div>
-                               <span className="text-[7px] text-emerald-500/60 tracking-widest font-bold">Digitally signed</span>
-                            </div> : selectedPO.status === "rejected" ? <div className="flex flex-col items-center">
-                               <div className="text-rose-500 font-black text-[14px] border-2 border-rose-500 px-2 py-0.5 rounded rotate-[-5deg] tracking-tighter opacity-80 mb-1">Rejected</div>
-                               <span className="text-[7px] text-rose-500/60 tracking-widest font-bold">Declined</span>
-                            </div> : <span className="italic text-gray-300 dark:text-gray-700">Pending Authorization</span>}
-                        </div>
-                      </div>
-                      <div className="flex flex-col text-[9px] divide-y divide-[#1A365D]">
-                        <div className="p-2 bg-[#1A365D]/10 dark:bg-[#1A365D]/30 font-black text-center border-b border-[#1A365D]">PROJECT HEAD / HEAD (L2)</div>
-                        <div className="p-2.5 min-h-[35px] flex items-center bg-white dark:bg-gray-900/50">
-                          <span className="text-gray-500 mr-2">NAME:</span>
-                          <span className="font-bold">{(settings?.approvers?.l2 || "L2 Approver").toUpperCase()}</span>
-                        </div>
-                        <div className="p-2.5 min-h-[35px] flex items-center bg-white dark:bg-gray-900/50">
-                          <span className="text-gray-500 mr-2">DATE:</span>
-                          <span className="font-mono font-bold capitalize">{selectedPO.approvalL2At ? formatPrettyDate(selectedPO.approvalL2At) : " "}</span>
-                        </div>
-                        <div className="p-4 h-16 flex items-center justify-center bg-slate-50/30 dark:bg-slate-900/10 select-none">
-                          {selectedPO.approvalL2 === "Approved" ? <div className="flex flex-col items-center">
-                               <div className="text-emerald-500 font-black text-[14px] border-2 border-emerald-500 px-2 py-0.5 rounded rotate-[-5deg] tracking-tighter opacity-80 mb-1">Approved</div>
-                               <span className="text-[7px] text-emerald-500/60 tracking-widest font-bold">Digitally signed</span>
-                            </div> : selectedPO.status === "rejected" ? <div className="flex flex-col items-center">
-                               <div className="text-rose-500 font-black text-[14px] border-2 border-rose-500 px-2 py-0.5 rounded rotate-[-5deg] tracking-tighter opacity-80 mb-1">Rejected</div>
-                               <span className="text-[7px] text-rose-500/60 tracking-widest font-bold">Declined</span>
-                            </div> : <span className="italic text-gray-300 dark:text-gray-700">Pending Authorization</span>}
-                        </div>
-                      </div>
-                      <div className="flex flex-col text-[9px] divide-y divide-[#1A365D]">
-                        <div className="p-2 bg-[#1A365D]/10 dark:bg-[#1A365D]/30 font-black text-center border-b border-[#1A365D]">DIRECTOR (L3)</div>
-                        <div className="p-2.5 min-h-[35px] flex items-center bg-white dark:bg-gray-900/50">
-                          <span className="text-gray-500 mr-2">NAME:</span>
-                          <span className="font-bold">{(settings?.approvers?.l3 || "L3 Approver").toUpperCase()}</span>
-                        </div>
-                        <div className="p-2.5 min-h-[35px] flex items-center bg-white dark:bg-gray-900/50">
-                          <span className="text-gray-500 mr-2">DATE:</span>
-                          <span className="font-mono font-bold capitalize">{selectedPO.approvalL3At ? formatPrettyDate(selectedPO.approvalL3At) : " "}</span>
-                        </div>
-                        <div className="p-4 h-16 flex items-center justify-center bg-slate-50/30 dark:bg-slate-900/10 select-none">
-                          {selectedPO.approvalL3 === "Approved" ? <div className="flex flex-col items-center">
-                               <div className="text-emerald-500 font-black text-[14px] border-2 border-emerald-500 px-2 py-0.5 rounded rotate-[-5deg] tracking-tighter opacity-80 mb-1">Approved</div>
-                               <span className="text-[7px] text-emerald-500/60 tracking-widest font-bold">Digitally signed</span>
-                            </div> : selectedPO.status === "rejected" ? <div className="flex flex-col items-center">
-                               <div className="text-rose-500 font-black text-[14px] border-2 border-rose-500 px-2 py-0.5 rounded rotate-[-5deg] tracking-tighter opacity-80 mb-1">Rejected</div>
-                               <span className="text-[7px] text-rose-500/60 tracking-widest font-bold">Declined</span>
-                            </div> : <span className="italic text-gray-300 dark:text-gray-700">Pending Authorization</span>}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="border border-[#1A365D] flex rounded-lg overflow-hidden bg-white dark:bg-gray-900">
-                     <div className="bg-gray-100 dark:bg-gray-800 p-3 border-r border-[#1A365D] font-black text-[10px] w-28 flex items-center tracking-widest">Office remark:</div>
-                     <div className="p-3 flex-1 italic text-gray-500 font-medium text-[11px]">{selectedPO.remark || "Standard Order Terms Apply \u2714"}</div>
-                  </div>
-
-                    {hasRelevantComparison && <div className="mt-8 border border-[#1A365D] rounded-xl overflow-hidden bg-white dark:bg-[#0F172A] shadow-2xl">
-                          <div className="bg-[#1A365D] h-8 flex items-center justify-center">
-                            <p className="text-white font-black text-[12px] tracking-[0.2em]">Quotation / price comparison report {selectedPO.workType ? `(${selectedPO.workType})` : ""}</p>
-                          </div>
-                          <div className="overflow-x-auto custom-scrollbar">
-                            <table className="w-full border-collapse">
-                              <thead>
-                                <tr className="bg-slate-100 dark:bg-[#1E293B] text-slate-500 dark:text-gray-400 text-[9px] font-black">
-                                  <th className="p-2 text-center w-10 border-r border-b border-slate-200 dark:border-[#334155]">SR.</th>
-                                  <th className="p-2 text-left border-r border-b border-slate-200 dark:border-[#334155] min-w-[200px]">ITEM DESCRIPTION</th>
-                                  <th className="p-2 text-center w-14 border-r border-b border-slate-200 dark:border-[#334155]">UQC</th>
-                                  {relevantVendorIndices.map((vIdx) => {
-      const v = selectedPO.priceComparison.vendors[vIdx];
-      const colors = ["text-orange-600 dark:text-orange-500", "text-blue-500 dark:text-blue-400", "text-emerald-600 dark:text-emerald-400", "text-purple-600 dark:text-purple-400", "text-pink-600 dark:text-pink-400"];
-      return <th key={vIdx} className="p-2 text-center border-r border-b border-slate-200 dark:border-[#334155] bg-slate-50 dark:bg-[#334155]/20">
-                                        <div className="flex flex-col">
-                                          <span className={cn("truncate text-[10px]", colors[vIdx % colors.length])}>{v.name || `Vendor ${vIdx + 1}`}</span>
-                                          {v.gstType && <span className="text-[7px] opacity-40 font-normal">({v.gstType})</span>}
-                                        </div>
-                                      </th>;
-    })}
-                                </tr>
-                              </thead>
-                              <tbody className="text-[11px]">
-                                {filteredPriceComparisonItems.map((it, idx) => <tr key={idx} className="bg-white dark:bg-[#0F172A] hover:bg-slate-50 dark:hover:bg-[#1E293B]/50 transition-colors">
-                                    <td className="p-2 text-center border-r border-b border-slate-200 dark:border-[#334155] font-bold text-slate-400 dark:text-gray-500">{idx + 1}</td>
-                                    <td className="p-2 border-r border-b border-slate-200 dark:border-[#334155] font-bold text-slate-700 dark:text-gray-300 tracking-tight">{it.materialName}</td>
-                                    <td className="p-2 text-center border-r border-b border-slate-200 dark:border-[#334155] text-slate-400 dark:text-gray-500 font-mono">{it.unit || "NOS"}</td>
-                                    {relevantVendorIndices.map((vIdx) => {
-      const rate = it.rates?.[vIdx] || 0;
-      const colors = ["text-orange-600 dark:text-orange-500", "text-blue-500 dark:text-blue-400", "text-emerald-600 dark:text-emerald-400", "text-purple-600 dark:text-purple-400", "text-pink-600 dark:text-pink-400"];
-      return <td key={vIdx} className="p-3 text-center border-r border-b border-slate-200 dark:border-[#334155] bg-slate-50/30 dark:bg-[#1E293B]/20">
-                                          <div className="flex flex-col items-center">
-                                            <span className={cn("font-black text-[13px]", rate > 0 ? colors[vIdx % colors.length] : "text-slate-300 dark:text-gray-700")}>
-                                              {rate > 0 ? rate.toFixed(2) : "\u2014"}
-                                            </span>
-                                            {rate > 0 && it.gstPcts?.[vIdx] !== void 0 && <span className="text-[8px] opacity-50 font-medium text-slate-400 dark:text-gray-400">+{it.gstPcts[vIdx]}% GST</span>}
-                                          </div>
-                                        </td>;
-    })}
-                                  </tr>)}
-                                {
-      /* GST Status Row */
-    }
-                                <tr className="bg-slate-50 dark:bg-[#1E293B]/60 text-[9px] font-black text-slate-500 dark:text-gray-400">
-                                  <td colSpan={3} className="p-2 text-right border-r border-b border-slate-200 dark:border-[#334155] tracking-widest px-4">Gst % / status</td>
-                                  {relevantVendorIndices.map((vIdx) => <td key={vIdx} className="p-2 text-center border-r border-b border-slate-200 dark:border-[#334155]">
-                                      {selectedPO.priceComparison.vendors[vIdx].gstType || "Inclusive"}
-                                    </td>)}
-                                </tr>
-                                {
-      /* Grand Total Row */
-    }
-                                <tr className="bg-slate-100 dark:bg-[#1E293B] font-black">
-                                  <td colSpan={3} className="p-3 text-right border-r border-b border-slate-200 dark:border-[#334155] tracking-widest text-slate-500 dark:text-gray-400 text-[11px] px-4">Grand total</td>
-                                  {relevantVendorIndices.map((vIdx) => {
-      const v = selectedPO.priceComparison.vendors[vIdx];
-      const colors = ["text-orange-600 dark:text-orange-500", "text-blue-500 dark:text-blue-400", "text-emerald-600 dark:text-emerald-400", "text-purple-600 dark:text-purple-400", "text-pink-600 dark:text-pink-400"];
-      const total = filteredPriceComparisonItems.reduce((sum, it) => {
-        const rate = it.rates?.[vIdx] || 0;
-        const gst = it.gstPcts?.[vIdx] || 0;
-        const qty = it.qty || 1;
-        const gstType = v.gstType || "Exclusive";
-        const price = gstType === "Exclusive" ? rate * (1 + gst / 100) : rate;
-        return sum + price * qty;
-      }, 0);
-      return <td key={vIdx} className="p-3 text-center border-r border-b border-slate-200 dark:border-[#334155] bg-white dark:bg-[#334155]/40">
-                                        <span className={cn("text-[15px]", colors[vIdx % colors.length])}>{fmtCur(total)}</span>
-                                      </td>;
-    })}
-                                </tr>
-                              </tbody>
-                            </table>
-                          </div>
-                          <div className="flex border-t border-slate-200 dark:border-[#334155] bg-white dark:bg-[#0F172A] min-h-[40px]">
-                            <div className="bg-slate-50 dark:bg-[#1E293B] p-2 border-r border-slate-200 dark:border-[#334155] font-black text-[10px] w-40 flex items-center justify-center tracking-widest text-slate-500 dark:text-gray-400">Comparison remark:</div>
-                            <div className="p-3 flex-1 italic text-slate-400 dark:text-gray-500 text-[11px] font-medium leading-tight">
-                              {selectedPO.priceComparison?.remarks || `Price Comparison showing items for ${selectedPO.workType || "General"} category and relevant quotations only.`}
-                            </div>
-                          </div>
-                        </div>}
-                  </div>
-                </div>
-              </div>
-            </>;
-  })()}
-
-          <style dangerouslySetInnerHTML={{ __html: `
-            @media print {
-              .no-print { display: none !important; }
-              body * { visibility: hidden; }
-              #printable-po, #printable-po * { visibility: visible; }
-              #printable-po { position: absolute; left: 0; top: 0; width: 100%; border: none !important; box-shadow: none !important; }
-            }
-          ` }} />
-        </Modal>}
-
-      {deleteConfirm && <ConfirmModal
-    title="Delete Purchase Order"
-    message={`Are you sure you want to delete PO ${deleteConfirm}? This action cannot be undone.`}
-    onConfirm={confirmDelete}
-    onCancel={() => setDeleteConfirm(null)}
-    loading={actionLoading}
-  />}
-
-      {
-    /* Cancel PO Modal — AGM fills in a cancellation reason */
-  }
-      {cancelModal && <Modal
-    title="Cancel Purchase Order"
-    onClose={() => {
-      setCancelModal(false);
-      setCancelNoteText("");
-      setCancelTargetId(null);
-    }}
-    footer={<div className="flex justify-end gap-3 w-full">
-              <Btn
-      label="Go Back"
-      outline
-      onClick={() => {
-        setCancelModal(false);
-        setCancelNoteText("");
-        setCancelTargetId(null);
-      }}
-    />
-              <Btn
-      label="Confirm Cancellation"
-      color="red"
-      icon={X}
-      onClick={handleConfirmCancel}
-      loading={processingId === `cancel-${cancelTargetId}`}
-      disabled={!cancelNoteText.trim()}
-    />
-            </div>}
-  >
-          <div className="space-y-5">
-            {
-    /* Warning banner */
-  }
-            <div className="flex items-start gap-3 p-4 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 rounded-xl">
-              <AlertTriangle className="w-5 h-5 text-red-500 mt-0.5 flex-shrink-0" />
-              <div>
-                <p className="text-sm font-bold text-red-700 dark:text-red-400">This action cannot be undone</p>
-                <p className="text-xs text-red-600 dark:text-red-500 mt-1">
-                  Cancelling this PO will also reset the linked Quotation back to <strong>Pending</strong>, allowing suppliers to re-submit their quotes.
-                </p>
-              </div>
-            </div>
-
-            {
-    /* Note input */
-  }
-            <div className="space-y-1.5">
-              <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300">
-                Cancellation Reason <span className="text-red-500">*</span>
-              </label>
-              <textarea
-    className="w-full px-3 py-2.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-sm text-gray-800 dark:text-gray-200 placeholder-gray-400 dark:placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-red-500/40 focus:border-red-500 min-h-[110px] resize-y transition"
-    placeholder="Enter the reason for cancelling this Purchase Order…"
-    value={cancelNoteText}
-    onChange={(e) => setCancelNoteText(e.target.value)}
-    autoFocus
-  />
-              <p className="text-[11px] text-gray-400">This note will be visible to all users viewing this PO.</p>
-            </div>
-
+            ))}{" "}
           </div>
-        </Modal>}
-    </div>;
+        )}{" "}
+        {!loading && pos.length === 0 && (
+          <div className="p-12 text-center">
+            {" "}
+            <div className="flex flex-col items-center gap-2 text-gray-400">
+              {" "}
+              <FileText className="w-12 h-12 opacity-20" />{" "}
+              <p className="text-sm">No purchase orders found</p>{" "}
+            </div>{" "}
+          </div>
+        )}{" "}
+      </Card>{" "}
+      {/* Infinite Scroll Indicator for Bottom */}{" "}
+      {loading && pos.length > 0 && (
+        <div className="flex items-center justify-center py-2 text-gray-500 text-xs">
+          {" "}
+          <div className="w-3 h-3 border-2 border-[#F97316] border-t-transparent rounded-full animate-spin mr-2" />{" "}
+          Loading more POs...{" "}
+        </div>
+      )}{" "}
+      {modal && (
+        <POFormModal
+          po={newPO}
+          isEditing={isEditing}
+          errors={errors}
+          autoLinking={autoLinking}
+          onClose={() => {
+            setModal(false);
+            setErrors({});
+            setNewPO(initialPO);
+            setIsEditing(false);
+            fetchResource("inventory", 1, 50, true);
+          }}
+          onSubmit={handleCreate}
+          onChange={setNewPO}
+          onMrChange={handleMrChange}
+          addItem={addItem}
+          updateItem={updateItem}
+          removeItem={removeItem}
+          linkToInventory={linkToInventory}
+          quickAddToInventory={quickAddToInventory}
+          companyOptions={companyOptions}
+          mrOptions={mrOptions}
+          vendorOptions={vendorOptions}
+          COMPANIES={COMPANIES}
+          CATEGORIES={CATEGORIES}
+          UNITS={UNITS}
+        />
+      )}
+      {viewModal && selectedPO && (
+        <POViewModal
+          po={selectedPO}
+          onClose={() => {
+            setViewModal(false);
+            setSelectedPO(null);
+          }}
+          onApproveL1={handleApproveL1}
+          onApproveL2={handleApproveL2}
+          onApproveL3={handleApproveL3}
+          onReject={handleReject}
+          onCancelApproved={handleCancelApproved}
+          onDownloadPDF={downloadPDF}
+          processingId={processingId}
+        />
+      )}{" "}
+      {deleteConfirm && (
+        <ConfirmModal
+          title="Delete Purchase Order"
+          message={`Are you sure you want to delete PO ${deleteConfirm}? This action cannot be undone.`}
+          onConfirm={confirmDelete}
+          onCancel={() => setDeleteConfirm(null)}
+          loading={actionLoading}
+        />
+      )}{" "}
+      {/* Cancel PO Modal â€” AGM fills in a cancellation reason */}{" "}
+      {cancelModal && (
+        <Modal
+          title="Cancel Purchase Order"
+          onClose={() => {
+            setCancelModal(false);
+            setCancelNoteText("");
+            setCancelTargetId(null);
+          }}
+          footer={
+            <div className="flex justify-end gap-3 w-full">
+              {" "}
+              <Btn
+                label="Go Back"
+                outline
+                onClick={() => {
+                  setCancelModal(false);
+                  setCancelNoteText("");
+                  setCancelTargetId(null);
+                }}
+              />{" "}
+              <Btn
+                label="Confirm Cancellation"
+                color="red"
+                icon={X}
+                onClick={handleConfirmCancel}
+                loading={processingId === `cancel-${cancelTargetId}`}
+                disabled={!cancelNoteText.trim()}
+              />{" "}
+            </div>
+          }
+        >
+          {" "}
+          <div className="space-y-5">
+            {" "}
+            {/* Warning banner */}{" "}
+            <div className="flex items-start gap-3 p-4 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 rounded-xl">
+              {" "}
+              <AlertTriangle className="w-5 h-5 text-red-500 mt-0.5 flex-shrink-0" />{" "}
+              <div>
+                {" "}
+                <p className="text-sm font-bold text-red-700 dark:text-red-400">
+                  This action cannot be undone
+                </p>{" "}
+                <p className="text-xs text-red-600 dark:text-red-500 mt-1">
+                  {" "}
+                  Cancelling this PO will also reset the linked Quotation back
+                  to <strong>Pending</strong>, allowing suppliers to re-submit
+                  their quotes.{" "}
+                </p>{" "}
+              </div>{" "}
+            </div>{" "}
+            {/* Note input */}{" "}
+            <div className="space-y-1.5">
+              {" "}
+              <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300">
+                {" "}
+                Cancellation Reason <span className="text-red-500">*</span>{" "}
+              </label>{" "}
+              <textarea
+                className="w-full px-3 py-2.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-sm text-gray-800 dark:text-gray-200 placeholder-gray-400 dark:placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-red-500/40 focus:border-red-500 min-h-[110px] resize-y transition"
+                placeholder="Enter the reason for cancelling this Purchase Orderâ€¦"
+                value={cancelNoteText}
+                onChange={(e) => setCancelNoteText(e.target.value)}
+                autoFocus
+              />{" "}
+              <p className="text-[11px] text-gray-400">
+                This note will be visible to all users viewing this PO.
+              </p>{" "}
+            </div>{" "}
+          </div>{" "}
+        </Modal>
+      )}{" "}
+    </div>
+  );
 }, "PurchaseOrders");
-export {
-  PurchaseOrders
-};
+
+export { PurchaseOrders };

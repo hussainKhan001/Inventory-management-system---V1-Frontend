@@ -58,10 +58,17 @@ const SelectFilter = React.memo(({
   onChange,
   options,
   placeholder = "Select...",
-  className
+  className,
+  searchable = false
 }) => {
   const [isOpen, setIsOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
   const containerRef = useRef(null);
+  
+  useEffect(() => {
+    if (!isOpen) setSearchQuery("");
+  }, [isOpen]);
+
   useEffect(() => {
     const handler = /* @__PURE__ */ __name((e) => {
       if (containerRef.current && !containerRef.current.contains(e.target)) {
@@ -72,6 +79,14 @@ const SelectFilter = React.memo(({
     return () => document.removeEventListener("mousedown", handler);
   }, []);
   const selectedLabel = value ? options.find((opt) => (typeof opt === "string" ? opt : opt.value) === value)?.label || (typeof options.find((opt) => opt === value) === "string" ? value : value) : placeholder;
+  
+  const filteredOptions = searchable && searchQuery
+    ? options.filter((opt) => {
+        const lbl = typeof opt === "string" ? opt : opt.label;
+        return lbl.toLowerCase().includes(searchQuery.toLowerCase());
+      })
+    : options;
+
   return <div ref={containerRef} className={cn("relative flex-1 min-w-[140px] group", className)}>
       <button
     type="button"
@@ -90,42 +105,70 @@ const SelectFilter = React.memo(({
   )} />
       </button>
 
-      {isOpen && <div className="absolute top-[calc(100%+8px)] left-0 z-50 w-full min-w-[160px] bg-white dark:bg-[#0F172A] border border-gray-200 dark:border-gray-700/80 rounded-xl shadow-xl dark:shadow-2xl dark:shadow-black/60 overflow-hidden py-1">
+      <div className={cn(
+        "absolute top-[calc(100%+6px)] left-0 z-50 w-full min-w-[160px] bg-white dark:bg-[#0F172A] border border-gray-200 dark:border-gray-700/80 rounded-xl shadow-xl dark:shadow-2xl dark:shadow-black/60 overflow-hidden py-1",
+        "transition-all duration-200 ease-out origin-top",
+        isOpen
+          ? "opacity-100 scale-y-100 translate-y-0 pointer-events-auto"
+          : "opacity-0 scale-y-95 -translate-y-1 pointer-events-none"
+      )}>
+          {searchable && (
+            <div className="px-2 pb-1 pt-1 sticky top-0 bg-white dark:bg-[#0F172A] z-10 border-b border-gray-100 dark:border-gray-800 mb-1">
+              <div className="relative">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
+                <input
+                  type="text"
+                  placeholder="Search..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onClick={(e) => e.stopPropagation()}
+                  className="w-full pl-8 pr-3 py-1.5 bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-lg text-[12px] text-gray-900 dark:text-gray-100 focus:outline-none focus:border-[#F97316] focus:ring-1 focus:ring-[#F97316]/20 placeholder-gray-400"
+                  autoFocus={isOpen}
+                />
+              </div>
+            </div>
+          )}
           <div className="max-h-60 overflow-y-auto custom-scrollbar">
-            <button
-    type="button"
-    onClick={() => {
-      onChange("");
-      setIsOpen(false);
-    }}
-    className={cn(
-      "w-full text-left px-4 py-2 text-[13px] transition-colors",
-      !value ? "bg-[#F97316]/10 text-[#F97316] font-medium" : "text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-white/5"
-    )}
-  >
-              {placeholder}
-            </button>
-            {options.map((opt, i) => {
-    const val = typeof opt === "string" ? opt : opt.value;
-    const lbl = typeof opt === "string" ? opt : opt.label;
-    const isSelected = val === value;
-    return <button
-      key={val || i}
-      type="button"
-      onClick={() => {
-        onChange(val);
-        setIsOpen(false);
-      }}
-      className={cn(
-        "w-full text-left px-4 py-2 text-[13px] transition-colors",
-        isSelected ? "bg-[#F97316]/10 text-[#F97316] font-medium" : "text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-white/5"
-      )}
-    >
+            {(!searchable || !searchQuery) && (
+              <button
+                type="button"
+                onClick={() => {
+                  onChange("");
+                  setIsOpen(false);
+                }}
+                className={cn(
+                  "w-full text-left px-4 py-2 text-[13px] transition-colors",
+                  !value ? "bg-[#F97316]/10 text-[#F97316] font-medium" : "text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-white/5"
+                )}
+              >
+                {placeholder}
+              </button>
+            )}
+            {filteredOptions.length === 0 ? (
+              <div className="px-4 py-3 text-[12px] text-gray-500 text-center">No results found</div>
+            ) : (
+              filteredOptions.map((opt, i) => {
+                const val = typeof opt === "string" ? opt : opt.value;
+                const lbl = typeof opt === "string" ? opt : opt.label;
+                const isSelected = val === value;
+                return <button
+                  key={val || i}
+                  type="button"
+                  onClick={() => {
+                    onChange(val);
+                    setIsOpen(false);
+                  }}
+                  className={cn(
+                    "w-full text-left px-4 py-2 text-[13px] transition-colors",
+                    isSelected ? "bg-[#F97316]/10 text-[#F97316] font-medium" : "text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-white/5"
+                  )}
+                >
                   {lbl}
                 </button>;
-  })}
+              })
+            )}
           </div>
-        </div>}
+        </div>
     </div>;
 });
 SelectFilter.displayName = "SelectFilter";

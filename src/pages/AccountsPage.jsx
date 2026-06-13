@@ -30,7 +30,7 @@ import {
 import { fmtCur, formatDate, calculatePriceComparison } from "../utils";
 import { cn } from "../lib/utils";
 import { generatePOPDF } from "../utils/pdfGenerator";
-import { StatusBadge, PageHeader } from "../components/ui";
+import { StatusBadge, PageHeader, Card } from "../components/ui";
 import { POPreviewModal } from "../components/POPreviewModal";
 import { api } from "../services/api";
 import { toast } from "react-hot-toast";
@@ -297,32 +297,38 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
   const SummaryCard = /* @__PURE__ */ __name(({ label, value, icon: Icon, color, active, onClick }) => <div
     onClick={onClick}
     className={cn(
-      "bg-white dark:bg-[#1E293B] p-3 sm:p-4 rounded-2xl border border-gray-100 dark:border-[#334155] shadow-sm flex items-center gap-2 sm:gap-4 transition-all duration-300",
-      onClick && "cursor-pointer hover:border-primary/10 active:scale-95",
-      active && "ring-2 ring-primary/50 border-primary/30"
+      "bg-white dark:bg-gray-900 p-4 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm flex items-center gap-4 transition-all duration-200",
+      onClick && "cursor-pointer hover:border-primary/20 hover:-translate-y-0.5",
+      active && "ring-2 ring-primary/40 border-primary/30 bg-primary/5 dark:bg-primary/10"
     )}
   >
-      <div className={cn("w-10 h-10 sm:w-14 sm:h-14 rounded-xl flex items-center justify-center shrink-0", color, "bg-opacity-15")}>
-        <Icon className={cn("w-5 h-5 sm:w-7 sm:h-7", color.replace("bg-", "text-"))} />
+      <div className={cn("w-12 h-12 rounded-xl flex items-center justify-center shrink-0", color)}>
+        <Icon className="w-6 h-6 text-white" />
       </div>
       <div className="min-w-0 flex-1">
-        <p className="text-[7.5px] sm:text-[10px] font-bold text-gray-400 dark:text-[#94A3B8] leading-tight block mb-0.5">{label}</p>
-        <p className="text-[14px] sm:text-[22px] font-black text-gray-900 dark:text-[#F1F5F9] tabular-nums leading-none truncate">{value}</p>
+        <p className="text-[10px] font-bold text-gray-400 dark:text-gray-500 tracking-widest leading-none mb-1">{label}</p>
+        <p className="text-xl font-black text-gray-900 dark:text-white tabular-nums leading-none truncate">{value}</p>
       </div>
     </div>, "SummaryCard");
   const StatusTab = /* @__PURE__ */ __name(({ label, count }) => {
     const active = filter === label;
     return <button
       onClick={() => setFilter(label)}
-      className={`px-6 py-2.5 text-[13px] font-bold rounded-xl transition-all flex items-center gap-2 ${active ? "bg-primary text-primary-foreground shadow-lg shadow-primary/20" : "text-gray-500 dark:text-[#94A3B8] hover:bg-gray-100 dark:hover:bg-[#334155]"}`}
+      className={cn(
+        "px-5 py-2 text-[12px] font-black rounded-xl transition-all flex items-center gap-2 shrink-0 cursor-pointer",
+        active ? "bg-primary text-white shadow-lg shadow-primary/20" : "text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800"
+      )}
     >
         {label}
-        {count !== void 0 && <span className={`text-[10px] px-2 py-0.5 rounded-lg ${active ? "bg-white/20 text-primary-foreground" : "bg-gray-100 dark:bg-[#334155]"}`}>
+        {count !== void 0 && <span className={cn(
+          "text-[10px] px-1.5 py-0.5 rounded-lg font-black",
+          active ? "bg-white/20 text-white" : "bg-gray-100 dark:bg-gray-800"
+        )}>
             {count}
           </span>}
       </button>;
   }, "StatusTab");
-  return <div className="p-4 sm:p-8 max-w-7xl mx-auto space-y-6 sm:space-y-8 bg-[#F8FAFC] dark:bg-[#0F172A] min-h-screen">
+  return <div className="space-y-6">
       <PageHeader
     title="Account Payment"
     sub="Verify bills and process vendor payments"
@@ -375,7 +381,7 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
       {
     /* Filter Tabs */
   }
-      <div className="bg-white dark:bg-[#1E293B] p-2 rounded-2xl border border-gray-100 dark:border-[#334155] shadow-sm flex items-center gap-1 overflow-x-auto no-scrollbar">
+      <div className="bg-white dark:bg-gray-900 p-2 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm flex items-center gap-1 overflow-x-auto no-scrollbar">
         <div className="flex items-center gap-1 min-w-max">
           <StatusTab label="All" />
           <StatusTab label="Verify Bills" count={metrics.pendingVerify} />
@@ -388,10 +394,10 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
       {
     /* Table */
   }
-      <div className="bg-white dark:bg-[#1E293B] rounded-2xl border border-gray-100 dark:border-[#334155] shadow-sm overflow-hidden">
+      <Card className="p-0 overflow-hidden border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900">
         <div className="overflow-x-auto overflow-y-hidden">
           <div className="min-w-[900px]">
-            <div className="grid grid-cols-[1.5fr_2fr_1.5fr_1fr_1fr_1fr] gap-4 p-4 border-b border-gray-100 dark:border-[#334155] bg-gray-50/50 dark:bg-[#0F172A] text-[10px] sm:text-[11px] font-black text-gray-400 dark:text-[#94A3B8] whitespace-nowrap tracking-wider">
+            <div className="grid grid-cols-[1.5fr_2fr_1.5fr_1fr_1fr_1fr] gap-4 px-4 py-3.5 border-b border-gray-100 dark:border-gray-800 bg-gray-50/90 dark:bg-gray-800/90 backdrop-blur-md text-[10px] font-black text-gray-400 dark:text-gray-500 whitespace-nowrap tracking-wider">
               <div className="pl-2 sm:pl-4">PO records</div>
               <div className="hidden lg:block">Vendor name</div>
               <div className="hidden sm:block text-right">Amount (₹)</div>
@@ -401,7 +407,7 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
             </div>
             
             {filteredPOs.length === 0 ? <div className="py-24 text-center">
-                <div className="flex flex-col items-center gap-4 text-gray-400 dark:text-[#64748B]">
+                <div className="flex flex-col items-center gap-4 text-gray-400">
                   <Search className="w-12 h-12 opacity-20" />
                   <p className="font-bold text-[13px]">No records found matching filter</p>
                 </div>
@@ -449,7 +455,7 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
           screenshot: null
         }));
       }}
-      className="grid grid-cols-[1.5fr_2fr_1.5fr_1fr_1fr_1fr] gap-4 p-4 border-b border-gray-50 dark:border-[#334155] hover:bg-gray-50/80 dark:hover:bg-[#0F172A] transition-colors cursor-pointer items-center group"
+      className="grid grid-cols-[1.5fr_2fr_1.5fr_1fr_1fr_1fr] gap-4 px-4 py-3 border-b border-gray-50 dark:border-gray-800/80 hover:bg-gray-50/50 dark:hover:bg-gray-800/20 transition-colors cursor-pointer items-center group"
     >
                     <div className="pl-2 sm:pl-4 flex flex-col justify-center">
                       <div className="flex items-center gap-3">
@@ -516,13 +522,13 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
   />}
           </div>
         </div>
-      </div>
+      </Card>
 
       {
     /* Detail Modal */
   }
       <AnimatePresence>
-        {selectedPO && <div className="fixed inset-0 z-50 flex items-center justify-center sm:p-4 overflow-y-auto">
+        {selectedPO && <div className="fixed inset-0 z-[80] flex items-center justify-center sm:p-4 overflow-y-auto">
             <motion.div
     initial={{ opacity: 0 }}
     animate={{ opacity: 1 }}

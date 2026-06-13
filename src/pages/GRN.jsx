@@ -15,7 +15,7 @@ import {
   Field,
   Td
 } from "../components/ui";
-import { Plus, X, Eye, Pencil, Trash2, Download, Package } from "lucide-react";
+import { Plus, X, Eye, Pencil, Trash2, Download, Package, AlertTriangle, Calendar, Building2 } from "lucide-react";
 import { TableVirtuoso } from "react-virtuoso";
 import { SearchFilter, DateRangePicker, SelectFilter, FilterRow } from "../components/ui/Filters";
 import { genId, scrollToError, formatDateTime, safeStr } from "../utils";
@@ -734,225 +734,264 @@ const GRNPage = /* @__PURE__ */ __name(() => {
     onClose={() => {
       setModal(false);
       setErrors({});
-      setNewGRN({
-        id: "",
-        poId: "",
-        vendor: "",
-        date: (/* @__PURE__ */ new Date()).toISOString().split("T")[0],
-        items: [],
-        challanPhotos: [],
-        images: [],
-        status: "Confirmed"
-      });
+      setNewGRN({ id: "", poId: "", vendor: "", date: new Date().toISOString().split("T")[0], items: [], challanPhotos: [], images: [], status: "Confirmed" });
       setIsEditing(false);
     }}
-    footer={<div className="flex justify-end gap-3 w-full">
-              <Btn
-      label="Cancel"
-      className="px-6 py-2 bg-[#1e293b] text-white hover:bg-[#0f172a] shadow-md text-[12px] font-bold tracking-tight"
-      onClick={() => {
-        setModal(false);
-        setErrors({});
-      }}
-    />
-              <Btn
-      label={isEditing ? "Confirm update" : "Confirm GRN"}
-      onClick={handleCreate}
-      loading={actionLoading || isUploading}
-      disabled={isUploading}
-      className="px-6 py-2 bg-[#F97316] hover:bg-[#EA580C] text-white shadow-md text-[12px] font-bold tracking-tight"
-    />
-            </div>}
+    footer={
+      <div className="flex items-center justify-end gap-3 w-full">
+        <button
+          onClick={() => { setModal(false); setErrors({}); }}
+          className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-black tracking-wider border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-all cursor-pointer"
+        >
+          Cancel
+        </button>
+        <button
+          onClick={handleCreate}
+          disabled={actionLoading || isUploading}
+          className="flex items-center gap-2 px-5 py-2.5 bg-primary hover:bg-primary/90 hover:-translate-y-0.5 active:translate-y-0 text-white rounded-xl text-xs font-black transition-all tracking-wider shadow-lg shadow-primary/20 dark:shadow-none disabled:bg-gray-400 disabled:shadow-none disabled:cursor-not-allowed disabled:transform-none cursor-pointer"
+        >
+          {isEditing ? "Confirm Update" : "Confirm GRN"}
+        </button>
+      </div>
+    }
   >
-          <div className="space-y-6 pb-4">
-            {Object.keys(errors).length > 0 && <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl">
-                <p className="text-[11px] text-red-600 dark:text-red-400 font-bold">
-                  Required fields missing: {Object.keys(errors).map((k) => k === "poId" ? "PO" : k === "challan" ? "Challan no" : k === "personName" ? "Received by" : k).join(", ")}
-                </p>
-              </div>}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-6">
-                <SField
-    label="Purchase Order (PO) *"
-    value={newGRN.poId}
-    onChange={(e) => handlePOSelect(e.target.value)}
-    options={approvedPOs.map((p) => ({
-      value: p.id,
-      label: `${p.project} (PO: ${p.id})`
-    }))}
-    required
-    error={errors.poId}
-    disabled={isEditing}
-  />
-                <div className="space-y-1">
-                  <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Transaction Date</p>
-                  <p className="text-[13px] font-bold text-gray-900 dark:text-white px-4 py-2.5 bg-gray-50 dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700">
-                    {isEditing ? formatDateTime(newGRN.date || "") : formatDateTime((/* @__PURE__ */ new Date()).toISOString())}
+          <div className="space-y-6 pb-2">
+            {/* Error banner */}
+            {Object.keys(errors).length > 0 && (
+              <div className="p-4 bg-red-500/5 border border-red-500/20 rounded-2xl flex items-start gap-3">
+                <AlertTriangle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-[13px] font-bold text-red-500">Required fields missing</p>
+                  <p className="text-[11px] text-red-500/80 mt-0.5">
+                    {Object.keys(errors).map((k) => k === "poId" ? "PO" : k === "challan" ? "Challan No." : k === "personName" ? "Received By" : k).join(", ")}
                   </p>
                 </div>
-                <div className="space-y-1">
-                   <p className="text-xs font-medium text-gray-500 mb-2">Supplier</p>
-                   {(() => {
-    const supplierId = newGRN.vendor || newGRN.supplier;
-    const supplier = suppliers.find((s) => s.id === supplierId);
-    return <div className="flex flex-col gap-1 px-4 py-2.5 bg-gray-50 dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700">
-                          <p className="text-[13px] font-bold text-gray-900 dark:text-white">
-                            {supplier ? supplier.companyName || supplier.name : supplierId || "Select po to load supplier"}
-                          </p>
-                          {supplier && (supplier.gstNumber || supplier.gst) && <p className="text-[10px] font-medium text-gray-400">
-                              GST: {supplier.gstNumber || supplier.gst}
-                            </p>}
-                       </div>;
-  })()}
+              </div>
+            )}
+
+            {/* Top fields */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Left column */}
+              <div className="space-y-4">
+                <SField
+                  label="Purchase Order (PO) *"
+                  value={newGRN.poId}
+                  onChange={(e) => handlePOSelect(e.target.value)}
+                  options={approvedPOs.map((p) => ({ value: p.id, label: `${p.project} (PO: ${p.id})` }))}
+                  required
+                  error={errors.poId}
+                  disabled={isEditing}
+                />
+                {/* Date info card */}
+                <div className="flex items-center gap-3 p-3 bg-white/40 dark:bg-[#0F172A]/30 rounded-xl border border-gray-200/50 dark:border-gray-800/80 shadow-xs">
+                  <div className="w-9 h-9 rounded-lg bg-orange-50 dark:bg-orange-950/30 flex items-center justify-center text-orange-600 dark:text-orange-400 shrink-0">
+                    <Calendar className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-bold text-gray-400 tracking-widest leading-none">Transaction Date</p>
+                    <p className="text-[13px] font-black text-gray-800 dark:text-white mt-1">
+                      {isEditing ? formatDateTime(newGRN.date || "") : formatDateTime(new Date().toISOString())}
+                    </p>
+                  </div>
                 </div>
+                {/* Supplier info card */}
+                {(() => {
+                  const supplierId = newGRN.vendor || newGRN.supplier;
+                  const supplier = suppliers.find((s) => s.id === supplierId);
+                  return (
+                    <div className="flex items-center gap-3 p-3 bg-white/40 dark:bg-[#0F172A]/30 rounded-xl border border-gray-200/50 dark:border-gray-800/80 shadow-xs">
+                      <div className="w-9 h-9 rounded-lg bg-orange-50 dark:bg-orange-950/30 flex items-center justify-center text-orange-600 dark:text-orange-400 shrink-0">
+                        <Building2 className="w-5 h-5" />
+                      </div>
+                      <div className="overflow-hidden">
+                        <p className="text-[10px] font-bold text-gray-400 tracking-widest leading-none">Supplier</p>
+                        <p className="text-[13px] font-black text-gray-800 dark:text-white truncate mt-1">
+                          {supplier ? supplier.companyName || supplier.name : supplierId || "Select PO to load supplier"}
+                        </p>
+                        {supplier && (supplier.gstNumber || supplier.gst) && (
+                          <p className="text-[10px] text-gray-400 font-medium italic mt-0.5">GST: {supplier.gstNumber || supplier.gst}</p>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
-              <div className="space-y-6">
+              {/* Right column */}
+              <div className="space-y-4">
                 <Field
-    label="Challan / Invoice No. *"
-    value={newGRN.challan}
-    onChange={(e) => setNewGRN({ ...newGRN, challan: e.target.value })}
-    required
-    error={errors.challan}
-  />
+                  label="Challan / Invoice No. *"
+                  value={newGRN.challan}
+                  onChange={(e) => setNewGRN({ ...newGRN, challan: e.target.value })}
+                  required
+                  error={errors.challan}
+                />
                 <Field
-    label="MR No. (Material Requirement)"
-    value={newGRN.mrNo}
-    onChange={(e) => setNewGRN({ ...newGRN, mrNo: e.target.value })}
-    placeholder="Will be auto-filled if PO selected"
-  />
+                  label="MR No. (Material Requirement)"
+                  value={newGRN.mrNo}
+                  onChange={(e) => setNewGRN({ ...newGRN, mrNo: e.target.value })}
+                  placeholder="Auto-filled if PO selected"
+                />
+                <SField
+                  label="Document Type *"
+                  value={newGRN.docType}
+                  onChange={(e) => setNewGRN({ ...newGRN, docType: e.target.value })}
+                  options={["Challan", "Invoice", "Bilty", "Gate Pass", "Without Challan", "Without Gate Pass"]}
+                  error={errors.docType}
+                />
                 <MultipleImageUpload
-    label="Challan Photos"
-    id="challanPhotos"
-    values={newGRN.challanPhotos || []}
-    onUpload={(urls) => setNewGRN((prev) => ({ ...prev, challanPhotos: [...prev.challanPhotos || [], ...urls] }))}
-    onRemove={(idx) => setNewGRN((prev) => ({ ...prev, challanPhotos: (prev.challanPhotos || []).filter((_, i) => i !== idx) }))}
-    onUploadingChange={setIsUploading}
-    small
-  />
+                  label="Challan Photos"
+                  id="challanPhotos"
+                  values={newGRN.challanPhotos || []}
+                  onUpload={(urls) => setNewGRN((prev) => ({ ...prev, challanPhotos: [...(prev.challanPhotos || []), ...urls] }))}
+                  onRemove={(idx) => setNewGRN((prev) => ({ ...prev, challanPhotos: (prev.challanPhotos || []).filter((_, i) => i !== idx) }))}
+                  onUploadingChange={setIsUploading}
+                  small
+                />
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-6 border-t border-gray-100 dark:border-gray-800">
+            {/* Received By + Person Photos */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-5 border-t border-gray-100/60 dark:border-gray-800/80">
               <Field
-    label="Received By *"
-    value={newGRN.personName}
-    onChange={(e) => setNewGRN({ ...newGRN, personName: e.target.value })}
-    required
-  />
+                label="Received By *"
+                value={newGRN.personName}
+                onChange={(e) => setNewGRN({ ...newGRN, personName: e.target.value })}
+                required
+                error={errors.personName}
+              />
               <MultipleImageUpload
-    label="Person Photos"
-    id="personPhotos"
-    values={newGRN.personPhotos || []}
-    onUpload={(urls) => setNewGRN((prev) => ({ ...prev, personPhotos: [...prev.personPhotos || [], ...urls] }))}
-    onRemove={(idx) => setNewGRN((prev) => ({ ...prev, personPhotos: (prev.personPhotos || []).filter((_, i) => i !== idx) }))}
-    onUploadingChange={setIsUploading}
-    small
-  />
+                label="Person Photos"
+                id="personPhotos"
+                values={newGRN.personPhotos || []}
+                onUpload={(urls) => setNewGRN((prev) => ({ ...prev, personPhotos: [...(prev.personPhotos || []), ...urls] }))}
+                onRemove={(idx) => setNewGRN((prev) => ({ ...prev, personPhotos: (prev.personPhotos || []).filter((_, i) => i !== idx) }))}
+                onUploadingChange={setIsUploading}
+                small
+              />
             </div>
 
-            <div className="space-y-4 pt-6 border-t border-gray-100 dark:border-gray-800">
+            {/* Items table */}
+            <div className="space-y-4 pt-5 border-t border-gray-100/60 dark:border-gray-800/80">
               <div className="flex items-center justify-between">
-                <h3 className="text-sm font-bold text-gray-900 dark:text-white">Receipt items</h3>
-                <Btn
-    label="Add item"
-    icon={Plus}
-    small
-    outline
-    disabled={!newGRN.poId}
-    onClick={() => {
-      const items = [...newGRN.items || []];
-      items.push({ sku: "", itemName: "", ordered: 0, received: 0, variance: 0, unit: "NOS", images: [] });
-      setNewGRN({ ...newGRN, items });
-    }}
-  />
+                <h4 className="text-[11px] font-bold text-gray-500 tracking-wider px-2">Receipt items</h4>
+                <button
+                  disabled={!newGRN.poId}
+                  onClick={() => {
+                    const items = [...(newGRN.items || [])];
+                    items.push({ sku: "", itemName: "", ordered: 0, received: 0, variance: 0, unit: "NOS", images: [] });
+                    setNewGRN({ ...newGRN, items });
+                  }}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black border border-primary/25 text-primary hover:bg-primary hover:text-white transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  Add item
+                </button>
               </div>
 
-              {errors.items && <p className="text-xs text-red-500">{errors.items}</p>}
+              {errors.items && <p className="text-xs text-red-500 font-medium px-2">{errors.items}</p>}
 
-              <div className="overflow-hidden rounded-xl border border-gray-200 dark:border-gray-800">
-                <table className="w-full text-left border-collapse">
-                  <thead className="bg-[#1e293b] dark:bg-[#0f172a] text-white">
+              <div className="border border-gray-150/60 dark:border-gray-800/80 rounded-2xl overflow-x-auto shadow-xs bg-gray-50/25 dark:bg-[#0F172A]/40 min-h-[200px] pb-2">
+                <table className="w-full text-left border-collapse min-w-max">
+                  <thead className="bg-gray-50/10 dark:bg-[#0F172A]/40 backdrop-blur-md">
                     <tr>
-                      <th className="px-5 py-3 text-[10px] font-bold">Item</th>
-                      <th className="px-5 py-3 text-[10px] font-bold text-right w-24">Ordered</th>
-                      <th className="px-5 py-3 text-[10px] font-bold text-center w-24">Unit</th>
-                      <th className="px-5 py-3 text-[10px] font-bold text-center w-32">Received</th>
-                      <th className="px-5 py-3 text-[10px] font-bold text-right w-24">Variance</th>
-                      <th className="px-5 py-3 text-[10px] font-bold">Material photos</th>
-                      <th className="px-5 py-3 text-[10px] font-bold w-10" />
+                      {["Item", "Ordered", "Unit", "Received", "Variance", "Material Photos", ""].map((h) => (
+                        <th key={h} className="px-4 py-3.5 text-[10px] font-black text-gray-400 dark:text-gray-500 whitespace-nowrap border-b border-gray-100 dark:border-gray-800">
+                          {h}
+                        </th>
+                      ))}
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-                    {newGRN.items?.map((item, idx) => <tr key={idx} className="hover:bg-gray-50/50 dark:hover:bg-gray-800/20 transition-colors">
-                        <td className="px-5 py-3">
-                           {item.sku ? <div className="flex flex-col">
-                               <span className="text-[13px] font-medium text-gray-900 dark:text-white leading-tight">
-                                 {item.itemName || item.name || item.material || item.description || "Unknown Item"}
-                               </span>
-                               <span className="text-[11px] text-gray-500 mt-1">
-                                 {item.sku}
-                               </span>
-                             </div> : <input
-    placeholder="Item Name"
-    className="w-full px-3 py-1.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-[13px] focus:ring-1 focus:ring-[#F97316]"
-    value={item.itemName}
-    onChange={(e) => updateItem(idx, { itemName: e.target.value })}
-  />}
-                        </td>
-                        <td className="px-5 py-3 text-right">
-                          <span className="text-[13px] font-medium text-gray-900 dark:text-white">
-                            {item.ordered}
-                          </span>
-                        </td>
-                        <td className="px-5 py-3 text-center">
-                           <span className="text-[11px] font-medium text-blue-500">
-                             {item.unit}
-                           </span>
-                        </td>
-                        <td className="px-5 py-3">
-                          <div className="flex justify-center">
-                            <input
-    type="number"
-    value={item.received}
-    onChange={(e) => updateItem(idx, { received: Number(e.target.value) })}
-    className="w-20 px-2 py-1 bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded text-[13px] font-medium text-center focus:ring-1 focus:ring-[#F97316] outline-none"
-  />
+                  <tbody className="divide-y divide-gray-100/50 dark:divide-gray-800/80">
+                    {newGRN.items?.map((item, idx) => (
+                      <tr key={idx} className="transition-all duration-200">
+                        {/* Item */}
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-xl bg-orange-50 dark:bg-orange-950/20 flex items-center justify-center border border-orange-100/50 dark:border-orange-900/10 shrink-0">
+                              <Package className="w-4 h-4 text-orange-600 dark:text-orange-400" />
+                            </div>
+                            {item.sku ? (
+                              <div className="flex flex-col">
+                                <span className="text-[13px] font-bold text-gray-900 dark:text-white leading-tight">
+                                  {item.itemName || "Unknown Item"}
+                                </span>
+                                <span className="text-[11px] text-gray-500 font-mono mt-0.5">{item.sku}</span>
+                              </div>
+                            ) : (
+                              <input
+                                placeholder="Item name..."
+                                className="text-[13px] font-bold bg-white/40 dark:bg-[#0F172A]/30 border border-gray-200/50 dark:border-gray-800/80 focus:border-primary focus:ring-1 focus:ring-primary rounded-xl px-3 h-[36px] outline-none transition-all w-40"
+                                value={item.itemName}
+                                onChange={(e) => updateItem(idx, { itemName: e.target.value })}
+                              />
+                            )}
                           </div>
                         </td>
-                        <td className="px-5 py-3 text-right">
-                          <span className={`text-[13px] font-medium ${item.variance === 0 ? "text-gray-400" : item.variance > 0 ? "text-emerald-500" : "text-red-500"}`}>
-                            {item.variance > 0 ? `+${item.variance}` : item.variance}
+                        {/* Ordered */}
+                        <td className="px-4 py-3 text-center">
+                          <div className="inline-flex items-center px-3 py-1 bg-blue-500/5 text-blue-500 dark:text-blue-400 rounded-xl border border-blue-500/20 dark:border-blue-500/30 shadow-xs font-bold text-xs h-9 min-w-[50px] justify-center">
+                            {item.ordered}
+                          </div>
+                        </td>
+                        {/* Unit */}
+                        <td className="px-4 py-3 text-center">
+                          <span className="text-[11px] font-bold text-blue-500 px-2.5 py-1 bg-blue-500/5 border border-blue-500/20 rounded-lg">
+                            {item.unit}
                           </span>
                         </td>
-                        <td className="px-5 py-3">
+                        {/* Received */}
+                        <td className="px-4 py-3 text-center">
+                          <input
+                            type="number"
+                            value={item.received}
+                            onChange={(e) => updateItem(idx, { received: Number(e.target.value) })}
+                            className="w-20 text-center text-[13px] font-bold bg-emerald-500/5 border border-emerald-500/20 dark:border-emerald-500/30 rounded-xl px-3 py-1.5 shadow-inner text-emerald-600 dark:text-emerald-400 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 outline-none transition-all h-9"
+                          />
+                        </td>
+                        {/* Variance */}
+                        <td className="px-4 py-3 text-center">
+                          <div className={cn(
+                            "inline-flex items-center px-3 py-1 rounded-xl border shadow-xs font-bold text-xs h-9 min-w-[50px] justify-center",
+                            item.variance === 0
+                              ? "bg-gray-500/5 text-gray-400 border-gray-500/20"
+                              : item.variance > 0
+                                ? "bg-emerald-500/5 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
+                                : "bg-rose-500/5 text-red-500 dark:text-rose-400 border-rose-500/20"
+                          )}>
+                            {item.variance > 0 ? `+${item.variance}` : item.variance}
+                          </div>
+                        </td>
+                        {/* Photos */}
+                        <td className="px-4 py-3">
                           <MultipleImageUpload
-    id={`item-photos-${idx}`}
-    label=""
-    values={item.images || []}
-    onUpload={(urls) => updateItem(idx, { images: [...item.images || [], ...urls] })}
-    onRemove={(imgIdx) => updateItem(idx, { images: (item.images || []).filter((_, i) => i !== imgIdx) })}
-    small
-    onUploadingChange={setIsUploading}
-  />
+                            id={`item-photos-${idx}`}
+                            label=""
+                            values={item.images || []}
+                            onUpload={(urls) => updateItem(idx, { images: [...(item.images || []), ...urls] })}
+                            onRemove={(imgIdx) => updateItem(idx, { images: (item.images || []).filter((_, i) => i !== imgIdx) })}
+                            small
+                            onUploadingChange={setIsUploading}
+                          />
                         </td>
-                        <td className="px-5 py-3 text-right">
-                           <button
-    onClick={() => {
-      const items = [...newGRN.items || []];
-      items.splice(idx, 1);
-      setNewGRN({ ...newGRN, items });
-    }}
-    className="text-gray-300 hover:text-red-500 transition-colors p-1"
-  >
-                             <X className="w-3.5 h-3.5" />
-                           </button>
+                        {/* Remove */}
+                        <td className="px-4 py-3 text-center">
+                          <button
+                            onClick={() => {
+                              const items = [...(newGRN.items || [])];
+                              items.splice(idx, 1);
+                              setNewGRN({ ...newGRN, items });
+                            }}
+                            className="p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/10 rounded-lg transition-all"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
                         </td>
-                      </tr>)}
+                      </tr>
+                    ))}
                   </tbody>
                 </table>
               </div>
             </div>
-
           </div>
         </Modal>}
 
