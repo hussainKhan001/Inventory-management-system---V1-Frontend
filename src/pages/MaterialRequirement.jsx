@@ -39,9 +39,12 @@ export function MaterialRequirementPage() {
 
   const isMRLocked = mrId => pos.some(po => po.mrId === mrId);
   const isItemPOCreated = (item, mr) => {
-    if (!mr?.approvals?.length) return false;
     const cat = item.category || "General";
-    return mr.approvals.some(a => (a.category || "General") === cat && a.poCreated === true);
+    return pos.some(po =>
+      po.mrId === mr?.id &&
+      (po.workType || po.category || "General") === cat &&
+      !["Rejected", "Blocked", "Cancelled"].includes(po.status)
+    );
   };
 
   // Filters
@@ -299,7 +302,7 @@ export function MaterialRequirementPage() {
                                 className={cn(
                                   "px-3 py-1.5 bg-gray-50 dark:bg-gray-800 border rounded-lg flex flex-col gap-1",
                                   isItemPOCreated(item, req)
-                                    ? "border-blue-200 dark:border-blue-800/60 bg-blue-50/40 dark:bg-blue-950/20"
+                                    ? "border-emerald-200 dark:border-emerald-800/60 bg-emerald-50/40 dark:bg-emerald-950/20"
                                     : "border-gray-100 dark:border-gray-700"
                                 )}
                               >
@@ -309,7 +312,7 @@ export function MaterialRequirementPage() {
                                     <div className="flex items-center gap-1.5">
                                       <span className="text-[13px] font-medium text-gray-700 dark:text-gray-300">{item.materialName}</span>
                                       {isItemPOCreated(item, req) && (
-                                        <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 rounded-md border border-blue-200 dark:border-blue-700/50 text-[9px] font-black tracking-widest shrink-0">
+                                        <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 bg-emerald-100 dark:bg-emerald-900/40 text-emerald-600 dark:text-emerald-400 rounded-md border border-emerald-200 dark:border-emerald-700/50 text-[9px] font-black tracking-widest shrink-0">
                                           <CheckCircle className="w-2.5 h-2.5" /> PO
                                         </span>
                                       )}

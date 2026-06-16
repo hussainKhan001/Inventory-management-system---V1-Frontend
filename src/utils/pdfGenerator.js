@@ -5,7 +5,7 @@ import autoTable from "jspdf-autotable";
 import { safeStr } from "../utils";
 const primaryColor = [26, 54, 93];
 const grayBg = [245, 245, 245];
-const generatePOPDF = /* @__PURE__ */ __name((po, supplier, settings = {}) => {
+const generatePOPDF = /* @__PURE__ */ __name((po, supplier, settings = {}, returnBlob = false) => {
   const doc = new jsPDF({ orientation: "p", unit: "mm", format: "a4" });
   const formatPrettyDate = /* @__PURE__ */ __name((d) => {
     if (!d) return "NA";
@@ -353,8 +353,13 @@ const generatePOPDF = /* @__PURE__ */ __name((po, supplier, settings = {}) => {
       doc.text(po.priceComparison.remarks, 24, y, { maxWidth: 171 });
     }
   }
+  if (returnBlob) return doc.output("blob");
   doc.save(`${po.id}_PO.pdf`);
 }, "generatePOPDF");
+const generatePOPDFBlob = /* @__PURE__ */ __name((po, supplier, settings = {}) =>
+  generatePOPDF(po, supplier, settings, true),
+"generatePOPDFBlob");
 export {
-  generatePOPDF
+  generatePOPDF,
+  generatePOPDFBlob
 };

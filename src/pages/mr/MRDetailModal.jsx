@@ -14,7 +14,7 @@ import { cn } from "../../lib/utils";
 
 export function MRDetailModal({ requirement, onClose, onRequirementUpdate }) {
   const {
-    inventory, catalogue, pos, api, fetchResource,
+    inventory, catalogue, pos, quotations, api, fetchResource,
     updateMaterialRequirement, hasPermission, role, actionLoading, settings,
   } = useAppStore();
 
@@ -87,10 +87,13 @@ export function MRDetailModal({ requirement, onClose, onRequirementUpdate }) {
 
   const isMRLocked = mrId => pos.some(po => po.mrId === mrId);
 
-  const isItemPOCreated = (item, mr) => {
-    if (!mr?.approvals?.length) return false;
+  const isItemPOCreated = (item) => {
     const cat = item.category || "General";
-    return mr.approvals.some(a => (a.category || "General") === cat && a.poCreated === true);
+    return pos.some(po =>
+      po.mrId === req?.id &&
+      (po.workType || po.category || "General") === cat &&
+      !["Rejected", "Blocked", "Cancelled"].includes(po.status)
+    );
   };
 
   const allItemsMapped = req
@@ -233,24 +236,36 @@ export function MRDetailModal({ requirement, onClose, onRequirementUpdate }) {
                           toast.success("All items link copied!");
                           setShowQuotationDropdown(false);
                         }}
-                        className="w-full text-left px-3 py-2 text-[12px] font-semibold text-gray-700 dark:text-gray-300 hover:bg-primary/10 dark:hover:bg-primary/20 rounded-lg transition-colors cursor-pointer"
+                        className="w-full text-left px-3 py-2 text-[12px] font-semibold text-gray-700 dark:text-gray-300 hover:bg-primary/10 dark:hover:bg-primary/20 rounded-lg transition-colors cursor-pointer flex items-center justify-between"
                       >
-                        All Categories
+                        <span>All Categories</span>
+                        {(() => {
+                          const count = quotations.filter(q => q.mrId === req.id).length;
+                          return count > 0 ? (
+                            <span className="text-[10px] font-black px-1.5 py-0.5 bg-primary/10 text-primary rounded-md">{count}</span>
+                          ) : null;
+                        })()}
                       </button>
-                      {Array.from(new Set(req.items.map(i => i.category).filter(Boolean))).map(cat => (
-                        <button
-                          key={cat}
-                          onClick={() => {
-                            const url = `${window.location.origin}${window.location.pathname}#public-quotation?mrId=${req.id}&category=${encodeURIComponent(String(cat))}`;
-                            navigator.clipboard.writeText(url);
-                            toast.success(`${cat} link copied!`);
-                            setShowQuotationDropdown(false);
-                          }}
-                          className="w-full text-left px-3 py-2 text-[12px] font-semibold text-gray-700 dark:text-gray-300 hover:bg-primary/10 dark:hover:bg-primary/20 rounded-lg transition-colors cursor-pointer"
-                        >
-                          {cat}
-                        </button>
-                      ))}
+                      {Array.from(new Set(req.items.map(i => i.category).filter(Boolean))).map(cat => {
+                        const count = quotations.filter(q => q.mrId === req.id && q.category === cat).length;
+                        return (
+                          <button
+                            key={cat}
+                            onClick={() => {
+                              const url = `${window.location.origin}${window.location.pathname}#public-quotation?mrId=${req.id}&category=${encodeURIComponent(String(cat))}`;
+                              navigator.clipboard.writeText(url);
+                              toast.success(`${cat} link copied!`);
+                              setShowQuotationDropdown(false);
+                            }}
+                            className="w-full text-left px-3 py-2 text-[12px] font-semibold text-gray-700 dark:text-gray-300 hover:bg-primary/10 dark:hover:bg-primary/20 rounded-lg transition-colors cursor-pointer flex items-center justify-between"
+                          >
+                            <span>{cat}</span>
+                            {count > 0 && (
+                              <span className="text-[10px] font-black px-1.5 py-0.5 bg-primary/10 text-primary rounded-md">{count}</span>
+                            )}
+                          </button>
+                        );
+                      })}
                     </div>
                   )}
                 </div>
@@ -489,7 +504,7 @@ export function MRDetailModal({ requirement, onClose, onRequirementUpdate }) {
                 </thead>
                 <tbody className="divide-y divide-gray-100/50 dark:divide-gray-800/80 bg-transparent">
                   {req.items.map((item, idx) => (
-                    <tr key={idx} className="transition-all duration-200">
+                    <tr key={idx} className={cn("transition-all duration-200", isItemPOCreated(item) && "bg-emerald-50/40 dark:bg-emerald-950/15")}>
                       {/* Material name + link */}
                       <td className="px-4 py-4 align-top">
                         <div className="flex items-start gap-3">
@@ -519,8 +534,8 @@ export function MRDetailModal({ requirement, onClose, onRequirementUpdate }) {
                                   <span className="text-[9px] font-extrabold tracking-widest italic">Not Linked</span>
                                 </div>
                               )}
-                              {isItemPOCreated(item, req) && (
-                                <div className="flex items-center gap-1 px-2.5 py-0.5 bg-blue-50/80 dark:bg-blue-950/20 text-blue-600 dark:text-blue-400 rounded-lg border border-blue-200/50 dark:border-blue-800/40 shadow-xs shrink-0">
+                              {isItemPOCreated(item) && (
+                                <div className="flex items-center gap-1 px-2.5 py-0.5 bg-emerald-50/80 dark:bg-emerald-950/20 text-emerald-600 dark:text-emerald-400 rounded-lg border border-emerald-200/50 dark:border-emerald-800/40 shadow-xs shrink-0">
                                   <CheckCircle className="w-3 h-3 shrink-0" />
                                   <span className="text-[9px] font-black tracking-widest">PO Created</span>
                                 </div>
@@ -713,7 +728,7 @@ export function MRDetailModal({ requirement, onClose, onRequirementUpdate }) {
             {/* Mobile cards */}
             <div className="md:hidden space-y-3">
               {req.items.map((item, idx) => (
-                <Card key={idx} className="p-4 space-y-3 bg-gray-50/25 dark:bg-[#0F172A]/40 border border-gray-150/60 dark:border-gray-800/80 shadow-sm">
+                <Card key={idx} className={cn("p-4 space-y-3 shadow-sm", isItemPOCreated(item) ? "bg-emerald-50/30 dark:bg-emerald-950/10 border border-emerald-200/60 dark:border-emerald-800/40" : "bg-gray-50/25 dark:bg-[#0F172A]/40 border border-gray-150/60 dark:border-gray-800/80")}>
                   <div className="flex justify-between items-start">
                     <div className="flex-1 mr-2">
                       <input
@@ -733,8 +748,8 @@ export function MRDetailModal({ requirement, onClose, onRequirementUpdate }) {
                     </div>
                     <div className="flex flex-col items-end gap-2 shrink-0">
                       <StatusBadge status={item.status} />
-                      {isItemPOCreated(item, req) && (
-                        <div className="flex items-center gap-1 px-2 py-0.5 bg-blue-50 dark:bg-blue-950/30 text-blue-600 dark:text-blue-400 rounded-lg border border-blue-200/60 dark:border-blue-800/40 shrink-0">
+                      {isItemPOCreated(item) && (
+                        <div className="flex items-center gap-1 px-2 py-0.5 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400 rounded-lg border border-emerald-200/60 dark:border-emerald-800/40 shrink-0">
                           <CheckCircle className="w-3 h-3 shrink-0" />
                           <span className="text-[9px] font-black tracking-widest">PO Created</span>
                         </div>

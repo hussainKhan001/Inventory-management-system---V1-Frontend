@@ -108,14 +108,20 @@ const Quotations = /* @__PURE__ */ __name(() => {
   }, "isQuoteLocked");
   const hasLinkedPO = /* @__PURE__ */ __name((quote) => {
     return pos.some(
-      (po) => po.mrId === quote.mrId && (po.supplier === quote.supplierName || po.supplier === quote.supplierId) && po.status !== "rejected" && // If we have category info in PO, check it too (future proofing)
-      (!quote.category || po.category === quote.category)
+      (po) =>
+        po.mrId === quote.mrId &&
+        !["Rejected", "Cancelled", "Blocked"].includes(po.status) &&
+        (!quote.category || !po.workType || po.workType === quote.category)
     );
   }, "hasLinkedPO");
   const handleStatusUpdate = /* @__PURE__ */ __name(async (id, status, approvedItems) => {
     try {
       const quote = quotations.find((q) => q.id === id);
       if (!quote) return;
+      if (status === "Rejected" && hasLinkedPO(quote)) {
+        toast.error("Cannot reject: A Purchase Order is already linked to this quotation.");
+        return;
+      }
       let itemsToApprove = approvedItems;
       if (status === "Approved" && !itemsToApprove) {
         itemsToApprove = quote.items.map((item) => item.materialName);
@@ -357,7 +363,7 @@ const Quotations = /* @__PURE__ */ __name(() => {
                                         <CheckCircle className="w-4 h-4" />
                                         Approve
                                       </button>}
-                                    {q.status === "Approved" && hasPermission("REJECT_QUOTATION") && <button
+                                    {q.status === "Approved" && hasPermission("REJECT_QUOTATION") && !hasLinkedPO(q) && <button
         onClick={(e) => {
           e.stopPropagation();
           handleStatusUpdate(q.id, "Rejected");
@@ -428,7 +434,7 @@ const Quotations = /* @__PURE__ */ __name(() => {
         /* Primary — right side */
       }
               <div className="flex items-center gap-2 ml-auto flex-wrap">
-                {selectedQuotation.status !== "Rejected" && hasPermission("REJECT_QUOTATION") && <button
+                {selectedQuotation.status !== "Rejected" && hasPermission("REJECT_QUOTATION") && !hasLinkedPO(selectedQuotation) && <button
         onClick={() => handleStatusUpdate(selectedQuotation.id, "Rejected")}
         className="flex items-center gap-1.5 px-4 py-2 rounded-xl border border-red-200 dark:border-red-700/60 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 text-xs font-bold hover:bg-red-100 dark:hover:bg-red-900/30 transition-all"
       >

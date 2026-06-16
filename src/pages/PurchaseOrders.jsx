@@ -57,7 +57,7 @@ import {
   isNewItem,
 } from "../utils";
 
-import { generatePOPDF } from "../utils/pdfGenerator";
+import { generatePOPDF, generatePOPDFBlob } from "../utils/pdfGenerator";
 
 import { cn } from "../lib/utils";
 
@@ -1154,7 +1154,8 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
       unloadingGstType: newPO.unloadingGstType,
     };
     try {
-      await addPO(po);
+      const createdPO = await addPO(po);
+      const actualPO = createdPO || po;
       toast.success("Purchase Order created successfully");
       setModal(false);
       setNewPO(initialPO);
@@ -1173,6 +1174,21 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
         .get("pos/occupied-mrs")
         .then((res) => setOccupiedMRs(res.data || []))
         .catch(() => setOccupiedMRs([]));
+
+      // Generate PDF and send to Slack (fire-and-forget, doesn't block UI)
+      try {
+        const supplierObj = suppliers.find(
+          (s) => s.name === actualPO.supplier || s.id === actualPO.supplier
+        );
+        const pdfBlob = generatePOPDFBlob(actualPO, supplierObj, settings);
+        const form = new FormData();
+        form.append("pdf", pdfBlob, `${actualPO.id}.pdf`);
+        api.post(`pos/${actualPO.id}/pdf-slack`, form).catch((err) =>
+          console.warn("[PDF-Slack] Upload failed:", err)
+        );
+      } catch (pdfErr) {
+        console.warn("[PDF-Slack] Generation failed:", pdfErr);
+      }
     } catch (error) {
       toast.error(`Failed to create PO: ${error.message}`);
     }

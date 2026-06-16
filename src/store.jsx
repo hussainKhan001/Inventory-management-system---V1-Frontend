@@ -754,8 +754,9 @@ const AppProvider = /* @__PURE__ */ __name(({ children }) => {
   const addPO = /* @__PURE__ */ __name(async (data) => {
     setActionLoading(true);
     try {
-      await api.post("pos", data);
+      const res = await api.post("pos", data);
       await fetchResource("pos");
+      return res.data;
     } finally {
       setActionLoading(false);
     }

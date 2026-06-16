@@ -34,7 +34,8 @@ const StockCheck = /* @__PURE__ */ __name(() => {
         id: `AUDIT-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
         date: (/* @__PURE__ */ new Date()).toISOString(),
         category,
-        items: auditItems
+        items: auditItems,
+        status: hasShortage ? "Pending Approval" : "Completed"
       });
       if (hasShortage) {
         toast.success("Audit submitted. Shortage detected, awaiting PM approval.", { duration: 6e3 });
