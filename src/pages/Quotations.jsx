@@ -100,19 +100,17 @@ const Quotations = /* @__PURE__ */ __name(() => {
       setSelectedApprovedItems([]);
     }
   }, [selectedQuotation]);
-  const isQuoteLocked = /* @__PURE__ */ __name((quote) => {
-    const mr = materialRequirements.find((m) => m.id === quote.mrId);
-    if (!mr) return false;
-    if (mr.approvals?.some((a) => a.quotationId === quote.id)) return true;
-    return mr.approvedQuotationId === quote.id;
-  }, "isQuoteLocked");
   const hasLinkedPO = /* @__PURE__ */ __name((quote) => {
-    return pos.some(
-      (po) =>
-        po.mrId === quote.mrId &&
-        !["Rejected", "Cancelled", "Blocked"].includes(po.status) &&
-        (!quote.category || !po.workType || po.workType === quote.category)
-    );
+    const quoteSupplierLower = (quote.supplierName || "").toLowerCase();
+    return pos.some((po) => {
+      if (po.mrId !== quote.mrId) return false;
+      if (["Rejected", "Cancelled", "Blocked"].includes(po.status)) return false;
+      if (quote.category && po.workType && po.workType !== quote.category) return false;
+      // po.supplier is a supplier ID — resolve to name for comparison
+      const poSupplier = suppliers.find(s => s.id === po.supplier || s._id === po.supplier);
+      const poSupplierLower = (poSupplier?.companyName || poSupplier?.name || po.supplier || "").toLowerCase();
+      return poSupplierLower === quoteSupplierLower;
+    });
   }, "hasLinkedPO");
   const handleStatusUpdate = /* @__PURE__ */ __name(async (id, status, approvedItems) => {
     try {
@@ -338,9 +336,9 @@ const Quotations = /* @__PURE__ */ __name(() => {
                                 </div>
 
                                  <div className="flex gap-2 relative z-10">
-                                    {isQuoteLocked(q) && <div className="absolute -top-12 left-0 right-0 p-2 bg-amber-50 dark:bg-amber-900/20 border border-amber-100 dark:border-amber-800 rounded-lg flex items-center gap-2 z-20">
+                                    {hasLinkedPO(q) && <div className="absolute -top-12 left-0 right-0 p-2 bg-amber-50 dark:bg-amber-900/20 border border-amber-100 dark:border-amber-800 rounded-lg flex items-center gap-2 z-20">
                                         <AlertTriangle className="w-3 h-3 text-amber-500" />
-                                        <span className="text-[9px] font-bold text-amber-700 dark:text-amber-400">Locked: Approved for MR</span>
+                                        <span className="text-[9px] font-bold text-amber-700 dark:text-amber-400">Locked: PO Created</span>
                                       </div>}
                                     {hasPermission("VIEW_QUOTATION_DETAILS") && <button
         onClick={(e) => {

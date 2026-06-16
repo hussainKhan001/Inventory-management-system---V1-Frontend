@@ -940,47 +940,46 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
   );
 
   const mrOptions = React.useMemo(() => {
-    if (occupiedMRs === null) return [];
-
-    const occupied = new Set(
-      occupiedMRs.map((o) => `${o.mrId}|${o.workType || "General"}`),
+    // Resolve po.supplier (ID) → lowercase name for reliable matching
+    const supplierNameById = new Map(
+      (suppliers || []).map(s => [
+        s.id || s._id || "",
+        (s.companyName || s.name || "").toLowerCase(),
+      ])
     );
 
-    const isOccupied = (mrId, category) =>
-      occupied.has(`${mrId}|${category}`) ||
-      (occupied.has(`${mrId}|General`) && category === "General");
+    // Build set of mrId|category|supplierNameLower combos that already have an active PO
+    const poedCombos = new Set(
+      (pos || [])
+        .filter(p => !["Rejected", "Cancelled", "Blocked"].includes(p.status))
+        .map(p => {
+          const sName = supplierNameById.get(p.supplier) || (p.supplier || "").toLowerCase();
+          return `${p.mrId}|${p.workType || "General"}|${sName}`;
+        })
+    );
 
     const list = [];
     (materialRequirements || []).forEach((m) => {
-      if (
-        m &&
-        (m.status === "Approved by AGM" ||
-          m.status === "Approved by Store" ||
-          m.status === "Quotation Phase")
-      ) {
-        if (m.approvals && m.approvals.length > 0) {
-          m.approvals.forEach((app) => {
-            const category = app.category || "General";
-            if (!isOccupied(m.id, category) && !app.poCreated) {
-              list.push({
-                label: `${m.mrNumber || m.id} - ${m.project} (${category}) - ${app.supplierName}`,
-                value: `${m.id}|${category}|${app.quotationId}`,
-              });
-            }
+      if (m && m.status === "Approved by AGM") {
+        const approvedQuotes = (quotations || []).filter(
+          (q) => q.mrId === m.id && q.status === "Approved",
+        );
+
+        approvedQuotes.forEach((q) => {
+          const category = q.category || "General";
+          const sNameLower = (q.supplierName || "").toLowerCase();
+          // Skip if a PO already exists for this MR + category + supplier
+          if (poedCombos.has(`${m.id}|${category}|${sNameLower}`)) return;
+          list.push({
+            label: `${m.mrNumber || m.id} - ${m.project} (${category}) - ${q.supplierName}`,
+            value: `${m.id}|${category}|${q.id}`,
           });
-        } else if (m.approvedQuotationId) {
-          if (!isOccupied(m.id, "General")) {
-            list.push({
-              label: `${m.mrNumber || m.id} - ${m.project} (Legacy)`,
-              value: `${m.id}|General|${m.approvedQuotationId}`,
-            });
-          }
-        }
+        });
       }
     });
 
     return list;
-  }, [materialRequirements, occupiedMRs]);
+  }, [materialRequirements, quotations, pos, suppliers]);
 
   const normalizeTimelineType = /* @__PURE__ */ __name((type) => {
     if (type === "Progress") return "On Delivery";
