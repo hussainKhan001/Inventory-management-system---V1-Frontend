@@ -949,13 +949,12 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
     );
 
     // Build set of mrId|category|supplierNameLower combos that already have an active PO
+    // occupiedMRs comes from /pos/occupied-mrs API (all active POs from DB, not paginated)
     const poedCombos = new Set(
-      (pos || [])
-        .filter(p => !["Rejected", "Cancelled", "Blocked"].includes(p.status))
-        .map(p => {
-          const sName = supplierNameById.get(p.supplier) || (p.supplier || "").toLowerCase();
-          return `${p.mrId}|${p.workType || "General"}|${sName}`;
-        })
+      (occupiedMRs || []).map(p => {
+        const sName = supplierNameById.get(p.supplier) || (p.supplier || "").toLowerCase();
+        return `${p.mrId}|${p.workType || "General"}|${sName}`;
+      })
     );
 
     const list = [];
@@ -979,7 +978,7 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
     });
 
     return list;
-  }, [materialRequirements, quotations, pos, suppliers]);
+  }, [materialRequirements, quotations, occupiedMRs, suppliers]);
 
   const normalizeTimelineType = /* @__PURE__ */ __name((type) => {
     if (type === "Progress") return "On Delivery";
