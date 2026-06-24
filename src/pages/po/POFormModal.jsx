@@ -496,6 +496,9 @@ export function POFormModal({
               onChange={(e) => set({ deliveryDetails: { ...po.deliveryDetails, location: e.target.value } })} />
             <Field label="Receiver Name" value={po.deliveryDetails?.contactPerson || ""}
               onChange={(e) => set({ deliveryDetails: { ...po.deliveryDetails, contactPerson: e.target.value } })} />
+            <Field label="Receiver Contact" value={po.deliveryDetails?.contactPhone || ""}
+              onChange={(e) => set({ deliveryDetails: { ...po.deliveryDetails, contactPhone: e.target.value } })}
+              placeholder="Site contact number" />
             <Field label="Delivery Date / Period" value={po.deliveryDetails?.deliveryDate || ""}
               onChange={(e) => set({ deliveryDetails: { ...po.deliveryDetails, deliveryDate: e.target.value } })}
               placeholder="e.g. Within 7 days" />

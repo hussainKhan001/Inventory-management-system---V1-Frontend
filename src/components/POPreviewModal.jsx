@@ -438,8 +438,8 @@ const POPreviewModal = /* @__PURE__ */ __name(({
                   <div className="col-span-8 p-2 font-bold text-[11px] ">{po.deliveryDetails?.contactPerson || "NA"}</div>
                 </div>
                 <div className="grid grid-cols-12 min-h-[30px]">
-                  <div className="col-span-4 bg-[#1A365D]/5 dark:bg-[#1A365D]/20 p-2 font-bold text-[9px] text-gray-500 border-r border-[#1A365D] flex items-center">Contact Person</div>
-                  <div className="col-span-8 p-2 font-bold text-[11px] ">{po.vendorContact || "NA"}</div>
+                  <div className="col-span-4 bg-[#1A365D]/5 dark:bg-[#1A365D]/20 p-2 font-bold text-[9px] text-gray-500 border-r border-[#1A365D] flex items-center">Site Contact</div>
+                  <div className="col-span-8 p-2 font-bold text-[11px] ">{po.deliveryDetails?.contactPhone || "-"}</div>
                 </div>
               </div>
             </div>

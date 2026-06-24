@@ -283,7 +283,7 @@ const generatePOPDF = /* @__PURE__ */ __name((po, supplier, settings = {}, retur
       ["A/C HOLDER", po.vendorBankDetails?.accountHolder || "NA", "DELIVERY LOCATION", po.deliveryDetails?.location || "NA"],
       ["BANK NAME", po.vendorBankDetails?.bankName || "NA", "EXPECTED DATE", formatPrettyDate(po.deliveryDetails?.deliveryDate)],
       ["A/C NO.", safeStr(po.vendorBankDetails?.accountNo || supplier?.accountNumber || "NA"), "RECEIVER NAME", po.deliveryDetails?.contactPerson || "NA"],
-      ["BRANCH & IFSC", po.vendorBankDetails?.branchIFSC || "NA", "SITE CONTACT", po.vendorContact || "NA"]
+      ["BRANCH & IFSC", po.vendorBankDetails?.branchIFSC || "NA", "SITE CONTACT", po.deliveryDetails?.contactPhone || "-"]
     ],
     styles: { fontSize: 8.5, cellPadding: 1.5, lineColor: [220, 220, 220], lineWidth: 0.1 },
     columnStyles: {
