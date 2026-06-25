@@ -127,19 +127,17 @@ const PublicMaterialRequirement = /* @__PURE__ */ __name(() => {
     toast.dismiss("check-inv");
     const allInStock = checkedItems.length > 0 && checkedItems.every((i) => i.status === "In Stock");
     try {
-      const generatedId = `MR-PUB-TEMP-${Date.now()}`;
       const payload = {
         ...form,
         requesterName: form.requesterName === "Other" ? otherRequester : form.requesterName,
         project: form.project === "Other" ? otherProject : form.project,
         location: form.location || "",
-        id: generatedId,
         date: (/* @__PURE__ */ new Date()).toISOString(),
         status: allInStock ? "Approved by Store" : "Store Pending",
         items: checkedItems
       };
       const result = await submitPublicMaterialRequirement(payload);
-      setSubmittedId(result?.id || generatedId);
+      setSubmittedId(result?.id || "");
       setSubmitted(true);
     } catch (error) {
       console.error("Submission failed:", error);
