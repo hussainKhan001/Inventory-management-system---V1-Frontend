@@ -824,6 +824,7 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
       setNewPO({
         ...newPO,
         mrId: rawValue,
+        quotationId: approvedQuoteId || "",
         supplier:
           linkedSupplier?.id || linkedSupplier?._id || linkedSupplierId || "",
         project: mr?.project || "",
@@ -1114,6 +1115,7 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
       ...newPO,
       id: genId("PO", maxIdNum),
       mrId: newPO.mrId?.split("|")[0] || newPO.mrId, // Sanitize in case it's pipe-separated
+      quotationId: newPO.quotationId || "",
       project: newPO.project,
       workType: newPO.workType,
       supplier: newPO.supplier,

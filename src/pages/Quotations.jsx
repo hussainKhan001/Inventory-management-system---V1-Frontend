@@ -81,6 +81,13 @@ const Quotations = /* @__PURE__ */ __name(() => {
     fetchResource("material-requirements", 1, 1e3, true);
     fetchResource("pos", 1, 1e3, true);
     if (suppliers.length === 0) fetchResource("suppliers", 1, 1e3, true);
+    // Run migration once per session to link legacy POs to their source quotations
+    if (!sessionStorage.getItem("po-quotation-migration-v2-done")) {
+      api.post("pos/migrate-quotation-links", {}).then(() => {
+        sessionStorage.setItem("po-quotation-migration-v2-done", "1");
+        fetchResource("quotations", 1, 1e3, true);
+      }).catch(() => {});
+    }
   }, [fetchResource, debouncedSearch, startDate, endDate, filterCategory, filterSupplier, filterStatus, suppliers.length]);
   const [viewModal, setViewModal] = useState(false);
   const [editModal, setEditModal] = useState(false);
@@ -101,15 +108,27 @@ const Quotations = /* @__PURE__ */ __name(() => {
     }
   }, [selectedQuotation]);
   const hasLinkedPO = /* @__PURE__ */ __name((quote) => {
+    // Primary check: quotation has been directly linked to a PO by the backend
+    if (quote.linkedPoId) {
+      const linkedPo = pos.find(p => p.id === quote.linkedPoId);
+      // Linked PO may not be in paginated store yet — treat as locked if ID exists
+      if (!linkedPo) return true;
+      return !["Rejected", "Cancelled", "Blocked"].includes(linkedPo.status);
+    }
+    // Fallback for legacy quotations without linkedPoId: check by supplier+mrId+category
     const quoteSupplierLower = (quote.supplierName || "").toLowerCase();
     return pos.some((po) => {
       if (po.mrId !== quote.mrId) return false;
       if (["Rejected", "Cancelled", "Blocked"].includes(po.status)) return false;
+      if (po.quotationId) return po.quotationId === quote.id;
       if (quote.category && po.workType && po.workType !== quote.category) return false;
-      // po.supplier is a supplier ID — resolve to name for comparison
       const poSupplier = suppliers.find(s => s.id === po.supplier || s._id === po.supplier);
       const poSupplierLower = (poSupplier?.companyName || poSupplier?.name || po.supplier || "").toLowerCase();
-      return poSupplierLower === quoteSupplierLower;
+      if (poSupplierLower !== quoteSupplierLower) return false;
+      // If another quotation is already specifically linked to this PO, don't lock this one via fallback
+      const alreadyClaimed = quotations.some(q => q.id !== quote.id && q.linkedPoId === po.id);
+      if (alreadyClaimed) return false;
+      return true;
     });
   }, "hasLinkedPO");
   const handleStatusUpdate = /* @__PURE__ */ __name(async (id, status, approvedItems) => {
