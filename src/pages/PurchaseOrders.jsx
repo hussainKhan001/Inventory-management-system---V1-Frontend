@@ -1075,15 +1075,32 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
       itemsTotal + freightTotal + loadingTotal + unloadingTotal;
 
     const isAutoApproved = totalValue <= settings.poThreshold;
+    const bypassL1 = !!settings.bypassApprovals?.l1;
+    const bypassL2 = !!settings.bypassApprovals?.l2;
+    const bypassL3 = !!settings.bypassApprovals?.l3;
+    const allBypassed = bypassL1 && bypassL2 && bypassL3;
+
+    let poStatus, initL1, initL2, initL3;
+    if (isAutoApproved || allBypassed) {
+      poStatus = isAutoApproved ? "Approved" : "GRN Pending";
+      initL1 = initL2 = initL3 = "Approved";
+    } else if (bypassL1 && bypassL2) {
+      poStatus = "Pending L3"; initL1 = "Approved"; initL2 = "Approved"; initL3 = "Pending";
+    } else if (bypassL1) {
+      poStatus = "Pending L2"; initL1 = "Approved"; initL2 = "Pending"; initL3 = bypassL3 ? "Approved" : "Pending";
+    } else {
+      poStatus = "Pending L1"; initL1 = "Pending"; initL2 = bypassL2 ? "Approved" : "Pending"; initL3 = bypassL3 ? "Approved" : "Pending";
+    }
+
     if (isEditing && newPO.id) {
       try {
         await updatePO(newPO.id, {
           ...newPO,
           totalValue,
-          status: isAutoApproved ? "Approved" : "Pending L1",
-          approvalL1: isAutoApproved ? "Approved" : "Pending",
-          approvalL2: isAutoApproved ? "Approved" : "Pending",
-          approvalL3: isAutoApproved ? "Approved" : "Pending",
+          status: poStatus,
+          approvalL1: initL1,
+          approvalL2: initL2,
+          approvalL3: initL3,
           companyName: newPO.companyName,
           companyGst: newPO.companyGst,
           companyAddress: newPO.companyAddress,
@@ -1121,10 +1138,10 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
       supplier: newPO.supplier,
       items: newPO.items,
       totalValue,
-      status: isAutoApproved ? "Approved" : "Pending L1",
-      approvalL1: isAutoApproved ? "Approved" : "Pending",
-      approvalL2: isAutoApproved ? "Approved" : "Pending",
-      approvalL3: isAutoApproved ? "Approved" : "Pending",
+      status: poStatus,
+      approvalL1: initL1,
+      approvalL2: initL2,
+      approvalL3: initL3,
       justification: newPO.justification,
       createdBy: role,
       date: newPO.date || /* @__PURE__ */ new Date().toISOString(),
@@ -1211,10 +1228,15 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
   const handleApproveL1 = /* @__PURE__ */ __name(async (id) => {
     setProcessingId(`approve-${id}`);
     try {
+      const bl2 = !!settings.bypassApprovals?.l2;
+      const bl3 = !!settings.bypassApprovals?.l3;
+      const nextStatus = bl2 ? (bl3 ? "GRN Pending" : "Pending L3") : "Pending L2";
       const updateData = {
         approvalL1: "Approved",
-        status: "Pending L2",
         approvalL1At: /* @__PURE__ */ new Date().toISOString(),
+        status: nextStatus,
+        ...(bl2 ? { approvalL2: "Approved" } : {}),
+        ...(bl3 ? { approvalL3: "Approved" } : {}),
       };
       await updatePO(id, updateData);
       if (selectedPO) setSelectedPO({ ...selectedPO, ...updateData });
@@ -1229,10 +1251,13 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
   const handleApproveL2 = /* @__PURE__ */ __name(async (id) => {
     setProcessingId(`approve-${id}`);
     try {
+      const bl3 = !!settings.bypassApprovals?.l3;
+      const nextStatus = bl3 ? "GRN Pending" : "Pending L3";
       const updateData = {
         approvalL2: "Approved",
-        status: "Pending L3",
         approvalL2At: /* @__PURE__ */ new Date().toISOString(),
+        status: nextStatus,
+        ...(bl3 ? { approvalL3: "Approved" } : {}),
       };
       await updatePO(id, updateData);
       if (selectedPO) setSelectedPO({ ...selectedPO, ...updateData });

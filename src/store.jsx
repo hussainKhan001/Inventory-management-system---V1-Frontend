@@ -129,14 +129,16 @@ const AppProvider = /* @__PURE__ */ __name(({ children }) => {
       l1: "Akhilesh Singh",
       l2: "Jinesh Jain",
       l3: "Rahul Gupta"
-    }
+    },
+    bypassApprovals: { l1: false, l2: false, l3: false },
+    stores: []
   });
   const saveSettings = /* @__PURE__ */ __name(async (data) => {
     setActionLoading(true);
     try {
       const res = await api.putSimple("settings", data);
       const serverData = res.data || res;
-      setSettings((prev) => ({ ...prev, ...serverData, approvers: { ...prev.approvers, ...(serverData.approvers || {}) } }));
+      setSettings((prev) => ({ ...prev, ...serverData, approvers: { ...prev.approvers, ...(serverData.approvers || {}) }, bypassApprovals: { ...prev.bypassApprovals, ...(serverData.bypassApprovals || {}) }, stores: serverData.stores ?? prev.stores ?? [] }));
       toast.success("Settings saved successfully");
     } catch (error) {
       console.error("Failed to save settings:", error);
@@ -485,7 +487,9 @@ const AppProvider = /* @__PURE__ */ __name(({ children }) => {
                   l1: "Akhilesh Singh",
                   l2: "Jinesh Jain",
                   l3: "Rahul Gupta"
-                }
+                },
+                bypassApprovals: serverData.bypassApprovals ?? prev.bypassApprovals ?? { l1: false, l2: false, l3: false },
+                stores: serverData.stores ?? prev.stores ?? []
               };
               const isEmpty = !serverData.projects?.length && !serverData.requesters?.length && !serverData.categories?.length && !serverData.units?.length && !serverData.workTypes?.length && !serverData.companies?.length;
               if (resource === "settings" && isEmpty) {

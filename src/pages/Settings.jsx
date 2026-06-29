@@ -101,7 +101,8 @@ const SettingsPage = /* @__PURE__ */ __name(() => {
     requesters: "",
     categories: "",
     units: "",
-    workTypes: ""
+    workTypes: "",
+    stores: ""
   });
   const [newCompany, setNewCompany] = useState({ name: "", gstin: "", address: "" });
   const [editingCompanyIdx, setEditingCompanyIdx] = useState(null);
@@ -598,27 +599,66 @@ const SettingsPage = /* @__PURE__ */ __name(() => {
     onChange={(e) => isSuperAdmin && setSettings({ ...settings, approvers: { ...settings.approvers, purchaseCoord: e.target.value } })}
     disabled={!isSuperAdmin}
   />
-              <Field
+              {/* L1 */}
+              <div className="space-y-1.5">
+                <Field
     label="L1 Approver — AGM Purchase"
     placeholder="e.g. Akhilesh Singh"
     value={settings.approvers?.l1 || ""}
     onChange={(e) => isSuperAdmin && setSettings({ ...settings, approvers: { ...settings.approvers, l1: e.target.value } })}
     disabled={!isSuperAdmin}
   />
-              <Field
+                <label className="flex items-center justify-between px-1 cursor-pointer select-none">
+                  <span className="text-[11px] font-bold text-gray-500 dark:text-gray-400">Bypass L1 Approval</span>
+                  <button
+                    type="button"
+                    onClick={() => isSuperAdmin && setSettings({ ...settings, bypassApprovals: { ...settings.bypassApprovals, l1: !settings.bypassApprovals?.l1 } })}
+                    className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors duration-200 focus:outline-none ${settings.bypassApprovals?.l1 ? "bg-orange-500" : "bg-gray-300 dark:bg-gray-600"}`}
+                  >
+                    <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform duration-200 ${settings.bypassApprovals?.l1 ? "translate-x-4" : "translate-x-1"}`} />
+                  </button>
+                </label>
+              </div>
+              {/* L2 */}
+              <div className="space-y-1.5">
+                <Field
     label="L2 Approver — Project Head / Manager"
     placeholder="e.g. Jinesh Jain"
     value={settings.approvers?.l2 || ""}
     onChange={(e) => isSuperAdmin && setSettings({ ...settings, approvers: { ...settings.approvers, l2: e.target.value } })}
     disabled={!isSuperAdmin}
   />
-              <Field
+                <label className="flex items-center justify-between px-1 cursor-pointer select-none">
+                  <span className="text-[11px] font-bold text-gray-500 dark:text-gray-400">Bypass L2 Approval</span>
+                  <button
+                    type="button"
+                    onClick={() => isSuperAdmin && setSettings({ ...settings, bypassApprovals: { ...settings.bypassApprovals, l2: !settings.bypassApprovals?.l2 } })}
+                    className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors duration-200 focus:outline-none ${settings.bypassApprovals?.l2 ? "bg-orange-500" : "bg-gray-300 dark:bg-gray-600"}`}
+                  >
+                    <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform duration-200 ${settings.bypassApprovals?.l2 ? "translate-x-4" : "translate-x-1"}`} />
+                  </button>
+                </label>
+              </div>
+              {/* L3 */}
+              <div className="space-y-1.5">
+                <Field
     label="L3 Approver — Director (Final Sign-off)"
     placeholder="e.g. Rahul Gupta"
     value={settings.approvers?.l3 || ""}
     onChange={(e) => isSuperAdmin && setSettings({ ...settings, approvers: { ...settings.approvers, l3: e.target.value } })}
     disabled={!isSuperAdmin}
   />
+                <label className="flex items-center justify-between px-1 cursor-pointer select-none">
+                  <span className="text-[11px] font-bold text-gray-500 dark:text-gray-400">Bypass L3 Approval</span>
+                  <button
+                    type="button"
+                    onClick={() => isSuperAdmin && setSettings({ ...settings, bypassApprovals: { ...settings.bypassApprovals, l3: !settings.bypassApprovals?.l3 } })}
+                    className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors duration-200 focus:outline-none ${settings.bypassApprovals?.l3 ? "bg-orange-500" : "bg-gray-300 dark:bg-gray-600"}`}
+                  >
+                    <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform duration-200 ${settings.bypassApprovals?.l3 ? "translate-x-4" : "translate-x-1"}`} />
+                  </button>
+                </label>
+              </div>
             </div>
 
             <div className="p-5 rounded-2xl bg-orange-50/50 dark:bg-orange-900/10 border border-orange-100 dark:border-orange-900/20 self-start">
@@ -858,6 +898,16 @@ const SettingsPage = /* @__PURE__ */ __name(() => {
     onAdd={() => addItemToList("workTypes")}
     onRemove={(item) => removeItemFromList("workTypes", item)}
     items={settings.workTypes || []}
+    disabled={!isSuperAdmin}
+  />
+            <ListManager
+    title="Stores / Godowns"
+    icon={Building}
+    value={newItem.stores}
+    onChange={(val) => setNewItem({ ...newItem, stores: val })}
+    onAdd={() => addItemToList("stores")}
+    onRemove={(item) => removeItemFromList("stores", item)}
+    items={settings.stores || []}
     disabled={!isSuperAdmin}
   />
 

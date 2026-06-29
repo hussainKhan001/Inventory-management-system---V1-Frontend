@@ -28,7 +28,8 @@ const InventoryRow = memo(
     hasPermission,
     onView,
     onEdit,
-    onDelete
+    onDelete,
+    filterStore
   }) => {
     const cat = catalogueMap[item.sku];
     const isLow = cat && item.liveStock <= cat.minStock;
@@ -74,6 +75,30 @@ const InventoryRow = memo(
               Total: {item.totalQty || 0} {item.unit}
             </span>
           </div>
+        </Td>
+        <Td className="hidden md:table-cell px-3 py-2.5">
+          {filterStore ? (
+            <div className="flex flex-col items-start gap-0.5">
+              <span className="text-[15px] font-black text-indigo-500 leading-none">
+                {Number(item.locationStock?.[filterStore] || 0)}
+              </span>
+              <span className="text-[9px] text-gray-400 font-medium uppercase tracking-wide">{item.unit}</span>
+            </div>
+          ) : (() => {
+            const entries = Object.entries(item.locationStock || {}).filter(([, qty]) => Number(qty) > 0);
+            if (entries.length === 0) return <span className="text-[11px] text-gray-300 dark:text-gray-700">—</span>;
+            return (
+              <div className="flex flex-col gap-1">
+                {entries.map(([store, qty]) => (
+                  <div key={store} className="flex items-center gap-1.5">
+                    <div className="w-1.5 h-1.5 rounded-full bg-indigo-400 shrink-0" />
+                    <span className="text-[10px] text-gray-500 dark:text-gray-400 truncate flex-1 leading-none" title={store}>{store}</span>
+                    <span className="text-[10px] font-black text-indigo-500 shrink-0 tabular-nums">{Number(qty)}</span>
+                  </div>
+                ))}
+              </div>
+            );
+          })()}
         </Td>
         <Td className="hidden md:table-cell px-4 py-3 text-center">
           <StatusBadge status={item.condition} />
@@ -139,6 +164,16 @@ const InventoryRow = memo(
                 </div>
               </div>
             </div>
+            {Object.entries(item.locationStock || {}).filter(([, qty]) => Number(qty) > 0).length > 0 && (
+              <div className="flex flex-wrap gap-1.5 pt-1">
+                {Object.entries(item.locationStock || {}).filter(([, qty]) => Number(qty) > 0).map(([store, qty]) => (
+                  <span key={store} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-100 dark:border-indigo-800">
+                    <span className="text-[9px] text-gray-500 dark:text-gray-400">{store}:</span>
+                    <span className="text-[9px] font-bold text-indigo-500">{Number(qty)}</span>
+                  </span>
+                ))}
+              </div>
+            )}
             <div className="flex items-center justify-between pt-2">
               <p className="text-[11px] text-gray-500 dark:text-gray-400 font-medium">
                 {safeStr(item.category)}
@@ -194,15 +229,18 @@ const SearchControls = memo(({
   filterProject,
   setFilterProject,
   filterCategory,
-  setFilterCategory
+  setFilterCategory,
+  filterStore,
+  setFilterStore
 }) => {
   const { settings } = useAppStore();
-  const { projects: PROJECTS, categories: CATEGORIES } = settings;
-  const showClear = !!(search || filterProject || filterCategory);
+  const { projects: PROJECTS, categories: CATEGORIES, stores: STORES } = settings;
+  const showClear = !!(search || filterProject || filterCategory || filterStore);
   return <FilterRow showClear={showClear} onClearAll={() => {
     setSearch("");
     setFilterProject("");
     setFilterCategory("");
+    setFilterStore("");
   }}>
       <SearchFilter
     value={search}
@@ -221,6 +259,12 @@ const SearchControls = memo(({
     onChange={setFilterCategory}
     options={CATEGORIES}
     placeholder="All Categories"
+  />
+      <SelectFilter
+    value={filterStore}
+    onChange={setFilterStore}
+    options={STORES || []}
+    placeholder="All Godowns"
   />
     </FilterRow>;
 });
@@ -244,7 +288,7 @@ const Inventory = /* @__PURE__ */ __name(() => {
     settings,
     api
   } = useAppStore();
-  const { projects: PROJECTS, categories: CATEGORIES, units: UNITS } = settings;
+  const { projects: PROJECTS, categories: CATEGORIES, units: UNITS, stores: STORES } = settings;
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   useEffect(() => {
@@ -267,6 +311,7 @@ const Inventory = /* @__PURE__ */ __name(() => {
   const [isSkuManuallyEdited, setIsSkuManuallyEdited] = useState(false);
   const [filterProject, setFilterProject] = useState("");
   const [filterCategory, setFilterCategory] = useState("");
+  const [filterStore, setFilterStore] = useState("");
   const [newItem, setNewItem] = useState(INITIAL_ITEM);
   const [errors, setErrors] = useState({});
   useEffect(() => {
@@ -306,7 +351,7 @@ const Inventory = /* @__PURE__ */ __name(() => {
   const observerRef = useRef(null);
   useEffect(() => {
     setPage(1);
-  }, [debouncedSearch, filterProject, filterCategory]);
+  }, [debouncedSearch, filterProject, filterCategory, filterStore]);
   useEffect(() => {
     const isInitialLoad = inventory.length === 0;
     const filter = {};
@@ -315,6 +360,11 @@ const Inventory = /* @__PURE__ */ __name(() => {
     fetchResource("inventory", page, 50, !isInitialLoad || page > 1, debouncedSearch, Object.keys(filter).length > 0 ? filter : null, page > 1);
     fetchResource("catalogue", 1, 1e3);
   }, [fetchResource, debouncedSearch, filterProject, filterCategory, page]);
+  const filteredInventory = useMemo(() => {
+    if (!filterStore) return inventory;
+    return inventory.filter((item) => Number(item.locationStock?.[filterStore] || 0) > 0);
+  }, [inventory, filterStore]);
+
   const loadMore = useCallback(() => {
     if (inventoryPagination && page < inventoryPagination.pages && !loading && !actionLoading) {
       setPage((prev) => prev + 1);
@@ -330,7 +380,7 @@ const Inventory = /* @__PURE__ */ __name(() => {
     if (!data.condition) newErrors.condition = "Condition is required";
     if (data.openingStock < 0) newErrors.openingStock = "Cannot be negative";
     if (data.liveStock < 0) newErrors.liveStock = "Cannot be negative";
-    if (!data.sourceSite) newErrors.sourceSite = "Project name is required";
+    if (!data.sourceSite) newErrors.sourceSite = "Store / Godown is required";
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   }, "validateForm");
@@ -347,7 +397,10 @@ const Inventory = /* @__PURE__ */ __name(() => {
         ...newItem,
         availableQty: Math.max(0, liveStock - allocatedQty),
         totalQty: liveStock + issuedQty,
-        condition: newItem.condition.toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase())
+        condition: newItem.condition.toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase()),
+        ...(!isEditing && newItem.sourceSite && liveStock > 0
+          ? { locationStock: { [newItem.sourceSite]: liveStock } }
+          : {})
       };
       if (isEditing) {
         await updateInventory(newItem.sku, payload);
@@ -480,13 +533,15 @@ const Inventory = /* @__PURE__ */ __name(() => {
     setFilterProject={setFilterProject}
     filterCategory={filterCategory}
     setFilterCategory={setFilterCategory}
+    filterStore={filterStore}
+    setFilterStore={setFilterStore}
   />
       </div>
 
       <Card className="p-0 overflow-hidden border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 flex-1">
         <TableVirtuoso
     style={{ height: "calc(100vh - 280px)", minHeight: "500px" }}
-    data={inventory}
+    data={filteredInventory}
     endReached={loadMore}
     increaseViewportBy={300}
     fixedHeaderContent={() => {
@@ -507,8 +562,11 @@ const Inventory = /* @__PURE__ */ __name(() => {
                 <th className={cn(headerClass, "hidden md:table-cell w-[140px]")}>
                   Category
                 </th>
-                <th className={cn(headerClass, "hidden md:table-cell text-right w-[160px]")}>
+                <th className={cn(headerClass, "hidden md:table-cell text-right w-[150px]")}>
                   Stock (Avail | Alc | Isu)
+                </th>
+                <th className={cn(headerClass, "hidden md:table-cell w-[180px]")}>
+                  {filterStore ? filterStore : "Godown Stock"}
                 </th>
                 <th className={cn(headerClass, "hidden md:table-cell w-[100px] text-center")}>
                   Condition
@@ -526,9 +584,10 @@ const Inventory = /* @__PURE__ */ __name(() => {
       onView={onView}
       onEdit={onEdit}
       onDelete={onDelete}
+      filterStore={filterStore}
     />}
     components={{
-      Table: /* @__PURE__ */ __name((props) => <table {...props} className="w-full text-left border-collapse table-fixed min-w-[720px]" />, "Table"),
+      Table: /* @__PURE__ */ __name((props) => <table {...props} className="w-full text-left border-collapse table-fixed min-w-[900px]" />, "Table"),
       TableBody: React.forwardRef((props, ref) => <tbody {...props} ref={ref} className="divide-y divide-gray-200 dark:divide-gray-800" />),
       TableRow: /* @__PURE__ */ __name((props) => {
         return <Tr {...props} className={cn("cursor-pointer", props.className)} />;
@@ -544,8 +603,8 @@ const Inventory = /* @__PURE__ */ __name(() => {
                 </div>)}
           </div>}
         
-        {!loading && inventory.length === 0 && <div className="p-8 text-center text-gray-500 dark:text-gray-400">
-            No items found
+        {!loading && filteredInventory.length === 0 && <div className="p-8 text-center text-gray-500 dark:text-gray-400">
+            {filterStore ? `No items with stock at "${filterStore}"` : "No items found"}
           </div>}
       </Card>
 
@@ -740,10 +799,10 @@ const Inventory = /* @__PURE__ */ __name(() => {
 
             <div className="grid grid-cols-1 gap-4">
               <SField
-    label="Project Name"
+    label="Store / Godown *"
     value={newItem.sourceSite}
     onChange={(e) => setNewItem({ ...newItem, sourceSite: e.target.value })}
-    options={PROJECTS}
+    options={STORES || []}
     required
     error={errors.sourceSite}
   />

@@ -14,6 +14,7 @@ const INITIAL_TRANSACTION = {
   items: [],
   project: "",
   otherProjectName: "",
+  store: "",
   date: (/* @__PURE__ */ new Date()).toISOString(),
   status: "Confirmed",
   personName: "",
@@ -67,7 +68,7 @@ const TransactionsPage = /* @__PURE__ */ __name(({ type }) => {
     setActionLoading,
     api
   } = useAppStore();
-  const { projects: PROJECTS, categories: CATEGORIES, units: UNITS } = settings;
+  const { projects: PROJECTS, categories: CATEGORIES, units: UNITS, stores: STORES } = settings;
   const resourceMap = {
     "Inward": "inward",
     "Outward": "outward",
@@ -238,6 +239,7 @@ const TransactionsPage = /* @__PURE__ */ __name(({ type }) => {
     if (data2.project === "Other" && !data2.otherProjectName) {
       newErrors.otherProjectName = "Project Name is required";
     }
+    if (!data2.store && !data2.type?.includes("Transfer")) newErrors.store = "Store / Godown is required";
     if (!data2.items || data2.items.length === 0) newErrors.items = "At least one item is required";
     data2.items?.forEach((item, index) => {
       if (!item.isMiscellaneous && !item.sku) newErrors[`item_${index}_sku`] = "Item selection required";
@@ -253,8 +255,8 @@ const TransactionsPage = /* @__PURE__ */ __name(({ type }) => {
     if (["Outward", "Outward Return", "Public Outward"].includes(data2.type)) {
       if (!data2.personName) newErrors.personName = "Person Name is required";
     }
-    if (["Transfer Inward", "Transfer Outward"].includes(data2.type)) {
-      if (!data2.destinationProject) newErrors.destinationProject = "Destination project is required";
+    if ((data2.type || "").includes("Transfer")) {
+      if (!data2.destinationProject) newErrors.destinationProject = "Destination store is required";
       if (!data2.gatePassNo) newErrors.gatePassNo = "Gate Pass No. is required";
     }
     setErrors(newErrors);
@@ -298,6 +300,9 @@ const TransactionsPage = /* @__PURE__ */ __name(({ type }) => {
           type: newTransaction.type,
           mrId: newTransaction.mrId,
           project: finalProject,
+          store: (newTransaction.type || "").includes("Transfer")
+            ? ((newTransaction.type || "").includes("Outward") ? finalProject : newTransaction.destinationProject)
+            : newTransaction.store,
           date: newTransaction.date,
           status: "Confirmed",
           challanNo: newTransaction.challanNo,
@@ -365,14 +370,13 @@ const TransactionsPage = /* @__PURE__ */ __name(({ type }) => {
       setNewTransaction((prev) => ({
         ...prev,
         gatePassNo: outwardTrx.gatePassNo,
-        project: outwardTrx.destinationProject || outwardTrx.project,
-        // For Inward, the source's destination is our site
+        project: outwardTrx.project,                         // Source store = where goods came FROM
+        destinationProject: outwardTrx.destinationProject,   // Destination store = where we're receiving
         sourceSite: outwardTrx.project,
         items: outwardTrx.items.map((it) => ({
           ...it,
           outwardQty: it.qty,
           qty: it.qty,
-          // Default to full outward qty
           variance: 0
         }))
       }));
@@ -1331,25 +1335,33 @@ const TransactionsPage = /* @__PURE__ */ __name(({ type }) => {
     error={errors.mrId}
   />}
                 <SField
-    label={["Transfer Inward", "Transfer Outward"].includes(newTransaction.type || "") ? "Source Site *" : "Project *"}
+    label={(newTransaction.type || "").includes("Transfer") ? "Source Store / Godown *" : "Project *"}
     value={newTransaction.project}
     onChange={(e) => setNewTransaction((prev) => ({ ...prev, project: e.target.value }))}
-    options={PROJECTS}
+    options={(newTransaction.type || "").includes("Transfer") ? (STORES || []) : PROJECTS}
     required
     error={errors.project}
   />
-                {newTransaction.project === "Other" && <Field
+                {!(newTransaction.type || "").includes("Transfer") && <SField
+    label="Store / Godown *"
+    value={newTransaction.store}
+    onChange={(e) => setNewTransaction((prev) => ({ ...prev, store: e.target.value }))}
+    options={STORES || []}
+    required
+    error={errors.store}
+  />}
+                {newTransaction.project === "Other" && !(newTransaction.type || "").includes("Transfer") && <Field
     label="Other Project Name *"
     value={newTransaction.otherProjectName}
     onChange={(e) => setNewTransaction((prev) => ({ ...prev, otherProjectName: e.target.value }))}
     required
     error={errors.otherProjectName}
   />}
-                {["Transfer Inward", "Transfer Outward"].includes(newTransaction.type || "") ? <SField
-    label="Destination Site *"
+                {(newTransaction.type || "").includes("Transfer") ? <SField
+    label="Destination Store / Godown *"
     value={newTransaction.destinationProject}
     onChange={(e) => setNewTransaction((prev) => ({ ...prev, destinationProject: e.target.value }))}
-    options={PROJECTS}
+    options={STORES || []}
     required
     error={errors.destinationProject}
   /> : ["Inward", "Inward Return", "Public Inward"].includes(newTransaction.type || "") ? <SField
