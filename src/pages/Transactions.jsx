@@ -77,7 +77,9 @@ const TransactionsPage = /* @__PURE__ */ __name(({ type }) => {
     "Public Inward": "inward",
     "Public Outward": "outward",
     "Transfer Inward": "inward",
-    "Transfer Outward": "outward"
+    "Transfer Outward": "outward",
+    "Public Transfer Inward": "inward",
+    "Public Transfer Outward": "outward"
   };
   const resourceName = type ? resourceMap[type] || "transactions" : "transactions";
   const [searchQuery, setSearchQuery] = useState("");
@@ -222,7 +224,7 @@ const TransactionsPage = /* @__PURE__ */ __name(({ type }) => {
     return () => clearTimeout(delayDebounceFn);
   }, [modal, searchItemVal, fetchResource]);
   useEffect(() => {
-    if (modal && newTransaction.type === "Transfer Inward") {
+    if (modal && (newTransaction.type === "Transfer Inward" || newTransaction.type === "Public Transfer Inward")) {
       fetchAvailableGatePasses();
     }
   }, [modal, newTransaction.type, fetchAvailableGatePasses]);
@@ -331,7 +333,7 @@ const TransactionsPage = /* @__PURE__ */ __name(({ type }) => {
             condition: (item.condition || newTransaction.condition || "Good").toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase())
           }))
         };
-        if (["Inward", "Inward Return", "Transfer Inward"].includes(newTransaction.type || "")) {
+        if (["Inward", "Inward Return", "Transfer Inward", "Public Transfer Inward"].includes(newTransaction.type || "")) {
           payload.supplier = newTransaction.supplier;
           payload.vendor = newTransaction.supplier;
         }
@@ -339,9 +341,9 @@ const TransactionsPage = /* @__PURE__ */ __name(({ type }) => {
           payload.sourceSite = newTransaction.project;
           payload.handoverFrom = newTransaction.personName;
         }
-        if (newTransaction.type === "Inward" || newTransaction.type === "Transfer Inward") {
+        if (newTransaction.type === "Inward" || newTransaction.type === "Transfer Inward" || newTransaction.type === "Public Transfer Inward") {
           await addInward(payload);
-        } else if (newTransaction.type === "Outward" || newTransaction.type === "Transfer Outward") {
+        } else if (newTransaction.type === "Outward" || newTransaction.type === "Transfer Outward" || newTransaction.type === "Public Transfer Outward") {
           await addOutward(payload);
         } else if (newTransaction.type === "Inward Return") {
           await addInwardReturn(payload);
@@ -508,7 +510,7 @@ const TransactionsPage = /* @__PURE__ */ __name(({ type }) => {
       label={type === "Inward" ? "Manual Inward" : type === "Outward" ? "Issue Material" : `New ${type || "Transaction"}`}
       icon={Plus}
       onClick={() => {
-        const isTransferOutward = (type || "Inward") === "Transfer Outward";
+        const isTransferOutward = (type || "Inward") === "Transfer Outward" || (type || "Inward") === "Public Transfer Outward";
         setNewTransaction({
           ...INITIAL_TRANSACTION,
           type: type || "Inward",
@@ -1385,7 +1387,7 @@ const TransactionsPage = /* @__PURE__ */ __name(({ type }) => {
     required
     error={errors.challanNo}
   />}
-                {newTransaction.type === "Transfer Inward" && <SearchSelect
+                {(newTransaction.type === "Transfer Inward" || newTransaction.type === "Public Transfer Inward") && <SearchSelect
     label="Choose Gate Pass *"
     value={newTransaction.gatePassNo}
     onChange={handleGatePassSelect}
@@ -1397,7 +1399,7 @@ const TransactionsPage = /* @__PURE__ */ __name(({ type }) => {
     placeholder="Select an outward gate pass..."
     error={errors.gatePassNo}
   />}
-                {newTransaction.type === "Transfer Outward" && <Field
+                {(newTransaction.type === "Transfer Outward" || newTransaction.type === "Public Transfer Outward") && <Field
     label="Gate Pass No. (Auto-generated) *"
     value={newTransaction.gatePassNo}
     readOnly
@@ -1420,14 +1422,14 @@ const TransactionsPage = /* @__PURE__ */ __name(({ type }) => {
                     {formatDateTime(newTransaction.date)}
                   </p>
                 </div>
-                {["Inward Return", "Outward Return", "Transfer Outward"].includes(newTransaction.type || "") && <SField
+                {["Inward Return", "Outward Return", "Transfer Outward", "Public Transfer Outward"].includes(newTransaction.type || "") && <SField
     label="Condition *"
     value={newTransaction.condition}
     onChange={(e) => setNewTransaction((prev) => ({ ...prev, condition: e.target.value }))}
     options={["New", "Good", "Needs Repair", "Damaged", "Old"]}
     required
   />}
-                {["Outward", "Outward Return", "Public Outward", "Transfer Inward", "Transfer Outward"].includes(newTransaction.type || "") && <Field
+                {["Outward", "Outward Return", "Public Outward", "Transfer Inward", "Transfer Outward", "Public Transfer Inward", "Public Transfer Outward"].includes(newTransaction.type || "") && <Field
     label="Specific Location / Site *"
     value={newTransaction.location}
     onChange={(e) => setNewTransaction((prev) => ({ ...prev, location: e.target.value }))}
@@ -1449,8 +1451,8 @@ const TransactionsPage = /* @__PURE__ */ __name(({ type }) => {
     onUploadingChange={setIsUploading}
     error={errors.challanPhotos}
   />}
-                {["Outward", "Outward Return", "Public Outward", "Transfer Inward", "Transfer Outward"].includes(newTransaction.type || "") && <MultipleImageUpload
-    label={["Transfer Inward", "Transfer Outward"].includes(newTransaction.type || "") ? "Gate Pass Photo *" : "Person Photo (Handover) *"}
+                {["Outward", "Outward Return", "Public Outward", "Transfer Inward", "Transfer Outward", "Public Transfer Inward", "Public Transfer Outward"].includes(newTransaction.type || "") && <MultipleImageUpload
+    label={["Transfer Inward", "Transfer Outward", "Public Transfer Inward", "Public Transfer Outward"].includes(newTransaction.type || "") ? "Gate Pass Photo *" : "Person Photo (Handover) *"}
     id="personPhotos"
     values={newTransaction.personPhotos || []}
     onUpload={(urls) => {
@@ -1490,7 +1492,7 @@ const TransactionsPage = /* @__PURE__ */ __name(({ type }) => {
     small
     onClick={addItem}
   />
-                  {["Transfer Inward", "Transfer Outward"].includes(newTransaction.type || "") && <Btn
+                  {["Transfer Inward", "Transfer Outward", "Public Transfer Inward", "Public Transfer Outward"].includes(newTransaction.type || "") && <Btn
     label="Misc Item"
     icon={Plus}
     outline
@@ -1761,7 +1763,7 @@ const TransactionsPage = /* @__PURE__ */ __name(({ type }) => {
               </div>
               <div>
                 <p className="text-[10px] font-bold text-gray-500 tracking-wider">
-                  {["Transfer Inward", "Transfer Outward", "Transfer"].includes(selectedTransaction.type || "") ? "Source Site" : "Project"}
+                  {(selectedTransaction.type || "").includes("Transfer") ? "Source Site" : "Project"}
                 </p>
                 <p className="text-[13px] font-bold text-gray-900 dark:text-white break-words">{selectedTransaction.project}</p>
               </div>
@@ -1807,12 +1809,12 @@ const TransactionsPage = /* @__PURE__ */ __name(({ type }) => {
                   </div>}
                 <div>
                   <p className="text-[10px] font-bold text-gray-500 tracking-wider">
-                    {["Transfer Inward", "Transfer Outward", "Transfer"].includes(selectedTransaction.type || "") ? "Gate Pass Details" : "Person Details"}
+                    {(selectedTransaction.type || "").includes("Transfer") ? "Gate Pass Details" : "Person Details"}
                   </p>
                   <p className="text-[15px] font-bold text-gray-900 dark:text-white">{selectedTransaction.personName || selectedTransaction.handoverTo || "N/A"}</p>
                   {selectedTransaction.location && <p className="text-[12px] text-gray-500 mt-1">Location: <span className="font-bold text-gray-700 dark:text-gray-300">{selectedTransaction.location}</span></p>}
                   <p className="text-[12px] text-gray-500">
-                    {["Transfer Inward", "Transfer Outward", "Transfer"].includes(selectedTransaction.type || "") ? "Gate pass photo attached for verification" : "Person photo attached for verification"}
+                    {(selectedTransaction.type || "").includes("Transfer") ? "Gate pass photo attached for verification" : "Person photo attached for verification"}
                   </p>
                 </div>
               </div>}
@@ -1825,14 +1827,14 @@ const TransactionsPage = /* @__PURE__ */ __name(({ type }) => {
                   <thead className="bg-gray-50 dark:bg-gray-800/50">
                     <tr>
                       <th className="px-4 py-3 text-[11px] font-bold text-gray-500 dark:text-gray-400 tracking-wider">Item</th>
-                      {selectedTransaction.type === "Transfer Inward" && <th className="px-4 py-3 text-[11px] font-bold text-gray-500 dark:text-gray-400 tracking-wider text-right">Outward Qty</th>}
+                      {(selectedTransaction.type === "Transfer Inward" || selectedTransaction.type === "Public Transfer Inward") && <th className="px-4 py-3 text-[11px] font-bold text-gray-500 dark:text-gray-400 tracking-wider text-right">Outward Qty</th>}
                       <th className="px-4 py-3 text-[11px] font-bold text-gray-500 dark:text-gray-400 tracking-wider text-right">
-                        {selectedTransaction.type === "Transfer Inward" ? "Received Qty" : "Qty"}
+                        {(selectedTransaction.type === "Transfer Inward" || selectedTransaction.type === "Public Transfer Inward") ? "Received Qty" : "Qty"}
                       </th>
-                      {selectedTransaction.type === "Transfer Inward" && <th className="px-4 py-3 text-[11px] font-bold text-gray-500 dark:text-gray-400 tracking-wider text-right">Variance</th>}
+                      {(selectedTransaction.type === "Transfer Inward" || selectedTransaction.type === "Public Transfer Inward") && <th className="px-4 py-3 text-[11px] font-bold text-gray-500 dark:text-gray-400 tracking-wider text-right">Variance</th>}
                       <th className="px-4 py-3 text-[11px] font-bold text-gray-500 dark:text-gray-400 tracking-wider">Details</th>
                       <th className="px-4 py-3 text-[11px] font-bold text-gray-500 dark:text-gray-400 tracking-wider">
-                        {["Transfer Inward", "Transfer Outward", "Transfer"].includes(selectedTransaction.type || "") ? "Gate Pass Photo" : "Challan / Invoice Photos"}
+                        {(selectedTransaction.type || "").includes("Transfer") ? "Gate Pass Photo" : "Challan / Invoice Photos"}
                       </th>
                       <th className="px-4 py-3 text-[11px] font-bold text-gray-500 dark:text-gray-400 tracking-wider">Remarks</th>
                       <th className="px-4 py-3 text-[11px] font-bold text-gray-500 dark:text-gray-400 tracking-wider">Item Photos (Multiple)</th>
@@ -1864,13 +1866,13 @@ const TransactionsPage = /* @__PURE__ */ __name(({ type }) => {
                             </div>
                           </div>
                         </td>
-                        {selectedTransaction.type === "Transfer Inward" && <td className="px-4 py-3 text-[13px] font-bold text-right text-blue-500 font-mono">
+                        {(selectedTransaction.type === "Transfer Inward" || selectedTransaction.type === "Public Transfer Inward") && <td className="px-4 py-3 text-[13px] font-bold text-right text-blue-500 font-mono">
                             {item.outwardQty || 0} {item.unit}
                           </td>}
                         <td className="px-4 py-3 text-[13px] font-bold text-right text-gray-900 dark:text-white whitespace-nowrap">
                           {item.qty} {item.unit}
                         </td>
-                        {selectedTransaction.type === "Transfer Inward" && <td className={`px-4 py-3 text-[13px] font-bold text-right font-mono ${item.variance === 0 ? "text-emerald-600" : "text-red-500"}`}>
+                        {(selectedTransaction.type === "Transfer Inward" || selectedTransaction.type === "Public Transfer Inward") && <td className={`px-4 py-3 text-[13px] font-bold text-right font-mono ${item.variance === 0 ? "text-emerald-600" : "text-red-500"}`}>
                             {item.variance || 0} {item.unit}
                           </td>}
                         <td className="px-4 py-3">

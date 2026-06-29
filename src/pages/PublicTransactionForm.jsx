@@ -10,6 +10,7 @@ const PublicTransactionForm = /* @__PURE__ */ __name(({ type }) => {
   const {
     fetchPublicInventory,
     fetchPublicCatalogue,
+    fetchPublicGatePasses,
     submitPublicInward,
     submitPublicOutward,
     submitPublicInwardReturn,
@@ -22,8 +23,9 @@ const PublicTransactionForm = /* @__PURE__ */ __name(({ type }) => {
   useEffect(() => {
     fetchResource("public-settings");
   }, [fetchResource]);
-  const { projects: PROJECTS, categories: CATEGORIES, units: UNITS } = settings;
+  const { projects: PROJECTS, categories: CATEGORIES, units: UNITS, stores: STORES } = settings;
   const [inventory, setInventory] = useState([]);
+  const [availableGatePasses, setAvailableGatePasses] = useState([]);
   const [loadingField, setLoadingField] = useState(null);
   const [form, setForm] = useState({
     project: "",
@@ -106,13 +108,20 @@ const PublicTransactionForm = /* @__PURE__ */ __name(({ type }) => {
       date: (/* @__PURE__ */ new Date()).toISOString(),
       items: [],
       personPhotoUrl: "",
+      personPhotos: [],
       challanNo: "",
       challanPhotos: [],
-      condition: "New"
+      condition: "New",
+      gatePassNo: type === "Public Transfer Outward" ? genId("GP", Date.now() % 1e3) : ""
     });
     setErrors({});
     setSubmitted(false);
   }, [type]);
+  useEffect(() => {
+    if (type === "Public Transfer Inward") {
+      fetchPublicGatePasses().then(setAvailableGatePasses).catch(() => {});
+    }
+  }, [type, fetchPublicGatePasses]);
   useEffect(() => {
     if (Object.keys(errors).length > 0) {
       scrollToError();
@@ -308,6 +317,7 @@ const PublicTransactionForm = /* @__PURE__ */ __name(({ type }) => {
         setSubmitted(false);
         setForm({
           project: "",
+          otherProjectName: "",
           category: "Construction",
           supplier: "",
           personName: "",
@@ -319,7 +329,8 @@ const PublicTransactionForm = /* @__PURE__ */ __name(({ type }) => {
           personPhotos: [],
           challanNo: "",
           challanPhotos: [],
-          condition: "New"
+          condition: "New",
+          gatePassNo: type === "Public Transfer Outward" ? genId("GP", Date.now() % 1e3) : ""
         });
         setErrors({});
       }}
@@ -345,37 +356,28 @@ const PublicTransactionForm = /* @__PURE__ */ __name(({ type }) => {
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <SField
-    label={type.includes("Transfer") ? "Source Site *" : "Project *"}
+    label={type.includes("Transfer") ? "Source Store / Godown *" : "Project *"}
     value={form.project}
     onChange={(e) => setForm((prev) => ({ ...prev, project: e.target.value }))}
-    options={PROJECTS}
+    options={type.includes("Transfer") ? (STORES || []) : PROJECTS}
     required
     error={errors.project}
   />
-                {form.project === "Other" && <Field
+                {!type.includes("Transfer") && form.project === "Other" && <Field
     label="Other Project Name *"
     value={form.otherProjectName}
     onChange={(e) => setForm((prev) => ({ ...prev, otherProjectName: e.target.value }))}
     required
     error={errors.otherProjectName}
   />}
-                {type.includes("Transfer") ? <>
-                    <SField
-    label="Destination Site *"
+                {type.includes("Transfer") ? <SField
+    label="Destination Store / Godown *"
     value={form.destinationProject}
     onChange={(e) => setForm((prev) => ({ ...prev, destinationProject: e.target.value }))}
-    options={PROJECTS}
+    options={STORES || []}
     required
     error={errors.destinationProject}
-  />
-                    {form.destinationProject === "Other" && <Field
-    label="Other Destination Project Name *"
-    value={form.otherDestProjectName}
-    onChange={(e) => setForm((prev) => ({ ...prev, otherDestProjectName: e.target.value }))}
-    required
-    error={errors.otherDestProjectName}
-  />}
-                  </> : type.includes("Inward Return") ? <Field
+  /> : type.includes("Inward Return") ? <Field
     label="Supplier Name *"
     value={form.supplier}
     onChange={(e) => setForm((prev) => ({ ...prev, supplier: e.target.value }))}
@@ -397,32 +399,55 @@ const PublicTransactionForm = /* @__PURE__ */ __name(({ type }) => {
     required
     disabled
   />
-                {(type.includes("Inward Return") || type.includes("Outward Return") || type.includes("Transfer Outward")) && <SField
+                {(type.includes("Inward Return") || type.includes("Outward Return") || type === "Public Transfer Outward") && <SField
     label="Condition *"
     value={form.condition}
     onChange={(e) => setForm((prev) => ({ ...prev, condition: e.target.value }))}
     options={["New", "Good", "Needs Repair", "Damaged"]}
     required
   />}
-                {type.includes("Transfer") && <Field
-    label="Gate Pass No. *"
-    value={form.gatePassNo}
-    onChange={(e) => setForm((prev) => ({ ...prev, gatePassNo: e.target.value }))}
-    required
-    error={errors.gatePassNo}
-  />}
               </div>
 
-              {type.includes("Transfer") && <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {type.includes("Transfer") && <>
+                {type === "Public Transfer Outward" ? <Field
+    label="Gate Pass No. (Auto-generated) *"
+    value={form.gatePassNo}
+    readOnly
+    required
+    error={errors.gatePassNo}
+    helperText="Unique Gate Pass ID for this transfer"
+  /> : <SearchSelect
+    label="Choose Gate Pass *"
+    value={form.gatePassNo}
+    onChange={(val) => {
+      const gp = availableGatePasses.find((g) => g.gatePassNo === val);
+      if (gp) {
+        setForm((prev) => ({
+          ...prev,
+          gatePassNo: gp.gatePassNo,
+          project: gp.project,
+          destinationProject: gp.destinationProject,
+          items: (gp.items || []).map((it) => ({ ...it, outwardQty: it.qty, qty: it.qty, variance: 0 }))
+        }));
+      }
+    }}
+    options={availableGatePasses.map((gp) => ({
+      value: gp.gatePassNo || "",
+      label: `${gp.gatePassNo} (${gp.project} → ${gp.destinationProject})`,
+      subLabel: `Items: ${gp.items?.length || 0} | Date: ${new Date(gp.date).toLocaleDateString()}`
+    }))}
+    placeholder="Select an outward gate pass..."
+    error={errors.gatePassNo}
+  />}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <Field
-    label="Location / Site *"
+    label="Specific Location / Site *"
     value={form.location}
     onChange={(e) => setForm((prev) => ({ ...prev, location: e.target.value }))}
     required
     error={errors.location}
   />
-                  <div className="md:col-span-1">
-                    <MultipleImageUpload
+                  <MultipleImageUpload
     id="gate-pass-photos-upload"
     label="Gate Pass Photo *"
     onUpload={(urls) => setForm((prev) => {
@@ -448,8 +473,8 @@ const PublicTransactionForm = /* @__PURE__ */ __name(({ type }) => {
     onUploadingChange={setIsUploading}
     error={errors.personPhotos}
   />
-                  </div>
-                </div>}
+                </div>
+              </>}
 
               {type.includes("Inward Return") && <>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

@@ -1239,6 +1239,10 @@ const AppProvider = /* @__PURE__ */ __name(({ children }) => {
     const res = await api.get("public/material-requirements", params);
     return res.data;
   }, []);
+  const fetchPublicGatePasses = useCallback(async () => {
+    const res = await api.get("public/gate-passes/available");
+    return res.data;
+  }, []);
   const submitPublicInward = /* @__PURE__ */ __name(async (data) => {
     setActionLoading(true);
     try {
@@ -1541,6 +1545,7 @@ const AppProvider = /* @__PURE__ */ __name(({ children }) => {
       fetchPublicCatalogue,
       fetchPublicSuppliers,
       fetchPublicMRs,
+      fetchPublicGatePasses,
       submitPublicInward,
       submitPublicOutward,
       submitPublicInwardReturn,

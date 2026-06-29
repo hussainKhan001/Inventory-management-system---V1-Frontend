@@ -749,7 +749,6 @@ const SuperAdmin = /* @__PURE__ */ __name(() => {
         {[
     { id: "overview", label: "Overview", icon: FileText },
     { id: "overrides", label: "Override Approvals", icon: ShieldAlert },
-    { id: "settings", label: "System Settings", icon: Settings },
     { id: "users", label: "User & Role Mgmt", icon: Users }
   ].map((t) => <button
     key={t.id}
