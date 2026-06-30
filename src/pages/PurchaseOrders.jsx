@@ -263,7 +263,6 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
       endDate,
     );
     fetchResource("suppliers", 1, 1e3, true);
-    fetchResource("grn", 1, 500, true);
     fetchResource("inventory", 1, 1e3, true);
     fetchResource("catalogue", 1, 1e3, true);
     fetchResource(

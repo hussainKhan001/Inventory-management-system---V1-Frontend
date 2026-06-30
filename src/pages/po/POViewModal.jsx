@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from "react";
 import { X, Download, Ban, RotateCcw, AlertTriangle } from "lucide-react";
+import { api } from "../../services/api";
 import { Modal, Btn, StatusBadge } from "../../components/ui";
 import { DatePicker } from "../../components/ui/DatePicker";
 import { useAppStore } from "../../store";
@@ -78,34 +79,36 @@ export function POViewModal({ po, onClose, onApproveL1, onApproveL2, onApproveL3
     .filter((vIdx) => filteredPCItems.some((it) => (it.rates?.[vIdx] || 0) > 0));
   const hasComparison = filteredPCItems.length > 0 && relevantVendorIndices.length > 0;
 
-  const handleClosePOClick = () => {
-    const receivedBySku = {};
-    (grns || []).filter((g) => g.poId === po.id).forEach((g) => {
-      (g.items || []).forEach((item) => { receivedBySku[item.sku] = (receivedBySku[item.sku] || 0) + (item.received || 0); });
-      (g.receipts || []).forEach((r) => {
-        (r.items || []).forEach((item) => { receivedBySku[item.sku] = (receivedBySku[item.sku] || 0) + (item.received || 0); });
+  const handleClosePOClick = async () => {
+    try {
+      // Direct focused fetch — only this PO's GRNs, not the whole collection
+      const res = await api.get("grn", { filter: JSON.stringify({ poId: po.id }), limit: 20 });
+      const poGRNs = (res?.data || []);
+      const receivedBySku = {};
+      poGRNs.forEach((g) => {
+        (g.items || []).forEach((item) => { receivedBySku[item.sku] = (receivedBySku[item.sku] || 0) + (item.received || 0); });
+        (g.receipts || []).forEach((r) => {
+          (r.items || []).forEach((item) => { receivedBySku[item.sku] = (receivedBySku[item.sku] || 0) + (item.received || 0); });
+        });
       });
-    });
-    const remaining = (po.items || [])
-      .map((i) => ({ ...i, remaining: Math.max(0, (i.qty || 0) - (receivedBySku[i.sku] || 0)) }))
-      .filter((i) => i.remaining > 0);
-    setClosingItems(remaining);
-    setShowCloseConfirm(true);
+      const remaining = (po.items || [])
+        .map((i) => ({ ...i, remaining: Math.max(0, (i.qty || 0) - (receivedBySku[i.sku] || 0)) }))
+        .filter((i) => i.remaining > 0);
+      setClosingItems(remaining);
+      setShowCloseConfirm(true);
+    } catch (e) {
+      toast.error("Failed to load GRN data");
+    }
   };
 
   const handleConfirmClosePO = async () => {
-    // Compute the received items to persist on the PO
-    const receivedBySku = {};
-    (grns || []).filter((g) => g.poId === po.id).forEach((g) => {
-      (g.items || []).forEach((item) => { receivedBySku[item.sku] = (receivedBySku[item.sku] || 0) + (item.received || 0); });
-      (g.receipts || []).forEach((r) => {
-        (r.items || []).forEach((item) => { receivedBySku[item.sku] = (receivedBySku[item.sku] || 0) + (item.received || 0); });
-      });
-    });
-    const closedItems = (po.items || [])
-      .map((i) => { const q = receivedBySku[i.sku] || 0; return { ...i, qty: q, total: q * i.rate, totalWithGST: q * i.rate * (1 + (i.gstPct || 18) / 100) }; })
-      .filter((i) => i.qty > 0);
     try {
+      // Build closedItems from the already-loaded closingItems (remaining shows what's cancelled; received = original - remaining)
+      const receivedBySku = {};
+      closingItems.forEach((i) => { receivedBySku[i.sku] = i.remaining; }); // remaining = qty being cancelled
+      const closedItems = (po.items || [])
+        .map((i) => { const q = Math.max(0, (i.qty || 0) - (receivedBySku[i.sku] || 0)); return { ...i, qty: q, total: q * i.rate, totalWithGST: q * i.rate * (1 + (i.gstPct || 18) / 100) }; })
+        .filter((i) => i.qty > 0);
       await updatePO(po.id, { status: "PO Closed", closedItems });
       toast.success("PO closed — remaining items cancelled");
       setShowCloseConfirm(false);
