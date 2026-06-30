@@ -1,4 +1,4 @@
-var __defProp = Object.defineProperty;
+﻿var __defProp = Object.defineProperty;
 
 var __name = (target, value) =>
   __defProp(target, "name", { value, configurable: true });
@@ -36,6 +36,7 @@ import {
   TrendingUp,
   BarChart2,
   ChevronUp,
+  Ban,
 } from "lucide-react";
 
 import {
@@ -85,6 +86,7 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
     deletePO,
     role,
     inventory,
+    grns,
     suppliers,
     settings,
     loading,
@@ -158,6 +160,7 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
   const [selectedPO, setSelectedPO] = useState(null);
 
   const [deleteConfirm, setDeleteConfirm] = useState(null);
+  const [closePOConfirm, setClosePOConfirm] = useState(null);
 
   const [isEditing, setIsEditing] = useState(false);
 
@@ -260,6 +263,7 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
       endDate,
     );
     fetchResource("suppliers", 1, 1e3, true);
+    fetchResource("grn", 1, 500, true);
     fetchResource("inventory", 1, 1e3, true);
     fetchResource("catalogue", 1, 1e3, true);
     fetchResource(
@@ -1360,6 +1364,28 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
     }
   }, "handleCancel");
 
+  const getEffectivePO = /* @__PURE__ */ __name((po) => {
+    if (!po || po.status !== "PO Closed") return po;
+    // Use stored closedItems if available
+    const adjustedItems = (po.closedItems && po.closedItems.length > 0) ? po.closedItems : (() => {
+      const receivedBySku = {};
+      (grns || []).filter((g) => g.poId === po.id).forEach((g) => {
+        (g.items || []).forEach((item) => { receivedBySku[item.sku] = (receivedBySku[item.sku] || 0) + (item.received || 0); });
+        (g.receipts || []).forEach((r) => {
+          (r.items || []).forEach((item) => { receivedBySku[item.sku] = (receivedBySku[item.sku] || 0) + (item.received || 0); });
+        });
+      });
+      return (po.items || [])
+        .map((i) => ({ ...i, qty: receivedBySku[i.sku] || 0, total: (receivedBySku[i.sku] || 0) * i.rate, totalWithGST: (receivedBySku[i.sku] || 0) * i.rate * (1 + (i.gstPct || 18) / 100) }))
+        .filter((i) => i.qty > 0);
+    })();
+    const newTotal = adjustedItems.reduce((s, it) => {
+      if ((it.gstType || "Exclusive") === "Exclusive") return s + it.qty * it.rate * (1 + (it.gstPct || 18) / 100);
+      return s + it.qty * it.rate;
+    }, 0);
+    return { ...po, items: adjustedItems, totalValue: newTotal };
+  }, "getEffectivePO");
+
   const downloadPDF = /* @__PURE__ */ __name((po) => {
     const supplier = suppliers.find(
       (s) =>
@@ -1368,7 +1394,7 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
         (s.companyName || s.name || "").toLowerCase() ===
           (po.supplier || "").toLowerCase(),
     );
-    generatePOPDF(po, supplier, settings);
+    generatePOPDF(getEffectivePO(po), supplier, settings);
   }, "downloadPDF");
 
   const addItem = /* @__PURE__ */ __name((invItem) => {
@@ -1504,6 +1530,38 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
       inv.liveStock > 0
     );
   });
+
+  if (modal) {
+    return (
+      <POFormModal
+        po={newPO}
+        isEditing={isEditing}
+        errors={errors}
+        autoLinking={autoLinking}
+        onClose={() => {
+          setModal(false);
+          setErrors({});
+          setNewPO(initialPO);
+          setIsEditing(false);
+          fetchResource("inventory", 1, 50, true);
+        }}
+        onSubmit={handleCreate}
+        onChange={setNewPO}
+        onMrChange={handleMrChange}
+        addItem={addItem}
+        updateItem={updateItem}
+        removeItem={removeItem}
+        linkToInventory={linkToInventory}
+        quickAddToInventory={quickAddToInventory}
+        companyOptions={companyOptions}
+        mrOptions={mrOptions}
+        vendorOptions={vendorOptions}
+        COMPANIES={COMPANIES}
+        CATEGORIES={CATEGORIES}
+        UNITS={UNITS}
+      />
+    );
+  }
 
   return (
     <div className="space-y-4 sm:space-y-6">
@@ -1825,6 +1883,32 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
                         </button>{" "}
                       </>
                     )}{" "}
+                    {po.status === "GRN Variance" && hasPermission("EDIT_PURCHASE_ORDER") && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const receivedBySku = {};
+                          grns.filter((g) => g.poId === po.id).forEach((g) => {
+                            (g.items || []).forEach((item) => {
+                              receivedBySku[item.sku] = (receivedBySku[item.sku] || 0) + (item.received || 0);
+                            });
+                            (g.receipts || []).forEach((r) => {
+                              (r.items || []).forEach((item) => {
+                                receivedBySku[item.sku] = (receivedBySku[item.sku] || 0) + (item.received || 0);
+                              });
+                            });
+                          });
+                          const remainingItems = (po.items || [])
+                            .map((i) => ({ ...i, remaining: Math.max(0, (i.qty || 0) - (receivedBySku[i.sku] || 0)) }))
+                            .filter((i) => i.remaining > 0);
+                          setClosePOConfirm({ po, remainingItems });
+                        }}
+                        className="p-1.5 text-amber-400 hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-900/20 rounded-md transition-all"
+                        title="Cancel Remaining Items"
+                      >
+                        <Ban className="w-4 h-4" />
+                      </button>
+                    )}{" "}
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
@@ -2036,35 +2120,6 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
           Loading more POs...{" "}
         </div>
       )}{" "}
-      {modal && (
-        <POFormModal
-          po={newPO}
-          isEditing={isEditing}
-          errors={errors}
-          autoLinking={autoLinking}
-          onClose={() => {
-            setModal(false);
-            setErrors({});
-            setNewPO(initialPO);
-            setIsEditing(false);
-            fetchResource("inventory", 1, 50, true);
-          }}
-          onSubmit={handleCreate}
-          onChange={setNewPO}
-          onMrChange={handleMrChange}
-          addItem={addItem}
-          updateItem={updateItem}
-          removeItem={removeItem}
-          linkToInventory={linkToInventory}
-          quickAddToInventory={quickAddToInventory}
-          companyOptions={companyOptions}
-          mrOptions={mrOptions}
-          vendorOptions={vendorOptions}
-          COMPANIES={COMPANIES}
-          CATEGORIES={CATEGORIES}
-          UNITS={UNITS}
-        />
-      )}
       {viewModal && selectedPO && (
         <POViewModal
           po={selectedPO}
@@ -2090,7 +2145,82 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
           loading={actionLoading}
         />
       )}{" "}
-      {/* Cancel PO Modal â€” AGM fills in a cancellation reason */}{" "}
+      {closePOConfirm && (
+        <Modal
+          title="Cancel Remaining Items & Close PO"
+          onClose={() => setClosePOConfirm(null)}
+          footer={
+            <div className="flex justify-end gap-3 w-full">
+              <Btn label="Go Back" outline onClick={() => setClosePOConfirm(null)} />
+              <Btn
+                label="Confirm & Close PO"
+                color="red"
+                icon={Ban}
+                loading={actionLoading}
+                onClick={async () => {
+                  try {
+                    const receivedBySku = {};
+                    grns.filter((g) => g.poId === closePOConfirm.po.id).forEach((g) => {
+                      (g.items || []).forEach((item) => { receivedBySku[item.sku] = (receivedBySku[item.sku] || 0) + (item.received || 0); });
+                      (g.receipts || []).forEach((r) => {
+                        (r.items || []).forEach((item) => { receivedBySku[item.sku] = (receivedBySku[item.sku] || 0) + (item.received || 0); });
+                      });
+                    });
+                    const closedItems = (closePOConfirm.po.items || [])
+                      .map((i) => { const q = receivedBySku[i.sku] || 0; return { ...i, qty: q, total: q * i.rate, totalWithGST: q * i.rate * (1 + (i.gstPct || 18) / 100) }; })
+                      .filter((i) => i.qty > 0);
+                    await updatePO(closePOConfirm.po.id, { status: "PO Closed", closedItems });
+                    setClosePOConfirm(null);
+                    toast.success("PO closed — remaining items cancelled");
+                  } catch (err) {
+                    toast.error(err.message || "Failed to close PO");
+                  }
+                }}
+              />
+            </div>
+          }
+        >
+          <div className="space-y-4">
+            <div className="flex items-start gap-3 p-4 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 rounded-xl">
+              <AlertTriangle className="w-5 h-5 text-amber-500 mt-0.5 flex-shrink-0" />
+              <div>
+                <p className="text-sm font-bold text-amber-700 dark:text-amber-400">
+                  These items have not been received
+                </p>
+                <p className="text-xs text-amber-600 dark:text-amber-500 mt-1">
+                  Closing this PO will cancel the outstanding quantities below. This cannot be undone.
+                </p>
+              </div>
+            </div>
+            <div className="overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700">
+              <table className="w-full text-sm">
+                <thead className="bg-gray-50 dark:bg-gray-800">
+                  <tr>
+                    <th className="text-left px-3 py-2 text-xs font-semibold text-gray-500">Item</th>
+                    <th className="text-right px-3 py-2 text-xs font-semibold text-gray-500">Ordered</th>
+                    <th className="text-right px-3 py-2 text-xs font-semibold text-gray-500">Received</th>
+                    <th className="text-right px-3 py-2 text-xs font-semibold text-gray-500">Cancelling</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+                  {closePOConfirm.remainingItems.map((item, idx) => (
+                    <tr key={idx} className="bg-white dark:bg-gray-900">
+                      <td className="px-3 py-2 text-gray-800 dark:text-gray-200">
+                        <div className="font-medium">{item.itemName || item.name || item.sku}</div>
+                        <div className="text-xs text-gray-400">{item.sku}</div>
+                      </td>
+                      <td className="px-3 py-2 text-right text-gray-600 dark:text-gray-400">{item.qty} {item.unit}</td>
+                      <td className="px-3 py-2 text-right text-gray-600 dark:text-gray-400">{(item.qty || 0) - item.remaining} {item.unit}</td>
+                      <td className="px-3 py-2 text-right font-semibold text-red-500">{item.remaining} {item.unit}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </Modal>
+      )}{" "}
+      {/* Cancel PO Modal â€" AGM fills in a cancellation reason */}{" "}
       {cancelModal && (
         <Modal
           title="Cancel Purchase Order"

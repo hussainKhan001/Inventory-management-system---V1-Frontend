@@ -121,7 +121,7 @@ const DatePicker = React.memo(({
   }, "clearDate");
   const cells = buildCalendarCells(viewYear, viewMonth);
   return <div className={cn(small ? "mb-2" : "mb-4", className)} ref={containerRef}>
-      {label && <label className={cn("block font-bold text-gray-700 dark:text-gray-300 mb-1.5", small ? "text-[9px]" : "text-[13px] font-semibold mb-2")}>
+      {label && <label className={cn("block font-semibold text-gray-700 dark:text-gray-200 mb-1.5", small ? "text-[10px]" : "text-sm")}>
           {label} {required && <span className="text-red-500">*</span>}
         </label>}
       

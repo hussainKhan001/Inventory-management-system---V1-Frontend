@@ -65,7 +65,7 @@ const StatusBadge = React.memo(({ status, accountStatus, small }) => {
     color = "red";
   else if (["PO RAISED", "ALLOCATED", "STAGED", "PROCESSING"].includes(normalizedStatus))
     color = "blue";
-  else if (["NEEDS REPAIR", "REPAIR", "OLD", "GRN VARIANCE"].includes(normalizedStatus))
+  else if (["NEEDS REPAIR", "REPAIR", "OLD", "GRN VARIANCE", "OVER-RECEIVED"].includes(normalizedStatus))
     color = "orange";
   else if (["DRAFT"].includes(normalizedStatus))
     color = "purple";
@@ -173,7 +173,7 @@ const Field = React.memo(({
     />;
   }
   return <div className={cn(small ? "mb-2" : "mb-4", className)}>
-      {label && <label className={cn("block font-bold text-gray-700 dark:text-gray-300 mb-1.5", small ? "text-[9px]" : "text-[13px] font-semibold mb-2")}>
+      {label && <label className={cn("block font-semibold text-gray-700 dark:text-gray-200 mb-1.5", small ? "text-[10px]" : "text-sm")}>
           {label} {required && <span className="text-red-500">*</span>}
         </label>}
       <div className="relative">
@@ -182,13 +182,19 @@ const Field = React.memo(({
     type={type}
     value={value === void 0 || value === null || typeof value === "number" && isNaN(value) ? "" : value}
     onChange={onChange}
+    onBlur={(e) => {
+      if (typeof value === "string" && e.target.value !== e.target.value.trim() && onChange) {
+        onChange({ ...e, target: { ...e.target, value: e.target.value.trim() } });
+      }
+      if (props.onBlur) props.onBlur(e);
+    }}
     placeholder={placeholder}
     disabled={disabled}
     list={list}
     {...props}
     className={cn(
-      "w-full bg-white dark:bg-transparent border border-gray-300 dark:border-gray-600 hover:border-gray-300 dark:hover:border-gray-700 rounded-md text-[#1A1A2E] dark:text-[#F1F5F9] transition-all duration-200 focus:outline-none focus:border-[#F97316] focus:ring-4 focus:ring-[#F97316]/20 disabled:bg-gray-50 dark:disabled:bg-gray-900 disabled:text-gray-500 shadow-xs",
-      small ? "px-3 py-1.5 text-[12px]" : "px-4 py-2 h-[40px] text-[13px]",
+      "w-full bg-white dark:bg-[#1E293B] border border-gray-300 dark:border-gray-600 hover:border-gray-400 dark:hover:border-gray-500 rounded-lg text-gray-900 dark:text-gray-100 placeholder:text-gray-400 dark:placeholder:text-gray-500 transition-all duration-200 focus:outline-none focus:border-[#F97316] focus:ring-4 focus:ring-[#F97316]/20 disabled:bg-gray-100 dark:disabled:bg-gray-800 disabled:text-gray-400 disabled:cursor-not-allowed",
+      small ? "px-3 py-1.5 text-xs min-h-[34px]" : "px-4 py-2.5 text-sm min-h-[44px]",
       Icon ? "pl-10" : "",
       error && "border-red-500 focus:border-red-500 focus:ring-red-500/10"
     )}
@@ -203,8 +209,8 @@ const Field = React.memo(({
               </option>;
   })}
         </datalist>}
-      {helperText && !error && <p className="text-[10px] text-gray-500 dark:text-gray-400 mt-1 font-medium">{helperText}</p>}
-      {error && <p className="text-[11px] text-red-500 mt-1 font-medium">{error}</p>}
+      {helperText && !error && <p className="text-xs text-gray-500 dark:text-gray-400 mt-1.5">{helperText}</p>}
+      {error && <p className="text-xs text-red-500 mt-1.5 font-medium">{error}</p>}
     </div>;
 });
 import { DatePicker as DatePicker2 } from "./ui/DatePicker";
@@ -246,26 +252,26 @@ const SField = React.memo(({
   }, [options]);
   const selectedOption = normalizedOptions.find((o) => String(o.value) === String(value));
   return <div className={cn(small ? "mb-2" : "mb-4", isOpen ? "relative z-[100]" : "relative", className)} ref={containerRef}>
-      {label && <label className={cn("block font-bold text-gray-700 dark:text-gray-300 mb-1.5", small ? "text-[9px]" : "text-[13px] font-semibold mb-2")}>
+      {label && <label className={cn("block font-semibold text-gray-700 dark:text-gray-200 mb-1.5", small ? "text-[10px]" : "text-sm")}>
           {label} {required && <span className="text-red-500">*</span>}
         </label>}
-      
+
       <div className="relative group">
         <div
     onClick={() => {
       if (!disabled) setIsOpen(!isOpen);
     }}
     className={cn(
-      "w-full bg-white dark:bg-transparent border rounded-md text-[#1A1A2E] dark:text-[#F1F5F9] transition-all duration-200 focus:outline-none flex items-center justify-between cursor-pointer shadow-xs",
-      small ? "pl-3 pr-2 py-1.5 min-h-[32px] text-[12px]" : "pl-4 pr-3 py-2 min-h-[40px] text-[13px]",
+      "w-full bg-white dark:bg-[#1E293B] border rounded-lg text-gray-900 dark:text-gray-100 transition-all duration-200 flex items-center justify-between cursor-pointer",
+      small ? "pl-3 pr-2 py-1.5 min-h-[34px] text-xs" : "pl-4 pr-3 py-2.5 min-h-[44px] text-sm",
       error && "border-red-500 ring-4 ring-red-500/10",
-      isOpen ? "border-[#F97316] ring-4 ring-[#F97316]/20" : "border-gray-300 dark:border-gray-600 hover:border-gray-300 dark:hover:border-gray-700",
-      disabled && "opacity-50 cursor-not-allowed bg-gray-50 dark:bg-gray-900 hover:border-gray-300 dark:hover:border-gray-800",
+      isOpen ? "border-[#F97316] ring-4 ring-[#F97316]/20" : "border-gray-300 dark:border-gray-600 hover:border-gray-400 dark:hover:border-gray-500",
+      disabled && "opacity-50 cursor-not-allowed bg-gray-100 dark:bg-gray-800 hover:border-gray-300 dark:hover:border-gray-700",
       className
     )}
     {...props}
   >
-          <span className={cn("truncate", !selectedOption && "text-gray-500 dark:text-gray-400")}>
+          <span className={cn("truncate", !selectedOption && "text-gray-400 dark:text-gray-500")}>
             {selectedOption ? selectedOption.label : placeholder || "Select..."}
           </span>
           <svg className={cn("w-4 h-4 transition-transform duration-200 shrink-0 ml-2", isOpen ? "transform rotate-180 text-[#F97316]" : "text-gray-400 group-hover:text-[#F97316]")} fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -275,22 +281,24 @@ const SField = React.memo(({
 
         <AnimatePresence>
           {isOpen && <motion.div
-    initial={{ opacity: 0, y: -10 }}
+    initial={{ opacity: 0, y: -8 }}
     animate={{ opacity: 1, y: 0 }}
-    exit={{ opacity: 0, y: -10 }}
-    transition={{ duration: 0.15 }}
-    className="absolute z-[60] w-full min-w-[160px] top-[calc(100%+8px)] left-0 bg-white dark:bg-[#1E293B] border border-gray-200 dark:border-gray-700/80 rounded-md shadow-xl dark:shadow-2xl dark:shadow-black/60 overflow-hidden py-1"
+    exit={{ opacity: 0, y: -8 }}
+    transition={{ duration: 0.12 }}
+    className="absolute z-[60] w-full min-w-[160px] top-[calc(100%+6px)] left-0 bg-white dark:bg-[#1E293B] border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl dark:shadow-2xl dark:shadow-black/60 overflow-hidden py-1"
   >
               <div className="max-h-60 overflow-y-auto overscroll-contain custom-scrollbar">
-                {normalizedOptions.length === 0 ? <div className="px-4 py-2 text-[13px] text-gray-500 italic">No options</div> : <>
+                {normalizedOptions.length === 0
+                  ? <div className="px-4 py-3 text-sm text-gray-400 italic">No options</div>
+                  : <>
                     <div
     onClick={() => {
       onChange?.({ target: { value: "", name: props.name } });
       setIsOpen(false);
     }}
     className={cn(
-      "px-4 py-2 text-[13px] cursor-pointer transition-colors",
-      !value ? "bg-[#F97316]/10 text-[#F97316] font-medium" : "text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-white/5"
+      "px-4 py-2.5 text-sm cursor-pointer transition-colors",
+      !value ? "bg-[#F97316]/10 text-[#F97316] font-semibold" : "text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-white/5"
     )}
   >
                       {placeholder || "Select..."}
@@ -302,8 +310,8 @@ const SField = React.memo(({
       setIsOpen(false);
     }}
     className={cn(
-      "px-4 py-2 text-[13px] cursor-pointer transition-colors flex items-center justify-between",
-      String(value) === String(opt.value) ? "bg-[#F97316]/10 text-[#F97316] font-medium" : "text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-white/5"
+      "px-4 py-2.5 text-sm cursor-pointer transition-colors flex items-center justify-between",
+      String(value) === String(opt.value) ? "bg-[#F97316]/10 text-[#F97316] font-semibold" : "text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-white/5"
     )}
   >
                         <span className="truncate">{opt.label}</span>
@@ -314,11 +322,11 @@ const SField = React.memo(({
         </AnimatePresence>
       </div>
 
-      {helperText && !error && <p className="text-[10px] text-gray-500 dark:text-gray-400 mt-1 font-medium">{helperText}</p>}
-      {error && <p className="text-[11px] text-red-500 mt-1 font-medium">{error}</p>}
+      {helperText && !error && <p className="text-xs text-gray-500 dark:text-gray-400 mt-1.5">{helperText}</p>}
+      {error && <p className="text-xs text-red-500 mt-1.5 font-medium">{error}</p>}
     </div>;
 });
-const Modal = /* @__PURE__ */ __name(({ title, onClose, wide, extraWide, ultraWide, children, footer, className }) => <motion.div
+const Modal = /* @__PURE__ */ __name(({ title, subtitle, icon: Icon, onClose, wide, extraWide, ultraWide, children, footer, className }) => <motion.div
   initial={{ opacity: 0 }}
   animate={{ opacity: 1 }}
   className="fixed inset-0 z-[80] flex justify-end bg-[#0F172A]/60 backdrop-blur-sm"
@@ -331,16 +339,24 @@ const Modal = /* @__PURE__ */ __name(({ title, onClose, wide, extraWide, ultraWi
   animate={{ x: 0 }}
   transition={{ type: "spring", damping: 30, stiffness: 300 }}
   className={cn(
-    "bg-white dark:bg-gray-800 h-full shadow-2xl flex flex-col border-l border-gray-100 dark:border-gray-700/50 transition-colors duration-200",
+    "bg-white dark:bg-[#0F172A] h-full shadow-2xl flex flex-col border-l border-gray-100 dark:border-gray-700/40 transition-colors duration-200",
     ultraWide ? "w-full max-w-6xl" : extraWide ? "w-full max-w-4xl" : wide ? "w-full max-w-2xl" : "w-full max-w-md",
     className
   )}
 >
-      <div className="flex items-center justify-between px-4 sm:px-6 py-4 border-b border-gray-100 dark:border-gray-700/50 bg-gray-50/50 dark:bg-gray-800/50 shrink-0">
-        <h2 className="text-[15px] sm:text-base font-bold text-gray-900 dark:text-white truncate pr-4">{title}</h2>
+      <div className="flex items-center justify-between px-4 sm:px-6 py-4 border-b border-gray-100 dark:border-gray-700/40 bg-gray-50 dark:bg-[#1E293B] shrink-0">
+        <div className="flex items-center gap-3 min-w-0">
+          {Icon && <div className="w-10 h-10 rounded-xl bg-primary/10 dark:bg-primary/20 flex items-center justify-center shrink-0">
+            <Icon className="w-5 h-5 text-primary" />
+          </div>}
+          <div className="min-w-0">
+            <h2 className="text-[15px] font-bold text-gray-900 dark:text-white truncate">{title}</h2>
+            {subtitle && <p className="text-[12px] text-gray-500 dark:text-gray-400 mt-0.5 truncate">{subtitle}</p>}
+          </div>
+        </div>
         <button
   onClick={onClose}
-  className="p-1.5 sm:p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-xl transition-colors shrink-0"
+  className="p-1.5 sm:p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700/60 rounded-xl transition-colors shrink-0 ml-3"
 >
           <X className="w-5 h-5" />
         </button>
@@ -349,7 +365,7 @@ const Modal = /* @__PURE__ */ __name(({ title, onClose, wide, extraWide, ultraWi
         <div className="p-4 sm:p-6 flex-1">
           {children}
         </div>
-        {footer && <div className="sticky bottom-0 z-[50] px-4 sm:px-6 py-3 sm:py-4 border-t border-gray-100 dark:border-gray-700/50 bg-gray-50 dark:bg-gray-800/80 mt-auto shrink-0">
+        {footer && <div className="sticky bottom-0 z-[50] px-4 sm:px-6 py-3 sm:py-4 border-t border-gray-100 dark:border-gray-700/40 bg-gray-50 dark:bg-[#1E293B] mt-auto shrink-0">
             {footer}
           </div>}
       </div>
@@ -575,13 +591,13 @@ const MultiSelect = /* @__PURE__ */ __name(({
     }
   }, "toggleOption");
   return <div className="mb-4 relative" ref={containerRef}>
-      {label && <label className="block text-[11px] font-bold text-gray-700 dark:text-gray-300 mb-1.5">
+      {label && <label className="block text-sm font-semibold text-gray-700 dark:text-gray-200 mb-1.5">
           {label} {required && <span className="text-red-500">*</span>}
         </label>}
       <div
     onClick={() => setIsOpen(!isOpen)}
     className={cn(
-      "w-full min-h-[44px] px-3 py-2 bg-white dark:bg-transparent border border-[#E8ECF0] dark:border-[#334155] rounded-lg text-[13px] cursor-pointer flex flex-wrap gap-2 items-center transition-all duration-200 focus-within:border-[#F97316] focus-within:ring-2 focus-within:ring-[#F97316]/20",
+      "w-full min-h-[44px] px-3 py-2 bg-white dark:bg-[#1E293B] border border-gray-300 dark:border-gray-600 rounded-lg text-sm cursor-pointer flex flex-wrap gap-2 items-center transition-all duration-200 focus-within:border-[#F97316] focus-within:ring-4 focus-within:ring-[#F97316]/20",
       error && "border-red-500",
       isOpen && "border-[#F97316] ring-2 ring-[#F97316]/20"
     )}
@@ -618,9 +634,9 @@ const MultiSelect = /* @__PURE__ */ __name(({
     autoFocus
     placeholder="Search items..."
     value={search}
-    onChange={(e) => setSearch(e.target.value)}
+    onChange={(e) => setSearch(e.target.value.trimStart())}
     onClick={(e) => e.stopPropagation()}
-    className="w-full px-3 py-2 bg-gray-50 dark:bg-transparent border border-[#E8ECF0] dark:border-[#334155] rounded-lg text-[13px] text-gray-900 dark:text-white focus:outline-none focus:border-[#F97316]"
+    className="w-full px-3 py-2 bg-gray-50 dark:bg-gray-800/60 border border-[#E8ECF0] dark:border-[#334155] rounded-lg text-[13px] text-gray-900 dark:text-white focus:outline-none focus:border-[#F97316]"
   />
             </div>
             <div className="max-h-60 overflow-y-auto p-1 text-gray-900 dark:text-white overscroll-contain scrollbar-thin scrollbar-thumb-gray-200 dark:scrollbar-thumb-gray-700">
@@ -694,17 +710,17 @@ const SearchSelect = /* @__PURE__ */ __name(({
   }, [options, search]);
   const selectedOption = options.find((o) => o.value === value);
   return <div className={cn("relative", isOpen ? "z-[100]" : "", className)} ref={containerRef}>
-      {label && <label className={cn("block font-bold text-gray-700 dark:text-gray-300 mb-1.5", small ? "text-[9px]" : "text-[11px]")}>
+      {label && <label className={cn("block font-semibold text-gray-700 dark:text-gray-200 mb-1.5", small ? "text-[10px]" : "text-sm")}>
           {label} {required && <span className="text-red-500">*</span>}
         </label>}
       <div
     onClick={() => !disabled && setIsOpen(!isOpen)}
     className={cn(
-      "w-full px-3 bg-white dark:bg-transparent border border-[#E8ECF0] dark:border-[#334155] rounded-lg text-[13px] cursor-pointer flex items-center justify-between transition-all duration-200 focus-within:border-[#F97316] focus-within:ring-2 focus-within:ring-[#F97316]/20",
-      small ? "py-1.5 min-h-[36px]" : "py-2.5 min-h-[44px]",
+      "w-full px-3 bg-white dark:bg-[#1E293B] border border-gray-300 dark:border-gray-600 rounded-lg text-sm cursor-pointer flex items-center justify-between transition-all duration-200 focus-within:border-[#F97316] focus-within:ring-4 focus-within:ring-[#F97316]/20",
+      small ? "py-1.5 min-h-[34px]" : "py-2.5 min-h-[44px]",
       error && "border-red-500",
-      isOpen && "border-[#F97316] ring-2 ring-[#F97316]/20",
-      disabled && "opacity-50 cursor-not-allowed bg-gray-50 dark:bg-gray-800"
+      isOpen && "border-[#F97316] ring-4 ring-[#F97316]/20",
+      disabled && "opacity-50 cursor-not-allowed bg-gray-100 dark:bg-gray-800"
     )}
   >
         <div className="flex flex-col truncate">
@@ -727,10 +743,10 @@ const SearchSelect = /* @__PURE__ */ __name(({
               <input
     type="text"
     autoFocus
-    className="w-full px-3 py-2 bg-gray-50 dark:bg-transparent border border-[#E8ECF0] dark:border-[#334155] rounded-lg text-[13px] text-gray-900 dark:text-white focus:outline-none focus:border-[#F97316]"
+    className="w-full px-3 py-2 bg-gray-50 dark:bg-gray-800/60 border border-[#E8ECF0] dark:border-[#334155] rounded-lg text-[13px] text-gray-900 dark:text-white focus:outline-none focus:border-[#F97316]"
     placeholder="Search..."
     value={search}
-    onChange={(e) => setSearch(e.target.value)}
+    onChange={(e) => setSearch(e.target.value.trimStart())}
     onClick={(e) => e.stopPropagation()}
   />
             </div>

@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import { X, Download } from "lucide-react";
+import React, { useState, useMemo } from "react";
+import { X, Download, Ban, RotateCcw, AlertTriangle } from "lucide-react";
 import { Modal, Btn, StatusBadge } from "../../components/ui";
 import { DatePicker } from "../../components/ui/DatePicker";
 import { useAppStore } from "../../store";
@@ -33,9 +33,36 @@ function ApprovalStamp({ status, label }) {
 
 
 export function POViewModal({ po, onClose, onApproveL1, onApproveL2, onApproveL3, onReject, onCancelApproved, onDownloadPDF, processingId }) {
-  const { suppliers, settings, role, hasPermission, updatePO, actionLoading } = useAppStore();
+  const { suppliers, settings, role, hasPermission, updatePO, actionLoading, grns } = useAppStore();
   const [editTimelines, setEditTimelines] = useState(false);
   const [draftTimelines, setDraftTimelines] = useState([]);
+  const [showCloseConfirm, setShowCloseConfirm] = useState(false);
+  const [closingItems, setClosingItems] = useState([]);
+
+  const displayItems = useMemo(() => {
+    if (!po || po.status !== "PO Closed") return po?.items || [];
+    // Prefer stored closedItems (set when PO was closed)
+    if (po.closedItems && po.closedItems.length > 0) return po.closedItems;
+    // Fallback: compute from grns store if available
+    const receivedBySku = {};
+    (grns || []).filter((g) => g.poId === po.id).forEach((g) => {
+      (g.items || []).forEach((item) => { receivedBySku[item.sku] = (receivedBySku[item.sku] || 0) + (item.received || 0); });
+      (g.receipts || []).forEach((r) => {
+        (r.items || []).forEach((item) => { receivedBySku[item.sku] = (receivedBySku[item.sku] || 0) + (item.received || 0); });
+      });
+    });
+    return (po.items || [])
+      .map((i) => ({ ...i, qty: receivedBySku[i.sku] || 0, total: (receivedBySku[i.sku] || 0) * i.rate, totalWithGST: (receivedBySku[i.sku] || 0) * i.rate * (1 + (i.gstPct || 18) / 100) }))
+      .filter((i) => i.qty > 0);
+  }, [po, grns]);
+
+  const displayTotalValue = useMemo(() => {
+    if (!po || po.status !== "PO Closed") return po?.totalValue || 0;
+    return displayItems.reduce((s, it) => {
+      if ((it.gstType || "Exclusive") === "Exclusive") return s + it.qty * it.rate * (1 + (it.gstPct || 18) / 100);
+      return s + it.qty * it.rate;
+    }, 0);
+  }, [po, displayItems]);
 
   if (!po) return null;
 
@@ -51,6 +78,53 @@ export function POViewModal({ po, onClose, onApproveL1, onApproveL2, onApproveL3
     .filter((vIdx) => filteredPCItems.some((it) => (it.rates?.[vIdx] || 0) > 0));
   const hasComparison = filteredPCItems.length > 0 && relevantVendorIndices.length > 0;
 
+  const handleClosePOClick = () => {
+    const receivedBySku = {};
+    (grns || []).filter((g) => g.poId === po.id).forEach((g) => {
+      (g.items || []).forEach((item) => { receivedBySku[item.sku] = (receivedBySku[item.sku] || 0) + (item.received || 0); });
+      (g.receipts || []).forEach((r) => {
+        (r.items || []).forEach((item) => { receivedBySku[item.sku] = (receivedBySku[item.sku] || 0) + (item.received || 0); });
+      });
+    });
+    const remaining = (po.items || [])
+      .map((i) => ({ ...i, remaining: Math.max(0, (i.qty || 0) - (receivedBySku[i.sku] || 0)) }))
+      .filter((i) => i.remaining > 0);
+    setClosingItems(remaining);
+    setShowCloseConfirm(true);
+  };
+
+  const handleConfirmClosePO = async () => {
+    // Compute the received items to persist on the PO
+    const receivedBySku = {};
+    (grns || []).filter((g) => g.poId === po.id).forEach((g) => {
+      (g.items || []).forEach((item) => { receivedBySku[item.sku] = (receivedBySku[item.sku] || 0) + (item.received || 0); });
+      (g.receipts || []).forEach((r) => {
+        (r.items || []).forEach((item) => { receivedBySku[item.sku] = (receivedBySku[item.sku] || 0) + (item.received || 0); });
+      });
+    });
+    const closedItems = (po.items || [])
+      .map((i) => { const q = receivedBySku[i.sku] || 0; return { ...i, qty: q, total: q * i.rate, totalWithGST: q * i.rate * (1 + (i.gstPct || 18) / 100) }; })
+      .filter((i) => i.qty > 0);
+    try {
+      await updatePO(po.id, { status: "PO Closed", closedItems });
+      toast.success("PO closed — remaining items cancelled");
+      setShowCloseConfirm(false);
+      onClose();
+    } catch (err) {
+      toast.error(err.message || "Failed to close PO");
+    }
+  };
+
+  const handleReopenPO = async () => {
+    try {
+      await updatePO(po.id, { status: "GRN Variance" });
+      toast.success("PO reopened");
+      onClose();
+    } catch (err) {
+      toast.error(err.message || "Failed to reopen PO");
+    }
+  };
+
   const handleSaveTimelines = async () => {
     try {
       await updatePO(po.id, { paymentTimelines: draftTimelines });
@@ -64,7 +138,7 @@ export function POViewModal({ po, onClose, onApproveL1, onApproveL2, onApproveL3
   const VENDOR_COLORS = ["text-orange-600 dark:text-orange-500", "text-blue-500 dark:text-blue-400", "text-emerald-600 dark:text-emerald-400", "text-purple-600", "text-pink-600"];
 
   const footerButtons = (
-    <div className="flex justify-end gap-3 w-full">
+    <div className="flex justify-end gap-3 w-full flex-wrap">
       {po.status === "Pending L1" && hasPermission("APPROVE_PURCHASE_ORDER_L1") && <Btn label="Approve L1" color="green" onClick={() => onApproveL1(po.id)} loading={processingId === `approve-${po.id}`} />}
       {po.status === "Pending L2" && hasPermission("APPROVE_PURCHASE_ORDER_L2") && <Btn label="Approve L2" color="green" onClick={() => onApproveL2(po.id)} loading={processingId === `approve-${po.id}`} />}
       {po.status === "Pending L3" && hasPermission("APPROVE_PURCHASE_ORDER_L3") && <Btn label="Approve L3 (Director)" color="green" onClick={() => onApproveL3(po.id)} loading={processingId === `approve-${po.id}`} />}
@@ -73,6 +147,12 @@ export function POViewModal({ po, onClose, onApproveL1, onApproveL2, onApproveL3
       )}
       {po.status === "Approved" && ["AGM", "Super Admin", "admin", "superadmin"].includes(role) && (
         <Btn label="Cancel PO" color="red" icon={X} onClick={() => onCancelApproved(po.id)} loading={processingId === `cancel-${po.id}`} />
+      )}
+      {po.status === "GRN Variance" && hasPermission("EDIT_PURCHASE_ORDER") && (
+        <Btn label="Close PO" color="red" icon={Ban} onClick={handleClosePOClick} />
+      )}
+      {po.status === "PO Closed" && hasPermission("EDIT_PURCHASE_ORDER") && (
+        <Btn label="Reopen PO" color="green" icon={RotateCcw} onClick={handleReopenPO} loading={actionLoading} />
       )}
       <Btn label="Download PO PDF" icon={Download} onClick={() => onDownloadPDF(po)} className="bg-orange-500 hover:bg-orange-600 text-white border-none shadow-lg shadow-orange-500/20 font-bold" />
       <Btn label="Close" outline onClick={onClose} className="px-8 border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800" />
@@ -84,6 +164,47 @@ export function POViewModal({ po, onClose, onApproveL1, onApproveL2, onApproveL3
       <div id="printable-po" className="p-1 sm:p-2 bg-white dark:bg-gray-900 text-[#1A365D] dark:text-gray-200 font-sans">
 
         {/* Cancellation banner */}
+        {showCloseConfirm && (
+          <div className="no-print mb-5 rounded-xl border border-amber-300 dark:border-amber-700 overflow-hidden">
+            <div className="flex items-start gap-3 p-4 bg-amber-50 dark:bg-amber-950/40">
+              <AlertTriangle className="w-5 h-5 text-amber-500 mt-0.5 flex-shrink-0" />
+              <div>
+                <p className="text-sm font-bold text-amber-700 dark:text-amber-400">Cancel remaining items and close this PO?</p>
+                <p className="text-xs text-amber-600 dark:text-amber-500 mt-0.5">The quantities below have not been received. This cannot be undone.</p>
+              </div>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm border-t border-amber-200 dark:border-amber-800">
+                <thead className="bg-amber-100/60 dark:bg-amber-900/20">
+                  <tr>
+                    <th className="text-left px-3 py-1.5 text-[11px] font-bold text-amber-700 dark:text-amber-400">Item</th>
+                    <th className="text-right px-3 py-1.5 text-[11px] font-bold text-amber-700 dark:text-amber-400">Ordered</th>
+                    <th className="text-right px-3 py-1.5 text-[11px] font-bold text-amber-700 dark:text-amber-400">Received</th>
+                    <th className="text-right px-3 py-1.5 text-[11px] font-bold text-red-500">Cancelling</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {closingItems.map((item, idx) => (
+                    <tr key={idx} className="border-t border-amber-100 dark:border-amber-900/30">
+                      <td className="px-3 py-1.5">
+                        <div className="text-[12px] font-semibold text-gray-800 dark:text-gray-200">{item.itemName || item.sku}</div>
+                        <div className="text-[10px] text-gray-400">{item.sku}</div>
+                      </td>
+                      <td className="px-3 py-1.5 text-right text-[12px] text-gray-500">{item.qty} {item.unit}</td>
+                      <td className="px-3 py-1.5 text-right text-[12px] text-gray-500">{(item.qty || 0) - item.remaining} {item.unit}</td>
+                      <td className="px-3 py-1.5 text-right text-[12px] font-bold text-red-500">{item.remaining} {item.unit}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="flex justify-end gap-2 p-3 bg-amber-50/50 dark:bg-amber-950/20 border-t border-amber-200 dark:border-amber-800">
+              <Btn label="Go Back" outline small onClick={() => setShowCloseConfirm(false)} />
+              <Btn label="Confirm Close PO" color="red" icon={Ban} small loading={actionLoading} onClick={handleConfirmClosePO} />
+            </div>
+          </div>
+        )}
+
         {po.status === "Cancelled" && (
           <div className="no-print mb-5 p-4 bg-red-50 dark:bg-red-950/40 border border-red-300 dark:border-red-800 rounded-xl flex items-start gap-3">
             <X className="w-5 h-5 text-red-500 mt-0.5 flex-shrink-0" />
@@ -171,7 +292,7 @@ export function POViewModal({ po, onClose, onApproveL1, onApproveL2, onApproveL3
                 </tr>
               </thead>
               <tbody>
-                {po.items.map((item, idx) => (
+                {displayItems.map((item, idx) => (
                   <tr key={idx} className="text-[11px] hover:bg-gray-50/50 dark:hover:bg-gray-800/30">
                     <td className="border border-[#1A365D] p-1.5 text-center font-bold">{idx + 1}</td>
                     <td className="border border-[#1A365D] p-1.5"><p className="font-bold leading-tight">{safeStr(item.itemName)}</p></td>
@@ -186,8 +307,8 @@ export function POViewModal({ po, onClose, onApproveL1, onApproveL2, onApproveL3
               </tbody>
               <tfoot>
                 {[
-                  ["Items Subtotal (Rs)", po.items.reduce((s, it) => s + ((it.gstType || "Exclusive") === "Inclusive" ? (it.totalWithGST || it.qty * it.rate) : (it.total || it.qty * it.rate)), 0)],
-                  [`Gst ${po.items[0]?.gstPct || 18}% (Items)`, po.items.reduce((s, it) => {
+                  ["Items Subtotal (Rs)", displayItems.reduce((s, it) => s + ((it.gstType || "Exclusive") === "Inclusive" ? (it.totalWithGST || it.qty * it.rate) : (it.total || it.qty * it.rate)), 0)],
+                  [`Gst ${displayItems[0]?.gstPct || 18}% (Items)`, displayItems.reduce((s, it) => {
                     if ((it.gstType || "Exclusive") === "Exclusive") return s + it.qty * it.rate * (it.gstPct ?? 18) / 100;
                     return s;
                   }, 0)],
@@ -204,7 +325,7 @@ export function POViewModal({ po, onClose, onApproveL1, onApproveL2, onApproveL3
                 <tr className="bg-gray-100 dark:bg-gray-800 font-black">
                   <td colSpan={4} className="border-x border-b border-[#1A365D] p-1.5" />
                   <td className="border border-[#1A365D] p-1.5 text-right text-[11px] font-black bg-[#1A365D] text-white">Grand Total (Rs)</td>
-                  <td className="border border-[#1A365D] p-2 text-right text-[14px] bg-[#1A365D] text-white">{fmtCur(po.totalValue)}</td>
+                  <td className="border border-[#1A365D] p-2 text-right text-[14px] bg-[#1A365D] text-white">{fmtCur(displayTotalValue)}</td>
                 </tr>
               </tfoot>
             </table>

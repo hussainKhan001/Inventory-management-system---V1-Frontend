@@ -5,13 +5,61 @@ const API_BASE = import.meta.env.VITE_API_BASE_URL || "/api";
 const instance = axios.create({
   baseURL: API_BASE,
   withCredentials: true,
-  timeout: 3e4
+  timeout: 15_000,
 });
+
+// ── GET cache & deduplication ─────────────────────────────────────────────────
+const _cache = new Map();   // key → { data, ts }
+const _inflight = new Map(); // key → Promise (dedup concurrent identical GETs)
+const CACHE_TTL = 30_000;   // 30 s
+
+function _cacheKey(path, params) {
+  return path + "|" + JSON.stringify(params || {});
+}
+
+function _bust(path) {
+  // Remove leading slash and strip any trailing /:id segment so that
+  // "pos/abc123" and "pos" both bust the "pos" cache bucket.
+  const base = path.replace(/^\//, "").replace(/\/[^/]+$/, "");
+  for (const k of _cache.keys()) {
+    if (k.startsWith(base) || k.startsWith("/" + base)) _cache.delete(k);
+  }
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
+const deepTrim = (val) => {
+  if (typeof val === "string") return val.trim();
+  if (Array.isArray(val)) return val.map(deepTrim);
+  if (val !== null && typeof val === "object") {
+    return Object.fromEntries(Object.entries(val).map(([k, v]) => [k, deepTrim(v)]));
+  }
+  return val;
+};
+
+// Request interceptor — auth token + deep-trim bodies
 instance.interceptors.request.use((config) => {
   const token = localStorage.getItem("token");
   if (token) config.headers.Authorization = `Bearer ${token}`;
+  if (config.data && !(config.data instanceof FormData)) {
+    config.data = deepTrim(config.data);
+  }
   return config;
 });
+
+// Response interceptor — single retry on pure network errors (not 4xx/5xx)
+instance.interceptors.response.use(
+  (res) => res,
+  async (err) => {
+    const cfg = err.config;
+    if (cfg && !cfg._retried && !err.response) {
+      cfg._retried = true;
+      await new Promise((r) => setTimeout(r, 600));
+      return instance(cfg);
+    }
+    throw err;
+  }
+);
+
 const HEALTH_URL = API_BASE.replace(/\/api$/, "") + "/api/health";
 if (import.meta.env.PROD) {
   const ping = /* @__PURE__ */ __name(() => fetch(HEALTH_URL, { method: "GET" }).catch(() => {
@@ -23,13 +71,33 @@ const wakeServer = /* @__PURE__ */ __name(() => fetch(HEALTH_URL, { method: "GET
 }), "wakeServer");
 const api = {
   get: /* @__PURE__ */ __name(async (path, params) => {
-    const res = await instance.get(path, { params });
-    return res.data;
+    const key = _cacheKey(path, params);
+
+    // Return fresh cache hit
+    const hit = _cache.get(key);
+    if (hit && Date.now() - hit.ts < CACHE_TTL) return hit.data;
+
+    // Deduplicate concurrent identical requests
+    if (_inflight.has(key)) return _inflight.get(key);
+
+    const req = instance.get(path, { params })
+      .then((res) => {
+        _cache.set(key, { data: res.data, ts: Date.now() });
+        _inflight.delete(key);
+        return res.data;
+      })
+      .catch((err) => {
+        _inflight.delete(key);
+        throw err;
+      });
+
+    _inflight.set(key, req);
+    return req;
   }, "get"),
   post: /* @__PURE__ */ __name(async (path, data) => {
     try {
-      const config = {};
-      const res = await instance.post(path, data, config);
+      const res = await instance.post(path, data);
+      _bust(path);
       return res.data;
     } catch (error) {
       const message = error.response?.data?.message || error.message || "Request failed";
@@ -39,6 +107,7 @@ const api = {
   put: /* @__PURE__ */ __name(async (path, id, data) => {
     try {
       const res = await instance.put(`${path}/${encodeURIComponent(id)}`, data);
+      _bust(path);
       return res.data;
     } catch (error) {
       const message = error.response?.data?.message || error.message || "Update failed";
@@ -48,6 +117,7 @@ const api = {
   putSimple: /* @__PURE__ */ __name(async (path, data) => {
     try {
       const res = await instance.put(path, data);
+      _bust(path);
       return res.data;
     } catch (error) {
       const message = error.response?.data?.message || error.message || "Update failed";
@@ -57,6 +127,7 @@ const api = {
   patch: /* @__PURE__ */ __name(async (path, data) => {
     try {
       const res = await instance.patch(path, data);
+      _bust(path);
       return res.data;
     } catch (error) {
       const message = error.response?.data?.message || error.message || "Update failed";
@@ -66,12 +137,15 @@ const api = {
   delete: /* @__PURE__ */ __name(async (path, id) => {
     try {
       const res = await instance.delete(`${path}/${encodeURIComponent(id)}`);
+      _bust(path);
       return res.data;
     } catch (error) {
       const message = error.response?.data?.message || error.message || "Deletion failed";
       throw new Error(message);
     }
   }, "delete"),
+  /** Manually bust the cache for a path prefix (e.g. after WebSocket push). */
+  invalidate: _bust,
   seed: /* @__PURE__ */ __name(async (seedData) => {
     const res = await instance.post("seed", seedData);
     return res.data;
@@ -96,7 +170,7 @@ const api = {
     const formData = new FormData();
     formData.append("image", file, file.name);
     try {
-      const res = await instance.post(path, formData);
+      const res = await instance.post(path, formData, { timeout: 60_000 });
       if (typeof res.data === "string" && res.data.trim().startsWith("<!DOCTYPE html>")) {
         throw new Error("Server returned HTML instead of JSON. The API endpoint might be configured incorrectly.");
       }

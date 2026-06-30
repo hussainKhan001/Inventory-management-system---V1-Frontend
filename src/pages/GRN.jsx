@@ -15,7 +15,7 @@ import {
   Field,
   Td
 } from "../components/ui";
-import { Plus, X, Eye, Pencil, Trash2, Download, Package, AlertTriangle, Calendar, Building2 } from "lucide-react";
+import { Plus, X, Eye, Pencil, Trash2, Download, Package, PackagePlus, AlertTriangle, Calendar, Building2 } from "lucide-react";
 import { TableVirtuoso } from "react-virtuoso";
 import { SearchFilter, DateRangePicker, SelectFilter, FilterRow } from "../components/ui/Filters";
 import { genId, scrollToError, formatDateTime, safeStr } from "../utils";
@@ -27,6 +27,7 @@ const GRNPage = /* @__PURE__ */ __name(() => {
     grnsPagination,
     fetchResource,
     addGRN,
+    addGRNReceipt,
     updateGRN,
     deleteGRN,
     updatePO,
@@ -60,7 +61,9 @@ const GRNPage = /* @__PURE__ */ __name(() => {
   }, [suppliers, grns]);
   const statusOptions = React.useMemo(() => [
     { label: "Draft", value: "Draft" },
-    { label: "Confirmed", value: "Confirmed" }
+    { label: "Partial", value: "Partial" },
+    { label: "Confirmed", value: "Confirmed" },
+    { label: "Over-Received", value: "Over-Received" }
   ], []);
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedSearch(search), 500);
@@ -108,6 +111,7 @@ const GRNPage = /* @__PURE__ */ __name(() => {
   const [viewModal, setViewModal] = useState(false);
   const [selectedGRN, setSelectedGRN] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
+  const [targetGRNId, setTargetGRNId] = useState(null);
   const [errors, setErrors] = useState({});
   const [previewImage, setPreviewImage] = useState(null);
   const [isUploading, setIsUploading] = useState(false);
@@ -152,7 +156,36 @@ const GRNPage = /* @__PURE__ */ __name(() => {
   const handlePageChange = useCallback((page2) => {
     fetchResource("grn", page2);
   }, [fetchResource]);
-  const approvedPOs = pos.filter((p) => p.status === "GRN Pending");
+  // POs eligible for a new GRN: "GRN Pending" (never received) OR has a Partial GRN (partially received)
+  const poIdsWithPartialGRN = React.useMemo(() => {
+    const s = new Set();
+    grns.forEach((g) => { if (g.status === "Partial") s.add(g.poId); });
+    return s;
+  }, [grns]);
+
+  const availablePOs = React.useMemo(
+    () => pos.filter((p) =>
+      p.status !== "PO Closed" &&
+      (p.status === "GRN Pending" ||
+      p.status === "GRN Variance" ||
+      poIdsWithPartialGRN.has(p.id))
+    ),
+    [pos, poIdsWithPartialGRN]
+  );
+
+  // Helper: sum received qty per SKU across all GRNs for a given PO (excluding a specific GRN id)
+  const getPreviouslyReceived = (poId, excludeGrnId = null) => {
+    const map = {};
+    grns
+      .filter((g) => g.poId === poId && g.id !== excludeGrnId)
+      .forEach((g) => {
+        (g.items || []).forEach((it) => {
+          map[it.sku] = (map[it.sku] || 0) + (it.received || 0);
+        });
+      });
+    return map;
+  };
+
   const canEdit = ["Super Admin", "Director", "Store Incharge"].includes(role || "");
   const handlePOSelect = /* @__PURE__ */ __name((poId) => {
     if (!poId) {
@@ -169,16 +202,26 @@ const GRNPage = /* @__PURE__ */ __name(() => {
     }
     const po = pos.find((p) => p.id === poId);
     if (!po) return;
-    const items = po.items.map((i) => ({
+
+    // Calculate how much has already been received for each SKU
+    const prevReceived = getPreviouslyReceived(poId, newGRN.id);
+
+    const items = po.items.map((i) => {
+      const poOrdered = i.qty || i.quantity || 0;
+      const alreadyReceived = prevReceived[i.sku] || 0;
+      const outstanding = Math.max(0, poOrdered - alreadyReceived);
+      return {
       sku: i.sku,
       itemName: i.itemName || i.name || i.material || i.description || i.itemDescription || i.item || "Unknown Item",
-      ordered: i.qty || i.quantity || 0,
-      received: i.qty || i.quantity || 0,
-      // Default to full receipt, user can adjust
+      poOrdered,         // original PO qty — for display context
+      alreadyReceived,   // sum from prior GRNs
+      ordered: outstanding, // outstanding = what this GRN should cover
+      received: outstanding, // default to receiving full outstanding
       variance: 0,
       unit: i.unit || i.uqc || "NOS",
       images: []
-    }));
+      };
+    }).filter((item) => item.ordered > 0); // only items still outstanding
     setNewGRN({
       ...newGRN,
       poId,
@@ -214,17 +257,7 @@ const GRNPage = /* @__PURE__ */ __name(() => {
         await updateGRN(newGRN.id, updateData);
         toast.success("GRN updated successfully");
         setModal(false);
-        setNewGRN({
-          poId: "",
-          challan: "",
-          mrNo: "",
-          docType: "Challan",
-          items: [],
-          personName: "",
-          personPhotos: [],
-          destinationProject: "",
-          gatePassNo: ""
-        });
+        setNewGRN({ poId: "", challan: "", mrNo: "", docType: "Challan", items: [], personName: "", personPhotos: [], destinationProject: "", gatePassNo: "" });
         setIsEditing(false);
         setErrors({});
       } catch (error) {
@@ -232,14 +265,29 @@ const GRNPage = /* @__PURE__ */ __name(() => {
       }
       return;
     }
-    const maxIdNum = grns.reduce((max, g) => {
-      const parts = g.id.split("-");
-      const num = parseInt(parts[parts.length - 1] || "0");
-      return num > max ? num : max;
-    }, 0);
-    const grnId = genId("GRN", maxIdNum);
+    if (targetGRNId) {
+      try {
+        await addGRNReceipt(targetGRNId, {
+          challan: newGRN.challan,
+          mrNo: newGRN.mrNo,
+          docType: newGRN.docType,
+          personName: newGRN.personName,
+          challanPhotos: newGRN.challanPhotos || [],
+          personPhotos: newGRN.personPhotos || [],
+          items: newGRN.items
+        });
+        toast.success("Receipt added successfully");
+        setModal(false);
+        setTargetGRNId(null);
+        setNewGRN({ poId: "", challan: "", mrNo: "", docType: "Challan", items: [], challanPhotos: [], personPhotos: [], personName: "", destinationProject: "", gatePassNo: "" });
+        setErrors({});
+        fetchResource("pos", 1, 500, true);
+      } catch (error) {
+        toast.error(`Failed to add receipt: ${error.message}`);
+      }
+      return;
+    }
     const grn = {
-      id: grnId,
       poId: newGRN.poId,
       project: newGRN.project,
       destinationProject: newGRN.destinationProject,
@@ -250,7 +298,11 @@ const GRNPage = /* @__PURE__ */ __name(() => {
       mrNo: newGRN.mrNo,
       docType: newGRN.docType,
       items: newGRN.items,
-      status: "Confirmed",
+      status: (() => {
+        const hasShortage = (newGRN.items || []).some((it) => it.received < it.ordered);
+        const hasExcess   = (newGRN.items || []).some((it) => it.received > it.ordered);
+        return hasShortage ? "Partial" : hasExcess ? "Over-Received" : "Confirmed";
+      })(),
       materialImageUrl: newGRN.items?.[0]?.images?.[0] || newGRN.materialImageUrl,
       challanImageUrl: newGRN.challanPhotos?.[0] || newGRN.challanImageUrl,
       challanPhotos: newGRN.challanPhotos,
@@ -457,34 +509,51 @@ const GRNPage = /* @__PURE__ */ __name(() => {
               <Td className="hidden md:table-cell px-4 py-3">
                 <StatusBadge status={grn.status} />
               </Td>
-              <Td className="md:px-4 md:py-3 py-2 text-right">
+              <Td className="md:px-4 md:py-3 py-2 text-right" onClick={(e) => e.stopPropagation()}>
                 <div className="flex items-center justify-end gap-1.5">
                   <button
       title="View Details"
-      onClick={() => {
-        setSelectedGRN(grn);
-        setViewModal(true);
-      }}
+      onClick={(e) => { e.stopPropagation(); setSelectedGRN(grn); setViewModal(true); }}
       className="p-2 rounded-lg text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
     >
                     <Eye className="w-4 h-4" />
                   </button>
-                  
-                  {hasPermission("EDIT_GRN") && <button
-      title="Edit GRN"
-      onClick={() => {
-        setNewGRN(grn);
-        setIsEditing(true);
+
+                  {grn.status === "Partial" && hasPermission("CREATE_GRN") && <button
+      title="Receive Remaining Material"
+      onClick={(e) => { e.stopPropagation();
+        const po = pos.find((p) => p.id === grn.poId);
+        if (!po) { toast.error("PO not found"); return; }
+        const prevReceived = getPreviouslyReceived(grn.poId);
+        const outstandingItems = po.items
+          .map((i) => {
+            const poQty = i.qty || 0;
+            const totalReceived = prevReceived[i.sku] || 0;
+            const outstanding = Math.max(0, poQty - totalReceived);
+            return { sku: i.sku, itemName: i.itemName || i.name || "Unknown", poOrdered: poQty, alreadyReceived: totalReceived, ordered: outstanding, received: outstanding, variance: 0, unit: i.unit || "NOS", images: [] };
+          })
+          .filter((it) => it.ordered > 0);
+        if (outstandingItems.length === 0) { toast.info("All items already fully received"); return; }
+        setTargetGRNId(grn.id);
+        setNewGRN({ poId: grn.poId, project: grn.project, vendor: grn.vendor || grn.supplier, supplier: grn.supplier || grn.vendor, mrNo: grn.mrNo || "", challan: "", docType: grn.docType || "Challan", items: outstandingItems, challanPhotos: [], personPhotos: [], personName: "", destinationProject: grn.destinationProject || "", gatePassNo: grn.gatePassNo || "" });
+        setIsEditing(false);
         setModal(true);
       }}
+      className="p-2 rounded-lg text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-colors"
+    >
+                      <PackagePlus className="w-4 h-4" />
+                    </button>}
+                  {hasPermission("EDIT_GRN") && <button
+      title="Edit GRN"
+      onClick={(e) => { e.stopPropagation(); setNewGRN(grn); setIsEditing(true); setModal(true); }}
       className="p-2 rounded-lg text-orange-500 hover:bg-orange-50 dark:hover:bg-orange-900/20 transition-colors"
     >
                       <Pencil className="w-4 h-4" />
                     </button>}
-                  
+
                   {hasPermission("DELETE_GRN") && <button
       title="Delete GRN"
-      onClick={() => setDeleteConfirm(grn.id)}
+      onClick={(e) => { e.stopPropagation(); setDeleteConfirm(grn.id); }}
       className="p-2 rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
     >
                       <Trash2 className="w-4 h-4" />
@@ -495,7 +564,16 @@ const GRNPage = /* @__PURE__ */ __name(() => {
     components={{
       Table: /* @__PURE__ */ __name((props) => <table {...props} className="w-full text-left border-collapse table-fixed min-w-[800px] md:min-w-0" />, "Table"),
       TableBody: React.forwardRef((props, ref) => <tbody {...props} ref={ref} className="divide-y divide-[#E8ECF0] dark:divide-gray-800" />),
-      TableRow: /* @__PURE__ */ __name((props) => <tr {...props} className={cn("hover:bg-gray-50/50 dark:hover:bg-gray-800/20 transition-colors", props.className)} />, "TableRow")
+      TableRow: (props) => {
+        const grn = (grns || [])[props["data-index"]];
+        return (
+          <tr
+            {...props}
+            onClick={() => { if (grn) { setSelectedGRN(grn); setViewModal(true); } }}
+            className={cn("cursor-pointer hover:bg-gray-50/60 dark:hover:bg-gray-800/40 transition-colors", props.className)}
+          />
+        );
+      }
     }}
   />
 
@@ -650,7 +728,7 @@ const GRNPage = /* @__PURE__ */ __name(() => {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-50 dark:divide-gray-800">
-                      {selectedGRN.items.map((item, idx) => {
+                      {(selectedGRN.items || []).map((item, idx) => {
     const ordered = item.ordered || 0;
     const received = item.received || 0;
     const variance = received - ordered;
@@ -705,6 +783,83 @@ const GRNPage = /* @__PURE__ */ __name(() => {
               </div>
             </div>
 
+            {/* Delivery History */}
+            {(selectedGRN.receipts?.length > 0) && (
+              <div className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <div className="h-0.5 w-4 bg-[#F97316]" />
+                  <h3 className="text-[12px] font-bold text-gray-900 dark:text-white">
+                    Delivery history ({(selectedGRN.receipts?.length || 0) + 1} shipments)
+                  </h3>
+                </div>
+                <div className="relative pl-1">
+                  <div className="absolute left-3.5 top-5 bottom-5 w-0.5 bg-gray-200 dark:bg-gray-700" />
+                  <div className="space-y-3">
+                    {/* Initial delivery */}
+                    <div className="flex gap-3 items-start">
+                      <div className="w-7 h-7 rounded-full bg-orange-500 border-2 border-white dark:border-gray-900 flex items-center justify-center shrink-0 shadow-sm">
+                        <span className="text-[9px] font-bold text-white">1</span>
+                      </div>
+                      <div className="flex-1 bg-gray-50 dark:bg-gray-800/50 rounded-xl p-3 border border-gray-100 dark:border-gray-800">
+                        <div className="flex items-center justify-between mb-1.5">
+                          <span className="text-[12px] font-bold text-gray-900 dark:text-white">Shipment 1 (Initial)</span>
+                          <div className="flex items-center gap-2">
+                            {selectedGRN.challan && <span className="text-[10px] font-medium text-blue-500 bg-blue-50 dark:bg-blue-900/20 px-2 py-0.5 rounded">{selectedGRN.challan}</span>}
+                            <span className="text-[10px] text-gray-400">{formatDateTime(selectedGRN.date)}</span>
+                          </div>
+                        </div>
+                        <div className="space-y-1">
+                          {(selectedGRN.items || []).map((item, i) => {
+                            const laterReceipts = (selectedGRN.receipts || []).reduce((sum, r) => {
+                              const ri = (r.items || []).find((ri) => ri.sku === item.sku);
+                              return sum + (ri?.received || 0);
+                            }, 0);
+                            const initialReceived = (item.received || 0) - laterReceipts;
+                            if (initialReceived <= 0) return null;
+                            return (
+                              <div key={i} className="flex items-center justify-between text-[12px]">
+                                <span className="text-gray-600 dark:text-gray-400">{item.itemName}</span>
+                                <span className="font-bold text-gray-900 dark:text-white">+{initialReceived} <span className="text-gray-400 font-normal">{item.unit}</span></span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                        {selectedGRN.personName && <p className="mt-1.5 text-[10px] text-gray-400">By: <span className="font-medium text-gray-600 dark:text-gray-300">{selectedGRN.personName}</span></p>}
+                      </div>
+                    </div>
+                    {/* Additional receipts */}
+                    {(selectedGRN.receipts || []).map((receipt, idx) => (
+                      <div key={idx} className="flex gap-3 items-start">
+                        <div className="w-7 h-7 rounded-full bg-emerald-500 border-2 border-white dark:border-gray-900 flex items-center justify-center shrink-0 shadow-sm">
+                          <span className="text-[9px] font-bold text-white">{idx + 2}</span>
+                        </div>
+                        <div className="flex-1 bg-gray-50 dark:bg-gray-800/50 rounded-xl p-3 border border-gray-100 dark:border-gray-800">
+                          <div className="flex items-center justify-between mb-1.5">
+                            <span className="text-[12px] font-bold text-gray-900 dark:text-white">Shipment {idx + 2}</span>
+                            <div className="flex items-center gap-2">
+                              {receipt.challan && <span className="text-[10px] font-medium text-blue-500 bg-blue-50 dark:bg-blue-900/20 px-2 py-0.5 rounded">{receipt.challan}</span>}
+                              <span className="text-[10px] text-gray-400">{formatDateTime(receipt.date)}</span>
+                            </div>
+                          </div>
+                          <div className="space-y-1">
+                            {(receipt.items || []).map((item, i) => (
+                              <div key={i} className="flex items-center justify-between text-[12px]">
+                                <span className="text-gray-600 dark:text-gray-400">{item.itemName}</span>
+                                <span className="font-bold text-gray-900 dark:text-white">
+                                  +{item.received} <span className="text-gray-400 font-normal">{selectedGRN.items.find((gi) => gi.sku === item.sku)?.unit || ""}</span>
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                          {receipt.personName && <p className="mt-1.5 text-[10px] text-gray-400">By: <span className="font-medium text-gray-600 dark:text-gray-300">{receipt.personName}</span></p>}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
             {
     /* Floating Documents Section */
   }
@@ -729,11 +884,12 @@ const GRNPage = /* @__PURE__ */ __name(() => {
         </Modal>}
 
       {modal && <Modal
-    title={isEditing ? "Edit GRN Transaction" : "New GRN Transaction"}
+    title={targetGRNId ? `Add Receipt — ${targetGRNId}` : isEditing ? "Edit GRN Transaction" : "New GRN Transaction"}
     extraWide
     onClose={() => {
       setModal(false);
       setErrors({});
+      setTargetGRNId(null);
       setNewGRN({ id: "", poId: "", vendor: "", date: new Date().toISOString().split("T")[0], items: [], challanPhotos: [], images: [], status: "Confirmed" });
       setIsEditing(false);
     }}
@@ -750,7 +906,7 @@ const GRNPage = /* @__PURE__ */ __name(() => {
           disabled={actionLoading || isUploading}
           className="flex items-center gap-2 px-5 py-2.5 bg-primary hover:bg-primary/90 hover:-translate-y-0.5 active:translate-y-0 text-white rounded-xl text-xs font-black transition-all tracking-wider shadow-lg shadow-primary/20 dark:shadow-none disabled:bg-gray-400 disabled:shadow-none disabled:cursor-not-allowed disabled:transform-none cursor-pointer"
         >
-          {isEditing ? "Confirm Update" : "Confirm GRN"}
+          {targetGRNId ? "Add Receipt" : isEditing ? "Confirm Update" : "Confirm GRN"}
         </button>
       </div>
     }
@@ -773,15 +929,28 @@ const GRNPage = /* @__PURE__ */ __name(() => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {/* Left column */}
               <div className="space-y-4">
-                <SField
-                  label="Purchase Order (PO) *"
-                  value={newGRN.poId}
-                  onChange={(e) => handlePOSelect(e.target.value)}
-                  options={approvedPOs.map((p) => ({ value: p.id, label: `${p.project} (PO: ${p.id})` }))}
-                  required
-                  error={errors.poId}
-                  disabled={isEditing}
-                />
+                {targetGRNId ? (
+                  <div className="p-3 rounded-xl bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 flex items-center gap-3">
+                    <PackagePlus className="w-5 h-5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                    <div>
+                      <p className="text-[11px] font-bold text-emerald-700 dark:text-emerald-400">Adding receipt to {targetGRNId}</p>
+                      <p className="text-[11px] text-emerald-600/70 dark:text-emerald-500/70">PO: {newGRN.poId}</p>
+                    </div>
+                  </div>
+                ) : (
+                  <SField
+                    label="Purchase Order (PO) *"
+                    value={newGRN.poId}
+                    onChange={(e) => handlePOSelect(e.target.value)}
+                    options={availablePOs.map((p) => {
+                      const hasPartial = poIdsWithPartialGRN.has(p.id);
+                      return { value: p.id, label: `${p.project} (${p.id})${hasPartial ? " — Partial" : ""}` };
+                    })}
+                    required
+                    error={errors.poId}
+                    disabled={isEditing}
+                  />
+                )}
                 {/* Date info card */}
                 <div className="flex items-center gap-3 p-3 bg-white/40 dark:bg-[#0F172A]/30 rounded-xl border border-gray-200/50 dark:border-gray-800/80 shadow-xs">
                   <div className="w-9 h-9 rounded-lg bg-orange-50 dark:bg-orange-950/30 flex items-center justify-center text-orange-600 dark:text-orange-400 shrink-0">
@@ -894,7 +1063,7 @@ const GRNPage = /* @__PURE__ */ __name(() => {
                 <table className="w-full text-left border-collapse min-w-max">
                   <thead className="bg-gray-50/10 dark:bg-[#0F172A]/40 backdrop-blur-md">
                     <tr>
-                      {["Item", "Ordered", "Unit", "Received", "Variance", "Material Photos", ""].map((h) => (
+                      {["Item", "PO Qty → Outstanding", "Unit", "Receiving Now", "Variance", "Material Photos", ""].map((h) => (
                         <th key={h} className="px-4 py-3.5 text-[10px] font-black text-gray-400 dark:text-gray-500 whitespace-nowrap border-b border-gray-100 dark:border-gray-800">
                           {h}
                         </th>
@@ -927,10 +1096,23 @@ const GRNPage = /* @__PURE__ */ __name(() => {
                             )}
                           </div>
                         </td>
-                        {/* Ordered */}
+                        {/* PO Qty → Outstanding */}
                         <td className="px-4 py-3 text-center">
-                          <div className="inline-flex items-center px-3 py-1 bg-blue-500/5 text-blue-500 dark:text-blue-400 rounded-xl border border-blue-500/20 dark:border-blue-500/30 shadow-xs font-bold text-xs h-9 min-w-[50px] justify-center">
-                            {item.ordered}
+                          <div className="flex flex-col items-center gap-0.5">
+                            {item.poOrdered !== undefined && item.poOrdered !== item.ordered && (
+                              <div className="flex items-center gap-1 text-[9px] text-gray-400 font-bold">
+                                <span>PO: {item.poOrdered}</span>
+                                {item.alreadyReceived > 0 && <span className="text-amber-500">| Prev: {item.alreadyReceived}</span>}
+                              </div>
+                            )}
+                            <div className={cn(
+                              "inline-flex items-center px-3 py-1 rounded-xl border shadow-xs font-bold text-xs h-7 min-w-[50px] justify-center",
+                              item.alreadyReceived > 0
+                                ? "bg-amber-500/5 text-amber-600 dark:text-amber-400 border-amber-500/20"
+                                : "bg-blue-500/5 text-blue-500 dark:text-blue-400 border-blue-500/20 dark:border-blue-500/30"
+                            )}>
+                              {item.ordered}
+                            </div>
                           </div>
                         </td>
                         {/* Unit */}

@@ -78,6 +78,24 @@
     @apply border-gray-200 dark:border-gray-800;
   }
 
+  /*
+   * Dark-mode baseline for form elements.
+   * Lives in @layer base → lower priority than @layer utilities, so explicit
+   * Tailwind utility classes (bg-transparent, dark:text-gray-300, etc.) always win.
+   * This guarantees visibility when Tailwind's JIT hasn't emitted a dark: class.
+   */
+  .dark input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]),
+  .dark select,
+  .dark textarea {
+    color: #f1f5f9;
+    background-color: #334155;
+  }
+
+  .dark input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"])::placeholder,
+  .dark textarea::placeholder {
+    color: #94a3b8;
+  }
+
   .approval-highlight {
     @apply animate-pulse-subtle border-primary/20 dark:border-primary/30 bg-primary/5 dark:bg-primary/5;
   }

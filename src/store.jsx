@@ -963,13 +963,36 @@ const AppProvider = /* @__PURE__ */ __name(({ children }) => {
       setActionLoading(false);
     }
   }, "addGRN");
+  const addGRNReceipt = /* @__PURE__ */ __name(async (grnId, receiptData) => {
+    setActionLoading(true);
+    try {
+      const res = await api.post(`grn/${grnId}/receipt`, receiptData);
+      setGrns((prev) => prev.map((g) => g.id === grnId ? { ...g, ...res.data } : g));
+      return res.data;
+    } finally {
+      setActionLoading(false);
+    }
+  }, "addGRNReceipt");
   const deleteGRN = /* @__PURE__ */ __name(async (id) => {
+    const deletedGRN = grns.find((g) => g.id === id);
+    const remainingGRNs = grns.filter((g) => g.id !== id && g.poId === deletedGRN?.poId);
     const previousGRNs = [...grns];
     setGrns((prev) => prev.filter((item) => item.id !== id));
     setActionLoading(true);
     try {
       await api.delete("grn", id);
       toast.success("GRN deleted");
+      if (deletedGRN?.poId) {
+        let newPoStatus;
+        if (remainingGRNs.length === 0) {
+          newPoStatus = "GRN Pending";
+        } else if (remainingGRNs.every((g) => g.status === "Confirmed" || g.status === "Over-Received")) {
+          newPoStatus = "GRN Fulfilled";
+        }
+        if (newPoStatus) {
+          try { await updatePO(deletedGRN.poId, { status: newPoStatus }); } catch (_) {}
+        }
+      }
     } catch (error) {
       setGrns(previousGRNs);
       toast.error(error.message || "Failed to delete GRN");
@@ -1515,6 +1538,7 @@ const AppProvider = /* @__PURE__ */ __name(({ children }) => {
       submitPublicSupplierRegistration,
       updateGRN,
       addGRN,
+      addGRNReceipt,
       deleteGRN,
       updateInward,
       addInward,

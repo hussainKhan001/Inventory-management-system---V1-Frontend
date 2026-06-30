@@ -1,6 +1,6 @@
 import React, { useState } from "react";
-import { Search, X, Plus, Link2, AlertTriangle, RefreshCw } from "lucide-react";
-import { Modal, Btn, Field, SField } from "../../components/ui";
+import { Search, X, Plus, Link2, AlertTriangle, RefreshCw, ArrowLeft } from "lucide-react";
+import { Btn, Field, SField } from "../../components/ui";
 import { DatePicker } from "../../components/ui/DatePicker";
 import { useAppStore } from "../../store";
 import { fmtCur, safeStr, todayStr } from "../../utils";
@@ -14,6 +14,18 @@ const CONDITION_OPTIONS = ["New", "Good", "Needs Repair", "Damaged", "Old"];
 const GST_PCT_OPTIONS = [0, 5, 12, 18, 28];
 const GST_TYPE_OPTIONS = ["Exclusive", "Inclusive"];
 const VENDOR_COLORS = ["text-orange-600", "text-blue-500", "text-emerald-600"];
+
+// Always recalculate from qty × rate so stale/corrupted stored totalWithGST never displays.
+function calcItemTotal(item) {
+  const qty = Number(item.qty) || 0;
+  const rate = Number(item.rate) || 0;
+  const gstPct = Number(item.gstPct) || 0;
+  const isInclusive = (item.gstType || "Exclusive") === "Inclusive";
+  return isInclusive ? qty * rate : qty * rate * (1 + gstPct / 100);
+}
+
+// Shared class for all inline table inputs/selects — solid bg so text is always visible
+const CELL_INPUT = "w-full px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg text-[13px] bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20";
 
 function isPOLocked(po) {
   return !!(po?.paymentTimelines?.some((pt) => (pt.paid || 0) > 0) || po?.accountStatus === "Processed");
@@ -66,7 +78,7 @@ export function POFormModal({
   const set = (partial) => onChange({ ...po, ...partial });
 
   const grandTotal =
-    (po.items?.reduce((s, it) => s + (it.totalWithGST || 0), 0) || 0) +
+    (po.items?.reduce((s, it) => s + calcItemTotal(it), 0) || 0) +
     calcChargeTotal(po.freightAmount || 0, po.freightGstPct || 0, po.freightGstType || "Exclusive") +
     calcChargeTotal(po.loadingAmount || 0, po.loadingGstPct || 0, po.loadingGstType || "Exclusive") +
     calcChargeTotal(po.unloadingAmount || 0, po.unloadingGstPct || 0, po.unloadingGstType || "Exclusive");
@@ -79,21 +91,34 @@ export function POFormModal({
     set({ paymentTimelines: pts });
   };
 
-  const footer = (
-    <div className="flex justify-end gap-2 w-full">
-      <Btn label="Cancel" outline onClick={onClose} />
-      <Btn label={isEditing ? "Update PO" : "Create PO"} onClick={onSubmit} loading={actionLoading} />
-    </div>
-  );
-
   return (
-    <Modal
-      title={isEditing ? "Edit Purchase Order" : "Create Purchase Order"}
-      extraWide
-      onClose={onClose}
-      footer={footer}
-    >
-      {isEditing && isPOLocked(po) && (
+    <div className="-m-4 sm:-m-6 flex flex-col">
+      {/* ── Sticky page header ─────────────────────────────────────── */}
+      <div className="sticky top-0 z-20 flex items-center gap-3 px-4 sm:px-6 py-3 bg-white dark:bg-gray-800/90 backdrop-blur-sm border-b border-gray-200 dark:border-gray-700 shadow-sm">
+        <button
+          type="button"
+          onClick={onClose}
+          className="p-2 -ml-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400 transition-colors"
+        >
+          <ArrowLeft className="w-5 h-5" />
+        </button>
+        <div className="flex-1 min-w-0">
+          <h1 className="text-base font-bold text-gray-900 dark:text-white leading-tight">
+            {isEditing ? "Edit Purchase Order" : "Create Purchase Order"}
+          </h1>
+          <p className="text-[11px] text-gray-500 dark:text-gray-400">
+            {isEditing ? "Update PO details and save changes" : "Fill in all details to raise a new PO"}
+          </p>
+        </div>
+        <div className="hidden sm:flex items-center gap-2 shrink-0">
+          <Btn label="Cancel" outline onClick={onClose} />
+          <Btn label={isEditing ? "Update PO" : "Create PO"} onClick={onSubmit} loading={actionLoading} />
+        </div>
+      </div>
+
+      {/* ── Form content ───────────────────────────────────────────── */}
+      <div className="flex-1 px-4 sm:px-6 py-6 pb-24 sm:pb-8">
+        {isEditing && isPOLocked(po) && (
         <div className="mb-6 p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl flex items-center gap-3">
           <AlertTriangle className="w-5 h-5 text-amber-500" />
           <div>
@@ -262,86 +287,182 @@ export function POFormModal({
 
           {po.items?.length > 0 && (
             <>
-              {/* Mobile: Cards */}
-              <div className="md:hidden space-y-4">
+              {/* ── Mobile: Cards (< md) ─────────────────────────────────── */}
+              <div className="md:hidden space-y-3">
                 {po.items.map((item, idx) => (
-                  <div key={idx} className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl p-4 shadow-sm relative overflow-hidden">
+                  <div key={idx} className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl p-4 shadow-sm relative">
+                    {/* Header row */}
                     <div className="flex justify-between items-start mb-3">
-                      <div className="min-w-0 flex-1">
-                        <h4 className="text-[14px] font-bold text-gray-900 dark:text-white truncate">{safeStr(item.itemName)}</h4>
+                      <div className="min-w-0 flex-1 pr-2">
+                        <h4 className="text-[14px] font-bold text-gray-900 dark:text-white leading-tight">{safeStr(item.itemName)}</h4>
                         <p className={cn("text-[11px] font-mono mt-0.5", item.sku === "N/A" ? "text-red-500 font-bold" : "text-gray-400")}>
                           {item.sku === "N/A" ? "⚠️ NOT LINKED" : safeStr(item.sku)}
                         </p>
+                        <div className="flex gap-3 mt-1">
+                          {item.currentStock !== undefined && (
+                            <span className="text-[10px] text-gray-400">Stock: <strong className="text-gray-600 dark:text-gray-300">{item.currentStock}</strong></span>
+                          )}
+                          {item.unit && <span className="text-[10px] text-gray-400">Unit: <strong className="text-gray-600 dark:text-gray-300">{item.unit}</strong></span>}
+                          {item.requirementQty > 0 && <span className="text-[10px] text-gray-400">Req: <strong className="text-gray-600 dark:text-gray-300">{item.requirementQty}</strong></span>}
+                        </div>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <button onClick={() => setLinkingIndex(idx)} className="p-2 text-orange-500 hover:bg-orange-50 rounded-lg"><Link2 className="w-4 h-4" /></button>
-                        <button onClick={() => removeItem(idx)} className="p-2 text-red-500 hover:bg-red-50 rounded-lg"><X className="w-4 h-4" /></button>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <button onClick={() => setLinkingIndex(idx)} className="p-1.5 text-orange-500 hover:bg-orange-50 dark:hover:bg-orange-900/20 rounded-lg transition-colors">
+                          <Link2 className="w-4 h-4" />
+                        </button>
+                        <button onClick={() => removeItem(idx)} className="p-1.5 text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors">
+                          <X className="w-4 h-4" />
+                        </button>
                       </div>
                     </div>
-                    <div className="grid grid-cols-2 gap-3 mb-3">
+
+                    {/* Link popup (mobile) */}
+                    {linkingIndex === idx && (
+                      <div className="mb-3 p-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-xl">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-[11px] font-bold text-gray-500">Link inventory item</span>
+                          <button onClick={() => setLinkingIndex(null)}><X className="w-3.5 h-3.5 text-gray-400" /></button>
+                        </div>
+                        <div className="relative mb-2">
+                          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+                          <input autoFocus type="text" placeholder="Search inventory..." value={linkingSearch}
+                            onChange={(e) => setLinkingSearch(e.target.value)}
+                            className="w-full pl-9 pr-3 py-1.5 border border-gray-200 dark:border-gray-700 rounded-lg text-[12px] focus:outline-none bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-white" />
+                        </div>
+                        <div className="max-h-40 overflow-y-auto space-y-1">
+                          {inventory.filter((i) => (i.itemName || "").toLowerCase().includes(linkingSearch.toLowerCase()) || (i.sku || "").toLowerCase().includes(linkingSearch.toLowerCase()))
+                            .slice(0, 20).map((i, iidx) => (
+                              <div key={iidx} onClick={() => { linkToInventory(idx, i); setLinkingIndex(null); setLinkingSearch(""); }}
+                                className="px-3 py-2 hover:bg-orange-50 dark:hover:bg-orange-900/10 cursor-pointer text-[12px] rounded-lg border border-transparent hover:border-orange-100 transition-all">
+                                <div className="font-bold text-gray-900 dark:text-white">{safeStr(i.itemName)}</div>
+                                <div className="flex items-center justify-between mt-0.5">
+                                  <span className="text-[10px] text-gray-500 font-mono">{safeStr(i.sku)}</span>
+                                  <span className="text-[10px] font-bold text-orange-600">Stock: {safeStr(i.liveStock)}</span>
+                                </div>
+                              </div>
+                            ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Quick Add (mobile) */}
+                    {item.sku === "N/A" && showQuickAdd !== idx && (
+                      <button onClick={() => { setShowQuickAdd(idx); setQuickAddData({ category: "", unit: "" }); }}
+                        className="text-[10px] text-orange-600 hover:underline font-bold flex items-center gap-0.5 mb-3">
+                        <Plus className="w-2.5 h-2.5" /> Quick Add to Inventory
+                      </button>
+                    )}
+                    {showQuickAdd === idx && (
+                      <div className="mb-3 p-3 bg-orange-50 dark:bg-orange-900/10 border border-orange-200 rounded-xl">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-[10px] font-bold text-orange-700 dark:text-orange-400">Quick add item</span>
+                          <button onClick={() => setShowQuickAdd(null)}><X className="w-3 h-3 text-gray-400" /></button>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2 mb-2">
+                          <SField label="Category" className="mb-0" value={quickAddData.category}
+                            onChange={(e) => setQuickAddData({ ...quickAddData, category: e.target.value })}
+                            options={CATEGORIES.map((c) => ({ label: c, value: c }))} />
+                          <SField label="Unit" className="mb-0" value={quickAddData.unit}
+                            onChange={(e) => setQuickAddData({ ...quickAddData, unit: e.target.value })}
+                            options={UNITS.map((u) => ({ label: u, value: u }))} />
+                        </div>
+                        <Btn label="Add to Inventory" small className="w-full" onClick={() => quickAddToInventory(idx, quickAddData)} loading={actionLoading} />
+                      </div>
+                    )}
+
+                    {/* Inputs: 2-col grid */}
+                    <div className="grid grid-cols-2 gap-2 mb-2">
                       <div>
-                        <label className="block text-[10px] text-gray-400 font-bold mb-1">Order qty</label>
+                        <label className="block text-[10px] text-gray-500 dark:text-gray-400 font-semibold mb-1">Condition</label>
+                        <select value={item.condition || "New"} onChange={(e) => updateItem(idx, "condition", e.target.value)}
+                          className={CELL_INPUT}>
+                          {CONDITION_OPTIONS.map((v) => <option key={v} value={v}>{v}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-[10px] text-gray-500 dark:text-gray-400 font-semibold mb-1">Order Qty</label>
                         <input type="number" value={item.qty ?? 0} onChange={(e) => updateItem(idx, "qty", Number(e.target.value))}
-                          className="w-full px-2 py-1.5 border border-gray-200 dark:border-gray-800 rounded-lg text-[13px] bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white" />
+                          className={cn(CELL_INPUT, "text-center")} />
                       </div>
                       <div>
-                        <label className="block text-[10px] text-gray-400 font-bold mb-1">Rate</label>
+                        <label className="block text-[10px] text-gray-500 dark:text-gray-400 font-semibold mb-1">Rate (₹)</label>
                         <input type="number" value={item.rate ?? 0} onChange={(e) => updateItem(idx, "rate", Number(e.target.value))}
-                          className="w-full px-2 py-1.5 border border-gray-200 dark:border-gray-800 rounded-lg text-[13px] bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white" />
+                          className={CELL_INPUT} />
                       </div>
-                    </div>
-                    <div className="grid grid-cols-2 gap-3 mb-3">
                       <div>
-                        <label className="block text-[10px] text-gray-400 font-bold mb-1">GST %</label>
+                        <label className="block text-[10px] text-gray-500 dark:text-gray-400 font-semibold mb-1">GST %</label>
                         <select value={item.gstPct} onChange={(e) => updateItem(idx, "gstPct", Number(e.target.value))}
-                          className="w-full px-2 py-1.5 border border-gray-200 dark:border-gray-800 rounded-lg text-[13px] bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white">
+                          className={CELL_INPUT}>
                           {GST_PCT_OPTIONS.map((v) => <option key={v} value={v}>{v}%</option>)}
                         </select>
                       </div>
-                      <div>
-                        <label className="block text-[10px] text-gray-400 font-bold mb-1">GST Type</label>
-                        <select value={item.gstType || "Exclusive"} onChange={(e) => updateItem(idx, "gstType", e.target.value)}
-                          className="w-full px-2 py-1.5 border border-gray-200 dark:border-gray-800 rounded-lg text-[13px] bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white font-bold">
-                          {GST_TYPE_OPTIONS.map((v) => <option key={v} value={v}>{v}</option>)}
-                        </select>
-                      </div>
                     </div>
+                    <div className="mb-3">
+                      <label className="block text-[10px] text-gray-500 dark:text-gray-400 font-semibold mb-1">GST Type</label>
+                      <select value={item.gstType || "Exclusive"} onChange={(e) => updateItem(idx, "gstType", e.target.value)}
+                        className={cn(CELL_INPUT, "font-semibold")}>
+                        {GST_TYPE_OPTIONS.map((v) => <option key={v} value={v}>{v}</option>)}
+                      </select>
+                    </div>
+
+                    {/* Total */}
                     <div className="flex justify-between items-center pt-3 border-t border-gray-100 dark:border-gray-800">
-                      <span className="text-[12px] font-bold">Total with GST</span>
-                      <span className="text-[14px] font-black text-orange-600 dark:text-orange-400">{fmtCur(item.totalWithGST)}</span>
+                      <span className="text-[12px] font-bold text-gray-500">Total (Incl. GST)</span>
+                      <span className="text-[15px] font-black text-orange-600 dark:text-orange-400">{fmtCur(calcItemTotal(item))}</span>
                     </div>
                   </div>
                 ))}
               </div>
 
-              {/* Desktop: Table */}
-              <div className="hidden md:block overflow-x-auto">
-                <table className="w-full text-left border-collapse mb-4">
+              {/* ── Desktop: Table (≥ md) — 7 columns instead of 11 ──────── */}
+              <div className="hidden md:block overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-800">
+                <table className="w-full text-left border-collapse" style={{ minWidth: 640 }}>
                   <thead>
-                    <tr className="bg-gray-50 dark:bg-gray-800/50 border-b border-gray-200 dark:border-gray-800">
-                      {["Item", "Stock", "Unit", "Req qty", "Condition", "Order qty", "Rate", "GST %", "GST Type", "Total", ""].map((h) => (
-                        <th key={h} className="px-2 py-2 text-[11px] font-bold text-gray-500 dark:text-gray-400">{h}</th>
-                      ))}
+                    <tr className="bg-gray-50 dark:bg-gray-800/60 border-b border-gray-200 dark:border-gray-700">
+                      <th className="px-3 py-2.5 text-[11px] font-bold text-gray-500 dark:text-gray-400 w-[35%]">Item</th>
+                      <th className="px-3 py-2.5 text-[11px] font-bold text-gray-500 dark:text-gray-400 w-[13%]">Condition</th>
+                      <th className="px-3 py-2.5 text-[11px] font-bold text-gray-500 dark:text-gray-400 w-[10%]">Order Qty</th>
+                      <th className="px-3 py-2.5 text-[11px] font-bold text-gray-500 dark:text-gray-400 w-[10%]">Rate (₹)</th>
+                      <th className="px-3 py-2.5 text-[11px] font-bold text-gray-500 dark:text-gray-400 w-[16%]">GST % / Type</th>
+                      <th className="px-3 py-2.5 text-[11px] font-bold text-gray-500 dark:text-gray-400 w-[12%] text-right">Total</th>
+                      <th className="w-8" />
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-200 dark:divide-gray-800">
+                  <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
                     {po.items.map((item, idx) => (
-                      <tr key={idx}>
-                        <td className="px-2 py-2 relative">
-                          <div className="flex items-center justify-between gap-2">
-                            <div className="min-w-0">
-                              <p className="text-[13px] font-medium text-gray-900 dark:text-white truncate" title={safeStr(item.itemName)}>{safeStr(item.itemName)}</p>
-                              <p className={cn("text-[11px] font-mono", item.sku === "N/A" ? "text-red-500 font-bold" : "text-gray-400")}>
+                      <tr key={idx} className="group hover:bg-gray-50/60 dark:hover:bg-gray-800/30 transition-colors">
+                        {/* Item cell — name, SKU, stock/unit/req info, link button */}
+                        <td className="px-3 py-3 relative">
+                          <div className="flex items-start gap-2">
+                            <div className="min-w-0 flex-1">
+                              <p className="text-[13px] font-semibold text-gray-900 dark:text-white leading-tight" title={safeStr(item.itemName)}>
+                                {safeStr(item.itemName)}
+                              </p>
+                              <p className={cn("text-[10px] font-mono mt-0.5", item.sku === "N/A" ? "text-red-500 font-bold" : "text-gray-400")}>
                                 {item.sku === "N/A" ? "⚠️ NOT LINKED" : safeStr(item.sku)}
                               </p>
+                              {/* Stock · Unit · Req pill row */}
+                              <div className="flex flex-wrap gap-2 mt-1">
+                                {item.currentStock !== undefined && (
+                                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400">
+                                    Stock: {item.currentStock} {item.unit}
+                                  </span>
+                                )}
+                                {item.requirementQty > 0 && (
+                                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-blue-50 dark:bg-blue-900/20 text-blue-500">
+                                    Req: {item.requirementQty}
+                                  </span>
+                                )}
+                              </div>
+                              {/* Quick Add */}
                               {item.sku === "N/A" && showQuickAdd !== idx && (
                                 <button onClick={() => { setShowQuickAdd(idx); setQuickAddData({ category: "", unit: "" }); }}
-                                  className="text-[10px] text-orange-600 hover:underline mt-0.5 font-bold flex items-center gap-0.5">
+                                  className="mt-1 text-[10px] text-orange-600 hover:underline font-bold flex items-center gap-0.5">
                                   <Plus className="w-2.5 h-2.5" /> Quick Add
                                 </button>
                               )}
                               {showQuickAdd === idx && (
-                                <div className="mt-2 p-3 bg-orange-50 dark:bg-orange-900/10 border border-orange-100 rounded-xl shadow-sm relative z-50 min-w-[350px]">
+                                <div className="mt-2 p-3 bg-orange-50 dark:bg-orange-900/10 border border-orange-200 dark:border-orange-800 rounded-xl shadow-sm relative z-50 w-[320px]">
                                   <div className="flex items-center justify-between mb-2">
                                     <span className="text-[10px] font-bold text-orange-700 dark:text-orange-400">Quick add item</span>
                                     <button onClick={() => setShowQuickAdd(null)}><X className="w-3 h-3 text-gray-400" /></button>
@@ -353,22 +474,26 @@ export function POFormModal({
                                     <SField label="Unit" className="mb-0 flex-1" value={quickAddData.unit}
                                       onChange={(e) => setQuickAddData({ ...quickAddData, unit: e.target.value })}
                                       options={UNITS.map((u) => ({ label: u, value: u }))} />
-                                    <Btn label="Add" small className="bg-orange-600 hover:bg-orange-700 text-white border-none h-[38px]"
-                                      onClick={() => quickAddToInventory(idx, quickAddData)} loading={actionLoading} />
+                                    <Btn label="Add" small className="h-[38px]" onClick={() => quickAddToInventory(idx, quickAddData)} loading={actionLoading} />
                                   </div>
                                 </div>
                               )}
                             </div>
-                            <button onClick={() => setLinkingIndex(idx)} className="p-1.5 text-orange-500 hover:bg-orange-50 rounded-lg shrink-0"><Link2 className="w-3.5 h-3.5" /></button>
+                            <button onClick={() => setLinkingIndex(idx)}
+                              className="p-1.5 text-orange-500 hover:bg-orange-50 dark:hover:bg-orange-900/20 rounded-lg shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                              title="Link to inventory">
+                              <Link2 className="w-3.5 h-3.5" />
+                            </button>
                           </div>
 
+                          {/* Link popup (desktop) */}
                           {linkingIndex === idx && (
-                            <div className="absolute z-20 left-0 top-full mt-1 w-72 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-2xl p-3">
+                            <div className="absolute z-30 left-0 top-full mt-1 w-72 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-2xl p-3">
                               <div className="flex items-center justify-between mb-2">
-                                <span className="text-[10px] font-bold text-gray-400">Link inventory item</span>
+                                <span className="text-[11px] font-bold text-gray-500">Link inventory item</span>
                                 <button onClick={() => setLinkingIndex(null)}><X className="w-3 h-3 text-gray-400" /></button>
                               </div>
-                              <div className="relative mb-3">
+                              <div className="relative mb-2">
                                 <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
                                 <input autoFocus type="text" placeholder="Search inventory..." value={linkingSearch}
                                   onChange={(e) => setLinkingSearch(e.target.value)}
@@ -392,46 +517,60 @@ export function POFormModal({
                             </div>
                           )}
                         </td>
-                        <td className="px-2 py-2 text-[13px] text-gray-500">{safeStr(item.currentStock ?? 0)}</td>
-                        <td className="px-2 py-2 text-[13px] text-gray-500">{safeStr(item.unit)}</td>
-                        <td className="px-2 py-2 text-[13px] text-gray-400 font-bold">{item.requirementQty ?? 0}</td>
-                        <td className="px-2 py-2">
+
+                        {/* Condition */}
+                        <td className="px-3 py-3">
                           <select value={item.condition || "New"} onChange={(e) => updateItem(idx, "condition", e.target.value)}
-                            className="w-full px-2 py-1 border border-gray-200 dark:border-gray-800 rounded text-[13px] bg-white dark:bg-gray-900 text-gray-900 dark:text-white">
+                            className={CELL_INPUT}>
                             {CONDITION_OPTIONS.map((v) => <option key={v} value={v}>{v}</option>)}
                           </select>
                         </td>
-                        <td className="px-2 py-2">
+
+                        {/* Order Qty */}
+                        <td className="px-3 py-3">
                           <input type="number" value={item.qty ?? 0} onChange={(e) => updateItem(idx, "qty", Number(e.target.value))}
-                            className="w-full px-2 py-1 border border-gray-200 dark:border-gray-800 rounded text-[13px] bg-white dark:bg-gray-900 text-gray-900 dark:text-white" />
+                            className={cn(CELL_INPUT, "text-center")} />
                         </td>
-                        <td className="px-2 py-2">
+
+                        {/* Rate */}
+                        <td className="px-3 py-3">
                           <input type="number" value={item.rate ?? 0} onChange={(e) => updateItem(idx, "rate", Number(e.target.value))}
-                            className="w-full px-2 py-1 border border-gray-200 dark:border-gray-800 rounded text-[13px] bg-white dark:bg-gray-900 text-gray-900 dark:text-white" />
+                            className={CELL_INPUT} />
                         </td>
-                        <td className="px-2 py-2">
-                          <select value={item.gstPct} onChange={(e) => updateItem(idx, "gstPct", Number(e.target.value))}
-                            className="w-full px-2 py-1 border border-gray-200 dark:border-gray-800 rounded text-[13px] bg-white dark:bg-gray-900 text-gray-900 dark:text-white">
-                            {GST_PCT_OPTIONS.map((v) => <option key={v} value={v}>{v}%</option>)}
-                          </select>
+
+                        {/* GST % + GST Type in one cell */}
+                        <td className="px-3 py-3">
+                          <div className="flex gap-1.5">
+                            <select value={item.gstPct} onChange={(e) => updateItem(idx, "gstPct", Number(e.target.value))}
+                              className={cn(CELL_INPUT, "w-[58px] shrink-0")}>
+                              {GST_PCT_OPTIONS.map((v) => <option key={v} value={v}>{v}%</option>)}
+                            </select>
+                            <select value={item.gstType || "Exclusive"} onChange={(e) => updateItem(idx, "gstType", e.target.value)}
+                              className={cn(CELL_INPUT, "flex-1 min-w-0 font-semibold")}>
+                              {GST_TYPE_OPTIONS.map((v) => <option key={v} value={v}>{v}</option>)}
+                            </select>
+                          </div>
                         </td>
-                        <td className="px-2 py-2">
-                          <select value={item.gstType || "Exclusive"} onChange={(e) => updateItem(idx, "gstType", e.target.value)}
-                            className="w-full px-1 py-1 border border-gray-200 dark:border-gray-800 rounded text-[11px] bg-white dark:bg-gray-900 text-gray-900 dark:text-white font-bold">
-                            {GST_TYPE_OPTIONS.map((v) => <option key={v} value={v}>{v}</option>)}
-                          </select>
+
+                        {/* Total */}
+                        <td className="px-3 py-3 text-right">
+                          <span className="text-[13px] font-bold text-gray-900 dark:text-white">{fmtCur(calcItemTotal(item))}</span>
                         </td>
-                        <td className="px-2 py-2 text-[13px] font-bold text-right text-gray-900 dark:text-white">{fmtCur(item.totalWithGST)}</td>
-                        <td className="px-2 py-2 text-right">
-                          <button onClick={() => removeItem(idx)} className="p-1 text-gray-400 hover:text-red-500"><X className="w-4 h-4" /></button>
+
+                        {/* Remove */}
+                        <td className="py-3 pr-2">
+                          <button onClick={() => removeItem(idx)}
+                            className="p-1 text-gray-300 dark:text-gray-600 hover:text-red-500 dark:hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all rounded">
+                            <X className="w-4 h-4" />
+                          </button>
                         </td>
                       </tr>
                     ))}
                   </tbody>
-                  <tfoot className="border-t-2 border-gray-100 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-800/30">
+                  <tfoot className="border-t-2 border-gray-200 dark:border-gray-700 bg-gray-50/80 dark:bg-gray-800/40">
                     <tr>
-                      <td colSpan={9} className="px-2 py-2 text-right text-[10px] font-bold text-gray-400 tracking-widest">Items Subtotal (Incl. GST)</td>
-                      <td className="px-2 py-2 text-right text-[13px] font-bold text-gray-700 dark:text-gray-300">
+                      <td colSpan={5} className="px-3 py-2.5 text-right text-[10px] font-bold text-gray-400 tracking-widest uppercase">Items Subtotal (Incl. GST)</td>
+                      <td className="px-3 py-2.5 text-right text-[13px] font-bold text-gray-700 dark:text-gray-300">
                         {fmtCur(po.items?.reduce((s, it) => s + (it.totalWithGST || 0), 0) || 0)}
                       </td>
                       <td />
@@ -442,18 +581,18 @@ export function POFormModal({
                       ["Unloading", po.unloadingAmount, po.unloadingGstPct, po.unloadingGstType],
                     ].filter(([, amt]) => (amt || 0) > 0).map(([name, amt, pct, type]) => (
                       <tr key={name}>
-                        <td colSpan={9} className="px-2 py-1 text-right text-[10px] font-bold text-gray-400">
+                        <td colSpan={5} className="px-3 py-1.5 text-right text-[10px] font-bold text-gray-400">
                           {name} Charges ({pct || 18}% GST · {type || "Exclusive"})
                         </td>
-                        <td className="px-2 py-1 text-right text-[12px] font-bold text-gray-600 dark:text-gray-400">
+                        <td className="px-3 py-1.5 text-right text-[12px] font-bold text-gray-600 dark:text-gray-400">
                           {fmtCur(calcChargeTotal(amt || 0, pct || 0, type || "Exclusive"))}
                         </td>
                         <td />
                       </tr>
                     ))}
                     <tr className="border-t border-gray-200 dark:border-gray-700">
-                      <td colSpan={9} className="px-2 py-3 text-right text-[11px] font-black text-gray-600 dark:text-gray-300 tracking-widest">Grand Total (Incl. GST + Charges)</td>
-                      <td className="px-2 py-3 text-right text-[15px] font-black text-orange-600 dark:text-orange-400">{fmtCur(grandTotal)}</td>
+                      <td colSpan={5} className="px-3 py-3 text-right text-[11px] font-black text-gray-600 dark:text-gray-300 tracking-widest uppercase">Grand Total (Incl. GST + Charges)</td>
+                      <td className="px-3 py-3 text-right text-[16px] font-black text-orange-600 dark:text-orange-400">{fmtCur(grandTotal)}</td>
                       <td />
                     </tr>
                   </tfoot>
@@ -688,7 +827,13 @@ export function POFormModal({
           </div>
         </div>
       </div>
-      <div className="h-48" />
-    </Modal>
+      </div>
+
+      {/* ── Mobile sticky footer ───────────────────────────────────── */}
+      <div className="sm:hidden fixed bottom-0 left-0 right-0 z-20 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 px-4 py-3 flex gap-2 shadow-[0_-4px_16px_rgba(0,0,0,0.08)]">
+        <Btn label="Cancel" outline onClick={onClose} className="flex-1" />
+        <Btn label={isEditing ? "Update PO" : "Create PO"} onClick={onSubmit} loading={actionLoading} className="flex-1" />
+      </div>
+    </div>
   );
 }
