@@ -265,16 +265,7 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
     fetchResource("suppliers", 1, 1e3, true);
     fetchResource("inventory", 1, 1e3, true);
     fetchResource("catalogue", 1, 1e3, true);
-    fetchResource(
-      "material-requirements",
-      1,
-      100,
-      true,
-      "",
-      null,
-      false,
-      false,
-    );
+    fetchResource("material-requirements", 1, 1e3, true);
     fetchResource("quotations", 1, 1e3, true);
     api.get("pos/occupied-mrs").then((r) => setOccupiedQuoteIds(r.data || [])).catch(() => setOccupiedQuoteIds([]));
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -942,18 +933,19 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
 
   const mrOptions = React.useMemo(() => {
     const occupiedSet = new Set(occupiedQuoteIds || []);
+    const mrMap = new Map();
+    (materialRequirements || []).forEach((m) => m && mrMap.set(m.id, m));
     const list = [];
-    (materialRequirements || []).forEach((m) => {
-      if (m && m.status === "Approved by AGM") {
-        (quotations || []).forEach((q) => {
-          if (q.mrId === m.id && q.status === "Approved" && !occupiedSet.has(q.id)) {
-            const category = q.category || "General";
-            list.push({
-              label: `${m.mrNumber || m.id} - ${m.project} (${category}) - ${q.supplierName}`,
-              value: `${m.id}|${category}|${q.id}`,
-            });
-          }
-        });
+    (quotations || []).forEach((q) => {
+      if (q && q.status === "Approved" && !occupiedSet.has(q.id)) {
+        const m = mrMap.get(q.mrId);
+        if (m) {
+          const category = q.category || "General";
+          list.push({
+            label: `${m.mrNumber || m.id} - ${m.project} (${category}) - ${q.supplierName}`,
+            value: `${m.id}|${category}|${q.id}`,
+          });
+        }
       }
     });
     return list;
