@@ -12,7 +12,7 @@ import {
   ImageUpload,
   Skeleton
 } from "../components/ui";
-import { Plus, Search, Image as ImageIcon, Check, Pencil, Trash2 } from "lucide-react";
+import { Plus, Search, Image as ImageIcon, Check, Pencil, Trash2, LayoutList, Table as TableIcon } from "lucide-react";
 import { ConfirmModal } from "../components/ui";
 import { cn } from "../lib/utils";
 import { scrollToError, safeStr } from "../utils";
@@ -40,6 +40,8 @@ const Catalogue = /* @__PURE__ */ __name(() => {
     return () => clearTimeout(timer);
   }, [search]);
   const [filterCategory, setFilterCategory] = useState("");
+  const [viewMode, setViewMode] = useState("card");
+  const [tableFilter, setTableFilter] = useState("");
   const [page, setPage] = useState(1);
   const observerRef = useRef(null);
   useEffect(() => {
@@ -49,7 +51,8 @@ const Catalogue = /* @__PURE__ */ __name(() => {
     const isInitialLoad = catalogue.length === 0;
     const filter = filterCategory ? { category: filterCategory } : null;
     fetchResource("catalogue", page, 50, !isInitialLoad || page > 1, debouncedSearch, filter, page > 1);
-  }, [fetchResource, debouncedSearch, filterCategory, page]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [debouncedSearch, filterCategory, page]);
   useEffect(() => {
     const observer = (() => {
       try {
@@ -213,6 +216,16 @@ const Catalogue = /* @__PURE__ */ __name(() => {
     }} />}
   />
 
+        <div className="flex justify-end mb-2">
+          <div className="flex items-center gap-0.5 p-0.5 bg-gray-100 dark:bg-gray-800 rounded-lg">
+            <button onClick={() => setViewMode("card")} className={cn("p-1.5 rounded-md transition-all", viewMode === "card" ? "bg-white dark:bg-gray-700 shadow-sm text-primary" : "text-gray-400 hover:text-gray-600")} title="Card view">
+              <LayoutList className="w-4 h-4" />
+            </button>
+            <button onClick={() => setViewMode("table")} className={cn("p-1.5 rounded-md transition-all", viewMode === "table" ? "bg-white dark:bg-gray-700 shadow-sm text-primary" : "text-gray-400 hover:text-gray-600")} title="Table view">
+              <TableIcon className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
           <div className="relative md:col-span-2">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -234,6 +247,85 @@ const Catalogue = /* @__PURE__ */ __name(() => {
           </select>
         </div>
 
+        {viewMode === "table" ? (
+          <div className="rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900">
+            <div className="p-3 border-b border-gray-100 dark:border-gray-800">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+                <input type="text" placeholder="Quick filter..." value={tableFilter} onChange={(e) => setTableFilter(e.target.value)} className="w-full pl-9 pr-4 py-1.5 text-xs bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/40 transition-all" />
+              </div>
+            </div>
+            <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50 dark:bg-gray-800 sticky top-0 z-10">
+                <tr>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">SKU</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Item Name</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Category</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Brand</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">UOM</th>
+                  <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Live Stock</th>
+                  <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Min Stock</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
+                  {(hasPermission("EDIT_CATALOGUE") || hasPermission("DELETE_CATALOGUE")) && (
+                    <th className="text-center px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
+                  )}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+                {loading && catalogue.length === 0 ? (
+                  [...Array(8)].map((_, i) => (
+                    <tr key={i} className="animate-pulse">
+                      {[...Array(8)].map((__, j) => (
+                        <td key={j} className="px-4 py-3"><div className="h-3 bg-gray-200 dark:bg-gray-700 rounded" /></td>
+                      ))}
+                    </tr>
+                  ))
+                ) : catalogue
+                  .filter(cat => !tableFilter || [cat.sku, cat.itemName, cat.category, cat.brand].some(f => f?.toLowerCase().includes(tableFilter.toLowerCase())))
+                  .map((cat) => {
+                  const inv = inventory.find((i) => i.sku === cat.sku);
+                  return (
+                    <tr key={cat.sku} className="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors cursor-pointer" onClick={() => setSelectedEntry(cat)}>
+                      <td className="px-4 py-3 text-xs font-mono text-orange-600 dark:text-orange-400 whitespace-nowrap">{safeStr(cat.sku)}</td>
+                      <td className="px-4 py-3 text-xs font-semibold text-gray-900 dark:text-white max-w-[180px] truncate">{safeStr(cat.itemName)}</td>
+                      <td className="px-4 py-3 text-xs text-gray-600 dark:text-gray-400 whitespace-nowrap">{safeStr(cat.category)}</td>
+                      <td className="px-4 py-3 text-xs text-gray-600 dark:text-gray-400 whitespace-nowrap">{safeStr(cat.brand)}</td>
+                      <td className="px-4 py-3 text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">{safeStr(cat.uom)}</td>
+                      <td className={`px-4 py-3 text-xs font-bold text-right whitespace-nowrap ${inv && inv.liveStock <= cat.minStock ? "text-red-500" : "text-emerald-600 dark:text-emerald-400"}`}>
+                        {inv ? inv.liveStock : 0}
+                      </td>
+                      <td className="px-4 py-3 text-xs text-gray-500 dark:text-gray-400 text-right whitespace-nowrap">{cat.minStock ?? 0}</td>
+                      <td className="px-4 py-3"><StatusBadge status={cat.status} /></td>
+                      {(hasPermission("EDIT_CATALOGUE") || hasPermission("DELETE_CATALOGUE")) && (
+                        <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                          <div className="flex items-center justify-center gap-1.5">
+                            {hasPermission("EDIT_CATALOGUE") && (
+                              <button onClick={() => { setNewEntry(cat); setIsEditing(true); setModal(true); }} className="p-1.5 rounded-lg bg-amber-50 dark:bg-amber-900/10 hover:bg-amber-100 dark:hover:bg-amber-900/20 text-orange-500 dark:text-amber-400 transition-colors" title="Edit">
+                                <Pencil className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                            {hasPermission("DELETE_CATALOGUE") && (
+                              <button onClick={() => setDeletingSku(cat.sku)} className="p-1.5 rounded-lg bg-rose-50 dark:bg-rose-900/10 hover:bg-rose-100 dark:hover:bg-rose-900/20 text-red-500 dark:text-rose-400 transition-colors" title="Delete">
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      )}
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+            </div>
+            {catalogue.length === 0 && !loading && (
+              <div className="text-center py-16 text-gray-400">
+                <p className="font-bold tracking-widest text-sm">No items found</p>
+              </div>
+            )}
+          </div>
+        ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-6">
           {loading && catalogue.length === 0 ? [...Array(10)].map((_, i) => <div key={i} className="bg-white dark:bg-gray-900 border border-[#E8ECF0] dark:border-gray-800 rounded-2xl overflow-hidden p-5 space-y-4">
                 <Skeleton className="aspect-[4/3] w-full rounded-xl" />
@@ -358,6 +450,7 @@ const Catalogue = /* @__PURE__ */ __name(() => {
               </div>;
   })}
         </div>
+        )}
 
         {
     /* Infinite Scroll Sentinel */

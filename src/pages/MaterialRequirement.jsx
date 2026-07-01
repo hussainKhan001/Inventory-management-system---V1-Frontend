@@ -7,6 +7,7 @@ import {
 import {
   Plus, Eye, Pencil, Trash2, User, MapPin, Building, Package,
   Check, Link2, CheckCircle, TrendingUp, AlertTriangle,
+  LayoutList, Table as TableIcon, Search,
 } from "lucide-react";
 import { Virtuoso } from "react-virtuoso";
 import { formatDateTime, safeStr, isNewItem } from "../utils";
@@ -56,6 +57,9 @@ export function MaterialRequirementPage() {
   const [filterProject, setFilterProject] = useState("");
   const [filterRequester, setFilterRequester] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
+
+  const [viewMode, setViewMode] = useState("card");
+  const [tableFilter, setTableFilter] = useState("");
 
   // Modal state
   const [modal, setModal] = useState(false);
@@ -140,7 +144,7 @@ export function MaterialRequirementPage() {
           <SearchFilter
             value={search}
             onChange={setSearch}
-            placeholder="Search by ID, Requester, Project, or Material name..."
+            placeholder="Search by ID, Requester, Project..."
             className="flex-1 min-w-[240px]"
           />
           <DateRangePicker
@@ -150,11 +154,124 @@ export function MaterialRequirementPage() {
           <SelectFilter value={filterProject} onChange={setFilterProject} options={PROJECTS} placeholder="All Projects" />
           <SelectFilter value={filterRequester} onChange={setFilterRequester} options={REQUESTERS} placeholder="All Requesters" />
           <SelectFilter value={filterStatus} onChange={setFilterStatus} options={STATUS_OPTIONS} placeholder="All Statuses" />
+          {activeTab === "requirements" && (
+            <div className="flex items-center gap-0.5 p-0.5 bg-gray-100 dark:bg-gray-800 rounded-lg shrink-0">
+              <button
+                onClick={() => setViewMode("card")}
+                className={cn("p-1.5 rounded-md transition-all", viewMode === "card" ? "bg-white dark:bg-gray-700 shadow-sm text-primary" : "text-gray-400 hover:text-gray-600")}
+                title="Card view"
+              >
+                <LayoutList className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => setViewMode("table")}
+                className={cn("p-1.5 rounded-md transition-all", viewMode === "table" ? "bg-white dark:bg-gray-700 shadow-sm text-primary" : "text-gray-400 hover:text-gray-600")}
+                title="Table view"
+              >
+                <TableIcon className="w-4 h-4" />
+              </button>
+            </div>
+          )}
         </FilterRow>
       </div>
 
       <div className="space-y-4 min-h-[400px]">
-        {activeTab === "requirements" ? (
+        {activeTab === "requirements" && viewMode === "table" ? (
+          <Card className="p-0 overflow-hidden border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900">
+            <div className="p-3 border-b border-gray-100 dark:border-gray-800">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+                <input type="text" placeholder="Quick filter..." value={tableFilter} onChange={(e) => setTableFilter(e.target.value)} className="w-full pl-9 pr-4 py-1.5 text-xs bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/40 transition-all" />
+              </div>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse min-w-[900px]">
+                <thead className="sticky top-0 z-10">
+                  <tr className="bg-gray-50 dark:bg-gray-800/90 border-b border-gray-100 dark:border-gray-800">
+                    {["Date", "MR No.", "Project", "Requester", "Location", "Status", "Items", "Actions"].map(h => (
+                      <th key={h} className="px-3 py-3 text-[11px] font-bold text-gray-500 dark:text-gray-400 whitespace-nowrap">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+                  {loading && materialRequirements.length === 0 && (
+                    [...Array(6)].map((_, i) => (
+                      <tr key={i}>
+                        {Array(8).fill(0).map((__, j) => (
+                          <td key={j} className="px-3 py-3"><Skeleton className="h-4 w-full" /></td>
+                        ))}
+                      </tr>
+                    ))
+                  )}
+                  {!loading && materialRequirements.length === 0 && (
+                    <tr><td colSpan={8} className="px-4 py-12 text-center text-gray-500 italic text-[13px]">No material requirements found.</td></tr>
+                  )}
+                  {materialRequirements
+                    .filter(req => !tableFilter || [req.mrNumber || req.id, req.project, req.requesterName, req.location, req.status].some(f => f?.toLowerCase().includes(tableFilter.toLowerCase())))
+                    .map(req => (
+                    <tr
+                      key={req.id}
+                      onClick={() => { setSelectedRequirement(JSON.parse(JSON.stringify(req))); setViewModal(true); }}
+                      className={cn(
+                        "hover:bg-gray-50/80 dark:hover:bg-gray-800/40 transition-colors cursor-pointer text-[13px]",
+                        (req.status === "Store Pending" || req.status === "Quotation Phase") && "bg-primary/[0.03]"
+                      )}
+                    >
+                      <td className="px-3 py-2.5 whitespace-nowrap text-[12px] text-gray-500 dark:text-gray-400">{formatDateTime(req.date)}</td>
+                      <td className="px-3 py-2.5">
+                        <div className="flex items-center gap-1.5">
+                          {isNewItem(req.createdAt) && <span className="px-1 py-0.5 rounded text-[9px] font-black tracking-widest bg-primary text-white">NEW</span>}
+                          <span className="font-bold text-primary text-[12px]">{req.mrNumber || req.id}</span>
+                          {isMRLocked(req.id) && <Badge text="PO" color="blue" icon={Link2} className="px-1" />}
+                        </div>
+                      </td>
+                      <td className="px-3 py-2.5 max-w-[140px]">
+                        <span className="block truncate font-medium text-gray-800 dark:text-gray-200">{req.project || "—"}</span>
+                      </td>
+                      <td className="px-3 py-2.5 text-gray-600 dark:text-gray-400">{req.requesterName || "—"}</td>
+                      <td className="px-3 py-2.5 max-w-[120px]">
+                        <span className="block truncate text-gray-500 dark:text-gray-400 text-[12px]">{req.location || "—"}</span>
+                      </td>
+                      <td className="px-3 py-2.5"><StatusBadge status={req.status} /></td>
+                      <td className="px-3 py-2.5">
+                        <div className="flex flex-wrap gap-1">
+                          {(req.items || []).slice(0, 2).map((item, i) => (
+                            <span key={i} className="px-1.5 py-0.5 bg-gray-100 dark:bg-gray-800 rounded text-[11px] text-gray-600 dark:text-gray-400 truncate max-w-[100px]">{item.materialName}</span>
+                          ))}
+                          {(req.items || []).length > 2 && (
+                            <span className="px-1.5 py-0.5 bg-primary/10 text-primary rounded text-[11px] font-bold">+{req.items.length - 2}</span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-3 py-2.5" onClick={e => e.stopPropagation()}>
+                        <div className="flex items-center gap-1">
+                          <button title="View" onClick={() => { setSelectedRequirement(JSON.parse(JSON.stringify(req))); setViewModal(true); }} className="p-1.5 rounded text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"><Eye className="w-3.5 h-3.5" /></button>
+                          <button title="Track" onClick={() => { window.location.hash = `tracking?id=${req.mrNumber || req.id}`; }} className="p-1.5 rounded text-primary hover:bg-primary/10 transition-colors"><TrendingUp className="w-3.5 h-3.5" /></button>
+                          {hasPermission("EDIT_MATERIAL_REQUIREMENT") && (
+                            <button title="Edit" disabled={isMRLocked(req.id) && role !== "Super Admin"} onClick={() => openEditModal(req)} className={cn("p-1.5 rounded text-orange-500 hover:bg-orange-50 dark:hover:bg-orange-900/20 transition-colors", isMRLocked(req.id) && role !== "Super Admin" && "opacity-30 cursor-not-allowed")}><Pencil className="w-3.5 h-3.5" /></button>
+                          )}
+                          {hasPermission("DELETE_MATERIAL_REQUIREMENT") && (
+                            <button title="Delete" disabled={isMRLocked(req.id) && role !== "Super Admin"} onClick={() => setDeletingId(req.id)} className={cn("p-1.5 rounded text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors", isMRLocked(req.id) && role !== "Super Admin" && "opacity-30 cursor-not-allowed")}><Trash2 className="w-3.5 h-3.5" /></button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            {loading && materialRequirements.length > 0 && (
+              <div className="flex items-center justify-center py-3 text-gray-500 text-xs border-t border-gray-100 dark:border-gray-800">
+                <div className="w-3.5 h-3.5 border-2 border-primary border-t-transparent rounded-full animate-spin mr-2" />Loading more...
+              </div>
+            )}
+            {materialRequirementsPagination && materialRequirementsPagination.page < materialRequirementsPagination.pages && !loading && (
+              <div className="flex justify-center py-3 border-t border-gray-100 dark:border-gray-800">
+                <button onClick={() => handlePageChange(materialRequirementsPagination.page + 1)} className="px-4 py-1.5 text-[12px] font-medium text-primary border border-primary/30 rounded-lg hover:bg-primary/5 transition-colors">Load more</button>
+              </div>
+            )}
+          </Card>
+        ) : activeTab === "requirements" ? (
           <>
             {loading && materialRequirements.length === 0
               ? [...Array(3)].map((_, i) => (

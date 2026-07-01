@@ -1380,12 +1380,13 @@ const AppProvider = /* @__PURE__ */ __name(({ children }) => {
               };
               const resourceName = resourceMap[data.path] || data.path;
               const finalResourceName = !isAuth && resourceName === "settings" ? "public-settings" : resourceName;
-              const limit = ["inventory", "catalogue", "quotations", "material-requirements"].includes(finalResourceName) ? 1e3 : 100;
-              const lp = lastResourceParams.current[finalResourceName] || {};
-              fetchResourceRef.current(finalResourceName, 1, lp.limit || limit, true, lp.search || "", lp.filter || null, false, false, lp.startDate || "", lp.endDate || "", true);
-              if (isAuth && resourceName === "inventory") {
-                fetchStatsRef.current();
-              }
+              const defaultLimit = ["inventory", "catalogue", "quotations", "material-requirements"].includes(finalResourceName) ? 1e3 : 100;
+              const isInv = isAuth && resourceName === "inventory";
+              setTimeout(() => {
+                const lp = lastResourceParams.current[finalResourceName] || {};
+                fetchResourceRef.current(finalResourceName, 1, lp.limit || defaultLimit, true, lp.search || "", lp.filter || null, false, false, lp.startDate || "", lp.endDate || "", true);
+                if (isInv) fetchStatsRef.current();
+              }, 500);
             }
           } else if (data.type === "NOTIFICATION") {
             if (!authRef.current) return;

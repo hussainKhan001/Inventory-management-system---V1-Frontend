@@ -796,7 +796,7 @@ const TransactionsPage = /* @__PURE__ */ __name(({ type }) => {
                          <div className="flex flex-wrap gap-x-6 gap-y-2 mb-4 text-[12px]">
                             <div>
                               <p className="text-[9px] font-bold text-gray-400">Vendor</p>
-                              <p className="font-medium text-gray-700 dark:text-gray-300">{trx.supplier || trx.vendor || "N/A"}</p>
+                              <p className="font-medium text-gray-700 dark:text-gray-300">{suppliers.find((s) => s.id === (trx.supplier || trx.vendor))?.companyName || trx.supplierName || trx.supplier || trx.vendor || "N/A"}</p>
                             </div>
                             <div>
                                <p className="text-[9px] font-bold text-gray-400">Ref / MR</p>
@@ -824,8 +824,8 @@ const TransactionsPage = /* @__PURE__ */ __name(({ type }) => {
                     </td>
                     <td className="hidden md:table-cell px-3 py-2.5 overflow-hidden">
                       <div className="flex flex-col min-w-0">
-                        <span className="text-[13px] font-bold text-gray-900 dark:text-white truncate block" title={trx.item || trx.items?.[0]?.name || inventory.find((i) => i.sku === (trx.sku || trx.items?.[0]?.sku))?.itemName || catalogue.find((c) => c.sku === (trx.sku || trx.items?.[0]?.sku))?.itemName || "N/A"}>
-                          {trx.item || trx.items?.[0]?.name || inventory.find((i) => i.sku === (trx.sku || trx.items?.[0]?.sku))?.itemName || catalogue.find((c) => c.sku === (trx.sku || trx.items?.[0]?.sku))?.itemName || "N/A"}
+                        <span className="text-[13px] font-bold text-gray-900 dark:text-white truncate block" title={trx.itemName || trx.items?.[0]?.itemName || inventory.find((i) => i.sku === (trx.sku || trx.items?.[0]?.sku))?.itemName || catalogue.find((c) => c.sku === (trx.sku || trx.items?.[0]?.sku))?.itemName || trx.sku || "N/A"}>
+                          {trx.itemName || trx.items?.[0]?.itemName || inventory.find((i) => i.sku === (trx.sku || trx.items?.[0]?.sku))?.itemName || catalogue.find((c) => c.sku === (trx.sku || trx.items?.[0]?.sku))?.itemName || trx.sku || "N/A"}
                         </span>
                         <span className="text-[11px] text-gray-500 font-mono truncate block">{trx.sku || trx.items?.[0]?.sku}</span>
                       </div>
@@ -836,7 +836,7 @@ const TransactionsPage = /* @__PURE__ */ __name(({ type }) => {
                         <span className="text-[11px] font-bold text-emerald-500 ">{trx.unit || trx.items?.[0]?.unit}</span>
                       </div>
                     </td>
-                    <td className="hidden md:table-cell px-3 py-2.5 overflow-hidden"><span className="block truncate text-[13px] text-gray-600 dark:text-gray-400" title={trx.supplier || trx.vendor || ""}>{trx.supplier || trx.vendor}</span></td>
+                    <td className="hidden md:table-cell px-3 py-2.5 overflow-hidden"><span className="block truncate text-[13px] text-gray-600 dark:text-gray-400" title={suppliers.find((s) => s.id === (trx.supplier || trx.vendor))?.companyName || trx.supplierName || trx.supplier || trx.vendor || ""}>{suppliers.find((s) => s.id === (trx.supplier || trx.vendor))?.companyName || trx.supplierName || trx.supplier || trx.vendor}</span></td>
                     <td className="hidden md:table-cell px-3 py-2.5 overflow-hidden">
                       <span className="block truncate text-[13px] text-gray-600 dark:text-gray-400" title={`${trx.challanNo || trx.challan || ""} / ${trx.mrNo || ""}`}>{trx.challanNo || trx.challan} / {trx.mrNo}</span>
                       <span className="block truncate text-[11px] font-bold text-orange-600">{trx.condition || trx.items?.[0]?.condition || "Good"}</span>

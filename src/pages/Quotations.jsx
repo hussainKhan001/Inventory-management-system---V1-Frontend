@@ -23,7 +23,10 @@ import {
   ChevronUp,
   AlertTriangle,
   Pencil,
-  Trash2
+  Trash2,
+  LayoutList,
+  Table as TableIcon,
+  Search
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { formatDate, fmt, safeStr, isNewItem } from "../utils";
@@ -58,6 +61,8 @@ const Quotations = /* @__PURE__ */ __name(() => {
   const [filterCategory, setFilterCategory] = useState("");
   const [filterSupplier, setFilterSupplier] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
+  const [viewMode, setViewMode] = useState("card");
+  const [tableFilter, setTableFilter] = useState("");
   const supplierOptions = React.useMemo(() => {
     const uniqueSuppliers = Array.from(new Set(suppliers.map((s) => s.companyName).filter(Boolean)));
     return uniqueSuppliers.sort();
@@ -82,10 +87,10 @@ const Quotations = /* @__PURE__ */ __name(() => {
     fetchResource("pos", 1, 1e3, true);
     if (suppliers.length === 0) fetchResource("suppliers", 1, 1e3, true);
     // Run migration once per session to link legacy POs to their source quotations
+    // (backend broadcasts DATA_UPDATED after migration — WS handler will refresh with correct search params)
     if (!sessionStorage.getItem("po-quotation-migration-v2-done")) {
       api.post("pos/migrate-quotation-links", {}).then(() => {
         sessionStorage.setItem("po-quotation-migration-v2-done", "1");
-        fetchResource("quotations", 1, 1e3, true);
       }).catch(() => {});
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -186,6 +191,13 @@ const Quotations = /* @__PURE__ */ __name(() => {
       return acc;
     }, {});
   }, [quotations, materialRequirements, hasPermission, filterCategory, filterSupplier, filterStatus]);
+  const flatQuotations = React.useMemo(() => {
+    return Object.entries(groupedQuotations).flatMap(([key, mrQuotations]) => {
+      const [mrId, category] = key.split("|");
+      const mr = materialRequirements.find((m) => m.id === mrId);
+      return mrQuotations.map((q) => ({ ...q, _mr: mr, _mrId: mrId, _category: category || "" }));
+    });
+  }, [groupedQuotations, materialRequirements]);
   const getMrDetails = /* @__PURE__ */ __name((mrId) => {
     return materialRequirements.find((m) => m.id === mrId);
   }, "getMrDetails");
@@ -242,10 +254,85 @@ const Quotations = /* @__PURE__ */ __name(() => {
     options={statusOptions}
     placeholder="All Statuses"
   />
+          <div className="flex items-center gap-0.5 p-0.5 bg-gray-100 dark:bg-gray-800 rounded-lg shrink-0">
+            <button onClick={() => setViewMode("card")} className={cn("p-1.5 rounded-md transition-all", viewMode === "card" ? "bg-white dark:bg-gray-700 shadow-sm text-primary" : "text-gray-400 hover:text-gray-600")} title="Card view">
+              <LayoutList className="w-4 h-4" />
+            </button>
+            <button onClick={() => setViewMode("table")} className={cn("p-1.5 rounded-md transition-all", viewMode === "table" ? "bg-white dark:bg-gray-700 shadow-sm text-primary" : "text-gray-400 hover:text-gray-600")} title="Table view">
+              <TableIcon className="w-4 h-4" />
+            </button>
+          </div>
         </FilterRow>
       </div>
 
       <div className="flex-1 min-h-[500px]">
+        {viewMode === "table" ? (
+          <div className="rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900">
+            <div className="p-3 border-b border-gray-100 dark:border-gray-800">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+                <input type="text" placeholder="Quick filter..." value={tableFilter} onChange={(e) => setTableFilter(e.target.value)} className="w-full pl-9 pr-4 py-1.5 text-xs bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/40 transition-all" />
+              </div>
+            </div>
+            <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50 dark:bg-gray-800 sticky top-0 z-10">
+                <tr>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Date</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">MR No.</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Project</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Category</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Supplier</th>
+                  <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Amount</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
+                  <th className="text-center px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+                {flatQuotations
+                  .filter(q => !tableFilter || [q._mrId, q._mr?.project, q._category, q.supplierName, q.status].some(f => f?.toLowerCase().includes(tableFilter.toLowerCase())))
+                  .map((q) => (
+                  <tr key={q.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
+                    <td className="px-4 py-3 text-xs text-gray-600 dark:text-gray-400 whitespace-nowrap">{formatDate(q.createdAt || "")}</td>
+                    <td className="px-4 py-3 text-xs font-semibold text-gray-900 dark:text-white whitespace-nowrap">{safeStr(q._mrId)}</td>
+                    <td className="px-4 py-3 text-xs text-gray-600 dark:text-gray-400 max-w-[150px] truncate">{safeStr(q._mr?.project)}</td>
+                    <td className="px-4 py-3 text-xs text-orange-600 dark:text-orange-400 font-medium whitespace-nowrap">{safeStr(q._category)}</td>
+                    <td className="px-4 py-3 text-xs text-gray-700 dark:text-gray-300 whitespace-nowrap">{safeStr(q.supplierName)}</td>
+                    <td className="px-4 py-3 text-xs font-bold text-gray-900 dark:text-white text-right whitespace-nowrap">{fmt(q.totalAmount)}</td>
+                    <td className="px-4 py-3"><StatusBadge status={q.status} /></td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center justify-center gap-1.5">
+                        {hasPermission("VIEW_QUOTATION_DETAILS") && (
+                          <button onClick={() => { setSelectedQuotation(q); setViewModal(true); }} className="p-1.5 rounded-lg bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-600 dark:text-gray-300 transition-colors" title="View Details">
+                            <Eye className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                        {q.status !== "Approved" && hasPermission("APPROVE_QUOTATION") && (
+                          <button onClick={() => handleStatusUpdate(q.id, "Approved")} className="p-1.5 rounded-lg bg-green-100 dark:bg-green-900/30 hover:bg-green-200 dark:hover:bg-green-900/50 text-green-600 dark:text-green-400 transition-colors" title="Approve">
+                            <CheckCircle className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                        {q.status === "Approved" && hasPermission("REJECT_QUOTATION") && !hasLinkedPO(q) && (
+                          <button onClick={() => handleStatusUpdate(q.id, "Rejected")} className="p-1.5 rounded-lg bg-red-100 dark:bg-red-900/30 hover:bg-red-200 dark:hover:bg-red-900/50 text-red-600 dark:text-red-400 transition-colors" title="Reject">
+                            <XCircle className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            </div>
+            {flatQuotations.length === 0 && !loading && (
+              <div className="text-center py-16 text-gray-400">
+                <FileText className="w-10 h-10 mx-auto mb-3 opacity-30" />
+                <p className="font-bold tracking-widest text-sm">No quotations to compare</p>
+              </div>
+            )}
+          </div>
+        ) : (
+          <>
         <Virtuoso
     style={{ height: "calc(100vh - 250px)" }}
     data={Object.entries(groupedQuotations)}
@@ -408,6 +495,8 @@ const Quotations = /* @__PURE__ */ __name(() => {
             </div>
             <p className="text-gray-400 font-bold tracking-widest text-sm">No quotations to compare</p>
           </div>}
+          </>
+        )}
       </div>
 
       {viewModal && selectedQuotation && (() => {
