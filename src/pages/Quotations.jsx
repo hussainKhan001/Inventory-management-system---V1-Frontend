@@ -88,7 +88,8 @@ const Quotations = /* @__PURE__ */ __name(() => {
         fetchResource("quotations", 1, 1e3, true);
       }).catch(() => {});
     }
-  }, [fetchResource, debouncedSearch, startDate, endDate, filterCategory, filterSupplier, filterStatus, suppliers.length]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [debouncedSearch, startDate, endDate, filterCategory, filterSupplier, filterStatus]);
   const [viewModal, setViewModal] = useState(false);
   const [editModal, setEditModal] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState(null);

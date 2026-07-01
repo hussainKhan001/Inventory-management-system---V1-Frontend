@@ -85,7 +85,8 @@ export function MaterialRequirementPage() {
     }
     if (pos.length === 0) fetchResource("pos", 1, 2000, true);
     if (inventory.length < 500) fetchResource("inventory", 1, 2000, true);
-  }, [fetchResource, debouncedSearch, activeTab, startDate, endDate, filterProject, filterRequester, filterStatus]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [debouncedSearch, activeTab, startDate, endDate, filterProject, filterRequester, filterStatus]);
 
   const handlePageChange = useCallback(page => {
     if (activeTab === "requirements") {

@@ -30,7 +30,8 @@ const POReport = /* @__PURE__ */ __name(() => {
   useEffect(() => {
     fetchResource("pos", 1, 2e3, true);
     if (!suppliers.length) fetchResource("suppliers", 1, 1e3);
-  }, [fetchResource, suppliers.length]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedSearch(search), 500);
     return () => clearTimeout(timer);

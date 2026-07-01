@@ -114,7 +114,7 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
 
   const [filterStatus, setFilterStatus] = useState("");
 
-  const [occupiedMRs, setOccupiedMRs] = useState(null);
+  const [occupiedQuoteIds, setOccupiedQuoteIds] = useState(null);
 
   const supplierOptions = React.useMemo(() => {
     const optionsMap = /* @__PURE__ */ new Map();
@@ -276,12 +276,9 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
       false,
     );
     fetchResource("quotations", 1, 1e3, true);
-    api
-      .get("pos/occupied-mrs")
-      .then((res) => setOccupiedMRs(res.data || []))
-      .catch(() => setOccupiedMRs([]));
+    api.get("pos/occupied-mrs").then((r) => setOccupiedQuoteIds(r.data || [])).catch(() => setOccupiedQuoteIds([]));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
-    fetchResource,
     page,
     debouncedSearch,
     startDate,
@@ -944,45 +941,23 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
   );
 
   const mrOptions = React.useMemo(() => {
-    // Resolve po.supplier (ID) → lowercase name for reliable matching
-    const supplierNameById = new Map(
-      (suppliers || []).map(s => [
-        s.id || s._id || "",
-        (s.companyName || s.name || "").toLowerCase(),
-      ])
-    );
-
-    // Build set of mrId|category|supplierNameLower combos that already have an active PO
-    // occupiedMRs comes from /pos/occupied-mrs API (all active POs from DB, not paginated)
-    const poedCombos = new Set(
-      (occupiedMRs || []).map(p => {
-        const sName = supplierNameById.get(p.supplier) || (p.supplier || "").toLowerCase();
-        return `${p.mrId}|${p.workType || "General"}|${sName}`;
-      })
-    );
-
+    const occupiedSet = new Set(occupiedQuoteIds || []);
     const list = [];
     (materialRequirements || []).forEach((m) => {
       if (m && m.status === "Approved by AGM") {
-        const approvedQuotes = (quotations || []).filter(
-          (q) => q.mrId === m.id && q.status === "Approved",
-        );
-
-        approvedQuotes.forEach((q) => {
-          const category = q.category || "General";
-          const sNameLower = (q.supplierName || "").toLowerCase();
-          // Skip if a PO already exists for this MR + category + supplier
-          if (poedCombos.has(`${m.id}|${category}|${sNameLower}`)) return;
-          list.push({
-            label: `${m.mrNumber || m.id} - ${m.project} (${category}) - ${q.supplierName}`,
-            value: `${m.id}|${category}|${q.id}`,
-          });
+        (quotations || []).forEach((q) => {
+          if (q.mrId === m.id && q.status === "Approved" && !occupiedSet.has(q.id)) {
+            const category = q.category || "General";
+            list.push({
+              label: `${m.mrNumber || m.id} - ${m.project} (${category}) - ${q.supplierName}`,
+              value: `${m.id}|${category}|${q.id}`,
+            });
+          }
         });
       }
     });
-
     return list;
-  }, [materialRequirements, quotations, occupiedMRs, suppliers]);
+  }, [materialRequirements, quotations, occupiedQuoteIds]);
 
   const normalizeTimelineType = /* @__PURE__ */ __name((type) => {
     if (type === "Progress") return "On Delivery";
@@ -1190,11 +1165,7 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
         false,
         false,
       );
-      api
-        .get("pos/occupied-mrs")
-        .then((res) => setOccupiedMRs(res.data || []))
-        .catch(() => setOccupiedMRs([]));
-
+      api.get("pos/occupied-mrs").then((r) => setOccupiedQuoteIds(r.data || [])).catch(() => {});
       // Generate PDF and send to Slack (fire-and-forget, doesn't block UI)
       try {
         const supplierObj = suppliers.find(
@@ -1219,10 +1190,7 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
     try {
       await deletePO(deleteConfirm);
       setDeleteConfirm(null);
-      api
-        .get("pos/occupied-mrs")
-        .then((res) => setOccupiedMRs(res.data || []))
-        .catch(() => {});
+      api.get("pos/occupied-mrs").then((r) => setOccupiedQuoteIds(r.data || [])).catch(() => {});
     } catch (error) {
       toast.error(`Failed to delete PO: ${error.message}`);
     }
@@ -1333,11 +1301,8 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
         setSelectedPO({ ...selectedPO, ...patch });
       }
       await fetchResource("pos", 1, 50, true);
-      await fetchResource("quotations", 1, 50, true);
-      api
-        .get("pos/occupied-mrs")
-        .then((res2) => setOccupiedMRs(res2.data || []))
-        .catch(() => {});
+      await fetchResource("quotations", 1, 1e3, true);
+      api.get("pos/occupied-mrs").then((r) => setOccupiedQuoteIds(r.data || [])).catch(() => {});
       toast.success(
         res.message || "PO cancelled. Linked quotation reset to Pending.",
       );
@@ -2168,7 +2133,9 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
                     const closedItems = (closePOConfirm.po.items || [])
                       .map((i) => { const q = receivedBySku[i.sku] || 0; return { ...i, qty: q, total: q * i.rate, totalWithGST: q * i.rate * (1 + (i.gstPct || 18) / 100) }; })
                       .filter((i) => i.qty > 0);
-                    await updatePO(closePOConfirm.po.id, { status: "PO Closed", closedItems });
+                    await api.post(`pos/${closePOConfirm.po.id}/close`, { closedItems });
+                    await fetchResource("pos", 1, 50, true);
+                    api.get("pos/occupied-mrs").then((r) => setOccupiedQuoteIds(r.data || [])).catch(() => {});
                     setClosePOConfirm(null);
                     toast.success("PO closed — remaining items cancelled");
                   } catch (err) {

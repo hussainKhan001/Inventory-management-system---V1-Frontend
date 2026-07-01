@@ -389,6 +389,7 @@ const AppProvider = /* @__PURE__ */ __name(({ children }) => {
     }
   }, "checkAuth");
   const lastFetchRef = React.useRef({});
+  const lastResourceParams = React.useRef({});
   const fetchResource = useCallback(async (resource, page = 1, limit = 100, silent = false, search = "", filter = null, append = false, unused = false, startDate = "", endDate = "", force = false) => {
     if (!isAuthenticated && !resource.startsWith("public")) return;
     const cacheKey = `${resource}-${page}-${limit}-${search}-${JSON.stringify(filter)}-${unused}-${startDate}-${endDate}`;
@@ -399,6 +400,7 @@ const AppProvider = /* @__PURE__ */ __name(({ children }) => {
     }
     lastFetchRef.current[cacheKey] = now;
     lastFetchRef.current[`${resource}-last`] = cacheKey;
+    lastResourceParams.current[resource] = { search: search || "", filter: filter || null, startDate: startDate || "", endDate: endDate || "", page, limit };
     if (!silent) setLoading(true);
     console.log(`Fetching resource: ${resource}, page: ${page}, search: ${search}`);
     try {
@@ -1379,7 +1381,8 @@ const AppProvider = /* @__PURE__ */ __name(({ children }) => {
               const resourceName = resourceMap[data.path] || data.path;
               const finalResourceName = !isAuth && resourceName === "settings" ? "public-settings" : resourceName;
               const limit = ["inventory", "catalogue", "quotations", "material-requirements"].includes(finalResourceName) ? 1e3 : 100;
-              fetchResourceRef.current(finalResourceName, 1, limit, false, "", null, false, false, "", "", true);
+              const lp = lastResourceParams.current[finalResourceName] || {};
+              fetchResourceRef.current(finalResourceName, 1, lp.limit || limit, true, lp.search || "", lp.filter || null, false, false, lp.startDate || "", lp.endDate || "", true);
               if (isAuth && resourceName === "inventory") {
                 fetchStatsRef.current();
               }

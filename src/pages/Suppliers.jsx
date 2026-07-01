@@ -47,7 +47,8 @@ const Suppliers = /* @__PURE__ */ __name(() => {
   }, [search]);
   useEffect(() => {
     fetchResource("suppliers", 1, 50, false, debouncedSearch);
-  }, [fetchResource, debouncedSearch]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [debouncedSearch]);
   const [modal, setModal] = useState(false);
   const [viewModal, setViewModal] = useState(false);
   const [selectedSupplier, setSelectedSupplier] = useState(null);

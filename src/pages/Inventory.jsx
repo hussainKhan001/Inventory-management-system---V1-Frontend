@@ -359,7 +359,8 @@ const Inventory = /* @__PURE__ */ __name(() => {
     if (filterCategory) filter.category = filterCategory;
     fetchResource("inventory", page, 50, !isInitialLoad || page > 1, debouncedSearch, Object.keys(filter).length > 0 ? filter : null, page > 1);
     fetchResource("catalogue", 1, 1e3);
-  }, [fetchResource, debouncedSearch, filterProject, filterCategory, page]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [debouncedSearch, filterProject, filterCategory, page]);
   const filteredInventory = useMemo(() => {
     if (!filterStore) return inventory;
     return inventory.filter((item) => Number(item.locationStock?.[filterStore] || 0) > 0);

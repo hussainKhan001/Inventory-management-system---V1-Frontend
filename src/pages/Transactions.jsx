@@ -154,7 +154,8 @@ const TransactionsPage = /* @__PURE__ */ __name(({ type }) => {
       }
     }
     fetchResource(resourceName, page, 100, !isInitialLoad || page > 1, debouncedSearch, Object.keys(filter).length ? filter : null, page > 1, false, startDate, endDate);
-  }, [fetchResource, debouncedSearch, filterProject, filterType, page, resourceName, type, startDate, endDate]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [debouncedSearch, filterProject, filterType, page, resourceName, type, startDate, endDate]);
   useEffect(() => {
     fetchResource("inventory", 1, 1e3, true);
     fetchResource("catalogue", 1, 1e3, true);

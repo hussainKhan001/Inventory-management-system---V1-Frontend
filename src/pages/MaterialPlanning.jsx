@@ -78,7 +78,8 @@ const MaterialPlanning = /* @__PURE__ */ __name(() => {
     fetchResource("inventory", 1, 100, true);
     fetchResource("mr-allocations", 1, 2e3, true);
     fetchResource("plan-revisions", 1, 500, true);
-  }, [fetchResource, debouncedSearch, statusFilter, projectFilter, dateRange]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [debouncedSearch, statusFilter, projectFilter, dateRange]);
   const [modal, setModal] = useState(false);
   const [viewModal, setViewModal] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState(null);

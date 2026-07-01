@@ -85,7 +85,8 @@ const GRNPage = /* @__PURE__ */ __name(() => {
     fetchResource("pos", 1, 500, true);
     fetchResource("inventory", 1, 1e3, true);
     fetchResource("suppliers", 1, 1e3, true);
-  }, [fetchResource, page, debouncedSearch, startDate, endDate, filterProject, filterSupplier, filterStatus]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page, debouncedSearch, startDate, endDate, filterProject, filterSupplier, filterStatus]);
   useEffect(() => {
     const observer = (() => {
       try {
@@ -414,25 +415,25 @@ const GRNPage = /* @__PURE__ */ __name(() => {
                 <th className={cn(headerClass, "hidden md:table-cell w-[148px]")}>
                   Date
                 </th>
-                <th className={cn(headerClass, "hidden md:table-cell w-[160px]")}>
+                <th className={cn(headerClass, "hidden md:table-cell w-[180px]")}>
                   Project / supplier
                 </th>
-                <th className={cn(headerClass, "hidden md:table-cell w-[150px]")}>
+                <th className={cn(headerClass, "hidden md:table-cell w-[160px]")}>
                   Challan / mr
                 </th>
-                <th className={cn(headerClass, "hidden md:table-cell w-[90px]")}>
+                <th className={cn(headerClass, "hidden md:table-cell w-[100px]")}>
                   Photos
                 </th>
-                <th className={cn(headerClass, "hidden md:table-cell w-[90px]")}>
+                <th className={cn(headerClass, "hidden md:table-cell w-[100px]")}>
                   Status
                 </th>
-                <th className={cn(headerClass, "text-right w-[110px]")}>
+                <th className={cn(headerClass, "text-right w-[100px] md:w-[160px]")}>
                   Actions
                 </th>
               </tr>;
     }}
     itemContent={(_index, grn) => <>
-              <Td className="md:px-4 md:py-3 py-1">
+              <Td className="md:px-4 md:py-3 py-2">
                 <div className="flex md:flex-col items-center md:items-start justify-between md:justify-start gap-2">
                   <div className="flex flex-col">
                     <span className="text-[13px] font-bold text-gray-900 dark:text-white md:font-medium">{safeStr(grn.id)}</span>
@@ -562,7 +563,7 @@ const GRNPage = /* @__PURE__ */ __name(() => {
               </Td>
             </>}
     components={{
-      Table: /* @__PURE__ */ __name((props) => <table {...props} className="w-full text-left border-collapse table-fixed min-w-[800px] md:min-w-0" />, "Table"),
+      Table: /* @__PURE__ */ __name((props) => <table {...props} className="w-full text-left border-collapse table-fixed min-w-full md:min-w-[1000px] lg:min-w-[1100px]" />, "Table"),
       TableBody: React.forwardRef((props, ref) => <tbody {...props} ref={ref} className="divide-y divide-[#E8ECF0] dark:divide-gray-800" />),
       TableRow: (props) => {
         const grn = (grns || [])[props["data-index"]];

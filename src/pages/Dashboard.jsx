@@ -738,7 +738,8 @@ const Dashboard = /* @__PURE__ */ __name(() => {
     fetchResource("mr-allocations", 1, 1e3, true);
     fetchResource("plan-revisions", 1, 200, true);
     fetchResource("pos", 1, 500, true);
-  }, [fetchResource]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const showEngineer = hasPermission("VIEW_ENGINEER_DASHBOARD") || role === "Site Engineer";
   const showAGM = hasPermission("VIEW_AGM_DASHBOARD") || ["AGM", "Project Manager", "Head"].includes(role || "");
   const showStore = hasPermission("VIEW_STORE_DASHBOARD") || role === "Store Incharge";
