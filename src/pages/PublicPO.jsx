@@ -134,13 +134,7 @@ const PublicPO = /* @__PURE__ */ __name(() => {
     } else if (form.items.some((i) => i.sku === "N/A")) {
       newErrors.items = "Please link all items to inventory (SKU cannot be N/A)";
     }
-    const hasReusable = form.items?.some((i) => {
-      const inv = localInventory.find((inv2) => inv2.sku === i.sku);
-      return inv && ["Good", "Needs Repair"].includes(inv.condition) && inv.liveStock > 0;
-    });
-    if (hasReusable && !form.justification) {
-      newErrors.justification = "Justification is required for ordering items with reusable stock available";
-    }
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   }, "validateForm");
@@ -902,43 +896,15 @@ const PublicPO = /* @__PURE__ */ __name(() => {
                 </div>
               </div>}
 
-            {form.items.some((i) => {
-    const inv = localInventory.find((inv2) => inv2.sku === i.sku);
-    return inv && ["Good", "Needs Repair"].includes(inv.condition) && inv.liveStock > 0;
-  }) && <div className="p-4 bg-blue-50 dark:bg-blue-900/10 border border-blue-200 dark:border-blue-800 rounded-xl mb-4">
-                <div className="flex items-start gap-3 text-blue-800 dark:text-blue-400">
-                  <Package className="w-5 h-5 shrink-0 mt-0.5" />
-                  <div>
-                    <p className="text-[13px] font-bold">Reusable Stock Available</p>
-                    <p className="text-[13px] mt-1 opacity-80">
-                      Some items in this PO have reusable stock available. Please provide justification for ordering new stock.
-                    </p>
-                  </div>
-                </div>
-                <div className="mt-4">
-                  <Field
-    label="Justification *"
-    value={form.justification}
-    onChange={(e) => setForm((prev) => ({ ...prev, justification: e.target.value }))}
-    required
-    error={errors.justification}
-    multiline
-  />
-                </div>
-              </div>}
-            
-            {!form.items.some((i) => {
-    const inv = localInventory.find((inv2) => inv2.sku === i.sku);
-    return inv && ["Good", "Needs Repair"].includes(inv.condition) && inv.liveStock > 0;
-  }) && <div className="mt-4">
-                <Field
-    label="Justification / Remarks"
-    value={form.justification}
-    onChange={(e) => setForm((prev) => ({ ...prev, justification: e.target.value }))}
-    placeholder="Why is this purchase required?"
-    multiline
-  />
-              </div>}
+            <div className="mt-4">
+              <Field
+                label="Justification / Remarks"
+                value={form.justification}
+                onChange={(e) => setForm((prev) => ({ ...prev, justification: e.target.value }))}
+                placeholder="Why is this purchase required?"
+                multiline
+              />
+            </div>
           </div>
 
           <div className="flex flex-col md:flex-row items-center justify-between gap-8 pt-8 border-t border-gray-100 dark:border-gray-800">

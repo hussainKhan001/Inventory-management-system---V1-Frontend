@@ -1,4 +1,4 @@
-﻿var __defProp = Object.defineProperty;
+var __defProp = Object.defineProperty;
 
 var __name = (target, value) =>
   __defProp(target, "name", { value, configurable: true });
@@ -207,19 +207,7 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
       newErrors.items =
         "Please link all items to inventory (SKU cannot be N/A)";
     }
-    const hasReusable2 = data.items?.some((i) => {
-      const inv = inventory.find((inv2) => inv2.sku === i.sku);
 
-      return (
-        inv &&
-        ["Good", "Needs Repair"].includes(inv.condition) &&
-        inv.liveStock > 0
-      );
-    });
-    if (hasReusable2 && !data.justification) {
-      newErrors.justification =
-        "Justification is required for ordering items with reusable stock available";
-    }
     setErrors(newErrors);
 
     return Object.keys(newErrors).length === 0;
@@ -1477,15 +1465,7 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
     "quickAddToInventory",
   );
 
-  const hasReusable = newPO.items?.some((i) => {
-    const inv = inventory.find((inv2) => inv2.sku === i.sku);
 
-    return (
-      inv &&
-      ["Good", "Needs Repair"].includes(inv.condition) &&
-      inv.liveStock > 0
-    );
-  });
 
   if (modal) {
     return (

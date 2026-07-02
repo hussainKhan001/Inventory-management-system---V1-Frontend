@@ -1,8 +1,9 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { Search, X, Plus, Link2, AlertTriangle, RefreshCw, ArrowLeft } from "lucide-react";
 import { Btn, Field, SField } from "../../components/ui";
 import { DatePicker } from "../../components/ui/DatePicker";
 import { useAppStore } from "../../store";
+import { api } from "../../services/api";
 import { fmtCur, safeStr, todayStr } from "../../utils";
 import { cn } from "../../lib/utils";
 import toast from "react-hot-toast";
@@ -67,15 +68,62 @@ export function POFormModal({
   addItem, updateItem, removeItem, linkToInventory, quickAddToInventory,
   companyOptions, mrOptions, vendorOptions, COMPANIES, CATEGORIES, UNITS,
 }) {
-  const { suppliers, inventory, actionLoading } = useAppStore();
+  const { suppliers, actionLoading, fetchResource } = useAppStore();
+
+  // Silently force-refresh inventory when form opens, bypassing the 10-second store cache.
+  // Needed because PurchaseOrders' initial fetch may have been skipped or stale.
+  useEffect(() => {
+    fetchResource("inventory", 1, 1000, true, "", null, false, false, "", "", true);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const [searchItem, setSearchItem] = useState("");
+  const [searchResults, setSearchResults] = useState([]);
+  const [searchLoading, setSearchLoading] = useState(false);
   const [linkingIndex, setLinkingIndex] = useState(null);
   const [linkingSearch, setLinkingSearch] = useState("");
+  const [linkingResults, setLinkingResults] = useState([]);
+  const [linkingLoading, setLinkingLoading] = useState(false);
   const [showQuickAdd, setShowQuickAdd] = useState(null);
   const [quickAddData, setQuickAddData] = useState({ category: "", unit: "" });
 
+  // Live search for top "Search inventory to add items..." bar
+  useEffect(() => {
+    if (!searchItem.trim()) { setSearchResults([]); return; }
+    setSearchLoading(true);
+    const timer = setTimeout(async () => {
+      try {
+        const res = await api.get("inventory", { search: searchItem.trim(), limit: 20 });
+        setSearchResults(res?.data || []);
+      } catch { setSearchResults([]); }
+      finally { setSearchLoading(false); }
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchItem]);
+
+  // Live search for "Link inventory item" popup
+  useEffect(() => {
+    if (linkingIndex === null) { setLinkingResults([]); return; }
+    setLinkingLoading(true);
+    const timer = setTimeout(async () => {
+      try {
+        const res = await api.get("inventory", { search: linkingSearch.trim(), limit: 20 });
+        setLinkingResults(res?.data || []);
+      } catch { setLinkingResults([]); }
+      finally { setLinkingLoading(false); }
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [linkingSearch, linkingIndex]);
+
   const set = (partial) => onChange({ ...po, ...partial });
+
+  // When editing, stored mrId is plain ("MR-001") but option values are pipe-separated ("MR-001|Civil|Q-012").
+  // Find the matching option value so the SField can display correctly.
+  const mrFieldValue = useMemo(() => {
+    if (!po.mrId) return "";
+    if (po.mrId.includes("|")) return po.mrId;
+    const match = mrOptions.find((opt) => opt.value.startsWith(po.mrId + "|"));
+    return match ? match.value : po.mrId;
+  }, [po.mrId, mrOptions]);
 
   const grandTotal =
     (po.items?.reduce((s, it) => s + calcItemTotal(it), 0) || 0) +
@@ -83,7 +131,7 @@ export function POFormModal({
     calcChargeTotal(po.loadingAmount || 0, po.loadingGstPct || 0, po.loadingGstType || "Exclusive") +
     calcChargeTotal(po.unloadingAmount || 0, po.unloadingGstPct || 0, po.unloadingGstType || "Exclusive");
 
-  const hasReusable = (po.items || []).some((it) => (it.currentStock || 0) > 0);
+
 
   const updateTimeline = (idx, partial) => {
     const pts = [...(po.paymentTimelines || [])];
@@ -156,7 +204,7 @@ export function POFormModal({
               )},
               { label: "Internal MR No.", content: (
                 <SField className="mb-0 border-none px-0 shadow-none ring-0 focus-within:ring-0"
-                  value={po.mrId}
+                  value={mrFieldValue}
                   onChange={(e) => onMrChange ? onMrChange(e.target.value) : set({ mrId: e.target.value })}
                   options={mrOptions}
                   placeholder={autoLinking ? "Loading..." : "Select..."}
@@ -270,13 +318,14 @@ export function POFormModal({
             />
             {searchItem && (
               <div className="absolute z-10 w-full mt-1 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg shadow-lg max-h-48 overflow-y-auto">
-                {(inventory || [])
-                  .filter((i) => i && ((i.itemName || "").toLowerCase().includes(searchItem.toLowerCase()) || (i.sku || "").toLowerCase().includes(searchItem.toLowerCase())))
-                  .map((i, idx) => (
+                {searchLoading
+                  ? <p className="px-4 py-3 text-[12px] text-gray-400">Searching...</p>
+                  : searchResults.map((i, idx) => (
                     <div key={idx} onClick={() => { addItem(i); setSearchItem(""); }} className="px-4 py-2 hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer text-[13px] text-gray-900 dark:text-white">
                       {i.itemName} ({i.sku}) — Stock: {i.liveStock}
                     </div>
-                  ))}
+                  ))
+                }
                 <div onClick={() => { addItem({ itemName: searchItem, sku: "N/A" }); setSearchItem(""); }}
                   className="px-4 py-2 hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer text-[13px] text-orange-600 font-bold border-t border-gray-100 dark:border-gray-800">
                   + Add "{searchItem}" as manual item
@@ -330,17 +379,21 @@ export function POFormModal({
                             className="w-full pl-9 pr-3 py-1.5 border border-gray-200 dark:border-gray-700 rounded-lg text-[12px] focus:outline-none bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-white" />
                         </div>
                         <div className="max-h-40 overflow-y-auto space-y-1">
-                          {inventory.filter((i) => (i.itemName || "").toLowerCase().includes(linkingSearch.toLowerCase()) || (i.sku || "").toLowerCase().includes(linkingSearch.toLowerCase()))
-                            .slice(0, 20).map((i, iidx) => (
-                              <div key={iidx} onClick={() => { linkToInventory(idx, i); setLinkingIndex(null); setLinkingSearch(""); }}
-                                className="px-3 py-2 hover:bg-orange-50 dark:hover:bg-orange-900/10 cursor-pointer text-[12px] rounded-lg border border-transparent hover:border-orange-100 transition-all">
-                                <div className="font-bold text-gray-900 dark:text-white">{safeStr(i.itemName)}</div>
-                                <div className="flex items-center justify-between mt-0.5">
-                                  <span className="text-[10px] text-gray-500 font-mono">{safeStr(i.sku)}</span>
-                                  <span className="text-[10px] font-bold text-orange-600">Stock: {safeStr(i.liveStock)}</span>
+                          {linkingLoading
+                            ? <p className="py-4 text-center text-[11px] text-gray-400">Searching...</p>
+                            : linkingResults.length === 0
+                              ? <p className="py-4 text-center text-[11px] text-gray-400">{linkingSearch ? "No items found" : "Type to search inventory"}</p>
+                              : linkingResults.map((i, iidx) => (
+                                <div key={iidx} onClick={() => { linkToInventory(idx, i); setLinkingIndex(null); setLinkingSearch(""); }}
+                                  className="px-3 py-2 hover:bg-orange-50 dark:hover:bg-orange-900/10 cursor-pointer text-[12px] rounded-lg border border-transparent hover:border-orange-100 transition-all">
+                                  <div className="font-bold text-gray-900 dark:text-white">{safeStr(i.itemName)}</div>
+                                  <div className="flex items-center justify-between mt-0.5">
+                                    <span className="text-[10px] text-gray-500 font-mono">{safeStr(i.sku)}</span>
+                                    <span className="text-[10px] font-bold text-orange-600">Stock: {safeStr(i.liveStock)}</span>
+                                  </div>
                                 </div>
-                              </div>
-                            ))}
+                              ))
+                          }
                         </div>
                       </div>
                     )}
@@ -500,19 +553,21 @@ export function POFormModal({
                                   className="w-full pl-9 pr-3 py-1.5 border border-gray-200 dark:border-gray-700 rounded-lg text-[12px] focus:outline-none bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-white" />
                               </div>
                               <div className="max-h-48 overflow-y-auto space-y-1">
-                                {inventory
-                                  .filter((i) => (i.itemName || "").toLowerCase().includes(linkingSearch.toLowerCase()) || (i.sku || "").toLowerCase().includes(linkingSearch.toLowerCase()))
-                                  .slice(0, 20)
-                                  .map((i, iidx) => (
-                                    <div key={iidx} onClick={() => { linkToInventory(idx, i); setLinkingIndex(null); setLinkingSearch(""); }}
-                                      className="px-3 py-2 hover:bg-orange-50 dark:hover:bg-orange-900/10 cursor-pointer text-[12px] rounded-lg border border-transparent hover:border-orange-100 transition-all">
-                                      <div className="font-bold text-gray-900 dark:text-white truncate">{safeStr(i.itemName)}</div>
-                                      <div className="flex items-center justify-between mt-0.5">
-                                        <span className="text-[10px] text-gray-500 font-mono">{safeStr(i.sku)}</span>
-                                        <span className="text-[10px] font-bold text-orange-600 bg-orange-50 px-1.5 rounded">Stock: {safeStr(i.liveStock)}</span>
+                                {linkingLoading
+                                  ? <p className="py-4 text-center text-[11px] text-gray-400">Searching...</p>
+                                  : linkingResults.length === 0
+                                    ? <p className="py-4 text-center text-[11px] text-gray-400">{linkingSearch ? "No items found" : "Type to search inventory"}</p>
+                                    : linkingResults.map((i, iidx) => (
+                                      <div key={iidx} onClick={() => { linkToInventory(idx, i); setLinkingIndex(null); setLinkingSearch(""); }}
+                                        className="px-3 py-2 hover:bg-orange-50 dark:hover:bg-orange-900/10 cursor-pointer text-[12px] rounded-lg border border-transparent hover:border-orange-100 transition-all">
+                                        <div className="font-bold text-gray-900 dark:text-white truncate">{safeStr(i.itemName)}</div>
+                                        <div className="flex items-center justify-between mt-0.5">
+                                          <span className="text-[10px] text-gray-500 font-mono">{safeStr(i.sku)}</span>
+                                          <span className="text-[10px] font-bold text-orange-600 bg-orange-50 px-1.5 rounded">Stock: {safeStr(i.liveStock)}</span>
+                                        </div>
                                       </div>
-                                    </div>
-                                  ))}
+                                    ))
+                                }
                               </div>
                             </div>
                           )}
@@ -601,17 +656,9 @@ export function POFormModal({
             </>
           )}
 
-          {hasReusable && (
-            <div className="p-4 bg-blue-50 dark:bg-blue-900/10 border border-blue-200 dark:border-blue-800 rounded-lg mb-4">
-              <div className="flex items-start gap-2 text-blue-800 dark:text-blue-400">
-                <AlertTriangle className="w-5 h-5 shrink-0" />
-                <p className="text-[13px] font-bold">Reusable Stock Available — provide justification for ordering new stock.</p>
-              </div>
-              <div className="mt-3">
-                <Field label="Justification" value={po.justification} onChange={(e) => set({ justification: e.target.value })} required error={errors.justification} />
-              </div>
-            </div>
-          )}
+          <div className="mb-4">
+            <Field label="Justification / Remarks" value={po.justification} onChange={(e) => set({ justification: e.target.value })} error={errors.justification} />
+          </div>
         </div>
 
         {/* Other Charges */}
