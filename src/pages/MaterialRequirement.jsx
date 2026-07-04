@@ -41,6 +41,7 @@ export function MaterialRequirementPage() {
 
   const isMRLocked = (mrId, status) => status === "PO Created" || pos.some(po => po.mrId === mrId);
   const isItemPOCreated = (item, mr) => {
+    if (mr?.status === "PO Created") return true;
     const cat = item.category || "General";
     return pos.some(po =>
       po.mrId === mr?.id &&
