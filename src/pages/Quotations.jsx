@@ -171,7 +171,7 @@ const Quotations = /* @__PURE__ */ __name(() => {
     return quotations.reduce((acc, q) => {
       const mr = materialRequirements.find((m) => m.id === q.mrId);
       if (hasPermission("APPROVE_MR_AGM")) {
-        const eligibleMR = !mr || ["Approved by Store", "Approved by AGM", "Closed", "Approved", "Quotation Phase"].includes(mr.status);
+        const eligibleMR = !mr || ["Approved by Store", "Approved by AGM", "Closed", "Approved", "Quotation Phase", "PO Created"].includes(mr.status);
         if (!eligibleMR && q.status !== "Rejected") {
           return acc;
         }

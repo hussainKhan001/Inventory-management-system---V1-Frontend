@@ -920,7 +920,20 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
   );
 
   const mrOptions = React.useMemo(() => {
+    const RELEASED = ["Rejected", "Blocked", "Cancelled"];
+
+    // Start with IDs from backend (covers legacy POs without quotationId in store)
     const occupiedSet = new Set(occupiedQuoteIds || []);
+
+    // Also supplement from locally-loaded pos (covers recent POs before backend call resolves)
+    (pos || []).forEach((p) => {
+      if (p.quotationId && !RELEASED.includes(p.status)) occupiedSet.add(p.quotationId);
+    });
+
+    // When editing, the current PO's own quotation should remain visible in the dropdown
+    const editingQuoteId = isEditing ? (newPO.quotationId || "").split("|").pop() : null;
+    if (editingQuoteId) occupiedSet.delete(editingQuoteId);
+
     const mrMap = new Map();
     (materialRequirements || []).forEach((m) => m && mrMap.set(m.id, m));
     const list = [];
@@ -937,7 +950,7 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
       }
     });
     return list;
-  }, [materialRequirements, quotations, occupiedQuoteIds]);
+  }, [materialRequirements, quotations, occupiedQuoteIds, pos, isEditing, newPO.quotationId]);
 
   const normalizeTimelineType = /* @__PURE__ */ __name((type) => {
     if (type === "Progress") return "On Delivery";

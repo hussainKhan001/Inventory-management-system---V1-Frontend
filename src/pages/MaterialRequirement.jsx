@@ -20,8 +20,9 @@ import { MRDetailModal } from "./mr/MRDetailModal";
 const STATUS_OPTIONS = [
   { label: "Store Pending", value: "Store Pending" },
   { label: "Approved by Store", value: "Approved by Store" },
+  { label: "Approved by AGM", value: "Approved by AGM" },
   { label: "Quotation Phase", value: "Quotation Phase" },
-  { label: "PO Phase", value: "PO Phase" },
+  { label: "PO Created", value: "PO Created" },
   { label: "Partially Inwarded", value: "Partially Inwarded" },
   { label: "Inwarded", value: "Inwarded" },
   { label: "Cancelled", value: "Cancelled" },
@@ -38,7 +39,7 @@ export function MaterialRequirementPage() {
 
   const { projects: PROJECTS, requesters: REQUESTERS } = settings;
 
-  const isMRLocked = mrId => pos.some(po => po.mrId === mrId);
+  const isMRLocked = (mrId, status) => status === "PO Created" || pos.some(po => po.mrId === mrId);
   const isItemPOCreated = (item, mr) => {
     const cat = item.category || "General";
     return pos.some(po =>
@@ -222,7 +223,7 @@ export function MaterialRequirementPage() {
                         <div className="flex items-center gap-1.5">
                           {isNewItem(req.createdAt) && <span className="px-1 py-0.5 rounded text-[9px] font-black tracking-widest bg-primary text-white">NEW</span>}
                           <span className="font-bold text-primary text-[12px]">{req.mrNumber || req.id}</span>
-                          {isMRLocked(req.id) && <Badge text="PO" color="blue" icon={Link2} className="px-1" />}
+                          {isMRLocked(req.id, req.status) && <Badge text="PO" color="blue" icon={Link2} className="px-1" />}
                         </div>
                       </td>
                       <td className="px-3 py-2.5 max-w-[140px]">
@@ -248,10 +249,10 @@ export function MaterialRequirementPage() {
                           <button title="View" onClick={() => { setSelectedRequirement(JSON.parse(JSON.stringify(req))); setViewModal(true); }} className="p-1.5 rounded text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"><Eye className="w-3.5 h-3.5" /></button>
                           <button title="Track" onClick={() => { window.location.hash = `tracking?id=${req.mrNumber || req.id}`; }} className="p-1.5 rounded text-primary hover:bg-primary/10 transition-colors"><TrendingUp className="w-3.5 h-3.5" /></button>
                           {hasPermission("EDIT_MATERIAL_REQUIREMENT") && (
-                            <button title="Edit" disabled={isMRLocked(req.id) && role !== "Super Admin"} onClick={() => openEditModal(req)} className={cn("p-1.5 rounded text-orange-500 hover:bg-orange-50 dark:hover:bg-orange-900/20 transition-colors", isMRLocked(req.id) && role !== "Super Admin" && "opacity-30 cursor-not-allowed")}><Pencil className="w-3.5 h-3.5" /></button>
+                            <button title="Edit" disabled={isMRLocked(req.id, req.status) && role !== "Super Admin"} onClick={() => openEditModal(req)} className={cn("p-1.5 rounded text-orange-500 hover:bg-orange-50 dark:hover:bg-orange-900/20 transition-colors", isMRLocked(req.id, req.status) && role !== "Super Admin" && "opacity-30 cursor-not-allowed")}><Pencil className="w-3.5 h-3.5" /></button>
                           )}
                           {hasPermission("DELETE_MATERIAL_REQUIREMENT") && (
-                            <button title="Delete" disabled={isMRLocked(req.id) && role !== "Super Admin"} onClick={() => setDeletingId(req.id)} className={cn("p-1.5 rounded text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors", isMRLocked(req.id) && role !== "Super Admin" && "opacity-30 cursor-not-allowed")}><Trash2 className="w-3.5 h-3.5" /></button>
+                            <button title="Delete" disabled={isMRLocked(req.id, req.status) && role !== "Super Admin"} onClick={() => setDeletingId(req.id)} className={cn("p-1.5 rounded text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors", isMRLocked(req.id, req.status) && role !== "Super Admin" && "opacity-30 cursor-not-allowed")}><Trash2 className="w-3.5 h-3.5" /></button>
                           )}
                         </div>
                       </td>
@@ -317,7 +318,7 @@ export function MaterialRequirementPage() {
                               )}
                               <h3 className="text-[14px] font-bold text-[#1A1A2E] dark:text-white">{req.id}</h3>
                               <StatusBadge status={req.status} />
-                              {isMRLocked(req.id) && <Badge text="PO Created" color="blue" icon={Link2} className="px-1.5" />}
+                              {isMRLocked(req.id, req.status) && <Badge text="PO Created" color="blue" icon={Link2} className="px-1.5" />}
                               {req.items.some(i => i.status === "In Stock" || i.status === "Partial") && (
                                 <Badge text="Stock Available" color="green" icon={Check} className="gap-1 px-1.5" />
                               )}
@@ -389,20 +390,20 @@ export function MaterialRequirementPage() {
 
                               {hasPermission("EDIT_MATERIAL_REQUIREMENT") && (
                                 <button
-                                  title={isMRLocked(req.id) && role !== "Super Admin" ? "Locked: Purchase Order exists" : "Edit MR"}
-                                  disabled={isMRLocked(req.id) && role !== "Super Admin"}
+                                  title={isMRLocked(req.id, req.status) && role !== "Super Admin" ? "Locked: Purchase Order exists" : "Edit MR"}
+                                  disabled={isMRLocked(req.id, req.status) && role !== "Super Admin"}
                                   onClick={e => { e.stopPropagation(); openEditModal(req); }}
-                                  className={cn("p-2 rounded-lg text-orange-500 hover:bg-orange-50 dark:hover:bg-orange-900/20 transition-colors", isMRLocked(req.id) && role !== "Super Admin" && "opacity-30 cursor-not-allowed")}
+                                  className={cn("p-2 rounded-lg text-orange-500 hover:bg-orange-50 dark:hover:bg-orange-900/20 transition-colors", isMRLocked(req.id, req.status) && role !== "Super Admin" && "opacity-30 cursor-not-allowed")}
                                 >
                                   <Pencil className="w-4 h-4" />
                                 </button>
                               )}
                               {hasPermission("DELETE_MATERIAL_REQUIREMENT") && (
                                 <button
-                                  title={isMRLocked(req.id) && role !== "Super Admin" ? "Locked: Purchase Order exists" : "Delete MR"}
-                                  disabled={isMRLocked(req.id) && role !== "Super Admin"}
+                                  title={isMRLocked(req.id, req.status) && role !== "Super Admin" ? "Locked: Purchase Order exists" : "Delete MR"}
+                                  disabled={isMRLocked(req.id, req.status) && role !== "Super Admin"}
                                   onClick={e => { e.stopPropagation(); setDeletingId(req.id); }}
-                                  className={cn("p-2 rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors", isMRLocked(req.id) && role !== "Super Admin" && "opacity-30 cursor-not-allowed")}
+                                  className={cn("p-2 rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors", isMRLocked(req.id, req.status) && role !== "Super Admin" && "opacity-30 cursor-not-allowed")}
                                 >
                                   <Trash2 className="w-4 h-4" />
                                 </button>
