@@ -761,12 +761,15 @@ const AppProvider = /* @__PURE__ */ __name(({ children }) => {
     setActionLoading(true);
     try {
       const res = await api.post("pos", data);
-      await fetchResource("pos");
+      setPos((prev) => [res.data, ...prev]);
       return res.data;
     } finally {
       setActionLoading(false);
     }
   }, "addPO");
+  const patchPoInStore = /* @__PURE__ */ __name((id, data) => {
+    setPos((prev) => prev.map((item) => item.id === id ? { ...item, ...data } : item));
+  }, "patchPoInStore");
   const deletePO = /* @__PURE__ */ __name(async (id) => {
     const previousPOs = [...pos];
     setPos((prev) => prev.filter((item) => item.id !== id));
@@ -871,6 +874,9 @@ const AppProvider = /* @__PURE__ */ __name(({ children }) => {
       setActionLoading(false);
     }
   }, "updateMaterialRequirement");
+  const patchMrInStore = /* @__PURE__ */ __name((id, data) => {
+    setMaterialRequirements((prev) => prev.map((item) => item.id === id ? { ...item, ...data } : item));
+  }, "patchMrInStore");
   const addMaterialRequirement = /* @__PURE__ */ __name(async (data) => {
     setActionLoading(true);
     try {
@@ -956,11 +962,15 @@ const AppProvider = /* @__PURE__ */ __name(({ children }) => {
       setActionLoading(false);
     }
   }, "updateGRN");
+  const patchGrnInStore = /* @__PURE__ */ __name((id, data) => {
+    setGrns((prev) => prev.map((item) => item.id === id ? { ...item, ...data } : item));
+  }, "patchGrnInStore");
   const addGRN = /* @__PURE__ */ __name(async (data) => {
     setActionLoading(true);
     try {
-      await api.post("grn", data);
-      await fetchResource("grn");
+      const res = await api.post("grn", data);
+      setGrns((prev) => [res.data, ...prev]);
+      return res.data;
     } finally {
       setActionLoading(false);
     }
@@ -1517,6 +1527,7 @@ const AppProvider = /* @__PURE__ */ __name(({ children }) => {
       addSupplier,
       deleteSupplier,
       updatePO,
+      patchPoInStore,
       addPO,
       deletePO,
       updatePlan,
@@ -1531,6 +1542,7 @@ const AppProvider = /* @__PURE__ */ __name(({ children }) => {
       materialRequirements,
       materialRequirementsPagination,
       updateMaterialRequirement,
+      patchMrInStore,
       addMaterialRequirement,
       deleteMaterialRequirement,
       quotations,
@@ -1541,6 +1553,7 @@ const AppProvider = /* @__PURE__ */ __name(({ children }) => {
       submitPublicMaterialRequirement,
       submitPublicSupplierRegistration,
       updateGRN,
+      patchGrnInStore,
       addGRN,
       addGRNReceipt,
       deleteGRN,

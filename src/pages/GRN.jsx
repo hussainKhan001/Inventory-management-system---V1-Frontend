@@ -21,6 +21,7 @@ import { SearchFilter, DateRangePicker, SelectFilter, FilterRow } from "../compo
 import { genId, scrollToError, formatDateTime, safeStr } from "../utils";
 import { cn } from "../lib/utils";
 import { toast } from "react-hot-toast";
+import { api } from "../services/api";
 const GRNPage = /* @__PURE__ */ __name(() => {
   const {
     grns,
@@ -29,6 +30,7 @@ const GRNPage = /* @__PURE__ */ __name(() => {
     addGRN,
     addGRNReceipt,
     updateGRN,
+    patchGrnInStore,
     deleteGRN,
     updatePO,
     pos,
@@ -145,6 +147,9 @@ const GRNPage = /* @__PURE__ */ __name(() => {
     gatePassNo: ""
   });
   const [deleteConfirm, setDeleteConfirm] = useState(null);
+  const [editingReceiptIdx, setEditingReceiptIdx] = useState(null);
+  const [editReceiptData, setEditReceiptData] = useState(null);
+  const [savingReceipt, setSavingReceipt] = useState(false);
   const confirmDelete = /* @__PURE__ */ __name(async () => {
     if (!deleteConfirm) return;
     try {
@@ -282,7 +287,6 @@ const GRNPage = /* @__PURE__ */ __name(() => {
         setTargetGRNId(null);
         setNewGRN({ poId: "", challan: "", mrNo: "", docType: "Challan", items: [], challanPhotos: [], personPhotos: [], personName: "", destinationProject: "", gatePassNo: "" });
         setErrors({});
-        fetchResource("pos", 1, 500, true);
       } catch (error) {
         toast.error(`Failed to add receipt: ${error.message}`);
       }
@@ -330,6 +334,21 @@ const GRNPage = /* @__PURE__ */ __name(() => {
       toast.error(`Failed to create GRN: ${error.message}`);
     }
   }, "handleCreate");
+
+  const handleSaveReceipt = async () => {
+    if (!editReceiptData || editingReceiptIdx === null || !selectedGRN) return;
+    setSavingReceipt(true);
+    try {
+      const res = await api.put(`grn/${selectedGRN.id}/receipt/${editingReceiptIdx}`, editReceiptData);
+      setSelectedGRN(res.data);
+      patchGrnInStore(selectedGRN.id, res.data);
+      setEditingReceiptIdx(null);
+      setEditReceiptData(null);
+      toast.success("Shipment updated");
+    } catch (e) { toast.error(e.message || "Failed to update shipment"); }
+    finally { setSavingReceipt(false); }
+  };
+
   return <div className="space-y-6">
       <PageHeader
     title="Goods Receipt Note (GRN)"
@@ -604,6 +623,7 @@ const GRNPage = /* @__PURE__ */ __name(() => {
           </div>}
       </div>
 
+
       {viewModal && selectedGRN && <Modal
     title={`GRN Details: ${selectedGRN.id}`}
     extraWide
@@ -840,19 +860,53 @@ const GRNPage = /* @__PURE__ */ __name(() => {
                             <div className="flex items-center gap-2">
                               {receipt.challan && <span className="text-[10px] font-medium text-blue-500 bg-blue-50 dark:bg-blue-900/20 px-2 py-0.5 rounded">{receipt.challan}</span>}
                               <span className="text-[10px] text-gray-400">{formatDateTime(receipt.date)}</span>
+                              {hasPermission("EDIT_GRN") && editingReceiptIdx !== idx && (
+                                <button
+                                  onClick={() => { setEditingReceiptIdx(idx); setEditReceiptData({ challan: receipt.challan || "", personName: receipt.personName || "", items: (receipt.items || []).map(i => ({ ...i })) }); }}
+                                  className="p-1 rounded text-orange-500 hover:bg-orange-50 dark:hover:bg-orange-900/20 transition-colors"
+                                  title="Edit shipment"
+                                >
+                                  <Pencil className="w-3 h-3" />
+                                </button>
+                              )}
                             </div>
                           </div>
-                          <div className="space-y-1">
-                            {(receipt.items || []).map((item, i) => (
-                              <div key={i} className="flex items-center justify-between text-[12px]">
-                                <span className="text-gray-600 dark:text-gray-400">{item.itemName}</span>
-                                <span className="font-bold text-gray-900 dark:text-white">
-                                  +{item.received} <span className="text-gray-400 font-normal">{selectedGRN.items.find((gi) => gi.sku === item.sku)?.unit || ""}</span>
-                                </span>
+
+                          {/* Inline edit form — only metadata, quantities are locked to avoid inventory inconsistency */}
+                          {editingReceiptIdx === idx ? (
+                            <div className="space-y-2">
+                              <div className="grid grid-cols-2 gap-2">
+                                <div>
+                                  <label className="text-[10px] font-bold text-gray-500 mb-1 block">Challan No.</label>
+                                  <input value={editReceiptData.challan} onChange={e => setEditReceiptData(p => ({ ...p, challan: e.target.value }))}
+                                    className="w-full px-2 py-1.5 text-[12px] border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:border-orange-500" />
+                                </div>
+                                <div>
+                                  <label className="text-[10px] font-bold text-gray-500 mb-1 block">Received By</label>
+                                  <input value={editReceiptData.personName} onChange={e => setEditReceiptData(p => ({ ...p, personName: e.target.value }))}
+                                    className="w-full px-2 py-1.5 text-[12px] border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:border-orange-500" />
+                                </div>
                               </div>
-                            ))}
-                          </div>
-                          {receipt.personName && <p className="mt-1.5 text-[10px] text-gray-400">By: <span className="font-medium text-gray-600 dark:text-gray-300">{receipt.personName}</span></p>}
+                              <div className="flex gap-2 pt-1">
+                                <Btn label="Save" small onClick={handleSaveReceipt} loading={savingReceipt} />
+                                <Btn label="Cancel" small outline onClick={() => { setEditingReceiptIdx(null); setEditReceiptData(null); }} />
+                              </div>
+                            </div>
+                          ) : (
+                            <>
+                              <div className="space-y-1">
+                                {(receipt.items || []).map((item, i) => (
+                                  <div key={i} className="flex items-center justify-between text-[12px]">
+                                    <span className="text-gray-600 dark:text-gray-400">{item.itemName}</span>
+                                    <span className="font-bold text-gray-900 dark:text-white">
+                                      +{item.received} <span className="text-gray-400 font-normal">{selectedGRN.items.find((gi) => gi.sku === item.sku)?.unit || ""}</span>
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                              {receipt.personName && <p className="mt-1.5 text-[10px] text-gray-400">By: <span className="font-medium text-gray-600 dark:text-gray-300">{receipt.personName}</span></p>}
+                            </>
+                          )}
                         </div>
                       </div>
                     ))}

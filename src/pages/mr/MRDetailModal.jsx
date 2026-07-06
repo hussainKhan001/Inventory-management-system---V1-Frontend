@@ -113,7 +113,7 @@ export function MRDetailModal({ requirement, onClose, onRequirementUpdate }) {
       let latestInventory = inventory;
       try {
         const invRes = await api.get("inventory", { limit: 2000 });
-        if (invRes.success) { latestInventory = invRes.data; fetchResource("inventory", 1, 2000, true); }
+        if (invRes.success) { latestInventory = invRes.data; }
       } catch {}
       const checkedItems = await Promise.all(req.items.map(async item => {
         let matches = latestInventory.filter(i =>

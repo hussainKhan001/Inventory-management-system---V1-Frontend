@@ -379,8 +379,6 @@ export function MaterialRequirementPage() {
                                         const res = await api.post("material-requirements/allocate", { mrId: req.id, items: allocItems });
                                         if (res.success) {
                                           toast.success(`${allocItems.length} items allocated!`);
-                                          fetchResource("material-requirements");
-                                          fetchResource("inventory");
                                         }
                                       } catch (err) { toast.error("Allocation failed: " + err.message); }
                                     }}

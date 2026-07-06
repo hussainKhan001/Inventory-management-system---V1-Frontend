@@ -83,6 +83,7 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
     fetchResource,
     addPO,
     updatePO,
+    patchPoInStore,
     deletePO,
     role,
     inventory,
@@ -1148,16 +1149,6 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
       setModal(false);
       setNewPO(initialPO);
       setErrors({});
-      fetchResource(
-        "material-requirements",
-        1,
-        100,
-        true,
-        "",
-        null,
-        false,
-        false,
-      );
       api.get("pos/occupied-mrs").then((r) => setOccupiedQuoteIds(r.data || [])).catch(() => {});
       // Generate PDF and send to Slack (fire-and-forget, doesn't block UI)
       try {
@@ -1293,8 +1284,7 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
       if (selectedPO && selectedPO.id === cancelTargetId) {
         setSelectedPO({ ...selectedPO, ...patch });
       }
-      await fetchResource("pos", 1, 50, true);
-      await fetchResource("quotations", 1, 1e3, true);
+      patchPoInStore(cancelTargetId, patch);
       api.get("pos/occupied-mrs").then((r) => setOccupiedQuoteIds(r.data || [])).catch(() => {});
       toast.success(
         res.message || "PO cancelled. Linked quotation reset to Pending.",
@@ -1467,7 +1457,6 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
         }
         toast.success(`Item created: ${invItem.sku}`, { id: "quickAdd" });
         linkToInventory(index, invItem);
-        fetchResource("inventory", 1, 500, true);
       } catch (error) {
         console.error("Quick add error:", error);
         toast.error(error.message || "Error adding item to inventory", {
@@ -1492,7 +1481,6 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
           setErrors({});
           setNewPO(initialPO);
           setIsEditing(false);
-          fetchResource("inventory", 1, 50, true);
         }}
         onSubmit={handleCreate}
         onChange={setNewPO}
@@ -2119,7 +2107,7 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
                       .map((i) => { const q = receivedBySku[i.sku] || 0; return { ...i, qty: q, total: q * i.rate, totalWithGST: q * i.rate * (1 + (i.gstPct || 18) / 100) }; })
                       .filter((i) => i.qty > 0);
                     await api.post(`pos/${closePOConfirm.po.id}/close`, { closedItems });
-                    await fetchResource("pos", 1, 50, true);
+                    patchPoInStore(closePOConfirm.po.id, { status: "Closed" });
                     api.get("pos/occupied-mrs").then((r) => setOccupiedQuoteIds(r.data || [])).catch(() => {});
                     setClosePOConfirm(null);
                     toast.success("PO closed — remaining items cancelled");

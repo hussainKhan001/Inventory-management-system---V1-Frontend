@@ -34,7 +34,7 @@ function ApprovalStamp({ status, label }) {
 
 
 export function POViewModal({ po, onClose, onApproveL1, onApproveL2, onApproveL3, onReject, onCancelApproved, onDownloadPDF, processingId }) {
-  const { suppliers, settings, role, hasPermission, updatePO, fetchResource, actionLoading, grns } = useAppStore();
+  const { suppliers, settings, role, hasPermission, updatePO, patchPoInStore, actionLoading, grns } = useAppStore();
   const [editTimelines, setEditTimelines] = useState(false);
   const [draftTimelines, setDraftTimelines] = useState([]);
   const [showCloseConfirm, setShowCloseConfirm] = useState(false);
@@ -110,8 +110,7 @@ export function POViewModal({ po, onClose, onApproveL1, onApproveL2, onApproveL3
         .map((i) => { const q = Math.max(0, (i.qty || 0) - (receivedBySku[i.sku] || 0)); return { ...i, qty: q, total: q * i.rate, totalWithGST: q * i.rate * (1 + (i.gstPct || 18) / 100) }; })
         .filter((i) => i.qty > 0);
       await api.post(`pos/${po.id}/close`, { closedItems });
-      await fetchResource("pos", 1, 50, true);
-      await fetchResource("quotations", 1, 1e3, true);
+      patchPoInStore(po.id, { status: "Closed" });
       toast.success("PO closed — remaining items cancelled");
       setShowCloseConfirm(false);
       onClose();
@@ -123,8 +122,7 @@ export function POViewModal({ po, onClose, onApproveL1, onApproveL2, onApproveL3
   const handleReopenPO = async () => {
     try {
       await api.post(`pos/${po.id}/reopen`, {});
-      await fetchResource("pos", 1, 50, true);
-      await fetchResource("quotations", 1, 1e3, true);
+      patchPoInStore(po.id, { status: "GRN Pending" });
       toast.success("PO reopened");
       onClose();
     } catch (err) {
