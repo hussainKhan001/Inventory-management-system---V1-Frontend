@@ -1,6 +1,6 @@
 var __defProp = Object.defineProperty;
 var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api } from "../services/api";
 import { Btn, ThemeToggle, Card, Field } from "../components/ui";
 import { Package, Send, CheckCircle2, Building2, FileText, Clock, X } from "lucide-react";
@@ -22,6 +22,7 @@ const PublicQuotation = /* @__PURE__ */ __name(() => {
   const [suppliers, setSuppliers] = useState([]);
   const [filteredSuppliers, setFilteredSuppliers] = useState([]);
   const [showSupplierResults, setShowSupplierResults] = useState(false);
+  const supplierDropdownRef = useRef(null);
   const [deliveryDate, setDeliveryDate] = useState("");
   const [remarks, setRemarks] = useState("");
   const [items, setItems] = useState([]);
@@ -67,6 +68,15 @@ const PublicQuotation = /* @__PURE__ */ __name(() => {
       setLoading(false);
     }
   }, [mrId, categoryFilter]);
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (supplierDropdownRef.current && !supplierDropdownRef.current.contains(e.target)) {
+        setShowSupplierResults(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
   const fetchSuppliers = /* @__PURE__ */ __name(async (search) => {
     try {
       const res = await api.get("public/suppliers", { search, limit: search ? 50 : 2e3 });
@@ -84,15 +94,18 @@ const PublicQuotation = /* @__PURE__ */ __name(() => {
   const handleSupplierSearch = /* @__PURE__ */ __name(async (val) => {
     setSupplierName(val);
     setSupplierId("");
-    if (val.length > 1) {
+    if (val.length === 0) {
+      setFilteredSuppliers(suppliers);
+      setShowSupplierResults(suppliers.length > 0);
+    } else {
       const filtered = suppliers.filter(
         (s) => (s.companyName || s.name || "").toLowerCase().includes(val.toLowerCase())
       );
       setFilteredSuppliers(filtered);
       setShowSupplierResults(true);
-      await fetchSuppliers(val);
-    } else {
-      setShowSupplierResults(false);
+      if (filtered.length === 0) {
+        await fetchSuppliers(val);
+      }
     }
   }, "handleSupplierSearch");
   const selectSupplier = /* @__PURE__ */ __name((supplier) => {
@@ -338,24 +351,31 @@ const PublicQuotation = /* @__PURE__ */ __name(() => {
                 <h3 className="text-xs font-bold text-gray-900 dark:text-white tracking-widest">Supplier details</h3>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
-                <div className="relative lg:col-span-2">
+                <div className="relative lg:col-span-2" ref={supplierDropdownRef}>
                   <Field
     label="Search Company / Firm Name *"
     placeholder="Type to search your registered name..."
     value={supplierName}
     onChange={(e) => handleSupplierSearch(e.target.value)}
-    onFocus={() => supplierName.length > 1 && setShowSupplierResults(true)}
+    onFocus={() => {
+      if (supplierName.length === 0 && suppliers.length > 0) {
+        setFilteredSuppliers(suppliers);
+        setShowSupplierResults(true);
+      } else if (supplierName.length > 0) {
+        setShowSupplierResults(true);
+      }
+    }}
     required
     className="h-12 text-base font-semibold"
   />
                   <AnimatePresence>
-                    {showSupplierResults && filteredSuppliers.length > 0 && <motion.div
+                    {showSupplierResults && <motion.div
     initial={{ opacity: 0, y: -10, scale: 0.98 }}
     animate={{ opacity: 1, y: 0, scale: 1 }}
     exit={{ opacity: 0, y: -10, scale: 0.98 }}
     className="absolute z-50 w-full mt-2 bg-white dark:bg-[#1E293B] border border-gray-100 dark:border-gray-700 rounded-2xl shadow-2xl max-h-80 overflow-y-auto backdrop-blur-xl"
   >
-                        {filteredSuppliers.map((s) => <button
+                        {filteredSuppliers.length > 0 ? filteredSuppliers.map((s) => <button
     key={s.id || s._id}
     type="button"
     onClick={() => selectSupplier(s)}
@@ -368,7 +388,7 @@ const PublicQuotation = /* @__PURE__ */ __name(() => {
                               <p className="text-sm font-bold text-gray-900 dark:text-white group-hover:text-orange-600 dark:group-hover:text-orange-400 transition-colors">{s.companyName || s.name}</p>
                               <p className="text-[10px] text-gray-400 font-semibold tracking-widest mt-0.5">{s.ownerName || s.contact} &bull; {s.mobile || s.phone}</p>
                             </div>
-                          </button>)}
+                          </button>) : <div className="px-5 py-6 text-center text-sm text-gray-400 dark:text-gray-500">No supplier found. Try a different name.</div>}
                       </motion.div>}
                   </AnimatePresence>
                 </div>
