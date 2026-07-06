@@ -17,6 +17,7 @@ const DailyReport = /* @__PURE__ */ __name(() => {
   const [dateRange, setDateRange]           = useState({ start: "", end: "" });
   const [search, setSearch]                 = useState("");
   const [categoryFilter, setCategoryFilter] = useState("");
+  const [projectFilter, setProjectFilter]   = useState("");
   const [showSuggestions, setShowSuggestions] = useState(false);
   const searchRef = useRef(null);
 
@@ -68,7 +69,7 @@ const DailyReport = /* @__PURE__ */ __name(() => {
     return result;
   }, [transactions, inventory]);
 
-  // Group by date → SKU
+  // Group by date → project+SKU key (so same SKU across different projects stays separate)
   const byDate = useMemo(() => {
     const dateMap = {};
     transactions.forEach((trx) => {
@@ -76,6 +77,8 @@ const DailyReport = /* @__PURE__ */ __name(() => {
       const trxDate = trx.date.split("T")[0];
       if (dateFrom && trxDate < dateFrom) return;
       if (dateTo   && trxDate > dateTo)   return;
+      const trxProject = trx.project || trx.destinationProject || "";
+      if (projectFilter && trxProject !== projectFilter) return;
 
       const items = trx.items?.length > 0
         ? trx.items
@@ -85,36 +88,36 @@ const DailyReport = /* @__PURE__ */ __name(() => {
 
       items.forEach((item) => {
         if (!item.sku) return;
+        const rowKey = `${item.sku}||${trxProject}`;
         if (!dateMap[trxDate]) dateMap[trxDate] = {};
-        if (!dateMap[trxDate][item.sku]) {
+        if (!dateMap[trxDate][rowKey]) {
           const invItem = inventory.find((i) => i.sku === item.sku);
-          dateMap[trxDate][item.sku] = {
+          dateMap[trxDate][rowKey] = {
             sku:      item.sku,
             itemName: item.itemName || invItem?.itemName || "N/A",
             unit:     item.unit     || invItem?.unit     || "N/A",
             in: 0, out: 0,
             final:    closingBalance[item.sku]?.[trxDate] ?? invItem?.liveStock ?? 0,
             category: item.category || invItem?.category || "N/A",
+            project:  trxProject,
             lastTxnTime: trx.date || ""
           };
         }
-        if (inwardTypes.includes(trx.type))       dateMap[trxDate][item.sku].in  += item.qty;
-        else if (outwardTypes.includes(trx.type)) dateMap[trxDate][item.sku].out += item.qty;
-        // keep latest transaction time
-        if (trx.date > dateMap[trxDate][item.sku].lastTxnTime) dateMap[trxDate][item.sku].lastTxnTime = trx.date;
+        if (inwardTypes.includes(trx.type))       dateMap[trxDate][rowKey].in  += item.qty;
+        else if (outwardTypes.includes(trx.type)) dateMap[trxDate][rowKey].out += item.qty;
+        if (trx.date > dateMap[trxDate][rowKey].lastTxnTime) dateMap[trxDate][rowKey].lastTxnTime = trx.date;
       });
     });
-    // Sort dates descending (newest first)
     return Object.entries(dateMap)
       .sort(([a], [b]) => b.localeCompare(a))
-      .map(([date, skuMap]) => ({
+      .map(([date, rowMap]) => ({
         date,
-        items: Object.values(skuMap)
+        items: Object.values(rowMap)
           .filter(r => r.in > 0 || r.out > 0)
           .sort((a, b) => b.in + b.out - (a.in + a.out))
       }))
       .filter(g => g.items.length > 0);
-  }, [transactions, inventory, closingBalance, dateFrom, dateTo]);
+  }, [transactions, inventory, closingBalance, dateFrom, dateTo, projectFilter]);
 
   // reportData = flat list for KPI totals
   const reportData = useMemo(() =>
@@ -142,7 +145,8 @@ const DailyReport = /* @__PURE__ */ __name(() => {
         return (
           row.sku.toLowerCase().includes(q) ||
           row.itemName.toLowerCase().includes(q) ||
-          row.category.toLowerCase().includes(q)
+          row.category.toLowerCase().includes(q) ||
+          (row.project || "").toLowerCase().includes(q)
         );
       });
       if (matchedItems.length === 0) return;
@@ -159,6 +163,14 @@ const DailyReport = /* @__PURE__ */ __name(() => {
     return [{ value: "", label: "All Categories" }, ...cats.map(c => ({ value: c, label: c }))];
   }, [settings, reportData]);
 
+  // Project options — from settings.projects or from transactions
+  const projectOptions = useMemo(() => {
+    const projs = settings?.projects?.length
+      ? settings.projects
+      : [...new Set(transactions.map(t => t.project || t.destinationProject).filter(Boolean))].sort();
+    return [{ value: "", label: "All Projects" }, ...projs.map(p => ({ value: p, label: p }))];
+  }, [settings, transactions]);
+
   const dateLabel = dateFrom ? (dateFrom !== dateTo ? `${dateFrom} → ${dateTo}` : dateFrom) : "all dates";
 
   const downloadPDF = /* @__PURE__ */ __name(() => {
@@ -173,17 +185,22 @@ const DailyReport = /* @__PURE__ */ __name(() => {
       return;
     }
     doc.setFontSize(20);
-    doc.text("Daily Movement Report", 14, 22);
+    doc.text(projectFilter ? `Project Report — ${projectFilter}` : "Daily Movement Report", 14, 22);
     doc.setFontSize(11);
     doc.setTextColor(100);
     doc.text(`Period: ${dateLabel}`, 14, 32);
-    doc.text(`Generated: ${new Date().toLocaleString()}`, 14, 38);
-    if (search || categoryFilter) {
-      const f = [search && `Search: "${search}"`, categoryFilter && `Category: ${categoryFilter}`].filter(Boolean).join(" | ");
-      doc.text(`Filters: ${f}`, 14, 44);
+    if (projectFilter) doc.text(`Project: ${projectFilter}`, 14, 38);
+    doc.text(`Generated: ${new Date().toLocaleString()}`, 14, projectFilter ? 44 : 38);
+    const filterParts = [
+      search && `Search: "${search}"`,
+      categoryFilter && `Category: ${categoryFilter}`,
+    ].filter(Boolean);
+    let yBase = projectFilter ? 50 : 44;
+    if (filterParts.length) {
+      doc.text(`Filters: ${filterParts.join(" | ")}`, 14, yBase);
+      yBase += 8;
     }
     const itemRows = filteredData.filter(r => r._type === "item");
-    const yBase = (search || categoryFilter) ? 52 : 46;
     const totalIn  = itemRows.reduce((s, i) => s + i.in,  0);
     const totalOut = itemRows.reduce((s, i) => s + i.out, 0);
     doc.setFontSize(10);
@@ -191,19 +208,33 @@ const DailyReport = /* @__PURE__ */ __name(() => {
     doc.text(`Total Inward: ${totalIn.toLocaleString()}`,   14,  yBase);
     doc.text(`Total Outward: ${totalOut.toLocaleString()}`, 70,  yBase);
     doc.text(`Items: ${itemRows.length}`,                   140, yBase);
+    const showProjectCol = !projectFilter;
     autoTable(doc, {
       startY: yBase + 8,
-      head: [["Date", "SKU", "Item Name", "Category", "Inward", "Outward", "Live Stock"]],
-      body: filteredData.filter(r => r._type === "item").map((row) => [
-        "", row.sku, row.itemName, row.category,
-        `+${row.in} ${row.unit}`,
-        row.out > 0 ? `-${row.out} ${row.unit}` : `0 ${row.unit}`,
-        `${row.final} ${row.unit}`
-      ]),
+      head: [showProjectCol
+        ? ["Date", "Project", "Item Name", "Category", "Inward", "Outward", "Live Stock"]
+        : ["Date", "Item Name", "Category", "Inward", "Outward", "Live Stock"]
+      ],
+      body: itemRows.map((row) => {
+        const dateStr = new Date(row.lastTxnTime || row.date + "T00:00:00")
+          .toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+        const base = [
+          dateStr, row.itemName, row.category,
+          `+${row.in} ${row.unit}`,
+          row.out > 0 ? `-${row.out} ${row.unit}` : `0 ${row.unit}`,
+          `${row.final} ${row.unit}`
+        ];
+        return showProjectCol ? [dateStr, row.project || "—", row.itemName, row.category,
+          `+${row.in} ${row.unit}`,
+          row.out > 0 ? `-${row.out} ${row.unit}` : `0 ${row.unit}`,
+          `${row.final} ${row.unit}`] : base;
+      }),
       theme: "striped",
-      headStyles: { fillColor: [26, 26, 46] }
+      headStyles: { fillColor: [26, 26, 46] },
+      columnStyles: showProjectCol ? { 1: { cellWidth: 35 } } : {}
     });
-    doc.save(`Daily_Report_${dateFrom || "all"}${dateFrom && dateFrom !== dateTo ? "_to_" + dateTo : ""}.pdf`);
+    const suffix = projectFilter ? `_${projectFilter.replace(/\s+/g, "_")}` : "";
+    doc.save(`Daily_Report${suffix}_${dateFrom || "all"}${dateFrom && dateFrom !== dateTo ? "_to_" + dateTo : ""}.pdf`);
   }, "downloadPDF");
 
   const hdrCls = "px-4 py-3 text-[11px] font-bold text-[#6B7280] dark:text-gray-400 tracking-wider sticky top-0 z-10 sticky-th";
@@ -214,8 +245,8 @@ const DailyReport = /* @__PURE__ */ __name(() => {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <PageHeader
-          title="Daily Report"
-          sub="Track daily item inflows, outflows and closing stock"
+          title={projectFilter ? `Daily Report — ${projectFilter}` : "Daily Report"}
+          sub={projectFilter ? `Showing movements for project: ${projectFilter}` : "Track daily item inflows, outflows and closing stock"}
         />
         <Btn label="Download PDF" icon={Download} onClick={downloadPDF} disabled={filteredData.length === 0} />
       </div>
@@ -269,6 +300,16 @@ const DailyReport = /* @__PURE__ */ __name(() => {
               ))}
             </div>
           )}
+        </div>
+
+        {/* Project filter */}
+        <div className="min-w-[180px]">
+          <CustomDropdown
+            options={projectOptions}
+            value={projectFilter}
+            onChange={setProjectFilter}
+            placeholder="All Projects"
+          />
         </div>
 
         {/* Category — CustomDropdown */}
@@ -351,6 +392,7 @@ const DailyReport = /* @__PURE__ */ __name(() => {
                   <th className={`${hdrCls} md:hidden`}>Movement Details</th>
                   <th className={`${hdrCls} hidden md:table-cell`}>Date</th>
                   <th className={`${hdrCls} hidden md:table-cell`}>Item Name</th>
+                  <th className={`${hdrCls} hidden md:table-cell`}>Project</th>
                   <th className={`${hdrCls} hidden md:table-cell`}>Category</th>
                   <th className={`${hdrCls} hidden md:table-cell text-right text-green-600 dark:text-green-400`}>Inward</th>
                   <th className={`${hdrCls} hidden md:table-cell text-right text-blue-500 dark:text-blue-400`}>Outward</th>
@@ -368,6 +410,11 @@ const DailyReport = /* @__PURE__ */ __name(() => {
                             <p className="text-[14px] font-bold text-gray-900 dark:text-white leading-tight">{row.itemName}</p>
                             <p className="text-[10px] font-mono text-gray-500 mt-0.5">{row.sku}</p>
                             <p className="text-[9px] font-bold text-gray-400 mt-1">{row.category}</p>
+                            {row.project && (
+                              <span className="inline-block mt-1 text-[9px] font-semibold px-1.5 py-0.5 rounded bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300">
+                                {row.project}
+                              </span>
+                            )}
                           </div>
                           <div className="text-right">
                             <p className="text-[14px] font-black text-gray-900 dark:text-white">{row.final}</p>
@@ -408,6 +455,15 @@ const DailyReport = /* @__PURE__ */ __name(() => {
                       <p className="font-bold text-gray-900 dark:text-white">{row.itemName}</p>
                       <p className="font-mono text-[10px] text-gray-400 dark:text-gray-500 mt-0.5">{row.sku}</p>
                     </td>
+                    <td className="hidden md:table-cell px-4 py-3 border-b border-gray-100 dark:border-gray-800 max-w-[160px]">
+                      {row.project ? (
+                        <span className="inline-block text-[11px] font-semibold px-2 py-0.5 rounded-md bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 truncate max-w-full" title={row.project}>
+                          {row.project}
+                        </span>
+                      ) : (
+                        <span className="text-[11px] text-gray-400">—</span>
+                      )}
+                    </td>
                     <td className="hidden md:table-cell px-4 py-3 text-gray-600 dark:text-gray-400 border-b border-gray-100 dark:border-gray-800 text-[11px]">{row.category}</td>
                     <td className="hidden md:table-cell px-4 py-3 text-right font-bold text-green-600 dark:text-green-400 border-b border-gray-100 dark:border-gray-800">
                       {row.in > 0 ? `+${row.in}` : "0"} <span className="text-[10px] font-normal text-gray-400">{row.unit}</span>
@@ -427,8 +483,9 @@ const DailyReport = /* @__PURE__ */ __name(() => {
               <table className="w-full text-left text-[13px] border-collapse">
                 <thead className="bg-gray-50/90 dark:bg-gray-800/90 backdrop-blur-md border-b border-[#E8ECF0] dark:border-gray-800">
                   <tr>
-                    <th className="px-4 py-3 text-[11px] font-bold text-[#6B7280] dark:text-gray-400 tracking-wider">SKU</th>
+                    <th className="px-4 py-3 text-[11px] font-bold text-[#6B7280] dark:text-gray-400 tracking-wider">Date</th>
                     <th className="px-4 py-3 text-[11px] font-bold text-[#6B7280] dark:text-gray-400 tracking-wider">Item Name</th>
+                    <th className="px-4 py-3 text-[11px] font-bold text-[#6B7280] dark:text-gray-400 tracking-wider">Project</th>
                     <th className="px-4 py-3 text-[11px] font-bold text-[#6B7280] dark:text-gray-400 tracking-wider">Category</th>
                     <th className="px-4 py-3 text-[11px] font-bold text-[#6B7280] dark:text-gray-400 tracking-wider text-right">Inward</th>
                     <th className="px-4 py-3 text-[11px] font-bold text-[#6B7280] dark:text-gray-400 tracking-wider text-right">Outward</th>
