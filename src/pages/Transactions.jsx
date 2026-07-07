@@ -159,7 +159,7 @@ const TransactionsPage = /* @__PURE__ */ __name(({ type }) => {
   useEffect(() => {
     fetchResource("inventory", 1, 1e3, true);
     fetchResource("catalogue", 1, 1e3, true);
-    fetchResource("suppliers", 1, 1e3, true);
+    fetchResource("suppliers", 1, 5000, true);
     fetchResource("material-requirements", 1, 1e3, true);
   }, [fetchResource]);
   useEffect(() => {

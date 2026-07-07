@@ -86,7 +86,7 @@ const GRNPage = /* @__PURE__ */ __name(() => {
     fetchResource("grn", page, 50, !isInitialLoad || page > 1, debouncedSearch, finalFilter, page > 1, false, startDate, endDate);
     fetchResource("pos", 1, 500, true);
     fetchResource("inventory", 1, 1e3, true);
-    fetchResource("suppliers", 1, 1e3, true);
+    fetchResource("suppliers", 1, 5000, true);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page, debouncedSearch, startDate, endDate, filterProject, filterSupplier, filterStatus]);
   useEffect(() => {

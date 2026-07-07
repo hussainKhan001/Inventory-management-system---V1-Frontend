@@ -99,7 +99,7 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
     };
     await Promise.all([
       fetchResource("pos", 1, 500, false, "", accountsFilter),
-      fetchResource("suppliers", 1, 1e3, true)
+      fetchResource("suppliers", 1, 5000, true)
     ]);
     setIsRefreshing(false);
   }, "refresh");

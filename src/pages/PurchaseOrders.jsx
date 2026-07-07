@@ -251,7 +251,7 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
       startDate,
       endDate,
     );
-    fetchResource("suppliers", 1, 1e3, true);
+    fetchResource("suppliers", 1, 5000, true);
     fetchResource("inventory", 1, 1e3, true);
     fetchResource("catalogue", 1, 1e3, true);
     fetchResource("material-requirements", 1, 1e3, true);
@@ -1673,8 +1673,8 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
             );
 
             const sName = supplier
-              ? supplier.companyName || supplier.name
-              : po.supplier || "NA";
+              ? supplier.companyName || supplier.name || supplier.supplierName
+              : po.supplierName || po.vendorName || po.vendorBankDetails?.accountHolder || po.vendor || po.supplier || "NA";
 
             return (
               <>

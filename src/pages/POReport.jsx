@@ -29,7 +29,7 @@ const POReport = /* @__PURE__ */ __name(() => {
   const [filterStatus, setFilterStatus] = useState("");
   useEffect(() => {
     fetchResource("pos", 1, 2e3, true);
-    if (!suppliers.length) fetchResource("suppliers", 1, 1e3);
+    if (!suppliers.length) fetchResource("suppliers", 1, 5000);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   useEffect(() => {
@@ -80,7 +80,7 @@ const POReport = /* @__PURE__ */ __name(() => {
       if (debouncedSearch) {
         const term = debouncedSearch.toLowerCase();
         const sName = suppliers.find((s) => s.id === po.supplier || s._id === po.supplier);
-        const supplierName = sName ? sName.companyName || sName.name || "" : po.supplier || "";
+        const supplierName = sName ? sName.companyName || sName.name || sName.supplierName || "" : po.supplierName || po.vendorName || po.vendorBankDetails?.accountHolder || po.vendor || po.supplier || "";
         const match = (po.id || "").toLowerCase().includes(term) || (po.project || "").toLowerCase().includes(term) || supplierName.toLowerCase().includes(term);
         if (!match) return false;
       }
@@ -268,7 +268,7 @@ const POReport = /* @__PURE__ */ __name(() => {
                 <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
                   {filtered.map((po, i) => {
     const supplier = suppliers.find((s) => s.id === po.supplier || s._id === po.supplier);
-    const sName = supplier ? supplier.companyName || supplier.name : po.supplier || "NA";
+    const sName = supplier ? supplier.companyName || supplier.name || supplier.supplierName : po.supplierName || po.vendorName || po.vendorBankDetails?.accountHolder || po.vendor || po.supplier || "NA";
     return <tr key={i} className="hover:bg-gray-50/50 dark:hover:bg-gray-800/30 transition-colors">
                         <td className="px-5 py-3 text-[12px] text-gray-400">{i + 1}</td>
                         <td className="px-5 py-3 text-[13px] font-semibold text-gray-900 dark:text-white">{po.id}</td>

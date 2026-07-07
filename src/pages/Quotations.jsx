@@ -85,7 +85,7 @@ const Quotations = /* @__PURE__ */ __name(() => {
     fetchResource("quotations", 1, 1e3, true, debouncedSearch, finalFilter, false, false, startDate, endDate);
     fetchResource("material-requirements", 1, 1e3, true);
     fetchResource("pos", 1, 1e3, true);
-    if (suppliers.length === 0) fetchResource("suppliers", 1, 1e3, true);
+    if (suppliers.length === 0) fetchResource("suppliers", 1, 5000, true);
     // Run migration once per session to link legacy POs to their source quotations
     // (backend broadcasts DATA_UPDATED after migration — WS handler will refresh with correct search params)
     if (!sessionStorage.getItem("po-quotation-migration-v2-done")) {
