@@ -1153,12 +1153,13 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
       // Generate PDF and send to Slack (fire-and-forget, doesn't block UI)
       try {
         const _sl = (actualPO.supplier || "").toLowerCase();
-        const supplierObj = suppliers.find(
+        const supplierObj = (suppliers || []).find(
           (s) =>
-            s.id === actualPO.supplier ||
-            s._id === actualPO.supplier ||
-            (s.companyName || s.name || "").toLowerCase() === _sl ||
-            (s.ownerName || s.contact || "").toLowerCase() === _sl,
+            s &&
+            (s.id === actualPO.supplier ||
+              s._id === actualPO.supplier ||
+              (s?.companyName || s?.name || "").toLowerCase() === _sl ||
+              (s?.ownerName || s?.contact || "").toLowerCase() === _sl),
         );
         const pdfBlob = generatePOPDFBlob(actualPO, supplierObj, settings);
         const form = new FormData();
@@ -1340,12 +1341,13 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
 
   const downloadPDF = /* @__PURE__ */ __name((po) => {
     const _dl = (po.supplier || "").toLowerCase();
-    const supplier = suppliers.find(
+    const supplier = (suppliers || []).find(
       (s) =>
-        s.id === po.supplier ||
-        s._id === po.supplier ||
-        (s.companyName || s.name || "").toLowerCase() === _dl ||
-        (s.ownerName || s.contact || "").toLowerCase() === _dl,
+        s &&
+        (s.id === po.supplier ||
+          s._id === po.supplier ||
+          (s?.companyName || s?.name || "").toLowerCase() === _dl ||
+          (s?.ownerName || s?.contact || "").toLowerCase() === _dl),
     );
     generatePOPDF(getEffectivePO(po), supplier, settings);
   }, "downloadPDF");
@@ -1675,13 +1677,15 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
             const isNew = isNewItem(po.createdAt);
 
             const _poSupplierLower = (po.supplier || "").toLowerCase();
-            const supplier = currentSuppliers.find(
+            const supplier = (currentSuppliers || []).find(
               (s) =>
-                s.id === po.supplier ||
-                s._id === po.supplier ||
-                (s.companyName || s.name || "").toLowerCase() === _poSupplierLower ||
-                (s.ownerName || s.contact || "").toLowerCase() === _poSupplierLower,
+                s &&
+                (s.id === po.supplier ||
+                  s._id === po.supplier ||
+                  (s?.companyName || s?.name || "").toLowerCase() === _poSupplierLower ||
+                  (s?.ownerName || s?.contact || "").toLowerCase() === _poSupplierLower),
             );
+
 
             const sName = supplier
               ? supplier.companyName || supplier.name || supplier.supplierName
