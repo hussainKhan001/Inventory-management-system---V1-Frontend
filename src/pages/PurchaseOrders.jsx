@@ -1171,15 +1171,16 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
       api.get("pos/occupied-mrs").then((r) => setOccupiedQuoteIds(r.data || [])).catch(() => {});
       // Generate PDF and send to Slack (fire-and-forget, doesn't block UI)
       try {
-        const _sl = (actualPO.supplier || "").toLowerCase();
-        const supplierObj = (suppliers || []).find(
-          (s) =>
-            s &&
-            (s.id === actualPO.supplier ||
-              s._id === actualPO.supplier ||
-              (s?.companyName || s?.name || "").toLowerCase() === _sl ||
-              (s?.ownerName || s?.contact || "").toLowerCase() === _sl),
-        );
+        const _sl = (actualPO.supplier || "").trim().toLowerCase();
+        const supplierObj = (suppliers || []).find((s) => {
+          if (!s) return false;
+          if (s.id === actualPO.supplier || s._id === actualPO.supplier) return true;
+          const cN = (s.companyName || s.name || "").trim().toLowerCase();
+          const oN = (s.ownerName || s.contact || "").trim().toLowerCase();
+          if (cN === _sl || oN === _sl) return true;
+          if (_sl.length >= 4 && (cN.startsWith(_sl) || oN.startsWith(_sl))) return true;
+          return false;
+        });
         const pdfBlob = generatePOPDFBlob(actualPO, supplierObj, settings);
         const form = new FormData();
         form.append("pdf", pdfBlob, `${actualPO.id}.pdf`);
@@ -1359,15 +1360,16 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
   }, "getEffectivePO");
 
   const downloadPDF = /* @__PURE__ */ __name((po) => {
-    const _dl = (po.supplier || "").toLowerCase();
-    const supplier = (suppliers || []).find(
-      (s) =>
-        s &&
-        (s.id === po.supplier ||
-          s._id === po.supplier ||
-          (s?.companyName || s?.name || "").toLowerCase() === _dl ||
-          (s?.ownerName || s?.contact || "").toLowerCase() === _dl),
-    );
+    const _dl = (po.supplier || "").trim().toLowerCase();
+    const supplier = (suppliers || []).find((s) => {
+      if (!s) return false;
+      if (s.id === po.supplier || s._id === po.supplier) return true;
+      const cD = (s.companyName || s.name || "").trim().toLowerCase();
+      const oD = (s.ownerName || s.contact || "").trim().toLowerCase();
+      if (cD === _dl || oD === _dl) return true;
+      if (_dl.length >= 4 && (cD.startsWith(_dl) || oD.startsWith(_dl))) return true;
+      return false;
+    });
     generatePOPDF(getEffectivePO(po), supplier, settings);
   }, "downloadPDF");
 
@@ -1645,15 +1647,20 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
 
             const isNew = isNewItem(po.createdAt);
 
-            const _poSupplierLower = (po.supplier || "").toLowerCase();
-            const supplier = (currentSuppliers || []).find(
-              (s) =>
-                s &&
-                (s.id === po.supplier ||
-                  s._id === po.supplier ||
-                  (s?.companyName || s?.name || "").toLowerCase() === _poSupplierLower ||
-                  (s?.ownerName || s?.contact || "").toLowerCase() === _poSupplierLower),
-            );
+            const _poSupplierLower = (po.supplier || "").trim().toLowerCase();
+            const supplier = (currentSuppliers || []).find((s) => {
+              if (!s) return false;
+              if (s.id === po.supplier || s._id === po.supplier) return true;
+              const cName = (s.companyName || s.name || "").trim().toLowerCase();
+              const oName = (s.ownerName || s.contact || "").trim().toLowerCase();
+              // Exact match first
+              if (cName === _poSupplierLower || oName === _poSupplierLower) return true;
+              // Partial match: stored value is a prefix of the full name (e.g. "Sanjay" vs "Sanjay Kumar")
+              if (_poSupplierLower.length >= 4 && (
+                cName.startsWith(_poSupplierLower) || oName.startsWith(_poSupplierLower)
+              )) return true;
+              return false;
+            });
 
 
             const sName = supplier
