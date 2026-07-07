@@ -325,6 +325,27 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
     });
   }, [pos, suppliers, debouncedSearch]);
 
+  // Resolve supplier company names before passing to Virtuoso so rows re-render when suppliers load
+  const resolvedFilteredPos = useMemo(() => {
+    return (filteredPos || []).map((po) => {
+      if (!po.supplier) return po;
+      const lower = po.supplier.trim().toLowerCase();
+      const sup = (suppliers || []).find((s) => {
+        if (!s) return false;
+        if (s.id === po.supplier || s._id === po.supplier) return true;
+        const cN = (s.companyName || s.name || "").trim().toLowerCase();
+        const oN = (s.ownerName || s.contact || "").trim().toLowerCase();
+        if (cN === lower || oN === lower) return true;
+        if (lower.length >= 4 && (cN.startsWith(lower) || oN.startsWith(lower))) return true;
+        return false;
+      });
+      const resolvedName = sup
+        ? (sup.companyName || sup.name || po.supplier)
+        : (po.supplierName || po.vendorName || po.vendor || po.supplier);
+      return { ...po, _supplierName: resolvedName };
+    });
+  }, [filteredPos, suppliers]);
+
   const initialPO = {
     mrId: "",
     project: "",
@@ -1621,8 +1642,7 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
         {" "}
         <TableVirtuoso
           style={{ height: "calc(100vh - 350px)", minHeight: "400px" }}
-          data={filteredPos}
-          context={{ suppliers }}
+          data={resolvedFilteredPos}
           endReached={loadMore}
           fixedHeaderContent={() => {
             const headerClass =
@@ -1642,30 +1662,12 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
               </tr>
             );
           }}
-          itemContent={(_index, po, { suppliers: currentSuppliers }) => {
+          itemContent={(_index, po) => {
             const isPending = po.status?.startsWith("Pending");
 
             const isNew = isNewItem(po.createdAt);
 
-            const _poSupplierLower = (po.supplier || "").trim().toLowerCase();
-            const supplier = (currentSuppliers || []).find((s) => {
-              if (!s) return false;
-              if (s.id === po.supplier || s._id === po.supplier) return true;
-              const cName = (s.companyName || s.name || "").trim().toLowerCase();
-              const oName = (s.ownerName || s.contact || "").trim().toLowerCase();
-              // Exact match first
-              if (cName === _poSupplierLower || oName === _poSupplierLower) return true;
-              // Partial match: stored value is a prefix of the full name (e.g. "Sanjay" vs "Sanjay Kumar")
-              if (_poSupplierLower.length >= 4 && (
-                cName.startsWith(_poSupplierLower) || oName.startsWith(_poSupplierLower)
-              )) return true;
-              return false;
-            });
-
-
-            const sName = supplier
-              ? supplier.companyName || supplier.name || supplier.supplierName
-              : po.supplierName || po.vendorName || po.vendorBankDetails?.accountHolder || po.vendor || po.supplier || "NA";
+            const sName = po._supplierName || po.vendorBankDetails?.accountHolder || po.supplier || "NA";
 
             return (
               <>
