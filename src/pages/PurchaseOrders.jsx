@@ -120,16 +120,35 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
   const supplierOptions = React.useMemo(() => {
     const optionsMap = /* @__PURE__ */ new Map();
     suppliers.forEach((s) => {
+      if (!s) return;
       const label = s.companyName || s.name || s.id;
-      if (label) optionsMap.set(s.id, label);
-    });
-    pos.forEach((po) => {
-      if (po.supplier && !optionsMap.has(po.supplier)) {
-        optionsMap.set(po.supplier, po.supplier);
-      }
+      if (!label) return;
+      optionsMap.set(s.id, label);
+      // Also key by company name so name-stored PO suppliers hit the map too
+      if (s.companyName) optionsMap.set(s.companyName, label);
+      if (s.name && s.name !== s.companyName) optionsMap.set(s.name, label);
     });
 
+    pos.forEach((po) => {
+      if (!po.supplier || optionsMap.has(po.supplier)) return;
+      // Resolve by owner name match before adding as raw fallback
+      const lower = po.supplier.toLowerCase();
+      const sup = suppliers.find(
+        (s) =>
+          s &&
+          ((s.ownerName || s.contact || "").toLowerCase() === lower),
+      );
+      optionsMap.set(po.supplier, sup ? (sup.companyName || sup.name || po.supplier) : po.supplier);
+    });
+
+    // Deduplicate by label so the same company doesn't appear twice
+    const seen = new Set();
     return Array.from(optionsMap.entries())
+      .filter(([, label]) => {
+        if (seen.has(label)) return false;
+        seen.add(label);
+        return true;
+      })
       .map(([value, label]) => ({ label, value }))
       .sort((a, b) => a.label.localeCompare(b.label));
   }, [suppliers, pos]);
