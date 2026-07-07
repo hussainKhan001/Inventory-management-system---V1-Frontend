@@ -149,6 +149,8 @@ const GRNPage = /* @__PURE__ */ __name(() => {
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [editingReceiptIdx, setEditingReceiptIdx] = useState(null);
   const [editReceiptData, setEditReceiptData] = useState(null);
+  const [editReceiptOriginalItems, setEditReceiptOriginalItems] = useState([]);
+  const [editReceiptDrawerOpen, setEditReceiptDrawerOpen] = useState(false);
   const [savingReceipt, setSavingReceipt] = useState(false);
   const confirmDelete = /* @__PURE__ */ __name(async () => {
     if (!deleteConfirm) return;
@@ -344,6 +346,8 @@ const GRNPage = /* @__PURE__ */ __name(() => {
       patchGrnInStore(selectedGRN.id, res.data);
       setEditingReceiptIdx(null);
       setEditReceiptData(null);
+      setEditReceiptOriginalItems([]);
+      setEditReceiptDrawerOpen(false);
       toast.success("Shipment updated");
     } catch (e) { toast.error(e.message || "Failed to update shipment"); }
     finally { setSavingReceipt(false); }
@@ -860,9 +864,15 @@ const GRNPage = /* @__PURE__ */ __name(() => {
                             <div className="flex items-center gap-2">
                               {receipt.challan && <span className="text-[10px] font-medium text-blue-500 bg-blue-50 dark:bg-blue-900/20 px-2 py-0.5 rounded">{receipt.challan}</span>}
                               <span className="text-[10px] text-gray-400">{formatDateTime(receipt.date)}</span>
-                              {hasPermission("EDIT_GRN") && editingReceiptIdx !== idx && (
+                              {hasPermission("EDIT_GRN") && (
                                 <button
-                                  onClick={() => { setEditingReceiptIdx(idx); setEditReceiptData({ challan: receipt.challan || "", personName: receipt.personName || "", items: (receipt.items || []).map(i => ({ ...i })) }); }}
+                                  onClick={() => {
+                                    const items = (receipt.items || []).map(i => ({ ...i }));
+                                    setEditingReceiptIdx(idx);
+                                    setEditReceiptOriginalItems(items);
+                                    setEditReceiptData({ challan: receipt.challan || "", personName: receipt.personName || "", items });
+                                    setEditReceiptDrawerOpen(true);
+                                  }}
                                   className="p-1 rounded text-orange-500 hover:bg-orange-50 dark:hover:bg-orange-900/20 transition-colors"
                                   title="Edit shipment"
                                 >
@@ -872,41 +882,17 @@ const GRNPage = /* @__PURE__ */ __name(() => {
                             </div>
                           </div>
 
-                          {/* Inline edit form — only metadata, quantities are locked to avoid inventory inconsistency */}
-                          {editingReceiptIdx === idx ? (
-                            <div className="space-y-2">
-                              <div className="grid grid-cols-2 gap-2">
-                                <div>
-                                  <label className="text-[10px] font-bold text-gray-500 mb-1 block">Challan No.</label>
-                                  <input value={editReceiptData.challan} onChange={e => setEditReceiptData(p => ({ ...p, challan: e.target.value }))}
-                                    className="w-full px-2 py-1.5 text-[12px] border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:border-orange-500" />
-                                </div>
-                                <div>
-                                  <label className="text-[10px] font-bold text-gray-500 mb-1 block">Received By</label>
-                                  <input value={editReceiptData.personName} onChange={e => setEditReceiptData(p => ({ ...p, personName: e.target.value }))}
-                                    className="w-full px-2 py-1.5 text-[12px] border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:border-orange-500" />
-                                </div>
+                          <div className="space-y-1">
+                            {(receipt.items || []).map((item, i) => (
+                              <div key={i} className="flex items-center justify-between text-[12px]">
+                                <span className="text-gray-600 dark:text-gray-400">{item.itemName}</span>
+                                <span className="font-bold text-gray-900 dark:text-white">
+                                  +{item.received} <span className="text-gray-400 font-normal">{selectedGRN.items.find((gi) => gi.sku === item.sku)?.unit || ""}</span>
+                                </span>
                               </div>
-                              <div className="flex gap-2 pt-1">
-                                <Btn label="Save" small onClick={handleSaveReceipt} loading={savingReceipt} />
-                                <Btn label="Cancel" small outline onClick={() => { setEditingReceiptIdx(null); setEditReceiptData(null); }} />
-                              </div>
-                            </div>
-                          ) : (
-                            <>
-                              <div className="space-y-1">
-                                {(receipt.items || []).map((item, i) => (
-                                  <div key={i} className="flex items-center justify-between text-[12px]">
-                                    <span className="text-gray-600 dark:text-gray-400">{item.itemName}</span>
-                                    <span className="font-bold text-gray-900 dark:text-white">
-                                      +{item.received} <span className="text-gray-400 font-normal">{selectedGRN.items.find((gi) => gi.sku === item.sku)?.unit || ""}</span>
-                                    </span>
-                                  </div>
-                                ))}
-                              </div>
-                              {receipt.personName && <p className="mt-1.5 text-[10px] text-gray-400">By: <span className="font-medium text-gray-600 dark:text-gray-300">{receipt.personName}</span></p>}
-                            </>
-                          )}
+                            ))}
+                          </div>
+                          {receipt.personName && <p className="mt-1.5 text-[10px] text-gray-400">By: <span className="font-medium text-gray-600 dark:text-gray-300">{receipt.personName}</span></p>}
                         </div>
                       </div>
                     ))}
@@ -1256,6 +1242,163 @@ const GRNPage = /* @__PURE__ */ __name(() => {
     onCancel={() => setDeleteConfirm(null)}
     loading={actionLoading}
   />}
+
+      {/* Shipment Edit Drawer */}
+      {editReceiptDrawerOpen && editReceiptData && selectedGRN && (
+        <>
+          <div
+            className="fixed inset-0 bg-black/50 z-[60]"
+            onClick={() => { setEditReceiptDrawerOpen(false); setEditingReceiptIdx(null); setEditReceiptData(null); setEditReceiptOriginalItems([]); }}
+          />
+          <div className="fixed top-0 right-0 h-full w-full max-w-[480px] bg-white dark:bg-gray-900 shadow-2xl z-[61] flex flex-col">
+            {/* Drawer header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-800 shrink-0">
+              <div>
+                <h2 className="text-[15px] font-black text-gray-900 dark:text-white">
+                  Edit Shipment {(editingReceiptIdx ?? 0) + 2}
+                </h2>
+                <p className="text-[11px] text-gray-400 mt-0.5">{selectedGRN.id}</p>
+              </div>
+              <button
+                onClick={() => { setEditReceiptDrawerOpen(false); setEditingReceiptIdx(null); setEditReceiptData(null); setEditReceiptOriginalItems([]); }}
+                className="p-2 rounded-lg text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Drawer body */}
+            <div className="flex-1 overflow-y-auto p-6 space-y-6">
+              {/* Challan + Received By */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-[11px] font-bold text-gray-500 mb-1.5 block uppercase tracking-wide">Challan No.</label>
+                  <input
+                    value={editReceiptData.challan}
+                    onChange={e => setEditReceiptData(p => ({ ...p, challan: e.target.value }))}
+                    placeholder="Enter challan number"
+                    className="w-full px-3 py-2 text-[13px] border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500/30"
+                  />
+                </div>
+                <div>
+                  <label className="text-[11px] font-bold text-gray-500 mb-1.5 block uppercase tracking-wide">Received By</label>
+                  <input
+                    value={editReceiptData.personName}
+                    onChange={e => setEditReceiptData(p => ({ ...p, personName: e.target.value }))}
+                    placeholder="Person name"
+                    className="w-full px-3 py-2 text-[13px] border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500/30"
+                  />
+                </div>
+              </div>
+
+              {/* Items */}
+              <div>
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="h-0.5 w-4 bg-orange-500" />
+                  <h3 className="text-[12px] font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wide">Received Items & Quantities</h3>
+                </div>
+                <div className="space-y-3">
+                  {editReceiptData.items.map((item, i) => {
+                    const grnItem = selectedGRN.items.find(gi => gi.sku === item.sku);
+                    const originalQty = editReceiptOriginalItems.find(oi => oi.sku === item.sku)?.received ?? 0;
+                    const ordered = grnItem?.ordered ?? 0;
+                    const currentTotalReceived = grnItem?.received ?? 0;
+                    const delta = item.received - originalQty;
+                    const newTotal = currentTotalReceived + delta;
+                    const newVariance = newTotal - ordered;
+                    const unit = grnItem?.unit || item.unit || "NOS";
+
+                    return (
+                      <div key={i} className="bg-gray-50 dark:bg-gray-800/50 rounded-xl p-4 border border-gray-100 dark:border-gray-800">
+                        <div className="flex items-start justify-between mb-3">
+                          <div>
+                            <p className="text-[13px] font-bold text-gray-900 dark:text-white leading-tight">{item.itemName}</p>
+                            <p className="text-[10px] text-gray-400 mt-0.5">{item.sku}</p>
+                          </div>
+                          <span className="text-[10px] text-gray-400 shrink-0 ml-2">Ordered: <span className="font-bold text-gray-600 dark:text-gray-300">{ordered} {unit}</span></span>
+                        </div>
+
+                        {/* Qty stepper */}
+                        <div className="flex items-center gap-3">
+                          <div className="flex items-center gap-1 flex-1">
+                            <button
+                              onClick={() => {
+                                const newItems = editReceiptData.items.map((it, idx) =>
+                                  idx === i ? { ...it, received: Math.max(0, (it.received || 0) - 1) } : it
+                                );
+                                setEditReceiptData(p => ({ ...p, items: newItems }));
+                              }}
+                              className="w-8 h-8 flex items-center justify-center rounded-lg border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 font-bold text-lg leading-none transition-colors select-none"
+                            >−</button>
+                            <input
+                              type="number"
+                              min="0"
+                              value={item.received ?? ""}
+                              onChange={e => {
+                                const val = Math.max(0, parseFloat(e.target.value) || 0);
+                                const newItems = editReceiptData.items.map((it, idx) =>
+                                  idx === i ? { ...it, received: val } : it
+                                );
+                                setEditReceiptData(p => ({ ...p, items: newItems }));
+                              }}
+                              className="w-20 text-center px-2 py-1.5 text-[14px] font-black border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:border-orange-500"
+                            />
+                            <button
+                              onClick={() => {
+                                const newItems = editReceiptData.items.map((it, idx) =>
+                                  idx === i ? { ...it, received: (it.received || 0) + 1 } : it
+                                );
+                                setEditReceiptData(p => ({ ...p, items: newItems }));
+                              }}
+                              className="w-8 h-8 flex items-center justify-center rounded-lg border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 font-bold text-lg leading-none transition-colors select-none"
+                            >+</button>
+                            <span className="text-[11px] text-gray-400 ml-1">{unit}</span>
+                          </div>
+
+                          {/* Variance pill */}
+                          <div className={cn(
+                            "px-2.5 py-1 rounded-lg text-[11px] font-bold shrink-0",
+                            newVariance === 0
+                              ? "bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400"
+                              : newVariance < 0
+                                ? "bg-red-50 dark:bg-red-900/20 text-red-500"
+                                : "bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400"
+                          )}>
+                            {newVariance > 0 ? "+" : ""}{newVariance} {unit}
+                          </div>
+                        </div>
+
+                        {/* Change indicator */}
+                        {delta !== 0 && (
+                          <p className="mt-2 text-[10px] font-medium text-orange-500">
+                            Change: {delta > 0 ? "+" : ""}{delta} from original ({originalQty} → {item.received} {unit})
+                          </p>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+
+            {/* Drawer footer */}
+            <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-800 flex gap-3 shrink-0">
+              <Btn
+                label="Cancel"
+                outline
+                className="flex-1"
+                onClick={() => { setEditReceiptDrawerOpen(false); setEditingReceiptIdx(null); setEditReceiptData(null); setEditReceiptOriginalItems([]); }}
+              />
+              <Btn
+                label="Save Changes"
+                loading={savingReceipt}
+                onClick={handleSaveReceipt}
+                className="flex-1"
+              />
+            </div>
+          </div>
+        </>
+      )}
     </div>;
 }, "GRNPage");
 export {
