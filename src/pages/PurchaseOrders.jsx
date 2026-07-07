@@ -325,14 +325,21 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
     });
   }, [pos, suppliers, debouncedSearch]);
 
+  // Strip non-alphanumeric chars for VND code comparison (handles VND_0220 vs VND0220)
+  const normId = (str) => (str || "").replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
+
   // Resolve supplier company names before passing to Virtuoso so rows re-render when suppliers load
   const resolvedFilteredPos = useMemo(() => {
     return (filteredPos || []).map((po) => {
       if (!po.supplier) return po;
       const lower = po.supplier.trim().toLowerCase();
+      const normPoId = normId(po.supplier);
       const sup = (suppliers || []).find((s) => {
         if (!s) return false;
+        // Exact match
         if (s.id === po.supplier || s._id === po.supplier) return true;
+        // Normalized VND code match: "VND_0220" and "VND0220" both → "vnd0220"
+        if (normPoId && normId(s.id) === normPoId) return true;
         const cN = (s.companyName || s.name || "").trim().toLowerCase();
         const oN = (s.ownerName || s.contact || "").trim().toLowerCase();
         if (cN === lower || oN === lower) return true;
