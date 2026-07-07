@@ -150,13 +150,13 @@ export function POViewModal({ po, onClose, onApproveL1, onApproveL2, onApproveL3
       {["Pending L1", "Pending L2", "Pending L3"].includes(po.status || "") && hasPermission("REJECT_PURCHASE_ORDER") && (
         <Btn label="Reject PO" color="red" onClick={() => onReject(po.id)} loading={processingId === `reject-${po.id}`} />
       )}
-      {po.status === "Approved" && ["AGM", "Super Admin", "admin", "superadmin"].includes(role) && (
+      {po.status === "Approved" && hasPermission("CANCEL_PURCHASE_ORDER") && (
         <Btn label="Cancel PO" color="red" icon={X} onClick={() => onCancelApproved(po.id)} loading={processingId === `cancel-${po.id}`} />
       )}
-      {po.status === "GRN Variance" && hasPermission("EDIT_PURCHASE_ORDER") && (
+      {po.status === "GRN Variance" && hasPermission("CLOSE_PURCHASE_ORDER") && (
         <Btn label="Close PO" color="red" icon={Ban} onClick={handleClosePOClick} />
       )}
-      {po.status === "PO Closed" && hasPermission("EDIT_PURCHASE_ORDER") && (
+      {po.status === "PO Closed" && hasPermission("CLOSE_PURCHASE_ORDER") && (
         <Btn label="Reopen PO" color="green" icon={RotateCcw} onClick={handleReopenPO} loading={actionLoading} />
       )}
       <Btn label="Download PO PDF" icon={Download} onClick={() => onDownloadPDF(po)} className="bg-orange-500 hover:bg-orange-600 text-white border-none shadow-lg shadow-orange-500/20 font-bold" />

@@ -60,7 +60,7 @@ export function MaterialRequirementPage() {
   const [filterRequester, setFilterRequester] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
 
-  const [viewMode, setViewMode] = useState("table");
+  const [viewMode, setViewMode] = useState("card");
   const [tableFilter, setTableFilter] = useState("");
 
   // Modal state

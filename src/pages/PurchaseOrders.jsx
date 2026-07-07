@@ -1820,7 +1820,7 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
                         </button>{" "}
                       </>
                     )}{" "}
-                    {po.status === "GRN Variance" && hasPermission("EDIT_PURCHASE_ORDER") && (
+                    {po.status === "GRN Variance" && hasPermission("CLOSE_PURCHASE_ORDER") && (
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
