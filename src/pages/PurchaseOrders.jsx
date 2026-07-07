@@ -1152,8 +1152,13 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
       api.get("pos/occupied-mrs").then((r) => setOccupiedQuoteIds(r.data || [])).catch(() => {});
       // Generate PDF and send to Slack (fire-and-forget, doesn't block UI)
       try {
+        const _sl = (actualPO.supplier || "").toLowerCase();
         const supplierObj = suppliers.find(
-          (s) => s.name === actualPO.supplier || s.id === actualPO.supplier
+          (s) =>
+            s.id === actualPO.supplier ||
+            s._id === actualPO.supplier ||
+            (s.companyName || s.name || "").toLowerCase() === _sl ||
+            (s.ownerName || s.contact || "").toLowerCase() === _sl,
         );
         const pdfBlob = generatePOPDFBlob(actualPO, supplierObj, settings);
         const form = new FormData();
@@ -1334,12 +1339,13 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
   }, "getEffectivePO");
 
   const downloadPDF = /* @__PURE__ */ __name((po) => {
+    const _dl = (po.supplier || "").toLowerCase();
     const supplier = suppliers.find(
       (s) =>
         s.id === po.supplier ||
         s._id === po.supplier ||
-        (s.companyName || s.name || "").toLowerCase() ===
-          (po.supplier || "").toLowerCase(),
+        (s.companyName || s.name || "").toLowerCase() === _dl ||
+        (s.ownerName || s.contact || "").toLowerCase() === _dl,
     );
     generatePOPDF(getEffectivePO(po), supplier, settings);
   }, "downloadPDF");
@@ -1668,8 +1674,13 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
 
             const isNew = isNewItem(po.createdAt);
 
+            const _poSupplierLower = (po.supplier || "").toLowerCase();
             const supplier = currentSuppliers.find(
-              (s) => s.id === po.supplier || s._id === po.supplier,
+              (s) =>
+                s.id === po.supplier ||
+                s._id === po.supplier ||
+                (s.companyName || s.name || "").toLowerCase() === _poSupplierLower ||
+                (s.ownerName || s.contact || "").toLowerCase() === _poSupplierLower,
             );
 
             const sName = supplier
