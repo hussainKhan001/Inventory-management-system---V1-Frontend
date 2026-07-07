@@ -92,13 +92,15 @@ const DailyReport = /* @__PURE__ */ __name(() => {
         if (!dateMap[trxDate]) dateMap[trxDate] = {};
         if (!dateMap[trxDate][rowKey]) {
           const invItem = inventory.find((i) => i.sku === item.sku);
+          const validItemCat = item.category && item.category !== "N/A" ? item.category : null;
+          const validInvCat = invItem?.category && invItem.category !== "N/A" ? invItem.category : null;
           dateMap[trxDate][rowKey] = {
             sku:      item.sku,
-            itemName: item.itemName || invItem?.itemName || "N/A",
-            unit:     item.unit     || invItem?.unit     || "N/A",
+            itemName: invItem?.itemName || item.itemName || "N/A",
+            unit:     invItem?.unit || item.unit || "N/A",
             in: 0, out: 0,
             final:    closingBalance[item.sku]?.[trxDate] ?? invItem?.liveStock ?? 0,
-            category: item.category || invItem?.category || "N/A",
+            category: validInvCat || validItemCat || "N/A",
             project:  trxProject,
             lastTxnTime: trx.date || ""
           };

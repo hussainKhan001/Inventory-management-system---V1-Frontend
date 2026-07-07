@@ -60,7 +60,7 @@ export function MaterialRequirementPage() {
   const [filterRequester, setFilterRequester] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
 
-  const [viewMode, setViewMode] = useState("card");
+  const [viewMode, setViewMode] = useState("table");
   const [tableFilter, setTableFilter] = useState("");
 
   // Modal state
@@ -302,12 +302,12 @@ export function MaterialRequirementPage() {
                     }
                   }}
                   itemContent={(_index, req, { inventory: inv }) => (
-                    <div className="pb-4">
+                    <div className="py-2 px-1">
                       <Card
                         className={cn(
                           "p-0 overflow-hidden border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 transition-all",
                           (req.status === "Store Pending" || req.status === "Quotation Phase") &&
-                          "approval-highlight ring-1 ring-primary/20 shadow-lg shadow-primary/5 scale-[1.01]"
+                          "approval-highlight ring-1 ring-primary/20 shadow-lg shadow-primary/5"
                         )}
                       >
                         {/* Card header */}
@@ -481,14 +481,14 @@ export function MaterialRequirementPage() {
               <table className="w-full text-left border-collapse table-fixed min-w-[800px] md:min-w-0">
                 <thead className="hidden md:table-header-group sticky top-0 z-10">
                   <tr className="bg-gray-50/90 dark:bg-gray-800/90 backdrop-blur-md border-b border-gray-100 dark:border-gray-800">
-                    {["Engineer / Project", "MR details", "Allocated material", "Qty", "Allocation date"].map(h => (
+                    {["Engineer / Project", "MR details", "Allocated material", "Qty", "Allocation date", "Actions"].map(h => (
                       <th key={h} className="px-3 py-3 text-[11px] font-bold text-gray-500 dark:text-gray-400 whitespace-nowrap sticky top-0 z-10">{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
                   {mrAllocations.length === 0 && !loading && (
-                    <tr><td colSpan={5} className="px-4 py-12 text-center text-gray-500 italic text-[13px]">No active stock allocations found.</td></tr>
+                    <tr><td colSpan={6} className="px-4 py-12 text-center text-gray-500 italic text-[13px]">No active stock allocations found.</td></tr>
                   )}
                   {mrAllocations.map((alc, idx) => (
                     <tr key={alc.id || idx} className="block md:table-row hover:bg-gray-50/50 dark:hover:bg-gray-800/30 transition-all text-[13px]">
@@ -509,9 +509,18 @@ export function MaterialRequirementPage() {
                             <div><p className="text-[9px] font-bold text-gray-400">Engineer</p><p className="font-medium text-gray-700 dark:text-gray-300">{alc.engineerName || "N/A"}</p></div>
                             <div><p className="text-[9px] font-bold text-gray-400">Project</p><p className="font-medium text-gray-700 dark:text-gray-300 truncate">{alc.projectName || "N/A"}</p></div>
                           </div>
-                          <div className="mt-2 flex items-center gap-1">
-                            <p className="text-[10px] text-gray-400 font-bold tracking-widest">Mr id:</p>
-                            <p className="text-[11px] font-mono font-bold text-primary">{alc.mrNumber || alc.mrId}</p>
+                          <div className="mt-2 flex items-center justify-between">
+                            <div className="flex items-center gap-1">
+                              <p className="text-[10px] text-gray-400 font-bold tracking-widest">Mr id:</p>
+                              <p className="text-[11px] font-mono font-bold text-primary">{alc.mrNumber || alc.mrId}</p>
+                            </div>
+                            <button 
+                              title="View / Track MR" 
+                              onClick={() => { window.location.hash = `tracking?id=${alc.mrNumber || alc.mrId}`; }} 
+                              className="p-1.5 rounded text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
+                            >
+                              <Eye className="w-4 h-4" />
+                            </button>
                           </div>
                         </div>
                         <div className="hidden md:flex flex-col min-w-0">
@@ -530,10 +539,21 @@ export function MaterialRequirementPage() {
                         <span className="inline-flex items-center px-2 py-0.5 bg-primary/10 dark:bg-primary/20 text-primary rounded font-bold text-[12px] min-w-[30px] justify-center">{alc.allocatedQty}</span>
                       </td>
                       <td className="hidden md:table-cell px-3 py-2.5 text-[#6B7280] dark:text-gray-500 whitespace-nowrap">{formatDateTime(alc.allocationDate)}</td>
+                      <td className="hidden md:table-cell px-3 py-2.5" onClick={e => e.stopPropagation()}>
+                        <div className="flex items-center gap-1">
+                          <button 
+                            title="View / Track MR" 
+                            onClick={() => { window.location.hash = `tracking?id=${alc.mrNumber || alc.mrId}`; }} 
+                            className="p-1.5 rounded text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
+                          >
+                            <Eye className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </td>
                     </tr>
                   ))}
                   {loading && mrAllocations.length > 0 && (
-                    <tr><td colSpan={5} className="py-4 text-center"><div className="flex items-center justify-center text-gray-500 text-xs"><div className="w-3 h-3 border-2 border-primary border-t-transparent rounded-full animate-spin mr-2" />Loading more...</div></td></tr>
+                    <tr><td colSpan={6} className="py-4 text-center"><div className="flex items-center justify-center text-gray-500 text-xs"><div className="w-3 h-3 border-2 border-primary border-t-transparent rounded-full animate-spin mr-2" />Loading more...</div></td></tr>
                   )}
                 </tbody>
               </table>

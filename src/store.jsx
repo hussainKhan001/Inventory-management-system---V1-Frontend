@@ -1377,9 +1377,9 @@ const AppProvider = /* @__PURE__ */ __name(({ children }) => {
             console.log("Data updated remotely, refreshing...", data.path);
             if (data.path === "all") {
               if (isAuth) refreshDataRef.current();
-              if (inventoryRef.current.length > 0) fetchResourceRef.current(isAuth ? "inventory" : "public/inventory", 1, 1e3, false);
-              if (isAuth && posRef.current.length > 0) fetchResourceRef.current("pos", 1, 100, false);
-              if (mrRef.current.length > 0) fetchResourceRef.current(isAuth ? "material-requirements" : "public/material-requirements", 1, 100, false);
+              if (inventoryRef.current.length > 0) fetchResourceRef.current(isAuth ? "inventory" : "public/inventory", 1, 1e3, true);
+              if (isAuth && posRef.current.length > 0) fetchResourceRef.current("pos", 1, 100, true);
+              if (mrRef.current.length > 0) fetchResourceRef.current(isAuth ? "material-requirements" : "public/material-requirements", 1, 100, true);
             } else {
               const resourceMap = {
                 "inwards": "inward",

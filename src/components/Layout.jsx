@@ -221,12 +221,6 @@ const Layout = /* @__PURE__ */ __name(({ children }) => {
     /* Main Content */
   }
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        {
-    /* Subtle loading progress bar */
-  }
-        {loading && <div className="fixed top-0 left-0 right-0 h-1 z-[100] overflow-hidden bg-gray-100 dark:bg-gray-800 pointer-events-none">
-            <div className="h-full bg-orange-500 animate-progress origin-left" />
-          </div>}
 
         <header className="relative z-30 h-14 bg-white/80 dark:bg-gray-800/90 backdrop-blur-md border border-gray-200/50 dark:border-gray-700/50 shadow-sm flex items-center justify-between px-3 sm:px-4 shrink-0 transition-colors duration-200 mx-1 mt-1 rounded-xl">
           <div className="flex items-center gap-2 sm:gap-3">

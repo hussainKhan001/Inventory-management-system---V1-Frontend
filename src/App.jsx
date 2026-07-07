@@ -37,9 +37,19 @@ const AccountsPage = lazy(() => import("./pages/AccountsPage").then((m) => ({ de
 const TrackingPage = lazy(() => import("./pages/Tracking").then((m) => ({ default: m.TrackingPage })));
 const SettingsPage = lazy(() => import("./pages/Settings").then((m) => ({ default: m.SettingsPage })));
 const POReport = lazy(() => import("./pages/POReport").then((m) => ({ default: m.POReport })));
-const PageLoader = /* @__PURE__ */ __name(() => <div className="flex items-center justify-center h-[60vh]">
-    <div className="w-8 h-8 border-4 border-orange-500 border-t-transparent rounded-full animate-spin" />
-  </div>, "PageLoader");
+const PageLoader = /* @__PURE__ */ __name(() => (
+  <div className="p-6 space-y-6 w-full animate-pulse">
+    <div className="flex flex-col lg:flex-row justify-between gap-4">
+      <div className="space-y-2">
+        <div className="h-8 bg-gray-200 dark:bg-gray-800 rounded w-64" />
+        <div className="h-4 bg-gray-200 dark:bg-gray-800 rounded w-48" />
+      </div>
+      <div className="h-10 bg-gray-200 dark:bg-gray-800 rounded w-32" />
+    </div>
+    <div className="h-12 bg-gray-200 dark:bg-gray-800 rounded-xl w-full" />
+    <div className="h-[400px] bg-gray-200 dark:bg-gray-800 rounded-xl w-full" />
+  </div>
+), "PageLoader");
 const hexToRgb = /* @__PURE__ */ __name((hex) => {
   const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
   return result ? {
