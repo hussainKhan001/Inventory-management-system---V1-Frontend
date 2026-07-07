@@ -1609,65 +1609,15 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
 
             return (
               <tr className="bg-gray-50/90 dark:bg-gray-800/90 backdrop-blur-md border-b border-[#E8ECF0] dark:border-gray-800 text-left">
-                {" "}
-                <th className={cn(headerClass, "lg:hidden")}>
-                  {" "}
-                  Po details{" "}
-                </th>{" "}
-                <th
-                  className={cn(headerClass, "hidden lg:table-cell w-[130px]")}
-                >
-                  {" "}
-                  Po no.{" "}
-                </th>{" "}
-                <th
-                  className={cn(headerClass, "hidden lg:table-cell w-[110px]")}
-                >
-                  {" "}
-                  Mr no.{" "}
-                </th>{" "}
-                <th
-                  className={cn(headerClass, "hidden lg:table-cell w-[148px]")}
-                >
-                  {" "}
-                  Date{" "}
-                </th>{" "}
-                <th
-                  className={cn(headerClass, "hidden lg:table-cell w-[130px]")}
-                >
-                  {" "}
-                  Project{" "}
-                </th>{" "}
-                <th
-                  className={cn(headerClass, "hidden lg:table-cell w-[160px]")}
-                >
-                  {" "}
-                  Supplier{" "}
-                </th>{" "}
-                <th
-                  className={cn(
-                    headerClass,
-                    "hidden lg:table-cell text-right w-[100px]",
-                  )}
-                >
-                  {" "}
-                  Value{" "}
-                </th>{" "}
-                <th
-                  className={cn(headerClass, "hidden lg:table-cell w-[120px]")}
-                >
-                  {" "}
-                  Status{" "}
-                </th>{" "}
-                <th
-                  className={cn(
-                    headerClass,
-                    "hidden lg:table-cell text-right w-[110px]",
-                  )}
-                >
-                  {" "}
-                  Actions{" "}
-                </th>{" "}
+                <th className={cn(headerClass, "lg:hidden")}>Po details</th>
+                <th className={cn(headerClass, "hidden lg:table-cell w-[130px]")}>Po no.</th>
+                <th className={cn(headerClass, "hidden lg:table-cell w-[110px]")}>Mr no.</th>
+                <th className={cn(headerClass, "hidden lg:table-cell w-[148px]")}>Date</th>
+                <th className={cn(headerClass, "hidden lg:table-cell w-[130px]")}>Project</th>
+                <th className={cn(headerClass, "hidden lg:table-cell w-[160px]")}>Supplier</th>
+                <th className={cn(headerClass, "hidden lg:table-cell text-right w-[100px]")}>Value</th>
+                <th className={cn(headerClass, "hidden lg:table-cell w-[120px]")}>Status</th>
+                <th className={cn(headerClass, "hidden lg:table-cell text-right w-[110px]")}>Actions</th>
               </tr>
             );
           }}
@@ -1693,8 +1643,6 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
 
             return (
               <>
-                {" "}
-                {/* Desktop View Cells */}{" "}
                 <Td className="hidden lg:table-cell px-3 py-2.5 overflow-hidden">
                   {" "}
                   <div className="flex items-center gap-1.5 min-w-0">
@@ -1711,7 +1659,7 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
                       {safeStr(po.id)}
                     </span>{" "}
                   </div>{" "}
-                </Td>{" "}
+                </Td>
                 <Td className="hidden lg:table-cell px-3 py-2.5 overflow-hidden">
                   {" "}
                   <span
@@ -1720,11 +1668,11 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
                   >
                     {safeStr(po.mrId || "NA")}
                   </span>{" "}
-                </Td>{" "}
+                </Td>
                 <Td className="hidden lg:table-cell px-3 py-2.5 text-[13px] text-gray-500 dark:text-gray-400 whitespace-nowrap overflow-hidden">
                   {" "}
                   {formatDateTime(po.date)}{" "}
-                </Td>{" "}
+                </Td>
                 <Td className="hidden lg:table-cell px-3 py-2.5 overflow-hidden">
                   {" "}
                   <span
@@ -1733,7 +1681,7 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
                   >
                     {safeStr(po.project)}
                   </span>{" "}
-                </Td>{" "}
+                </Td>
                 <Td className="hidden lg:table-cell px-3 py-2.5 overflow-hidden">
                   {" "}
                   <span
@@ -1742,18 +1690,18 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
                   >
                     {safeStr(sName)}
                   </span>{" "}
-                </Td>{" "}
+                </Td>
                 <Td className="hidden lg:table-cell px-3 py-2.5 text-[13px] font-bold text-right text-gray-900 dark:text-white whitespace-nowrap overflow-hidden">
                   {" "}
                   {fmtCur(po.totalValue)}{" "}
-                </Td>{" "}
+                </Td>
                 <Td className="hidden lg:table-cell px-3 py-2.5">
                   {" "}
                   <StatusBadge
                     status={po.status}
                     accountStatus={po.accountStatus}
                   />{" "}
-                </Td>{" "}
+                </Td>
                 <Td className="hidden lg:table-cell px-4 py-3">
                   {" "}
                   <div className="flex items-center justify-end gap-1">
@@ -1873,8 +1821,7 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
                       <TrendingUp className="w-4 h-4" />{" "}
                     </button>{" "}
                   </div>{" "}
-                </Td>{" "}
-                {/* Mobile View Cell */}{" "}
+                </Td>
                 <Td colSpan={8} className="lg:hidden p-0 border-none">
                   {" "}
                   <div
@@ -1969,7 +1916,7 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
                       </div>{" "}
                     </div>{" "}
                   </div>{" "}
-                </Td>{" "}
+                </Td>
               </>
             );
           }}
