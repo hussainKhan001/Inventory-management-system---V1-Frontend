@@ -467,6 +467,7 @@ const Inventory = /* @__PURE__ */ __name(() => {
         condition: newItem.condition.toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase()),
         ...(!isEditing && newItem.sourceSite && liveStock > 0
           ? {
+              locationStock: { [newItem.sourceSite]: liveStock },
               sites: [{
                 siteName: newItem.sourceSite,
                 siteCode: (SITES || []).find(s => s.siteName === newItem.sourceSite)?.siteCode || "",
