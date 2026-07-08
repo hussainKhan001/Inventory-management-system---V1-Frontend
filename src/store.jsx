@@ -539,6 +539,11 @@ const AppProvider = /* @__PURE__ */ __name(({ children }) => {
                 },
                 bypassApprovals: serverData.bypassApprovals ?? prev.bypassApprovals ?? { l1: false, l2: false, l3: false },
                 stores: serverData.stores ?? prev.stores ?? [],
+                sites: serverData.sites?.length
+                  ? serverData.sites
+                  : prev.sites?.length
+                    ? prev.sites
+                    : (serverData.stores || prev.stores || []).map((n) => ({ siteName: n, siteCode: "" })),
                 gstRates: serverData.gstRates?.length ? serverData.gstRates : prev.gstRates?.length ? prev.gstRates : ["0%","5%","12%","18%","28%"]
               };
               const isEmpty = !serverData.projects?.length && !serverData.requesters?.length && !serverData.categories?.length && !serverData.units?.length && !serverData.workTypes?.length && !serverData.companies?.length;
