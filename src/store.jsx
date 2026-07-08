@@ -175,7 +175,7 @@ const AppProvider = /* @__PURE__ */ __name(({ children }) => {
     try {
       const res = await api.putSimple("settings", data);
       const serverData = res.data || res;
-      setSettings((prev) => ({ ...prev, ...serverData, approvers: { ...prev.approvers, ...(serverData.approvers || {}) }, bypassApprovals: { ...prev.bypassApprovals, ...(serverData.bypassApprovals || {}) }, stores: serverData.stores ?? prev.stores ?? [] }));
+      setSettings((prev) => ({ ...prev, ...serverData, approvers: { ...prev.approvers, ...(serverData.approvers || {}) }, bypassApprovals: { ...prev.bypassApprovals, ...(serverData.bypassApprovals || {}) }, stores: serverData.stores ?? prev.stores ?? [], gstRates: serverData.gstRates?.length ? serverData.gstRates : prev.gstRates }));
       toast.success("Settings saved successfully");
     } catch (error) {
       console.error("Failed to save settings:", error);
@@ -528,7 +528,8 @@ const AppProvider = /* @__PURE__ */ __name(({ children }) => {
                   l3: "Rahul Gupta"
                 },
                 bypassApprovals: serverData.bypassApprovals ?? prev.bypassApprovals ?? { l1: false, l2: false, l3: false },
-                stores: serverData.stores ?? prev.stores ?? []
+                stores: serverData.stores ?? prev.stores ?? [],
+                gstRates: serverData.gstRates?.length ? serverData.gstRates : prev.gstRates?.length ? prev.gstRates : ["0%","5%","12%","18%","28%"]
               };
               const isEmpty = !serverData.projects?.length && !serverData.requesters?.length && !serverData.categories?.length && !serverData.units?.length && !serverData.workTypes?.length && !serverData.companies?.length;
               if (resource === "settings" && isEmpty) {
