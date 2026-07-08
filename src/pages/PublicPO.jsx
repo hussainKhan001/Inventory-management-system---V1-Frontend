@@ -33,12 +33,14 @@ const PublicPO = /* @__PURE__ */ __name(() => {
     submitPublicPO,
     actionLoading,
     fetchResource,
-    settings
+    settings,
+    gstRates
   } = useAppStore();
   useEffect(() => {
     fetchResource("public-settings");
   }, [fetchResource]);
   const { projects: PROJECTS, categories: CATEGORIES, units: UNITS } = settings;
+  const gstOptions = gstRates?.length ? gstRates.map((r) => r.rate) : [0, 5, 12, 18, 28];
   const [loading, setLoading] = useState(true);
   const [submitted, setSubmitted] = useState(false);
   const [errors, setErrors] = useState({});
@@ -663,11 +665,7 @@ const PublicPO = /* @__PURE__ */ __name(() => {
     onChange={(e) => updateItem(idx, "gstPct", Number(e.target.value))}
     className="w-full px-2 py-1.5 border border-gray-200 dark:border-gray-800 rounded-lg text-[13px] bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white"
   >
-                            <option value={0}>0%</option>
-                            <option value={5}>5%</option>
-                            <option value={12}>12%</option>
-                            <option value={18}>18%</option>
-                            <option value={28}>28%</option>
+                            {gstOptions.map((v) => <option key={v} value={v}>{v}%</option>)}
                           </select>
                         </div>
                       </div>
@@ -872,11 +870,7 @@ const PublicPO = /* @__PURE__ */ __name(() => {
     onChange={(e) => updateItem(idx, "gstPct", Number(e.target.value))}
     className="w-full px-2 py-1.5 border border-gray-200 dark:border-gray-800 rounded-lg text-[13px] bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500 outline-none"
   >
-                              <option value={0}>0%</option>
-                              <option value={5}>5%</option>
-                              <option value={12}>12%</option>
-                              <option value={18}>18%</option>
-                              <option value={28}>28%</option>
+                              {gstOptions.map((v) => <option key={v} value={v}>{v}%</option>)}
                             </select>
                           </td>
                           <td className="px-3 py-3 text-[13px] font-black text-right text-gray-900 dark:text-white">

@@ -4,13 +4,13 @@ import { useEffect, useRef, useState } from "react";
 import { api } from "../services/api";
 import { Btn, ThemeToggle, Card, Field } from "../components/ui";
 import { Package, Send, CheckCircle2, Building2, FileText, Clock, X } from "lucide-react";
-const GST_RATES = [0, 5, 12, 18, 28];
 const GST_TYPES = ["Inclusive", "Exclusive"];
 import toast from "react-hot-toast";
 import { motion, AnimatePresence } from "motion/react";
 import { DatePicker } from "../components/ui/DatePicker";
 const PublicQuotation = /* @__PURE__ */ __name(() => {
   const [mr, setMr] = useState(null);
+  const [gstRates, setGstRates] = useState([0, 5, 12, 18, 28]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
@@ -62,6 +62,9 @@ const PublicQuotation = /* @__PURE__ */ __name(() => {
   const categoryFilter = params.get("category");
   useEffect(() => {
     fetchSuppliers();
+    api.get("gst-rates").then((res) => {
+      if (res.data?.length) setGstRates(res.data.sort((a, b) => a.rate - b.rate).map((r) => r.rate));
+    }).catch(() => {});
     if (mrId) {
       fetchMR();
     } else {
@@ -522,7 +525,7 @@ const PublicQuotation = /* @__PURE__ */ __name(() => {
     onChange={(e) => handleGstPctChange(idx, parseInt(e.target.value))}
     className="bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-700 rounded-xl text-[13px] font-medium text-gray-900 dark:text-gray-100 px-3 py-2 h-11 outline-none focus:border-orange-500 transition-all cursor-pointer box-border"
   >
-                            {GST_RATES.map((r) => <option key={r} value={r}>{r}% GST</option>)}
+                            {gstRates.map((r) => <option key={r} value={r}>{r}% GST</option>)}
                           </select>
                           <select
     value={item.gstType}
@@ -626,7 +629,7 @@ const PublicQuotation = /* @__PURE__ */ __name(() => {
     onChange={(e) => handleGstPctChange(idx, parseInt(e.target.value))}
     className="w-full bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-700 rounded-xl text-sm font-medium text-gray-900 dark:text-gray-100 px-3 h-11 outline-none focus:border-orange-500 transition-all cursor-pointer box-border"
   >
-                        {GST_RATES.map((r) => <option key={r} value={r}>{r}%</option>)}
+                        {gstRates.map((r) => <option key={r} value={r}>{r}%</option>)}
                       </select>
                     </div>
                     <div className="space-y-1.5">
@@ -702,7 +705,7 @@ const PublicQuotation = /* @__PURE__ */ __name(() => {
     onChange={(e) => setFreightGstPct(parseInt(e.target.value))}
     className="w-full bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-700 rounded-xl text-[13px] font-bold text-gray-900 dark:text-gray-100 px-3 h-11 outline-none focus:border-orange-500 transition-all cursor-pointer box-border"
   >
-                    {GST_RATES.map((r) => <option key={r} value={r}>{r}% GST</option>)}
+                    {gstRates.map((r) => <option key={r} value={r}>{r}% GST</option>)}
                   </select>
                   <select
     value={freightGstType}
@@ -732,7 +735,7 @@ const PublicQuotation = /* @__PURE__ */ __name(() => {
     onChange={(e) => setLoadingGstPct(parseInt(e.target.value))}
     className="w-full bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-700 rounded-xl text-[13px] font-bold text-gray-900 dark:text-gray-100 px-3 h-11 outline-none focus:border-orange-500 transition-all cursor-pointer box-border"
   >
-                    {GST_RATES.map((r) => <option key={r} value={r}>{r}% GST</option>)}
+                    {gstRates.map((r) => <option key={r} value={r}>{r}% GST</option>)}
                   </select>
                   <select
     value={loadingGstType}
@@ -762,7 +765,7 @@ const PublicQuotation = /* @__PURE__ */ __name(() => {
     onChange={(e) => setUnloadingGstPct(parseInt(e.target.value))}
     className="w-full bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-700 rounded-xl text-[13px] font-bold text-gray-900 dark:text-gray-100 px-3 h-11 outline-none focus:border-orange-500 transition-all cursor-pointer box-border"
   >
-                    {GST_RATES.map((r) => <option key={r} value={r}>{r}% GST</option>)}
+                    {gstRates.map((r) => <option key={r} value={r}>{r}% GST</option>)}
                   </select>
                   <select
     value={unloadingGstType}
