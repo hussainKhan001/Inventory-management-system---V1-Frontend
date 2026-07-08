@@ -23,8 +23,8 @@ const PublicTransactionForm = /* @__PURE__ */ __name(({ type }) => {
   useEffect(() => {
     fetchResource("public-settings");
   }, [fetchResource]);
-  const { projects: PROJECTS, categories: CATEGORIES, units: UNITS, stores: STORES, sites: SITES } = settings;
-  const COMBINED_STORES = Array.from(new Set([...(STORES || []), ...(SITES || []).map(s => s.siteName)]));
+  const { projects: PROJECTS, categories: CATEGORIES, units: UNITS, sites: SITES } = settings;
+  const COMBINED_STORES = (SITES || []).map(s => s.siteName);
   const [inventory, setInventory] = useState([]);
   const [availableGatePasses, setAvailableGatePasses] = useState([]);
   const [loadingField, setLoadingField] = useState(null);

@@ -68,8 +68,8 @@ const TransactionsPage = /* @__PURE__ */ __name(({ type }) => {
     setActionLoading,
     api
   } = useAppStore();
-  const { projects: PROJECTS, categories: CATEGORIES, units: UNITS, stores: STORES, sites: SITES } = settings;
-  const COMBINED_STORES = Array.from(new Set([...(STORES || []), ...(SITES || []).map(s => s.siteName)]));
+  const { projects: PROJECTS, categories: CATEGORIES, units: UNITS, sites: SITES } = settings;
+  const COMBINED_STORES = (SITES || []).map(s => s.siteName);
   const resourceMap = {
     "Inward": "inward",
     "Outward": "outward",
