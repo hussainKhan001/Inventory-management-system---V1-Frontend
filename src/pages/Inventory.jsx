@@ -978,7 +978,18 @@ const Inventory = /* @__PURE__ */ __name(() => {
               <SField
     label="Store / Godown *"
     value={newItem.sourceSite}
-    onChange={(e) => setNewItem({ ...newItem, sourceSite: e.target.value })}
+    onChange={(e) => {
+      const site = e.target.value;
+      if (isEditing && site) {
+        const siteLiveStock =
+          newItem.sites?.find(s => s.siteName === site)?.liveStock
+          ?? (newItem.locationStock?.[site] !== undefined ? newItem.locationStock[site] : undefined)
+          ?? 0;
+        setNewItem({ ...newItem, sourceSite: site, liveStock: siteLiveStock });
+      } else {
+        setNewItem({ ...newItem, sourceSite: site });
+      }
+    }}
     options={COMBINED_STORES}
     required
     error={errors.sourceSite}

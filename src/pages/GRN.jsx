@@ -520,6 +520,9 @@ const GRNPage = /* @__PURE__ */ __name(() => {
                   <span className="block truncate text-[13px] font-medium text-gray-900 dark:text-white" title={safeStr(grn.project)}>
                     {safeStr(grn.project)}
                   </span>
+                  {grn.store && <span className="block truncate text-[11px] font-bold text-orange-500" title={safeStr(grn.store)}>
+                    {safeStr(grn.store)}
+                  </span>}
                   <span className="block truncate text-[11px] text-gray-500" title={safeStr(grn.vendor || grn.supplier)}>
                     {safeStr(grn.vendor || grn.supplier)}
                   </span>
@@ -582,7 +585,7 @@ const GRNPage = /* @__PURE__ */ __name(() => {
           .filter((it) => it.ordered > 0);
         if (outstandingItems.length === 0) { toast.info("All items already fully received"); return; }
         setTargetGRNId(grn.id);
-        setNewGRN({ poId: grn.poId, project: grn.project, vendor: grn.vendor || grn.supplier, supplier: grn.supplier || grn.vendor, mrNo: grn.mrNo || "", challan: "", docType: grn.docType || "Challan", items: outstandingItems, challanPhotos: [], personPhotos: [], personName: "", destinationProject: grn.destinationProject || "", gatePassNo: grn.gatePassNo || "" });
+        setNewGRN({ poId: grn.poId, project: grn.project, store: grn.store || "", vendor: grn.vendor || grn.supplier, supplier: grn.supplier || grn.vendor, mrNo: grn.mrNo || "", challan: "", docType: grn.docType || "Challan", items: outstandingItems, challanPhotos: [], personPhotos: [], personName: "", destinationProject: grn.destinationProject || "", gatePassNo: grn.gatePassNo || "" });
         setIsEditing(false);
         setModal(true);
       }}
@@ -703,6 +706,10 @@ const GRNPage = /* @__PURE__ */ __name(() => {
                   <div className="col-span-4 p-3 text-[11px] font-bold text-gray-400 border-r border-gray-100 dark:border-gray-800">Project/site</div>
                   <div className="col-span-8 px-4 py-2.5 text-[13px] font-bold text-gray-900 dark:text-white">{selectedGRN.project}</div>
                 </div>
+                {selectedGRN.store && <div className="grid grid-cols-12 items-center">
+                  <div className="col-span-4 p-3 text-[11px] font-bold text-gray-400 border-r border-gray-100 dark:border-gray-800">Store / Godown</div>
+                  <div className="col-span-8 px-4 py-2.5 text-[13px] font-bold text-orange-600 dark:text-orange-400">{selectedGRN.store}</div>
+                </div>}
               </div>
 
               {
@@ -912,6 +919,7 @@ const GRNPage = /* @__PURE__ */ __name(() => {
                                     setEditingReceiptIdx(idx);
                                     setNewGRN({
                                       poId: selectedGRN.poId,
+                                      store: selectedGRN.store || "",
                                       challan: receiptToEdit.challan || "",
                                       mrNo: receiptToEdit.mrNo || "",
                                       docType: receiptToEdit.docType || "Challan",
@@ -1067,15 +1075,27 @@ const GRNPage = /* @__PURE__ */ __name(() => {
                     disabled={isEditing}
                   />
                 )}
-                <SField
-                  label="Store / Godown *"
-                  value={newGRN.store}
-                  onChange={(e) => setNewGRN({ ...newGRN, store: e.target.value })}
-                  options={STORE_OPTIONS}
-                  required
-                  error={errors.store}
-                  placeholder="Select godown..."
-                />
+                {(targetGRNId || (editingReceiptIdx !== null && !isEditing)) ? (
+                  <div className="flex items-center gap-3 p-3 bg-white/40 dark:bg-[#0F172A]/30 rounded-xl border border-gray-200/50 dark:border-gray-800/80 shadow-xs">
+                    <div className="w-9 h-9 rounded-lg bg-orange-50 dark:bg-orange-950/30 flex items-center justify-center text-orange-600 dark:text-orange-400 shrink-0">
+                      <Building2 className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-bold text-gray-400 tracking-widest leading-none">Store / Godown</p>
+                      <p className="text-[13px] font-black text-gray-800 dark:text-white mt-1">{newGRN.store || "—"}</p>
+                    </div>
+                  </div>
+                ) : (
+                  <SField
+                    label="Store / Godown *"
+                    value={newGRN.store}
+                    onChange={(e) => setNewGRN({ ...newGRN, store: e.target.value })}
+                    options={STORE_OPTIONS}
+                    required
+                    error={errors.store}
+                    placeholder="Select godown..."
+                  />
+                )}
                 {/* Date info card */}
                 <div className="flex items-center gap-3 p-3 bg-white/40 dark:bg-[#0F172A]/30 rounded-xl border border-gray-200/50 dark:border-gray-800/80 shadow-xs">
                   <div className="w-9 h-9 rounded-lg bg-orange-50 dark:bg-orange-950/30 flex items-center justify-center text-orange-600 dark:text-orange-400 shrink-0">

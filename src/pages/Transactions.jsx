@@ -613,18 +613,19 @@ const TransactionsPage = /* @__PURE__ */ __name(({ type }) => {
                     <th className={cn(headerClass, "w-[148px] block md:table-cell")}><span className="md:hidden text-gray-900 dark:text-white text-[13px]">Transaction Details</span><span className="hidden md:inline">Date</span></th>
                     <th className={cn(headerClass, "hidden md:table-cell")}>Item</th>
                     <th className={cn(headerClass, "hidden md:table-cell text-right w-[80px]")}>Qty</th>
-                    <th className={cn(headerClass, "hidden md:table-cell w-[140px]")}>Supplier</th>
-                    <th className={cn(headerClass, "hidden md:table-cell w-[160px]")}>Challan / MR</th>
-                    <th className={cn(headerClass, "hidden md:table-cell w-[120px]")}>Photos</th>
+                    <th className={cn(headerClass, "hidden md:table-cell w-[130px]")}>Godown</th>
+                    <th className={cn(headerClass, "hidden md:table-cell w-[130px]")}>Supplier</th>
+                    <th className={cn(headerClass, "hidden md:table-cell w-[150px]")}>Challan / MR</th>
+                    <th className={cn(headerClass, "hidden md:table-cell w-[110px]")}>Photos</th>
                     <th className={cn(headerClass, "hidden md:table-cell w-[100px]")}>Type</th>
                     <th className={cn(headerClass, "hidden md:table-cell text-right w-[150px]")}>Actions</th>
                   </> : type === "Outward" || type === "Outward Return" ? <>
                     <th className={cn(headerClass, "w-[148px] block md:table-cell")}><span className="md:hidden text-gray-900 dark:text-white text-[13px]">Transaction Details</span><span className="hidden md:inline">Date</span></th>
                     <th className={cn(headerClass, "hidden md:table-cell w-[120px]")}>Project</th>
+                    <th className={cn(headerClass, "hidden md:table-cell w-[110px]")}>Godown</th>
                     <th className={cn(headerClass, "hidden md:table-cell w-[110px]")}>Category</th>
                     <th className={cn(headerClass, "hidden md:table-cell")}>Item</th>
                     <th className={cn(headerClass, "hidden md:table-cell text-right w-[80px]")}>Qty</th>
-                    <th className={cn(headerClass, "hidden md:table-cell w-[110px]")}>Location</th>
                     <th className={cn(headerClass, "hidden md:table-cell w-[120px]")}>
                       {["Transfer Inward", "Transfer Outward"].includes(type || "") ? "Gate Pass Details" : "Person Name"}
                     </th>
@@ -837,6 +838,7 @@ const TransactionsPage = /* @__PURE__ */ __name(({ type }) => {
                         <span className="text-[11px] font-bold text-emerald-500 ">{trx.unit || trx.items?.[0]?.unit}</span>
                       </div>
                     </td>
+                    <td className="hidden md:table-cell px-3 py-2.5 overflow-hidden"><span className="block truncate text-[13px] text-orange-600 dark:text-orange-400 font-medium" title={trx.store || ""}>{trx.store || "—"}</span></td>
                     <td className="hidden md:table-cell px-3 py-2.5 overflow-hidden"><span className="block truncate text-[13px] text-gray-600 dark:text-gray-400" title={suppliers.find((s) => s.id === (trx.supplier || trx.vendor))?.companyName || trx.supplierName || trx.supplier || trx.vendor || ""}>{suppliers.find((s) => s.id === (trx.supplier || trx.vendor))?.companyName || trx.supplierName || trx.supplier || trx.vendor}</span></td>
                     <td className="hidden md:table-cell px-3 py-2.5 overflow-hidden">
                       <span className="block truncate text-[13px] text-gray-600 dark:text-gray-400" title={`${trx.challanNo || trx.challan || ""} / ${trx.mrNo || ""}`}>{trx.challanNo || trx.challan} / {trx.mrNo}</span>
@@ -986,6 +988,7 @@ const TransactionsPage = /* @__PURE__ */ __name(({ type }) => {
                        <div className="hidden md:block text-[13px] text-gray-600 dark:text-gray-400 whitespace-nowrap overflow-hidden">{formatDateTime(trx.date)}</div>
                     </td>
                     <td className="hidden md:table-cell px-3 py-2.5 overflow-hidden"><span className="block truncate text-[13px] text-gray-600 dark:text-gray-400" title={trx.project || trx.sourceSite || ""}>{trx.project || trx.sourceSite}</span></td>
+                    <td className="hidden md:table-cell px-3 py-2.5 overflow-hidden"><span className="block truncate text-[13px] text-orange-600 dark:text-orange-400 font-medium" title={trx.store || ""}>{trx.store || "—"}</span></td>
                     <td className="hidden md:table-cell px-3 py-2.5 overflow-hidden"><span className="block truncate text-[13px] text-gray-600 dark:text-gray-400">{currentInventory.find((i) => i.sku === (trx.sku || trx.items?.[0]?.sku))?.category || "Hardware"}</span></td>
                     <td className="hidden md:table-cell px-3 py-2.5 overflow-hidden">
                       <div className="flex flex-col min-w-0">
@@ -1001,7 +1004,6 @@ const TransactionsPage = /* @__PURE__ */ __name(({ type }) => {
                         <span className="text-[11px] font-bold text-red-500 ">{trx.unit || trx.items?.[0]?.unit}</span>
                       </div>
                     </td>
-                    <td className="hidden md:table-cell px-3 py-2.5 overflow-hidden"><span className="block truncate text-[13px] text-gray-600 dark:text-gray-400" title={trx.location || "Site"}>{trx.location || "Site"}</span></td>
                     <td className="hidden md:table-cell px-3 py-2.5 overflow-hidden"><span className="block truncate text-[13px] text-gray-600 dark:text-gray-400" title={trx.personName || trx.handoverTo || trx.handoverFrom || ""}>{trx.personName || trx.handoverTo || trx.handoverFrom}</span></td>
                     <td className="hidden md:table-cell px-4 py-3">
                       <div className="flex -space-x-2">
@@ -1772,6 +1774,10 @@ const TransactionsPage = /* @__PURE__ */ __name(({ type }) => {
               {selectedTransaction.destinationProject && <div>
                   <p className="text-[10px] font-bold text-gray-500 tracking-wider">Destination Site</p>
                   <p className="text-[13px] font-bold text-gray-900 dark:text-white break-words">{selectedTransaction.destinationProject}</p>
+                </div>}
+              {selectedTransaction.store && !["Transfer Inward", "Transfer Outward", "Public Transfer Inward", "Public Transfer Outward"].includes(selectedTransaction.type || "") && <div>
+                  <p className="text-[10px] font-bold text-gray-500 tracking-wider">Godown / Store</p>
+                  <p className="text-[13px] font-bold text-orange-600 dark:text-orange-400 break-words">{selectedTransaction.store}</p>
                 </div>}
               {(selectedTransaction.supplier || selectedTransaction.vendor) && <div>
                   <p className="text-[10px] font-bold text-gray-500 tracking-wider">Supplier</p>
