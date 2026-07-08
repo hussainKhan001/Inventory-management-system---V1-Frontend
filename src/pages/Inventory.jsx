@@ -488,17 +488,26 @@ const Inventory = /* @__PURE__ */ __name(() => {
           payload.locationStock = { [newItem.sourceSite]: liveStock };
           payload.sites = [{ siteName: newItem.sourceSite, siteCode, openingStock: liveStock, liveStock }];
         } else {
-          // Edit: merge sourceSite into existing associations if not already present
+          // Edit: update selected site's stock to the edited liveStock value
           const existingLoc = { ...(newItem.locationStock || {}) };
           const existingSites = [...(newItem.sites || [])];
-          if (!(newItem.sourceSite in existingLoc)) {
-            existingLoc[newItem.sourceSite] = 0;
+
+          existingLoc[newItem.sourceSite] = liveStock;
+
+          const siteIdx = existingSites.findIndex(s => s.siteName === newItem.sourceSite);
+          if (siteIdx >= 0) {
+            existingSites[siteIdx] = { ...existingSites[siteIdx], liveStock };
+          } else {
+            existingSites.push({ siteName: newItem.sourceSite, siteCode, openingStock: 0, liveStock });
           }
-          if (!existingSites.some(s => s.siteName === newItem.sourceSite)) {
-            existingSites.push({ siteName: newItem.sourceSite, siteCode, openingStock: 0, liveStock: 0 });
-          }
+
+          // Recalculate total from all sites so other sites' stock is preserved
+          const totalLive = existingSites.reduce((sum, s) => sum + (Number(s.liveStock) || 0), 0);
           payload.locationStock = existingLoc;
           payload.sites = existingSites;
+          payload.liveStock = totalLive;
+          payload.availableQty = Math.max(0, totalLive - allocatedQty);
+          payload.totalQty = totalLive + issuedQty;
         }
       }
       if (isEditing) {
@@ -528,7 +537,13 @@ const Inventory = /* @__PURE__ */ __name(() => {
       item.sites?.[0]?.siteName ||
       Object.keys(item.locationStock || {})[0] ||
       "";
-    setNewItem({ ...item, sourceSite: inferredSite });
+    // Show the site-specific stock in the Live Stock field (not the total)
+    const siteLiveStock = inferredSite
+      ? (item.sites?.find(s => s.siteName === inferredSite)?.liveStock
+          ?? (item.locationStock?.[inferredSite] !== undefined ? item.locationStock[inferredSite] : item.liveStock)
+          ?? 0)
+      : (item.liveStock ?? 0);
+    setNewItem({ ...item, sourceSite: inferredSite, liveStock: siteLiveStock, openingStock: item.openingStock ?? 0 });
     setIsEditing(true);
     setShowAddModal(true);
   }, []);
