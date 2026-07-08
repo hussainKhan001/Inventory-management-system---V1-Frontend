@@ -624,7 +624,7 @@ const Inventory = /* @__PURE__ */ __name(() => {
     setFilterCategory={setFilterCategory}
     filterStore={filterStore}
     setFilterStore={setFilterStore}
-    storeOptions={INVENTORY_SITES}
+    storeOptions={COMBINED_STORES}
   />
       </div>
 
