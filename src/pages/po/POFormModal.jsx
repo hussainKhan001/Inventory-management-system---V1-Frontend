@@ -68,8 +68,8 @@ export function POFormModal({
   addItem, updateItem, removeItem, linkToInventory, quickAddToInventory,
   companyOptions, mrOptions, vendorOptions, COMPANIES, CATEGORIES, UNITS,
 }) {
-  const { suppliers, actionLoading, fetchResource, gstRates } = useAppStore();
-  const gstOptions = gstRates.length ? gstRates.map((r) => r.rate) : [0, 5, 12, 18, 28];
+  const { suppliers, actionLoading, fetchResource, settings } = useAppStore();
+  const gstOptions = (settings?.gstRates?.length ? settings.gstRates : ["0%","5%","12%","18%","28%"]).map(r => parseInt(r));
 
   // Silently force-refresh inventory when form opens, bypassing the 10-second store cache.
   // Needed because PurchaseOrders' initial fetch may have been skipped or stale.

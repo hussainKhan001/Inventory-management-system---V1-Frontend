@@ -51,11 +51,10 @@ const Quotations = /* @__PURE__ */ __name(() => {
     actionLoading,
     role,
     hasPermission,
-    settings,
-    gstRates
+    settings
   } = useAppStore();
   const { categories: CATEGORIES = [] } = settings;
-  const GST_PCT_OPTIONS = gstRates.length ? gstRates.map((r) => r.rate) : [0, 5, 12, 18, 28];
+  const GST_PCT_OPTIONS = (settings.gstRates?.length ? settings.gstRates : ["0%","5%","12%","18%","28%"]).map(r => parseInt(r));
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [startDate, setStartDate] = useState("");
