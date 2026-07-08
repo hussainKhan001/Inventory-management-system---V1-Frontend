@@ -523,7 +523,12 @@ const Inventory = /* @__PURE__ */ __name(() => {
     setViewModal(item);
   }, []);
   const onEdit = useCallback((item) => {
-    setNewItem(item);
+    const inferredSite =
+      item.sourceSite ||
+      item.sites?.[0]?.siteName ||
+      Object.keys(item.locationStock || {})[0] ||
+      "";
+    setNewItem({ ...item, sourceSite: inferredSite });
     setIsEditing(true);
     setShowAddModal(true);
   }, []);
