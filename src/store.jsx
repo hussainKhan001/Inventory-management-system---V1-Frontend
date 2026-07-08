@@ -137,18 +137,28 @@ const AppProvider = /* @__PURE__ */ __name(({ children }) => {
   const fetchGSTRates = /* @__PURE__ */ __name(async () => {
     try {
       const res = await api.get("gst-rates");
-      setGstRates((res.data || []).sort((a, b) => a.rate - b.rate));
+      setGstRates((res.data || []).sort((a, b) => {
+        if (a.rate == null) return 1;
+        if (b.rate == null) return -1;
+        return a.rate - b.rate;
+      }));
     } catch (err) {
       console.error("Failed to fetch GST rates:", err);
     }
   }, "fetchGSTRates");
   const addGSTRate = /* @__PURE__ */ __name(async (rateVal) => {
-    const rate = Number(String(rateVal).replace("%", "").trim());
-    if (isNaN(rate)) return;
+    const trimmed = String(rateVal).replace("%", "").trim();
+    if (!trimmed) return;
+    const numRate = Number(trimmed);
+    const payload = isNaN(numRate) ? { label: trimmed } : { rate: numRate };
     setActionLoading(true);
     try {
-      const res = await api.post("gst-rates", { rate });
-      setGstRates((prev) => [...prev, res.data].sort((a, b) => a.rate - b.rate));
+      const res = await api.post("gst-rates", payload);
+      setGstRates((prev) => [...prev, res.data].sort((a, b) => {
+        if (a.rate == null) return 1;
+        if (b.rate == null) return -1;
+        return a.rate - b.rate;
+      }));
       toast.success("GST rate added");
     } catch (err) {
       toast.error(err.message || "Failed to add GST rate");

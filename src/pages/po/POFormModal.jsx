@@ -12,7 +12,7 @@ import {
 } from "./poUtils";
 
 const CONDITION_OPTIONS = ["New", "Good", "Needs Repair", "Damaged", "Old"];
-const GST_PCT_OPTIONS = [0, 5, 12, 18, 28];
+const GST_PCT_OPTIONS = [0, 5, 12, 18, 28].map((v) => ({ value: v, label: `${v}%`, key: v }));
 const GST_TYPE_OPTIONS = ["Exclusive", "Inclusive"];
 const VENDOR_COLORS = ["text-orange-600", "text-blue-500", "text-emerald-600"];
 
@@ -47,7 +47,7 @@ function ChargeBlock({ label, amountKey, gstPctKey, gstTypeKey, po, onChange, gs
           <label className="block text-[11px] font-bold text-gray-500 dark:text-gray-400 mb-1.5">GST %</label>
           <select value={po[gstPctKey] ?? 18} onChange={(e) => onChange({ [gstPctKey]: Number(e.target.value) })}
             className="w-full px-3 py-2 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg text-[13px] text-gray-900 dark:text-white">
-            {gstOptions.map((v) => <option key={v} value={v}>{v}%</option>)}
+            {gstOptions.map((opt) => <option key={opt.key} value={opt.value}>{opt.label}</option>)}
           </select>
         </div>
         <div className="space-y-1">
@@ -69,7 +69,9 @@ export function POFormModal({
   companyOptions, mrOptions, vendorOptions, COMPANIES, CATEGORIES, UNITS,
 }) {
   const { suppliers, actionLoading, fetchResource, gstRates } = useAppStore();
-  const gstOptions = gstRates.length ? gstRates.map((r) => r.rate) : [0, 5, 12, 18, 28];
+  const gstOptions = gstRates.length
+    ? gstRates.map((r) => ({ value: r.rate ?? 0, label: r.label || `${r.rate}%`, key: r._id }))
+    : [0, 5, 12, 18, 28].map((v) => ({ value: v, label: `${v}%`, key: v }));
 
   // Silently force-refresh inventory when form opens, bypassing the 10-second store cache.
   // Needed because PurchaseOrders' initial fetch may have been skipped or stale.
@@ -447,7 +449,7 @@ export function POFormModal({
                         <label className="block text-[10px] text-gray-500 dark:text-gray-400 font-semibold mb-1">GST %</label>
                         <select value={item.gstPct} onChange={(e) => updateItem(idx, "gstPct", Number(e.target.value))}
                           className={CELL_INPUT}>
-                          {gstOptions.map((v) => <option key={v} value={v}>{v}%</option>)}
+                          {gstOptions.map((opt) => <option key={opt.key} value={opt.value}>{opt.label}</option>)}
                         </select>
                       </div>
                     </div>
@@ -599,7 +601,7 @@ export function POFormModal({
                           <div className="flex gap-1.5">
                             <select value={item.gstPct} onChange={(e) => updateItem(idx, "gstPct", Number(e.target.value))}
                               className={cn(CELL_INPUT, "w-[58px] shrink-0")}>
-                              {gstOptions.map((v) => <option key={v} value={v}>{v}%</option>)}
+                              {gstOptions.map((opt) => <option key={opt.key} value={opt.value}>{opt.label}</option>)}
                             </select>
                             <select value={item.gstType || "Exclusive"} onChange={(e) => updateItem(idx, "gstType", e.target.value)}
                               className={cn(CELL_INPUT, "flex-1 min-w-0 font-semibold")}>

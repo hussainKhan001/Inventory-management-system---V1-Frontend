@@ -55,7 +55,9 @@ const Quotations = /* @__PURE__ */ __name(() => {
     gstRates
   } = useAppStore();
   const { categories: CATEGORIES = [] } = settings;
-  const GST_PCT_OPTIONS = gstRates.length ? gstRates.map((r) => r.rate) : [0, 5, 12, 18, 28];
+  const GST_PCT_OPTIONS = gstRates.length
+    ? gstRates.map((r) => ({ value: r.rate ?? 0, label: r.label || `${r.rate}% GST`, key: r._id }))
+    : [0, 5, 12, 18, 28].map((v) => ({ value: v, label: `${v}% GST`, key: v }));
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [startDate, setStartDate] = useState("");
@@ -1228,7 +1230,7 @@ const QuotationForm = /* @__PURE__ */ __name(({ initialData, mrData: initialMrDa
       onChange={(e) => handleItemChange(idx, "gstPct", parseInt(e.target.value) || 0)}
       className="bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-700 rounded-xl text-[13px] font-medium text-gray-900 dark:text-gray-100 px-3 py-2 h-11 outline-none focus:border-orange-500 transition-all cursor-pointer box-border"
     >
-                            {GST_PCT_OPTIONS.map(v => <option key={v} value={v}>{v}% GST</option>)}
+                            {GST_PCT_OPTIONS.map(opt => <option key={opt.key} value={opt.value}>{opt.label}</option>)}
                           </select>
                           <select
       value={item.gstType}
@@ -1322,7 +1324,7 @@ const QuotationForm = /* @__PURE__ */ __name(({ initialData, mrData: initialMrDa
     onChange={(e) => handleChargeChange("freightGstPct", parseInt(e.target.value) || 0)}
     className="w-full bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-700 rounded-xl text-[13px] font-bold text-gray-900 dark:text-gray-100 px-3 h-11 outline-none focus:border-orange-500 transition-all cursor-pointer box-border"
   >
-                  {GST_PCT_OPTIONS.map(v => <option key={v} value={v}>{v}% GST</option>)}
+                  {GST_PCT_OPTIONS.map(opt => <option key={opt.key} value={opt.value}>{opt.label}</option>)}
                 </select>
                 <select
     value={formData.freightGstType || "Exclusive"}
@@ -1353,7 +1355,7 @@ const QuotationForm = /* @__PURE__ */ __name(({ initialData, mrData: initialMrDa
     onChange={(e) => handleChargeChange("loadingGstPct", parseInt(e.target.value) || 0)}
     className="w-full bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-700 rounded-xl text-[13px] font-bold text-gray-900 dark:text-gray-100 px-3 h-11 outline-none focus:border-orange-500 transition-all cursor-pointer box-border"
   >
-                  {GST_PCT_OPTIONS.map(v => <option key={v} value={v}>{v}% GST</option>)}
+                  {GST_PCT_OPTIONS.map(opt => <option key={opt.key} value={opt.value}>{opt.label}</option>)}
                 </select>
                 <select
     value={formData.loadingGstType || "Exclusive"}
@@ -1384,7 +1386,7 @@ const QuotationForm = /* @__PURE__ */ __name(({ initialData, mrData: initialMrDa
     onChange={(e) => handleChargeChange("unloadingGstPct", parseInt(e.target.value) || 0)}
     className="w-full bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-700 rounded-xl text-[13px] font-bold text-gray-900 dark:text-gray-100 px-3 h-11 outline-none focus:border-orange-500 transition-all cursor-pointer box-border"
   >
-                  {GST_PCT_OPTIONS.map(v => <option key={v} value={v}>{v}% GST</option>)}
+                  {GST_PCT_OPTIONS.map(opt => <option key={opt.key} value={opt.value}>{opt.label}</option>)}
                 </select>
                 <select
     value={formData.unloadingGstType || "Exclusive"}
