@@ -32,7 +32,7 @@ function isPOLocked(po) {
   return !!(po?.paymentTimelines?.some((pt) => (pt.paid || 0) > 0) || po?.accountStatus === "Processed");
 }
 
-function ChargeBlock({ label, amountKey, gstPctKey, gstTypeKey, po, onChange }) {
+function ChargeBlock({ label, amountKey, gstPctKey, gstTypeKey, po, onChange, gstOptions = GST_PCT_OPTIONS }) {
   return (
     <div className="p-3 bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 space-y-3">
       <Field
@@ -47,7 +47,7 @@ function ChargeBlock({ label, amountKey, gstPctKey, gstTypeKey, po, onChange }) 
           <label className="block text-[11px] font-bold text-gray-500 dark:text-gray-400 mb-1.5">GST %</label>
           <select value={po[gstPctKey] ?? 18} onChange={(e) => onChange({ [gstPctKey]: Number(e.target.value) })}
             className="w-full px-3 py-2 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg text-[13px] text-gray-900 dark:text-white">
-            {GST_PCT_OPTIONS.map((v) => <option key={v} value={v}>{v}%</option>)}
+            {gstOptions.map((v) => <option key={v} value={v}>{v}%</option>)}
           </select>
         </div>
         <div className="space-y-1">
@@ -68,7 +68,8 @@ export function POFormModal({
   addItem, updateItem, removeItem, linkToInventory, quickAddToInventory,
   companyOptions, mrOptions, vendorOptions, COMPANIES, CATEGORIES, UNITS,
 }) {
-  const { suppliers, actionLoading, fetchResource } = useAppStore();
+  const { suppliers, actionLoading, fetchResource, gstRates } = useAppStore();
+  const gstOptions = gstRates.length ? gstRates.map((r) => r.rate) : [0, 5, 12, 18, 28];
 
   // Silently force-refresh inventory when form opens, bypassing the 10-second store cache.
   // Needed because PurchaseOrders' initial fetch may have been skipped or stale.
@@ -446,7 +447,7 @@ export function POFormModal({
                         <label className="block text-[10px] text-gray-500 dark:text-gray-400 font-semibold mb-1">GST %</label>
                         <select value={item.gstPct} onChange={(e) => updateItem(idx, "gstPct", Number(e.target.value))}
                           className={CELL_INPUT}>
-                          {GST_PCT_OPTIONS.map((v) => <option key={v} value={v}>{v}%</option>)}
+                          {gstOptions.map((v) => <option key={v} value={v}>{v}%</option>)}
                         </select>
                       </div>
                     </div>
@@ -598,7 +599,7 @@ export function POFormModal({
                           <div className="flex gap-1.5">
                             <select value={item.gstPct} onChange={(e) => updateItem(idx, "gstPct", Number(e.target.value))}
                               className={cn(CELL_INPUT, "w-[58px] shrink-0")}>
-                              {GST_PCT_OPTIONS.map((v) => <option key={v} value={v}>{v}%</option>)}
+                              {gstOptions.map((v) => <option key={v} value={v}>{v}%</option>)}
                             </select>
                             <select value={item.gstType || "Exclusive"} onChange={(e) => updateItem(idx, "gstType", e.target.value)}
                               className={cn(CELL_INPUT, "flex-1 min-w-0 font-semibold")}>
@@ -668,9 +669,9 @@ export function POFormModal({
             <h4 className="text-[11px] font-black text-gray-400 tracking-widest">Other Charges</h4>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <ChargeBlock label="Freight Charges" amountKey="freightAmount" gstPctKey="freightGstPct" gstTypeKey="freightGstType" po={po} onChange={set} />
-            <ChargeBlock label="Loading Charges" amountKey="loadingAmount" gstPctKey="loadingGstPct" gstTypeKey="loadingGstType" po={po} onChange={set} />
-            <ChargeBlock label="Unloading Charges" amountKey="unloadingAmount" gstPctKey="unloadingGstPct" gstTypeKey="unloadingGstType" po={po} onChange={set} />
+            <ChargeBlock label="Freight Charges" amountKey="freightAmount" gstPctKey="freightGstPct" gstTypeKey="freightGstType" po={po} onChange={set} gstOptions={gstOptions} />
+            <ChargeBlock label="Loading Charges" amountKey="loadingAmount" gstPctKey="loadingGstPct" gstTypeKey="loadingGstType" po={po} onChange={set} gstOptions={gstOptions} />
+            <ChargeBlock label="Unloading Charges" amountKey="unloadingAmount" gstPctKey="unloadingGstPct" gstTypeKey="unloadingGstType" po={po} onChange={set} gstOptions={gstOptions} />
           </div>
         </div>
 

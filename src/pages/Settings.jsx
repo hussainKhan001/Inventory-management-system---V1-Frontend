@@ -13,6 +13,7 @@ import {
   X as CloseIcon,
   Trash2,
   Key,
+  Percent,
   Check,
   Palette,
   Image as ImageIcon,
@@ -92,7 +93,10 @@ const SettingsPage = /* @__PURE__ */ __name(() => {
     saveSettings,
     actionLoading,
     uploadImage,
-    role
+    role,
+    gstRates,
+    addGSTRate,
+    removeGSTRate,
   } = useAppStore();
   const isSuperAdmin = role === "Super Admin";
   const [activeTab, setActiveTab] = useState("branding");
@@ -102,7 +106,8 @@ const SettingsPage = /* @__PURE__ */ __name(() => {
     categories: "",
     units: "",
     workTypes: "",
-    stores: ""
+    stores: "",
+    gstRates: ""
   });
   const [newCompany, setNewCompany] = useState({ name: "", gstin: "", address: "" });
   const [editingCompanyIdx, setEditingCompanyIdx] = useState(null);
@@ -111,14 +116,20 @@ const SettingsPage = /* @__PURE__ */ __name(() => {
   const [uploadingFavicon, setUploadingFavicon] = useState(false);
   const logoInputRef = useRef(null);
   const faviconInputRef = useRef(null);
+  const getEffectiveList = /* @__PURE__ */ __name((listKey) => {
+    if (listKey === "gstRates" && !settings[listKey]?.length)
+      return ["0%", "5%", "12%", "18%", "28%"];
+    return settings[listKey] || [];
+  }, "getEffectiveList");
   const addItemToList = /* @__PURE__ */ __name(async (listKey) => {
     const val = newItem[listKey].trim();
     if (!val) return;
-    if (settings[listKey]?.includes(val)) {
+    const currentList = getEffectiveList(listKey);
+    if (currentList.includes(val)) {
       toast.error(`${val} already exists in the list`);
       return;
     }
-    const updatedList = [...settings[listKey] || [], val];
+    const updatedList = [...currentList, val];
     const updatedSettings = { ...settings, [listKey]: updatedList };
     setSettings(updatedSettings);
     setNewItem({ ...newItem, [listKey]: "" });
@@ -128,7 +139,7 @@ const SettingsPage = /* @__PURE__ */ __name(() => {
     }
   }, "addItemToList");
   const removeItemFromList = /* @__PURE__ */ __name(async (listKey, item) => {
-    const updatedList = (settings[listKey] || []).filter((i) => i !== item);
+    const updatedList = getEffectiveList(listKey).filter((i) => i !== item);
     const updatedSettings = { ...settings, [listKey]: updatedList };
     setSettings(updatedSettings);
     try {
@@ -908,6 +919,25 @@ const SettingsPage = /* @__PURE__ */ __name(() => {
     onAdd={() => addItemToList("stores")}
     onRemove={(item) => removeItemFromList("stores", item)}
     items={settings.stores || []}
+    disabled={!isSuperAdmin}
+  />
+            <ListManager
+    title="GST Rates (%)"
+    icon={Percent}
+    value={newItem.gstRates}
+    onChange={(val) => setNewItem({ ...newItem, gstRates: val })}
+    onAdd={async () => {
+      if (!newItem.gstRates.trim()) return;
+      try {
+        await addGSTRate(newItem.gstRates.trim());
+        setNewItem({ ...newItem, gstRates: "" });
+      } catch {}
+    }}
+    onRemove={async (item) => {
+      const found = gstRates.find((r) => r.rate === parseInt(item));
+      if (found) await removeGSTRate(found._id);
+    }}
+    items={gstRates.length ? gstRates.map((r) => `${r.rate}%`) : ["0%", "5%", "12%", "18%", "28%"]}
     disabled={!isSuperAdmin}
   />
 

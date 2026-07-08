@@ -72,7 +72,7 @@ const InventoryRow = memo(
               </span>
             </div>
             <span className="text-[9px] text-gray-400 font-medium mt-0.5">
-              Total: {item.totalQty || 0} {item.unit}
+              Total: {item.totalQty || item.liveStock || 0} {item.unit}
             </span>
           </div>
         </Td>
@@ -86,7 +86,23 @@ const InventoryRow = memo(
             </div>
           ) : (() => {
             const entries = Object.entries(item.locationStock || {}).filter(([, qty]) => Number(qty) > 0);
-            if (entries.length === 0) return <span className="text-[11px] text-gray-300 dark:text-gray-700">—</span>;
+            // Fall back to lastProject when no godown/store data
+            if (entries.length === 0) {
+              if (item.lastProject) {
+                return (
+                  <div className="flex flex-col gap-1">
+                    {item.lastProject.split(", ").map((proj) => (
+                      <div key={proj} className="flex items-center gap-1.5">
+                        <div className="w-1.5 h-1.5 rounded-full bg-orange-400 shrink-0" />
+                        <span className="text-[10px] text-gray-500 dark:text-gray-400 truncate flex-1 leading-none" title={proj}>{proj}</span>
+                        <span className="text-[10px] font-black text-orange-500 shrink-0 tabular-nums">{item.liveStock || 0}</span>
+                      </div>
+                    ))}
+                  </div>
+                );
+              }
+              return <span className="text-[11px] text-gray-300 dark:text-gray-700">—</span>;
+            }
             return (
               <div className="flex flex-col gap-1">
                 {entries.map(([store, qty]) => (
@@ -362,8 +378,43 @@ const Inventory = /* @__PURE__ */ __name(() => {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [debouncedSearch, filterProject, filterCategory, page]);
   const filteredInventory = useMemo(() => {
-    if (!filterStore) return inventory;
-    return inventory.filter((item) => Number(item.locationStock?.[filterStore] || 0) > 0);
+    // Deduplicate by SKU — merge quantities from duplicate MongoDB documents
+    const skuMap = new Map();
+    inventory.forEach((item) => {
+      if (!item.sku) return;
+      if (!skuMap.has(item.sku)) {
+        skuMap.set(item.sku, {
+          ...item,
+          locationStock: { ...(item.locationStock || {}) },
+        });
+      } else {
+        const ex = skuMap.get(item.sku);
+        ex.liveStock     = (ex.liveStock     || 0) + (item.liveStock     || 0);
+        ex.availableQty  = (ex.availableQty  || 0) + (item.availableQty  || 0);
+        ex.allocatedQty  = (ex.allocatedQty  || 0) + (item.allocatedQty  || 0);
+        ex.issuedQty     = (ex.issuedQty     || 0) + (item.issuedQty     || 0);
+        ex.totalQty      = (ex.totalQty      || 0) + (item.totalQty      || 0);
+        ex.openingStock  = (ex.openingStock  || 0) + (item.openingStock  || 0);
+        Object.entries(item.locationStock || {}).forEach(([loc, qty]) => {
+          ex.locationStock[loc] = (ex.locationStock[loc] || 0) + Number(qty);
+        });
+        // Collect all projects this SKU appeared in
+        if (item.lastProject) {
+          const existing = ex.lastProject || "";
+          if (!existing.split(", ").includes(item.lastProject)) {
+            ex.lastProject = existing ? `${existing}, ${item.lastProject}` : item.lastProject;
+          }
+        }
+      }
+    });
+
+    let result = Array.from(skuMap.values());
+
+    if (filterStore) {
+      result = result.filter((item) => Number(item.locationStock?.[filterStore] || 0) > 0);
+    }
+
+    return result;
   }, [inventory, filterStore]);
 
   const loadMore = useCallback(() => {

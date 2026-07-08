@@ -133,6 +133,43 @@ const AppProvider = /* @__PURE__ */ __name(({ children }) => {
     bypassApprovals: { l1: false, l2: false, l3: false },
     stores: []
   });
+  const [gstRates, setGstRates] = useState([]);
+  const fetchGSTRates = /* @__PURE__ */ __name(async () => {
+    try {
+      const res = await api.get("gst-rates");
+      setGstRates((res.data || []).sort((a, b) => a.rate - b.rate));
+    } catch (err) {
+      console.error("Failed to fetch GST rates:", err);
+    }
+  }, "fetchGSTRates");
+  const addGSTRate = /* @__PURE__ */ __name(async (rateVal) => {
+    const rate = Number(String(rateVal).replace("%", "").trim());
+    if (isNaN(rate)) return;
+    setActionLoading(true);
+    try {
+      const res = await api.post("gst-rates", { rate });
+      setGstRates((prev) => [...prev, res.data].sort((a, b) => a.rate - b.rate));
+      toast.success("GST rate added");
+    } catch (err) {
+      toast.error(err.message || "Failed to add GST rate");
+      throw err;
+    } finally {
+      setActionLoading(false);
+    }
+  }, "addGSTRate");
+  const removeGSTRate = /* @__PURE__ */ __name(async (id) => {
+    setActionLoading(true);
+    try {
+      await api.delete("gst-rates", id);
+      setGstRates((prev) => prev.filter((r) => r._id !== id));
+      toast.success("GST rate removed");
+    } catch (err) {
+      toast.error("Failed to remove GST rate");
+      throw err;
+    } finally {
+      setActionLoading(false);
+    }
+  }, "removeGSTRate");
   const saveSettings = /* @__PURE__ */ __name(async (data) => {
     setActionLoading(true);
     try {
@@ -1329,6 +1366,7 @@ const AppProvider = /* @__PURE__ */ __name(({ children }) => {
   useEffect(() => {
     checkAuth();
     fetchResource("public-settings");
+    fetchGSTRates();
     document.documentElement.classList.toggle("dark", theme === "dark");
     let socket;
     let reconnectTimeout;
@@ -1593,6 +1631,10 @@ const AppProvider = /* @__PURE__ */ __name(({ children }) => {
       submitPublicOutwardReturn,
       submitPublicPO,
       uploadPublicImage,
+      gstRates,
+      fetchGSTRates,
+      addGSTRate,
+      removeGSTRate,
       stats,
       fetchStats,
       notifications,
