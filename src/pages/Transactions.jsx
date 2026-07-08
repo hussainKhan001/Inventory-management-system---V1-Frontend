@@ -68,7 +68,8 @@ const TransactionsPage = /* @__PURE__ */ __name(({ type }) => {
     setActionLoading,
     api
   } = useAppStore();
-  const { projects: PROJECTS, categories: CATEGORIES, units: UNITS, stores: STORES } = settings;
+  const { projects: PROJECTS, categories: CATEGORIES, units: UNITS, stores: STORES, sites: SITES } = settings;
+  const COMBINED_STORES = Array.from(new Set([...(STORES || []), ...(SITES || []).map(s => s.siteName)]));
   const resourceMap = {
     "Inward": "inward",
     "Outward": "outward",
@@ -1341,7 +1342,7 @@ const TransactionsPage = /* @__PURE__ */ __name(({ type }) => {
     label={(newTransaction.type || "").includes("Transfer") ? "Source Store / Godown *" : "Project *"}
     value={newTransaction.project}
     onChange={(e) => setNewTransaction((prev) => ({ ...prev, project: e.target.value }))}
-    options={(newTransaction.type || "").includes("Transfer") ? (STORES || []) : PROJECTS}
+    options={(newTransaction.type || "").includes("Transfer") ? COMBINED_STORES : PROJECTS}
     required
     error={errors.project}
   />
@@ -1349,7 +1350,7 @@ const TransactionsPage = /* @__PURE__ */ __name(({ type }) => {
     label="Store / Godown *"
     value={newTransaction.store}
     onChange={(e) => setNewTransaction((prev) => ({ ...prev, store: e.target.value }))}
-    options={STORES || []}
+    options={COMBINED_STORES}
     required
     error={errors.store}
   />}
@@ -1364,7 +1365,7 @@ const TransactionsPage = /* @__PURE__ */ __name(({ type }) => {
     label="Destination Store / Godown *"
     value={newTransaction.destinationProject}
     onChange={(e) => setNewTransaction((prev) => ({ ...prev, destinationProject: e.target.value }))}
-    options={STORES || []}
+    options={COMBINED_STORES}
     required
     error={errors.destinationProject}
   /> : ["Inward", "Inward Return", "Public Inward"].includes(newTransaction.type || "") ? <SField

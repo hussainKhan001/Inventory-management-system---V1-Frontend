@@ -23,7 +23,8 @@ const PublicTransactionForm = /* @__PURE__ */ __name(({ type }) => {
   useEffect(() => {
     fetchResource("public-settings");
   }, [fetchResource]);
-  const { projects: PROJECTS, categories: CATEGORIES, units: UNITS, stores: STORES } = settings;
+  const { projects: PROJECTS, categories: CATEGORIES, units: UNITS, stores: STORES, sites: SITES } = settings;
+  const COMBINED_STORES = Array.from(new Set([...(STORES || []), ...(SITES || []).map(s => s.siteName)]));
   const [inventory, setInventory] = useState([]);
   const [availableGatePasses, setAvailableGatePasses] = useState([]);
   const [loadingField, setLoadingField] = useState(null);
@@ -359,7 +360,7 @@ const PublicTransactionForm = /* @__PURE__ */ __name(({ type }) => {
     label={type.includes("Transfer") ? "Source Store / Godown *" : "Project *"}
     value={form.project}
     onChange={(e) => setForm((prev) => ({ ...prev, project: e.target.value }))}
-    options={type.includes("Transfer") ? (STORES || []) : PROJECTS}
+    options={type.includes("Transfer") ? COMBINED_STORES : PROJECTS}
     required
     error={errors.project}
   />
@@ -374,7 +375,7 @@ const PublicTransactionForm = /* @__PURE__ */ __name(({ type }) => {
     label="Destination Store / Godown *"
     value={form.destinationProject}
     onChange={(e) => setForm((prev) => ({ ...prev, destinationProject: e.target.value }))}
-    options={STORES || []}
+    options={COMBINED_STORES}
     required
     error={errors.destinationProject}
   /> : type.includes("Inward Return") ? <Field
