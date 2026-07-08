@@ -91,7 +91,7 @@ const PERMISSION_GROUPS = [
   {
     id: "grn",
     name: "GRN",
-    perms: ["VIEW_GRN", "CREATE_GRN", "EDIT_GRN", "DELETE_GRN"]
+    perms: ["VIEW_GRN", "CREATE_GRN", "EDIT_GRN", "EDIT_GRN_RECEIPT", "DELETE_GRN"]
   },
   {
     id: "inward",

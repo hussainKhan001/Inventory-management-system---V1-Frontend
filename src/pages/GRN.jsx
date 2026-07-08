@@ -148,10 +148,6 @@ const GRNPage = /* @__PURE__ */ __name(() => {
   });
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [editingReceiptIdx, setEditingReceiptIdx] = useState(null);
-  const [editReceiptData, setEditReceiptData] = useState(null);
-  const [editReceiptOriginalItems, setEditReceiptOriginalItems] = useState([]);
-  const [editReceiptDrawerOpen, setEditReceiptDrawerOpen] = useState(false);
-  const [savingReceipt, setSavingReceipt] = useState(false);
   const confirmDelete = /* @__PURE__ */ __name(async () => {
     if (!deleteConfirm) return;
     try {
@@ -251,6 +247,30 @@ const GRNPage = /* @__PURE__ */ __name(() => {
   }, "updateItem");
   const handleCreate = /* @__PURE__ */ __name(async () => {
     if (!validateForm(newGRN)) {
+      return;
+    }
+    // Editing an existing receipt/shipment
+    if (editingReceiptIdx !== null && !isEditing && !targetGRNId && selectedGRN) {
+      try {
+        const res = await api.putSimple(`grn/${selectedGRN.id}/receipt/${editingReceiptIdx}`, {
+          challan: newGRN.challan,
+          mrNo: newGRN.mrNo,
+          docType: newGRN.docType,
+          personName: newGRN.personName,
+          challanPhotos: newGRN.challanPhotos || [],
+          personPhotos: newGRN.personPhotos || [],
+          items: newGRN.items
+        });
+        setSelectedGRN(res.data);
+        patchGrnInStore(selectedGRN.id, res.data);
+        setModal(false);
+        setEditingReceiptIdx(null);
+        setNewGRN({ poId: "", challan: "", mrNo: "", docType: "Challan", items: [], challanPhotos: [], personPhotos: [], personName: "", destinationProject: "", gatePassNo: "" });
+        setErrors({});
+        toast.success("Shipment updated");
+      } catch (error) {
+        toast.error(`Failed to update shipment: ${error.message}`);
+      }
       return;
     }
     if (isEditing && newGRN.id) {
@@ -864,14 +884,42 @@ const GRNPage = /* @__PURE__ */ __name(() => {
                             <div className="flex items-center gap-2">
                               {receipt.challan && <span className="text-[10px] font-medium text-blue-500 bg-blue-50 dark:bg-blue-900/20 px-2 py-0.5 rounded">{receipt.challan}</span>}
                               <span className="text-[10px] text-gray-400">{formatDateTime(receipt.date)}</span>
-                              {hasPermission("EDIT_GRN") && (
+                              {hasPermission("EDIT_GRN_RECEIPT") && (
                                 <button
                                   onClick={() => {
-                                    const items = (receipt.items || []).map(i => ({ ...i }));
+                                    const receiptToEdit = receipt;
+                                    const receiptItems = (receiptToEdit.items || []).map(ri => {
+                                      const grnItem = selectedGRN.items.find(gi => gi.sku === ri.sku);
+                                      const totalReceived = grnItem?.received ?? ri.received ?? 0;
+                                      const ordered = grnItem?.ordered ?? 0;
+                                      const otherTotal = totalReceived - (ri.received ?? 0);
+                                      const maxQty = Math.max(0, ordered - otherTotal);
+                                      return {
+                                        sku: ri.sku,
+                                        itemName: ri.itemName || grnItem?.itemName || ri.sku,
+                                        ordered: maxQty,
+                                        poOrdered: ordered,
+                                        alreadyReceived: otherTotal,
+                                        received: ri.received ?? 0,
+                                        variance: (ri.received ?? 0) - maxQty,
+                                        unit: grnItem?.unit || ri.unit || "NOS",
+                                        images: ri.images || []
+                                      };
+                                    });
                                     setEditingReceiptIdx(idx);
-                                    setEditReceiptOriginalItems(items);
-                                    setEditReceiptData({ challan: receipt.challan || "", personName: receipt.personName || "", items });
-                                    setEditReceiptDrawerOpen(true);
+                                    setNewGRN({
+                                      poId: selectedGRN.poId,
+                                      challan: receiptToEdit.challan || "",
+                                      mrNo: receiptToEdit.mrNo || "",
+                                      docType: receiptToEdit.docType || "Challan",
+                                      personName: receiptToEdit.personName || "",
+                                      challanPhotos: receiptToEdit.challanPhotos || [],
+                                      personPhotos: receiptToEdit.personPhotos || [],
+                                      items: receiptItems,
+                                      vendor: selectedGRN.supplier,
+                                      supplier: selectedGRN.supplier,
+                                    });
+                                    setModal(true);
                                   }}
                                   className="p-1 rounded text-orange-500 hover:bg-orange-50 dark:hover:bg-orange-900/20 transition-colors"
                                   title="Edit shipment"
@@ -925,19 +973,33 @@ const GRNPage = /* @__PURE__ */ __name(() => {
         </Modal>}
 
       {modal && <Modal
-    title={targetGRNId ? `Add Receipt — ${targetGRNId}` : isEditing ? "Edit GRN Transaction" : "New GRN Transaction"}
+    title={
+      editingReceiptIdx !== null && !isEditing && !targetGRNId
+        ? `Edit Shipment ${editingReceiptIdx + 2} — ${selectedGRN?.id ?? ""}`
+        : targetGRNId
+          ? `Add Receipt — ${targetGRNId}`
+          : isEditing
+            ? "Edit GRN Transaction"
+            : "New GRN Transaction"
+    }
     extraWide
     onClose={() => {
       setModal(false);
       setErrors({});
       setTargetGRNId(null);
+      setEditingReceiptIdx(null);
       setNewGRN({ id: "", poId: "", vendor: "", date: new Date().toISOString().split("T")[0], items: [], challanPhotos: [], images: [], status: "Confirmed" });
       setIsEditing(false);
     }}
     footer={
       <div className="flex items-center justify-end gap-3 w-full">
         <button
-          onClick={() => { setModal(false); setErrors({}); }}
+          onClick={() => {
+            setModal(false);
+            setErrors({});
+            setTargetGRNId(null);
+            setEditingReceiptIdx(null);
+          }}
           className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-black tracking-wider border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-all cursor-pointer"
         >
           Cancel
@@ -947,7 +1009,13 @@ const GRNPage = /* @__PURE__ */ __name(() => {
           disabled={actionLoading || isUploading}
           className="flex items-center gap-2 px-5 py-2.5 bg-primary hover:bg-primary/90 hover:-translate-y-0.5 active:translate-y-0 text-white rounded-xl text-xs font-black transition-all tracking-wider shadow-lg shadow-primary/20 dark:shadow-none disabled:bg-gray-400 disabled:shadow-none disabled:cursor-not-allowed disabled:transform-none cursor-pointer"
         >
-          {targetGRNId ? "Add Receipt" : isEditing ? "Confirm Update" : "Confirm GRN"}
+          {editingReceiptIdx !== null && !isEditing && !targetGRNId
+            ? "Confirm Update"
+            : targetGRNId
+              ? "Add Receipt"
+              : isEditing
+                ? "Confirm Update"
+                : "Confirm GRN"}
         </button>
       </div>
     }
@@ -970,11 +1038,15 @@ const GRNPage = /* @__PURE__ */ __name(() => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {/* Left column */}
               <div className="space-y-4">
-                {targetGRNId ? (
+                {(targetGRNId || (editingReceiptIdx !== null && !isEditing)) ? (
                   <div className="p-3 rounded-xl bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 flex items-center gap-3">
                     <PackagePlus className="w-5 h-5 text-emerald-600 dark:text-emerald-400 shrink-0" />
                     <div>
-                      <p className="text-[11px] font-bold text-emerald-700 dark:text-emerald-400">Adding receipt to {targetGRNId}</p>
+                      <p className="text-[11px] font-bold text-emerald-700 dark:text-emerald-400">
+                        {editingReceiptIdx !== null && !targetGRNId
+                          ? `Editing Shipment ${editingReceiptIdx + 2} of ${selectedGRN?.id ?? ""}`
+                          : `Adding receipt to ${targetGRNId}`}
+                      </p>
                       <p className="text-[11px] text-emerald-600/70 dark:text-emerald-500/70">PO: {newGRN.poId}</p>
                     </div>
                   </div>
@@ -1084,18 +1156,20 @@ const GRNPage = /* @__PURE__ */ __name(() => {
             <div className="space-y-4 pt-5 border-t border-gray-100/60 dark:border-gray-800/80">
               <div className="flex items-center justify-between">
                 <h4 className="text-[11px] font-bold text-gray-500 tracking-wider px-2">Receipt items</h4>
-                <button
-                  disabled={!newGRN.poId}
-                  onClick={() => {
-                    const items = [...(newGRN.items || [])];
-                    items.push({ sku: "", itemName: "", ordered: 0, received: 0, variance: 0, unit: "NOS", images: [] });
-                    setNewGRN({ ...newGRN, items });
-                  }}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black border border-primary/25 text-primary hover:bg-primary hover:text-white transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  Add item
-                </button>
+                {(editingReceiptIdx === null || isEditing || targetGRNId) && (
+                  <button
+                    disabled={!newGRN.poId}
+                    onClick={() => {
+                      const items = [...(newGRN.items || [])];
+                      items.push({ sku: "", itemName: "", ordered: 0, received: 0, variance: 0, unit: "NOS", images: [] });
+                      setNewGRN({ ...newGRN, items });
+                    }}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black border border-primary/25 text-primary hover:bg-primary hover:text-white transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    Add item
+                  </button>
+                )}
               </div>
 
               {errors.items && <p className="text-xs text-red-500 font-medium px-2">{errors.items}</p>}
@@ -1243,14 +1317,11 @@ const GRNPage = /* @__PURE__ */ __name(() => {
     loading={actionLoading}
   />}
 
-      {/* Shipment Edit Drawer */}
-      {editReceiptDrawerOpen && editReceiptData && selectedGRN && (
+      {/* Shipment Edit Drawer — removed, now reuses the main GRN modal */}
+      {false && (
         <>
-          <div
-            className="fixed inset-0 bg-black/50 z-[60]"
-            onClick={() => { setEditReceiptDrawerOpen(false); setEditingReceiptIdx(null); setEditReceiptData(null); setEditReceiptOriginalItems([]); }}
-          />
-          <div className="fixed top-0 right-0 h-full w-full max-w-[480px] bg-white dark:bg-gray-900 shadow-2xl z-[61] flex flex-col">
+          <div />
+          <div>
             {/* Drawer header */}
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-800 shrink-0">
               <div>
@@ -1303,54 +1374,60 @@ const GRNPage = /* @__PURE__ */ __name(() => {
                     const originalQty = editReceiptOriginalItems.find(oi => oi.sku === item.sku)?.received ?? 0;
                     const ordered = grnItem?.ordered ?? 0;
                     const currentTotalReceived = grnItem?.received ?? 0;
-                    const delta = item.received - originalQty;
-                    const newTotal = currentTotalReceived + delta;
-                    const newVariance = newTotal - ordered;
                     const unit = grnItem?.unit || item.unit || "NOS";
+
+                    // Max qty this receipt can hold = ordered minus all OTHER receipts
+                    const otherReceiptsTotal = currentTotalReceived - originalQty;
+                    const maxQty = Math.max(0, ordered - otherReceiptsTotal);
+
+                    const currentQty = item.received ?? 0;
+                    const delta = currentQty - originalQty;
+                    const newTotal = currentTotalReceived + delta;
+                    const newVariance = newTotal - ordered; // negative = under, 0 = exact, positive = over
+                    const remaining = ordered - newTotal;   // still needs to be received
+
+                    const updateQty = (val) => {
+                      const clamped = Math.min(maxQty, Math.max(0, val));
+                      setEditReceiptData(p => ({
+                        ...p,
+                        items: p.items.map((it, idx) => idx === i ? { ...it, received: clamped } : it)
+                      }));
+                    };
 
                     return (
                       <div key={i} className="bg-gray-50 dark:bg-gray-800/50 rounded-xl p-4 border border-gray-100 dark:border-gray-800">
+                        {/* Item header */}
                         <div className="flex items-start justify-between mb-3">
                           <div>
                             <p className="text-[13px] font-bold text-gray-900 dark:text-white leading-tight">{item.itemName}</p>
                             <p className="text-[10px] text-gray-400 mt-0.5">{item.sku}</p>
                           </div>
-                          <span className="text-[10px] text-gray-400 shrink-0 ml-2">Ordered: <span className="font-bold text-gray-600 dark:text-gray-300">{ordered} {unit}</span></span>
+                          <div className="text-right shrink-0 ml-2 space-y-0.5">
+                            <p className="text-[10px] text-gray-400">Ordered: <span className="font-bold text-gray-600 dark:text-gray-300">{ordered} {unit}</span></p>
+                            <p className="text-[10px] text-gray-400">Total received: <span className="font-bold text-gray-600 dark:text-gray-300">{currentTotalReceived + delta} {unit}</span></p>
+                          </div>
                         </div>
 
                         {/* Qty stepper */}
                         <div className="flex items-center gap-3">
                           <div className="flex items-center gap-1 flex-1">
                             <button
-                              onClick={() => {
-                                const newItems = editReceiptData.items.map((it, idx) =>
-                                  idx === i ? { ...it, received: Math.max(0, (it.received || 0) - 1) } : it
-                                );
-                                setEditReceiptData(p => ({ ...p, items: newItems }));
-                              }}
-                              className="w-8 h-8 flex items-center justify-center rounded-lg border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 font-bold text-lg leading-none transition-colors select-none"
+                              onClick={() => updateQty(currentQty - 1)}
+                              disabled={currentQty <= 0}
+                              className="w-8 h-8 flex items-center justify-center rounded-lg border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 font-bold text-lg leading-none transition-colors select-none disabled:opacity-30 disabled:cursor-not-allowed"
                             >−</button>
                             <input
                               type="number"
                               min="0"
-                              value={item.received ?? ""}
-                              onChange={e => {
-                                const val = Math.max(0, parseFloat(e.target.value) || 0);
-                                const newItems = editReceiptData.items.map((it, idx) =>
-                                  idx === i ? { ...it, received: val } : it
-                                );
-                                setEditReceiptData(p => ({ ...p, items: newItems }));
-                              }}
+                              max={maxQty}
+                              value={currentQty}
+                              onChange={e => updateQty(parseFloat(e.target.value) || 0)}
                               className="w-20 text-center px-2 py-1.5 text-[14px] font-black border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:border-orange-500"
                             />
                             <button
-                              onClick={() => {
-                                const newItems = editReceiptData.items.map((it, idx) =>
-                                  idx === i ? { ...it, received: (it.received || 0) + 1 } : it
-                                );
-                                setEditReceiptData(p => ({ ...p, items: newItems }));
-                              }}
-                              className="w-8 h-8 flex items-center justify-center rounded-lg border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 font-bold text-lg leading-none transition-colors select-none"
+                              onClick={() => updateQty(currentQty + 1)}
+                              disabled={currentQty >= maxQty}
+                              className="w-8 h-8 flex items-center justify-center rounded-lg border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 font-bold text-lg leading-none transition-colors select-none disabled:opacity-30 disabled:cursor-not-allowed"
                             >+</button>
                             <span className="text-[11px] text-gray-400 ml-1">{unit}</span>
                           </div>
@@ -1361,18 +1438,23 @@ const GRNPage = /* @__PURE__ */ __name(() => {
                             newVariance === 0
                               ? "bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400"
                               : newVariance < 0
-                                ? "bg-red-50 dark:bg-red-900/20 text-red-500"
+                                ? "bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400"
                                 : "bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400"
                           )}>
-                            {newVariance > 0 ? "+" : ""}{newVariance} {unit}
+                            {newVariance === 0 ? "Fulfilled" : newVariance < 0 ? `${remaining} remaining` : `+${newVariance} over`}
                           </div>
                         </div>
 
                         {/* Change indicator */}
                         {delta !== 0 && (
                           <p className="mt-2 text-[10px] font-medium text-orange-500">
-                            Change: {delta > 0 ? "+" : ""}{delta} from original ({originalQty} → {item.received} {unit})
+                            {delta > 0 ? "+" : ""}{delta} from original ({originalQty} → {currentQty} {unit})
                           </p>
+                        )}
+
+                        {/* Max reached warning */}
+                        {currentQty >= maxQty && maxQty > 0 && (
+                          <p className="mt-1.5 text-[10px] font-medium text-blue-500">Max qty reached — order fully covered by this shipment</p>
                         )}
                       </div>
                     );
