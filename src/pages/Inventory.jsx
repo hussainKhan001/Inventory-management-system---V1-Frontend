@@ -479,18 +479,28 @@ const Inventory = /* @__PURE__ */ __name(() => {
         availableQty: Math.max(0, liveStock - allocatedQty),
         totalQty: liveStock + issuedQty,
         condition: newItem.condition.toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase()),
-        ...(!isEditing && newItem.sourceSite && liveStock > 0
-          ? {
-              locationStock: { [newItem.sourceSite]: liveStock },
-              sites: [{
-                siteName: newItem.sourceSite,
-                siteCode: (SITES || []).find(s => s.siteName === newItem.sourceSite)?.siteCode || "",
-                openingStock: liveStock,
-                liveStock,
-              }]
-            }
-          : {})
       };
+
+      if (newItem.sourceSite) {
+        const siteCode = (SITES || []).find(s => s.siteName === newItem.sourceSite)?.siteCode || "";
+        if (!isEditing) {
+          // New item: always associate with the selected site
+          payload.locationStock = { [newItem.sourceSite]: liveStock };
+          payload.sites = [{ siteName: newItem.sourceSite, siteCode, openingStock: liveStock, liveStock }];
+        } else {
+          // Edit: merge sourceSite into existing associations if not already present
+          const existingLoc = { ...(newItem.locationStock || {}) };
+          const existingSites = [...(newItem.sites || [])];
+          if (!(newItem.sourceSite in existingLoc)) {
+            existingLoc[newItem.sourceSite] = 0;
+          }
+          if (!existingSites.some(s => s.siteName === newItem.sourceSite)) {
+            existingSites.push({ siteName: newItem.sourceSite, siteCode, openingStock: 0, liveStock: 0 });
+          }
+          payload.locationStock = existingLoc;
+          payload.sites = existingSites;
+        }
+      }
       if (isEditing) {
         await updateInventory(newItem.sku, payload);
         toast.success("Item updated successfully");
