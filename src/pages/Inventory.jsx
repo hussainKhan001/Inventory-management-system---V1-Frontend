@@ -437,9 +437,9 @@ const Inventory = /* @__PURE__ */ __name(() => {
 
     if (filterStore) {
       result = result.filter((item) => {
-         const hasSite = item.sites?.find(s => s.siteName === filterStore && s.liveStock > 0);
-         const hasLoc = Number(item.locationStock?.[filterStore] || 0) > 0;
-         return hasSite || hasLoc;
+        const hasSite = item.sites?.some(s => s.siteName === filterStore);
+        const hasLoc = filterStore in (item.locationStock || {});
+        return hasSite || hasLoc;
       });
     }
 
