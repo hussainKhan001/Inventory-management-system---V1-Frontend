@@ -238,10 +238,11 @@ const SearchControls = memo(({
   filterCategory,
   setFilterCategory,
   filterStore,
-  setFilterStore
+  setFilterStore,
+  storeOptions
 }) => {
   const { settings } = useAppStore();
-  const { projects: PROJECTS, categories: CATEGORIES, stores: STORES } = settings;
+  const { projects: PROJECTS, categories: CATEGORIES } = settings;
   const showClear = !!(search || filterProject || filterCategory || filterStore);
   return <FilterRow showClear={showClear} onClearAll={() => {
     setSearch("");
@@ -270,7 +271,7 @@ const SearchControls = memo(({
       <SelectFilter
     value={filterStore}
     onChange={setFilterStore}
-    options={Array.from(new Set([...(STORES || []), ...(settings.sites || []).map(s => s.siteName)]))}
+    options={storeOptions}
     placeholder="All Godowns / Sites"
   />
     </FilterRow>;
@@ -295,8 +296,19 @@ const Inventory = /* @__PURE__ */ __name(() => {
     settings,
     api
   } = useAppStore();
-  const { projects: PROJECTS, categories: CATEGORIES, units: UNITS, stores: STORES, sites: SITES } = settings;
-  const COMBINED_STORES = Array.from(new Set([...(STORES || []), ...(SITES || []).map(s => s.siteName)]));
+  const { projects: PROJECTS, categories: CATEGORIES, units: UNITS, sites: SITES } = settings;
+  const INVENTORY_SITES = useMemo(() => {
+    const names = new Set();
+    (inventory || []).forEach(item => {
+      (item.sites || []).forEach(s => { if (s.siteName) names.add(s.siteName); });
+      Object.keys(item.locationStock || {}).forEach(k => { if (k) names.add(k); });
+    });
+    return [...names].sort();
+  }, [inventory]);
+  const COMBINED_STORES = Array.from(new Set([
+    ...(SITES || []).map(s => s.siteName),
+    ...INVENTORY_SITES
+  ])).sort();
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   useEffect(() => {
@@ -610,6 +622,7 @@ const Inventory = /* @__PURE__ */ __name(() => {
     setFilterCategory={setFilterCategory}
     filterStore={filterStore}
     setFilterStore={setFilterStore}
+    storeOptions={INVENTORY_SITES}
   />
       </div>
 
