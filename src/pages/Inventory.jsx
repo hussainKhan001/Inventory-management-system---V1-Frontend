@@ -60,61 +60,43 @@ const InventoryRow = memo(
         </Td>
         <Td className="hidden md:table-cell px-4 py-3 text-right">
           <div className="flex flex-col items-end">
-            <span className="text-[13px] font-bold text-emerald-500" title="Available Free Stock">
-              {item.availableQty || item.liveStock || 0}
+            <span className="text-[14px] font-bold text-emerald-500" title="Total Stock">
+              {item.totalStock !== undefined ? item.totalStock : (item.liveStock || 0)}
             </span>
-            <div className="flex gap-2">
-              <span className="text-[10px] text-amber-500 font-bold" title="Allocated / Reserved">
-                ALC: {item.allocatedQty || 0}
-              </span>
-              <span className="text-[10px] text-blue-500 font-bold" title="Physically Issued">
-                ISU: {item.issuedQty || 0}
-              </span>
-            </div>
-            <span className="text-[9px] text-gray-400 font-medium mt-0.5">
-              Total: {item.totalQty || item.liveStock || 0} {item.unit}
-            </span>
+            <span className="text-[10px] text-gray-400 font-medium uppercase tracking-wide mt-0.5">{item.unit}</span>
           </div>
         </Td>
         <Td className="hidden md:table-cell px-3 py-2.5">
           {filterStore ? (
             <div className="flex flex-col items-start gap-0.5">
               <span className="text-[15px] font-black text-indigo-500 leading-none">
-                {Number(item.locationStock?.[filterStore] || 0)}
+                {Number(item.sites?.find(s => s.siteName === filterStore)?.liveStock || item.locationStock?.[filterStore] || 0)}
               </span>
               <span className="text-[9px] text-gray-400 font-medium uppercase tracking-wide">{item.unit}</span>
             </div>
-          ) : (() => {
-            const entries = Object.entries(item.locationStock || {}).filter(([, qty]) => Number(qty) > 0);
-            // Fall back to lastProject when no godown/store data
-            if (entries.length === 0) {
-              if (item.lastProject) {
-                return (
-                  <div className="flex flex-col gap-1">
-                    {item.lastProject.split(", ").map((proj) => (
-                      <div key={proj} className="flex items-center gap-1.5">
-                        <div className="w-1.5 h-1.5 rounded-full bg-orange-400 shrink-0" />
-                        <span className="text-[10px] text-gray-500 dark:text-gray-400 truncate flex-1 leading-none" title={proj}>{proj}</span>
-                        <span className="text-[10px] font-black text-orange-500 shrink-0 tabular-nums">{item.liveStock || 0}</span>
-                      </div>
-                    ))}
+          ) : (
+            <div className="flex flex-col gap-1">
+              {(item.sites && item.sites.length > 0) ? (
+                item.sites.map((site, idx) => (
+                  <div key={idx} className="flex items-center gap-1.5">
+                    <div className="w-1.5 h-1.5 rounded-full bg-indigo-400 shrink-0" />
+                    <span className="text-[10px] text-gray-500 dark:text-gray-400 truncate flex-1 leading-none" title={site.siteName}>{site.siteName}</span>
+                    <span className="text-[10px] font-black text-indigo-500 shrink-0 tabular-nums">{Number(site.liveStock || 0)}</span>
                   </div>
-                );
-              }
-              return <span className="text-[11px] text-gray-300 dark:text-gray-700">—</span>;
-            }
-            return (
-              <div className="flex flex-col gap-1">
-                {entries.map(([store, qty]) => (
+                ))
+              ) : Object.entries(item.locationStock || {}).filter(([, qty]) => Number(qty) > 0).length > 0 ? (
+                Object.entries(item.locationStock || {}).filter(([, qty]) => Number(qty) > 0).map(([store, qty]) => (
                   <div key={store} className="flex items-center gap-1.5">
                     <div className="w-1.5 h-1.5 rounded-full bg-indigo-400 shrink-0" />
                     <span className="text-[10px] text-gray-500 dark:text-gray-400 truncate flex-1 leading-none" title={store}>{store}</span>
                     <span className="text-[10px] font-black text-indigo-500 shrink-0 tabular-nums">{Number(qty)}</span>
                   </div>
-                ))}
-              </div>
-            );
-          })()}
+                ))
+              ) : (
+                <span className="text-[11px] text-gray-300 dark:text-gray-700">—</span>
+              )}
+            </div>
+          )}
         </Td>
         <Td className="hidden md:table-cell px-4 py-3 text-center">
           <StatusBadge status={item.condition} />
@@ -180,7 +162,16 @@ const InventoryRow = memo(
                 </div>
               </div>
             </div>
-            {Object.entries(item.locationStock || {}).filter(([, qty]) => Number(qty) > 0).length > 0 && (
+            {(item.sites && item.sites.length > 0) ? (
+              <div className="flex flex-wrap gap-1.5 pt-1">
+                {item.sites.map((site, idx) => (
+                  <span key={idx} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-100 dark:border-indigo-800">
+                    <span className="text-[9px] text-gray-500 dark:text-gray-400">{site.siteName}:</span>
+                    <span className="text-[9px] font-bold text-indigo-500">{Number(site.liveStock || 0)}</span>
+                  </span>
+                ))}
+              </div>
+            ) : Object.entries(item.locationStock || {}).filter(([, qty]) => Number(qty) > 0).length > 0 && (
               <div className="flex flex-wrap gap-1.5 pt-1">
                 {Object.entries(item.locationStock || {}).filter(([, qty]) => Number(qty) > 0).map(([store, qty]) => (
                   <span key={store} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-100 dark:border-indigo-800">
@@ -279,8 +270,8 @@ const SearchControls = memo(({
       <SelectFilter
     value={filterStore}
     onChange={setFilterStore}
-    options={STORES || []}
-    placeholder="All Godowns"
+    options={Array.from(new Set([...(STORES || []), ...(settings.sites || []).map(s => s.siteName)]))}
+    placeholder="All Godowns / Sites"
   />
     </FilterRow>;
 });
@@ -304,7 +295,8 @@ const Inventory = /* @__PURE__ */ __name(() => {
     settings,
     api
   } = useAppStore();
-  const { projects: PROJECTS, categories: CATEGORIES, units: UNITS, stores: STORES } = settings;
+  const { projects: PROJECTS, categories: CATEGORIES, units: UNITS, stores: STORES, sites: SITES } = settings;
+  const COMBINED_STORES = Array.from(new Set([...(STORES || []), ...(SITES || []).map(s => s.siteName)]));
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   useEffect(() => {
@@ -386,6 +378,7 @@ const Inventory = /* @__PURE__ */ __name(() => {
         skuMap.set(item.sku, {
           ...item,
           locationStock: { ...(item.locationStock || {}) },
+          sites: item.sites ? [...item.sites] : [],
         });
       } else {
         const ex = skuMap.get(item.sku);
@@ -395,9 +388,27 @@ const Inventory = /* @__PURE__ */ __name(() => {
         ex.issuedQty     = (ex.issuedQty     || 0) + (item.issuedQty     || 0);
         ex.totalQty      = (ex.totalQty      || 0) + (item.totalQty      || 0);
         ex.openingStock  = (ex.openingStock  || 0) + (item.openingStock  || 0);
+        ex.totalStock    = (ex.totalStock    || 0) + (item.totalStock    || 0);
+        
         Object.entries(item.locationStock || {}).forEach(([loc, qty]) => {
           ex.locationStock[loc] = (ex.locationStock[loc] || 0) + Number(qty);
         });
+        
+        if (item.sites && item.sites.length > 0) {
+           const siteMap = new Map();
+           ex.sites.forEach(s => siteMap.set(s.siteCode, {...s}));
+           item.sites.forEach(s => {
+              if (siteMap.has(s.siteCode)) {
+                 const existing = siteMap.get(s.siteCode);
+                 existing.liveStock = (existing.liveStock || 0) + (s.liveStock || 0);
+                 existing.openingStock = (existing.openingStock || 0) + (s.openingStock || 0);
+              } else {
+                 siteMap.set(s.siteCode, {...s});
+              }
+           });
+           ex.sites = Array.from(siteMap.values());
+        }
+
         // Collect all projects this SKU appeared in
         if (item.lastProject) {
           const existing = ex.lastProject || "";
@@ -411,7 +422,11 @@ const Inventory = /* @__PURE__ */ __name(() => {
     let result = Array.from(skuMap.values());
 
     if (filterStore) {
-      result = result.filter((item) => Number(item.locationStock?.[filterStore] || 0) > 0);
+      result = result.filter((item) => {
+         const hasSite = item.sites?.find(s => s.siteName === filterStore && s.liveStock > 0);
+         const hasLoc = Number(item.locationStock?.[filterStore] || 0) > 0;
+         return hasSite || hasLoc;
+      });
     }
 
     return result;
@@ -451,7 +466,14 @@ const Inventory = /* @__PURE__ */ __name(() => {
         totalQty: liveStock + issuedQty,
         condition: newItem.condition.toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase()),
         ...(!isEditing && newItem.sourceSite && liveStock > 0
-          ? { locationStock: { [newItem.sourceSite]: liveStock } }
+          ? {
+              sites: [{
+                siteName: newItem.sourceSite,
+                siteCode: (SITES || []).find(s => s.siteName === newItem.sourceSite)?.siteCode || "",
+                openingStock: liveStock,
+                liveStock,
+              }]
+            }
           : {})
       };
       if (isEditing) {
@@ -615,7 +637,7 @@ const Inventory = /* @__PURE__ */ __name(() => {
                   Category
                 </th>
                 <th className={cn(headerClass, "hidden md:table-cell text-right w-[150px]")}>
-                  Stock (Avail | Alc | Isu)
+                  Total Stock
                 </th>
                 <th className={cn(headerClass, "hidden md:table-cell w-[180px]")}>
                   {filterStore ? filterStore : "Godown Stock"}
@@ -676,47 +698,104 @@ const Inventory = /* @__PURE__ */ __name(() => {
             </div>}
   >
           <div className="space-y-6">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <p className="text-[11px] font-bold text-gray-500 tracking-wider">SKU</p>
-                <p className="text-sm font-medium text-gray-900 dark:text-white">{safeStr(viewModal.sku)}</p>
-              </div>
-              <div>
-                <p className="text-[11px] font-bold text-gray-500 tracking-wider">Item Name</p>
-                <p className="text-sm font-medium text-gray-900 dark:text-white">{safeStr(viewModal.itemName)}</p>
-              </div>
-              <div>
-                <p className="text-[11px] font-bold text-gray-500 tracking-wider">Category</p>
-                <p className="text-sm font-medium text-gray-900 dark:text-white">{safeStr(viewModal.category)}</p>
-              </div>
-              <div>
-                <p className="text-[11px] font-bold text-gray-500 tracking-wider">Sub-Category</p>
-                <p className="text-sm font-medium text-gray-900 dark:text-white">{safeStr(viewModal.subCategory)}</p>
-              </div>
-              <div>
-                <p className="text-[11px] font-bold text-gray-500 tracking-wider">Live Stock</p>
-                <p className="text-sm font-bold text-emerald-500">{safeStr(viewModal.liveStock)} {safeStr(viewModal.unit)}</p>
-              </div>
-              <div>
-                <p className="text-[11px] font-bold text-gray-500 tracking-wider">Condition</p>
-                <StatusBadge status={viewModal.condition} />
-              </div>
-              <div>
-                <p className="text-[11px] font-bold text-gray-500 tracking-wider">Project</p>
-                <p className="text-sm font-medium text-gray-900 dark:text-white">{safeStr(viewModal.sourceSite)}</p>
+            <div className="flex flex-col md:flex-row gap-6">
+              {/* Photo */}
+              {catalogue.find((c) => c.sku === viewModal.sku)?.imageUrl && (
+                <div className="w-full md:w-1/3 shrink-0">
+                  <p className="text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-2">Photo</p>
+                  <div className="aspect-square rounded-xl overflow-hidden border border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-800 flex items-center justify-center p-2">
+                    <img
+                      src={catalogue.find((c) => c.sku === viewModal.sku).imageUrl}
+                      alt={viewModal.itemName}
+                      className="w-full h-full object-contain rounded-lg"
+                      referrerPolicy="no-referrer"
+                    />
+                  </div>
+                </div>
+              )}
+
+              <div className="flex-1 space-y-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-6">
+                  <div>
+                    <p className="text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1">Item Details</p>
+                    <p className="text-lg font-bold text-gray-900 dark:text-white leading-tight">{safeStr(viewModal.itemName)}</p>
+                    <p className="text-sm font-mono text-gray-500 mt-1">{safeStr(viewModal.sku)}</p>
+                  </div>
+                  <div>
+                    <p className="text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1">Classification</p>
+                    <p className="text-sm font-medium text-gray-900 dark:text-white">{safeStr(viewModal.category)}</p>
+                    <p className="text-xs text-gray-500 mt-0.5">{safeStr(viewModal.subCategory)}</p>
+                  </div>
+                  <div>
+                    <p className="text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1">Total Stock</p>
+                    <div className="flex items-baseline gap-1.5 mt-1">
+                      <span className="text-2xl font-black text-emerald-500 leading-none">{viewModal.totalStock !== undefined ? viewModal.totalStock : (viewModal.liveStock || 0)}</span>
+                      <span className="text-xs font-bold text-gray-400 uppercase">{safeStr(viewModal.unit)}</span>
+                    </div>
+                  </div>
+                  <div>
+                    <p className="text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1">Status</p>
+                    <div className="mt-1">
+                      <StatusBadge status={viewModal.condition} />
+                    </div>
+                  </div>
+                  {viewModal.maxLevel > 0 && (
+                    <div>
+                      <p className="text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1">Max Level</p>
+                      <p className="text-sm font-bold text-gray-900 dark:text-white">{viewModal.maxLevel}</p>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
-            {catalogue.find((c) => c.sku === viewModal.sku)?.imageUrl && <div className="mt-4">
-                <p className="text-[11px] font-bold text-gray-500 tracking-wider mb-2">Reference Photo</p>
-                <div className="aspect-video rounded-xl overflow-hidden border border-gray-200 dark:border-gray-800">
-                  <img
-    src={catalogue.find((c) => c.sku === viewModal.sku).imageUrl}
-    alt={viewModal.itemName}
-    className="w-full h-full object-cover"
-    referrerPolicy="no-referrer"
-  />
+
+            {/* Sites Stock */}
+            {(viewModal.sites && viewModal.sites.length > 0) ? (
+              <div className="mt-6 border-t border-gray-100 dark:border-gray-800 pt-6">
+                <p className="text-[13px] font-bold text-gray-900 dark:text-white mb-4 uppercase tracking-wider">Stock by Location (Sites)</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {viewModal.sites.map((site, idx) => (
+                    <div key={idx} className="p-3 rounded-xl border border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/50 flex flex-col">
+                      <span className="text-xs font-bold text-gray-700 dark:text-gray-300 truncate" title={site.siteName}>
+                        {site.siteName} {site.siteCode ? `(${site.siteCode})` : ''}
+                      </span>
+                      <div className="mt-2 flex items-end justify-between">
+                        <span className="text-lg font-black text-indigo-500 leading-none">{site.liveStock || 0}</span>
+                        <span className="text-[10px] text-gray-400 font-medium">Opening: {site.openingStock || 0}</span>
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              </div>}
+              </div>
+            ) : (viewModal.locationStock && Object.keys(viewModal.locationStock).filter(k => Number(viewModal.locationStock[k]) > 0).length > 0) ? (
+              <div className="mt-6 border-t border-gray-100 dark:border-gray-800 pt-6">
+                <p className="text-[13px] font-bold text-gray-900 dark:text-white mb-4 uppercase tracking-wider">Godown Stock</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {Object.entries(viewModal.locationStock).filter(([, qty]) => Number(qty) > 0).map(([store, qty]) => (
+                    <div key={store} className="p-3 rounded-xl border border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/50 flex flex-col">
+                      <span className="text-xs font-bold text-gray-700 dark:text-gray-300 truncate" title={store}>{store}</span>
+                      <div className="mt-2 flex items-end justify-between">
+                        <span className="text-lg font-black text-indigo-500 leading-none">{Number(qty)}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+            
+            {/* If there is legacy lastProject data */}
+            {viewModal.lastProject && (!viewModal.sites || viewModal.sites.length === 0) && (!viewModal.locationStock || Object.keys(viewModal.locationStock).filter(k => Number(viewModal.locationStock[k]) > 0).length === 0) && (
+              <div className="mt-6 border-t border-gray-100 dark:border-gray-800 pt-6">
+                <p className="text-[13px] font-bold text-gray-900 dark:text-white mb-4 uppercase tracking-wider">Projects</p>
+                <div className="flex flex-wrap gap-2">
+                  {viewModal.lastProject.split(", ").map((proj, idx) => (
+                    <span key={idx} className="px-2.5 py-1 rounded-full bg-orange-50 dark:bg-orange-900/20 border border-orange-100 dark:border-orange-800 text-xs font-medium text-orange-600 dark:text-orange-400">
+                      {proj}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </Modal>}
 
@@ -854,7 +933,7 @@ const Inventory = /* @__PURE__ */ __name(() => {
     label="Store / Godown *"
     value={newItem.sourceSite}
     onChange={(e) => setNewItem({ ...newItem, sourceSite: e.target.value })}
-    options={STORES || []}
+    options={COMBINED_STORES}
     required
     error={errors.sourceSite}
   />
