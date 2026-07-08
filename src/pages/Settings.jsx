@@ -94,6 +94,9 @@ const SettingsPage = /* @__PURE__ */ __name(() => {
     actionLoading,
     uploadImage,
     role,
+    gstRates,
+    addGSTRate,
+    removeGSTRate,
   } = useAppStore();
   const isSuperAdmin = role === "Super Admin";
   const [activeTab, setActiveTab] = useState("branding");
@@ -923,20 +926,18 @@ const SettingsPage = /* @__PURE__ */ __name(() => {
     icon={Percent}
     value={newItem.gstRates}
     onChange={(val) => setNewItem({ ...newItem, gstRates: val })}
-    onAdd={() => {
-      const num = parseInt(newItem.gstRates);
-      if (isNaN(num)) return;
-      const normalized = `${num}%`;
-      const currentList = getEffectiveList("gstRates");
-      if (currentList.includes(normalized)) { toast.error("Rate already exists"); return; }
-      const updatedList = [...currentList, normalized];
-      const updatedSettings = { ...settings, gstRates: updatedList };
-      setSettings(updatedSettings);
-      setNewItem({ ...newItem, gstRates: "" });
-      saveSettings(updatedSettings).catch(() => {});
+    onAdd={async () => {
+      if (!newItem.gstRates.trim()) return;
+      try {
+        await addGSTRate(newItem.gstRates.trim());
+        setNewItem({ ...newItem, gstRates: "" });
+      } catch {}
     }}
-    onRemove={(item) => removeItemFromList("gstRates", item.replace(" GST", ""))}
-    items={(settings.gstRates?.length ? settings.gstRates : ["0%","5%","12%","18%","28%"]).map(r => `${parseInt(r)}% GST`)}
+    onRemove={async (item) => {
+      const found = gstRates.find((r) => r.rate === parseInt(item));
+      if (found) await removeGSTRate(found._id);
+    }}
+    items={gstRates.length ? gstRates.map((r) => `${r.rate}% GST`) : ["0% GST","5% GST","12% GST","18% GST","28% GST"]}
     disabled={!isSuperAdmin}
   />
 
