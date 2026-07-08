@@ -45,7 +45,8 @@ const GRNPage = /* @__PURE__ */ __name(() => {
     hasPermission,
     settings
   } = useAppStore();
-  const { projects: PROJECTS = [] } = settings;
+  const { projects: PROJECTS = [], sites: SITES = [] } = settings;
+  const STORE_OPTIONS = SITES.map(s => s.siteName);
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [startDate, setStartDate] = useState("");
@@ -126,6 +127,7 @@ const GRNPage = /* @__PURE__ */ __name(() => {
   const validateForm = /* @__PURE__ */ __name((data) => {
     const newErrors = {};
     if (!data.poId) newErrors.poId = "PO selection is required";
+    if (!data.store) newErrors.store = "Store / Godown is required";
     if (!data.challan) newErrors.challan = "Challan/Invoice No. is required";
     if (!data.personName) newErrors.personName = "Received By name is required";
     if (!data.docType) newErrors.docType = "Document Type is required";
@@ -138,6 +140,7 @@ const GRNPage = /* @__PURE__ */ __name(() => {
     challan: "",
     mrNo: "",
     docType: "Challan",
+    store: "",
     items: [],
     challanPhotos: [],
     images: [],
@@ -1064,6 +1067,15 @@ const GRNPage = /* @__PURE__ */ __name(() => {
                     disabled={isEditing}
                   />
                 )}
+                <SField
+                  label="Store / Godown *"
+                  value={newGRN.store}
+                  onChange={(e) => setNewGRN({ ...newGRN, store: e.target.value })}
+                  options={STORE_OPTIONS}
+                  required
+                  error={errors.store}
+                  placeholder="Select godown..."
+                />
                 {/* Date info card */}
                 <div className="flex items-center gap-3 p-3 bg-white/40 dark:bg-[#0F172A]/30 rounded-xl border border-gray-200/50 dark:border-gray-800/80 shadow-xs">
                   <div className="w-9 h-9 rounded-lg bg-orange-50 dark:bg-orange-950/30 flex items-center justify-center text-orange-600 dark:text-orange-400 shrink-0">
