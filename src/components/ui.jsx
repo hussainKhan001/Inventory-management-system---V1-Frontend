@@ -229,16 +229,22 @@ const SField = React.memo(({
   ...props
 }) => {
   const [isOpen, setIsOpen] = React.useState(false);
+  const [search, setSearch] = React.useState("");
+  const searchRef = React.useRef(null);
   const containerRef = React.useRef(null);
   React.useEffect(() => {
     const handleClickOutside = /* @__PURE__ */ __name((event) => {
       if (containerRef.current && !containerRef.current.contains(event.target)) {
         setIsOpen(false);
+        setSearch("");
       }
     }, "handleClickOutside");
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
+  React.useEffect(() => {
+    if (isOpen) { setSearch(""); setTimeout(() => searchRef.current?.focus(), 50); }
+  }, [isOpen]);
   const normalizedOptions = React.useMemo(() => {
     if (!options) return [];
     return options.map((opt) => {
@@ -250,6 +256,11 @@ const SField = React.memo(({
       };
     });
   }, [options]);
+  const filteredOptions = React.useMemo(() => {
+    if (!search.trim()) return normalizedOptions;
+    const q = search.toLowerCase();
+    return normalizedOptions.filter(o => o.label.toLowerCase().includes(q));
+  }, [normalizedOptions, search]);
   const selectedOption = normalizedOptions.find((o) => String(o.value) === String(value));
   return <div className={cn(small ? "mb-2" : "mb-4", isOpen ? "relative z-[100]" : "relative", className)} ref={containerRef}>
       {label && <label className={cn("block font-semibold text-gray-700 dark:text-gray-200 mb-1.5", small ? "text-[10px]" : "text-sm")}>
@@ -285,16 +296,28 @@ const SField = React.memo(({
     animate={{ opacity: 1, y: 0 }}
     exit={{ opacity: 0, y: -8 }}
     transition={{ duration: 0.12 }}
-    className="absolute z-[60] w-full min-w-[160px] top-[calc(100%+6px)] left-0 bg-white dark:bg-[#1E293B] border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl dark:shadow-2xl dark:shadow-black/60 overflow-hidden py-1"
+    className="absolute z-[60] w-full min-w-[160px] top-[calc(100%+6px)] left-0 bg-white dark:bg-[#1E293B] border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl dark:shadow-2xl dark:shadow-black/60 overflow-hidden"
   >
-              <div className="max-h-60 overflow-y-auto overscroll-contain custom-scrollbar">
-                {normalizedOptions.length === 0
-                  ? <div className="px-4 py-3 text-sm text-gray-400 italic">No options</div>
+              <div className="px-2 pt-2 pb-1 border-b border-gray-100 dark:border-gray-700">
+                <input
+                  ref={searchRef}
+                  type="text"
+                  value={search}
+                  onChange={e => setSearch(e.target.value)}
+                  onClick={e => e.stopPropagation()}
+                  placeholder="Search..."
+                  className="w-full px-2.5 py-1.5 text-xs rounded-md bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-200 placeholder-gray-400 outline-none focus:border-[#F97316] focus:ring-1 focus:ring-[#F97316]/30"
+                />
+              </div>
+              <div className="max-h-52 overflow-y-auto overscroll-contain custom-scrollbar py-1">
+                {filteredOptions.length === 0
+                  ? <div className="px-4 py-3 text-sm text-gray-400 italic">No results</div>
                   : <>
-                    <div
+                    {!search && <div
     onClick={() => {
       onChange?.({ target: { value: "", name: props.name } });
       setIsOpen(false);
+      setSearch("");
     }}
     className={cn(
       "px-4 py-2.5 text-sm cursor-pointer transition-colors",
@@ -302,12 +325,13 @@ const SField = React.memo(({
     )}
   >
                       {placeholder || "Select..."}
-                    </div>
-                    {normalizedOptions.map((opt, idx) => <div
+                    </div>}
+                    {filteredOptions.map((opt, idx) => <div
     key={`${opt.value}-${idx}`}
     onClick={() => {
       onChange?.({ target: { value: opt.value, name: props.name } });
       setIsOpen(false);
+      setSearch("");
     }}
     className={cn(
       "px-4 py-2.5 text-sm cursor-pointer transition-colors flex items-center justify-between",

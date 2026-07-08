@@ -15,24 +15,33 @@ const CustomDropdown = React.memo(({
   small = false
 }) => {
   const [isOpen, setIsOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const searchRef = useRef(null);
   const containerRef = useRef(null);
   useEffect(() => {
     const handleClickOutside = /* @__PURE__ */ __name((event) => {
       if (containerRef.current && !containerRef.current.contains(event.target)) {
         setIsOpen(false);
+        setSearch("");
       }
     }, "handleClickOutside");
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
+  useEffect(() => {
+    if (isOpen) { setSearch(""); setTimeout(() => searchRef.current?.focus(), 50); }
+  }, [isOpen]);
   const normalizedOptions = useMemo(() => {
     return options.map((opt) => {
-      if (typeof opt === "string") {
-        return { value: opt, label: opt };
-      }
+      if (typeof opt === "string") return { value: opt, label: opt };
       return opt;
     });
   }, [options]);
+  const filteredOptions = useMemo(() => {
+    if (!search.trim()) return normalizedOptions;
+    const q = search.toLowerCase();
+    return normalizedOptions.filter(o => String(o.label).toLowerCase().includes(q));
+  }, [normalizedOptions, search]);
   const selectedOption = normalizedOptions.find((opt) => String(opt.value) === String(value));
   return <div className={cn("relative w-full", isOpen ? "z-[100]" : "", className)} ref={containerRef}>
       <button
@@ -58,24 +67,40 @@ const CustomDropdown = React.memo(({
     exit={{ opacity: 0, y: -6 }}
     transition={{ duration: 0.15 }}
     className={cn(
-      "absolute z-[100] w-full min-w-[150px] top-[calc(100%+4px)] left-0 bg-white/95 dark:bg-[#1E293B]/95 backdrop-blur-md border border-gray-200/85 dark:border-gray-700/85 rounded-md shadow-xl dark:shadow-2xl dark:shadow-black/70 overflow-hidden py-1 max-h-56 overflow-y-auto custom-scrollbar scrollbar-thin scrollbar-thumb-gray-200 dark:scrollbar-thumb-gray-700",
+      "absolute z-[100] w-full min-w-[150px] top-[calc(100%+4px)] left-0 bg-white/95 dark:bg-[#1E293B]/95 backdrop-blur-md border border-gray-200/85 dark:border-gray-700/85 rounded-md shadow-xl dark:shadow-2xl dark:shadow-black/70 overflow-hidden",
       dropdownClassName
     )}
   >
-            {normalizedOptions.map((opt, idx) => <button
+            <div className="px-2 pt-2 pb-1 border-b border-gray-100 dark:border-gray-700">
+              <input
+                ref={searchRef}
+                type="text"
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                onClick={e => e.stopPropagation()}
+                placeholder="Search..."
+                className="w-full px-2.5 py-1.5 text-[11px] rounded bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-200 placeholder-gray-400 outline-none focus:border-primary focus:ring-1 focus:ring-primary/30"
+              />
+            </div>
+            <div className="max-h-48 overflow-y-auto custom-scrollbar scrollbar-thin scrollbar-thumb-gray-200 dark:scrollbar-thumb-gray-700 py-1">
+              {filteredOptions.length === 0
+                ? <div className="px-3 py-2 text-[11px] text-gray-400 italic">No results</div>
+                : filteredOptions.map((opt, idx) => <button
     key={`${opt.value}-${idx}`}
     type="button"
     onClick={() => {
       onChange(opt.value);
       setIsOpen(false);
+      setSearch("");
     }}
     className={cn(
       "w-full text-left px-3 py-2 text-[12px] font-semibold transition-colors flex items-center justify-between cursor-pointer",
       String(value) === String(opt.value) ? "bg-primary/10 text-primary font-bold" : "text-gray-700 dark:text-gray-300 hover:bg-gray-100/60 dark:hover:bg-white/5"
     )}
   >
-                <span className="truncate">{opt.label}</span>
-              </button>)}
+                  <span className="truncate">{opt.label}</span>
+                </button>)}
+            </div>
           </motion.div>}
       </AnimatePresence>
     </div>;
