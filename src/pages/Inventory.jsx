@@ -300,8 +300,10 @@ const Inventory = /* @__PURE__ */ __name(() => {
   const INVENTORY_SITES = useMemo(() => {
     const names = new Set();
     (inventory || []).forEach(item => {
-      (item.sites || []).forEach(s => { if (s.siteName) names.add(s.siteName); });
-      Object.keys(item.locationStock || {}).forEach(k => { if (k) names.add(k); });
+      // Primary: locationStock keys with non-zero qty (authoritative)
+      Object.entries(item.locationStock || {}).forEach(([k, v]) => { if (k && Number(v) > 0) names.add(k); });
+      // Fallback: sites[] entries with liveStock > 0
+      (item.sites || []).forEach(s => { if (s.siteName && Number(s.liveStock) > 0) names.add(s.siteName); });
     });
     return [...names].sort();
   }, [inventory]);
