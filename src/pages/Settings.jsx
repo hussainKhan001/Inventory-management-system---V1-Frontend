@@ -937,7 +937,8 @@ const SettingsPage = /* @__PURE__ */ __name(() => {
       const found = gstRates.find((r) => r.rate === parseInt(item));
       if (found) await removeGSTRate(found._id);
     }}
-    items={gstRates.length ? gstRates.map((r) => `${r.rate}%`) : ["0%", "5%", "12%", "18%", "28%"]}
+
+    items={gstRates.length ? gstRates.map((r) => `${r.rate}% GST`) : ["0% GST", "5% GST", "12% GST", "18% GST", "28% GST"]}
     disabled={!isSuperAdmin}
   />
 
