@@ -210,7 +210,7 @@ const DailyReport = /* @__PURE__ */ __name(() => {
     doc.text(`Total Inward: ${totalIn.toLocaleString()}`,   14,  yBase);
     doc.text(`Total Outward: ${totalOut.toLocaleString()}`, 70,  yBase);
     doc.text(`Items: ${itemRows.length}`,                   140, yBase);
-    const showProjectCol = !projectFilter;
+    const showProjectCol = true;
     autoTable(doc, {
       startY: yBase + 8,
       head: [showProjectCol
@@ -394,7 +394,7 @@ const DailyReport = /* @__PURE__ */ __name(() => {
                   <th className={`${hdrCls} md:hidden`}>Movement Details</th>
                   <th className={`${hdrCls} hidden md:table-cell`}>Date</th>
                   <th className={`${hdrCls} hidden md:table-cell`}>Item Name</th>
-                  {!projectFilter && <th className={`${hdrCls} hidden md:table-cell`}>Project</th>}
+                  <th className={`${hdrCls} hidden md:table-cell`}>Project</th>
                   <th className={`${hdrCls} hidden md:table-cell`}>Category</th>
                   <th className={`${hdrCls} hidden md:table-cell text-right text-green-600 dark:text-green-400`}>Inward</th>
                   <th className={`${hdrCls} hidden md:table-cell text-right text-blue-500 dark:text-blue-400`}>Outward</th>
@@ -457,17 +457,15 @@ const DailyReport = /* @__PURE__ */ __name(() => {
                       <p className="font-bold text-gray-900 dark:text-white">{row.itemName}</p>
                       <p className="font-mono text-[10px] text-gray-400 dark:text-gray-500 mt-0.5">{row.sku}</p>
                     </td>
-                    {!projectFilter && (
-                      <td className="hidden md:table-cell px-4 py-3 border-b border-gray-100 dark:border-gray-800">
-                        {row.project ? (
-                          <span className="inline-block text-[11px] font-semibold px-2 py-0.5 rounded-md bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 max-w-[160px] truncate" title={row.project}>
-                            {row.project}
-                          </span>
-                        ) : (
-                          <span className="text-[11px] text-gray-400">—</span>
-                        )}
-                      </td>
-                    )}
+                    <td className="hidden md:table-cell px-4 py-3 border-b border-gray-100 dark:border-gray-800">
+                      {row.project ? (
+                        <span className="inline-block text-[11px] font-semibold px-2 py-0.5 rounded-md bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 max-w-[160px] truncate" title={row.project}>
+                          {row.project}
+                        </span>
+                      ) : (
+                        <span className="text-[11px] text-gray-400">—</span>
+                      )}
+                    </td>
                     <td className="hidden md:table-cell px-4 py-3 text-gray-600 dark:text-gray-400 border-b border-gray-100 dark:border-gray-800 text-[11px]">{row.category}</td>
                     <td className="hidden md:table-cell px-4 py-3 text-right font-bold text-green-600 dark:text-green-400 border-b border-gray-100 dark:border-gray-800">
                       {row.in > 0 ? `+${row.in}` : "0"} <span className="text-[10px] font-normal text-gray-400">{row.unit}</span>
@@ -489,7 +487,7 @@ const DailyReport = /* @__PURE__ */ __name(() => {
                   <tr>
                     <th className="px-4 py-3 text-[11px] font-bold text-[#6B7280] dark:text-gray-400 tracking-wider">Date</th>
                     <th className="px-4 py-3 text-[11px] font-bold text-[#6B7280] dark:text-gray-400 tracking-wider">Item Name</th>
-                    {!projectFilter && <th className="px-4 py-3 text-[11px] font-bold text-[#6B7280] dark:text-gray-400 tracking-wider">Project</th>}
+                    <th className="px-4 py-3 text-[11px] font-bold text-[#6B7280] dark:text-gray-400 tracking-wider">Project</th>
                     <th className="px-4 py-3 text-[11px] font-bold text-[#6B7280] dark:text-gray-400 tracking-wider">Category</th>
                     <th className="px-4 py-3 text-[11px] font-bold text-[#6B7280] dark:text-gray-400 tracking-wider text-right">Inward</th>
                     <th className="px-4 py-3 text-[11px] font-bold text-[#6B7280] dark:text-gray-400 tracking-wider text-right">Outward</th>

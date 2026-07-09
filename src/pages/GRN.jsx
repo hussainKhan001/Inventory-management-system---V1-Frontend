@@ -132,6 +132,7 @@ const GRNPage = /* @__PURE__ */ __name(() => {
     if (!data.personName) newErrors.personName = "Received By name is required";
     if (!data.docType) newErrors.docType = "Document Type is required";
     if (!data.items || data.items.length === 0) newErrors.items = "At least one item is required";
+    else if (data.items.every(i => (i.received || 0) === 0)) newErrors.items = "At least one item must have received qty > 0";
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   }, "validateForm");
@@ -339,7 +340,8 @@ const GRNPage = /* @__PURE__ */ __name(() => {
       images: newGRN.items?.flatMap((i) => i.images || []) || [],
       personName: newGRN.personName,
       personPhotoUrl: newGRN.personPhotos?.[0],
-      personPhotos: newGRN.personPhotos
+      personPhotos: newGRN.personPhotos,
+      store: newGRN.store
     };
     try {
       await addGRN(grn);
@@ -351,6 +353,13 @@ const GRNPage = /* @__PURE__ */ __name(() => {
         mrNo: "",
         docType: "Challan",
         items: [],
+        personName: "",
+        vendor: "",
+        store: "",
+        destinationProject: "",
+        gatePassNo: "",
+        challanPhotos: [],
+        personPhotos: [],
         materialImageUrl: void 0,
         challanImageUrl: void 0
       });
@@ -999,7 +1008,7 @@ const GRNPage = /* @__PURE__ */ __name(() => {
       setErrors({});
       setTargetGRNId(null);
       setEditingReceiptIdx(null);
-      setNewGRN({ id: "", poId: "", vendor: "", date: new Date().toISOString().split("T")[0], items: [], challanPhotos: [], images: [], status: "Confirmed" });
+      setNewGRN({ poId: "", challan: "", mrNo: "", docType: "Challan", store: "", items: [], challanPhotos: [], images: [], personName: "", personPhotos: [], destinationProject: "", gatePassNo: "" });
       setIsEditing(false);
     }}
     footer={

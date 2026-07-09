@@ -84,7 +84,7 @@ export function MaterialRequirementPage() {
     if (filterRequester) filterObj.requesterName = filterRequester;
     if (filterStatus) filterObj.status = filterStatus;
     const filter = Object.keys(filterObj).length > 0 ? filterObj : null;
-    if (activeTab === "requirements") {
+    if (activeTab === "requirements" || activeTab === "grn-ready") {
       fetchResource("material-requirements", 1, 50, materialRequirements.length > 0, debouncedSearch, filter, false, false, startDate, endDate);
     } else {
       fetchResource("mr-allocations", 1, 1000, true, debouncedSearch, filter, false, false, startDate, endDate);
@@ -95,7 +95,7 @@ export function MaterialRequirementPage() {
   }, [debouncedSearch, activeTab, startDate, endDate, filterProject, filterRequester, filterStatus]);
 
   const handlePageChange = useCallback(page => {
-    if (activeTab === "requirements") {
+    if (activeTab === "requirements" || activeTab === "grn-ready") {
       fetchResource("material-requirements", page, 50, false, debouncedSearch);
     } else {
       fetchResource("mr-allocations", page, 50, false, debouncedSearch);
@@ -116,6 +116,14 @@ export function MaterialRequirementPage() {
     setModal(true);
   };
 
+  // GRN Ready: MRs whose linked PO has been GRN-fulfilled but not yet allocated
+  const grnFulfilledMrIds = new Set(
+    pos.filter(p => ["GRN Fulfilled", "GRN Variance"].includes(p.status) && p.mrId).map(p => p.mrId)
+  );
+  const grnReadyMRs = materialRequirements.filter(mr =>
+    grnFulfilledMrIds.has(mr.id) && !["Closed"].includes(mr.status)
+  );
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -128,13 +136,20 @@ export function MaterialRequirementPage() {
 
       <div className="mb-6 space-y-3">
         <div className="flex items-center gap-1 p-1 bg-gray-100 dark:bg-gray-800 rounded-xl w-fit">
-          {[["requirements", "Requisitions (Current)"], ["allocations", "Allocated Stock Registry"]].map(([tab, label]) => (
+          {[
+            ["requirements", "Requisitions (Current)", 0],
+            ["allocations", "Allocated Stock Registry", 0],
+            ["grn-ready", "GRN Ready", grnReadyMRs.length],
+          ].map(([tab, label, count]) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
-              className={`px-4 py-2 text-[13px] font-medium rounded-lg transition-all ${activeTab === tab ? "bg-white dark:bg-gray-700 text-primary shadow-sm" : "text-gray-500 hover:text-gray-700"}`}
+              className={`px-4 py-2 text-[13px] font-medium rounded-lg transition-all flex items-center gap-1.5 ${activeTab === tab ? "bg-white dark:bg-gray-700 text-primary shadow-sm" : "text-gray-500 hover:text-gray-700"}`}
             >
               {label}
+              {count > 0 && (
+                <span className="px-1.5 py-0.5 bg-emerald-500 text-white rounded-full text-[10px] font-black leading-none">{count}</span>
+              )}
             </button>
           ))}
         </div>
@@ -475,85 +490,230 @@ export function MaterialRequirementPage() {
               </div>
             )}
           </>
+        ) : activeTab === "grn-ready" ? (
+          <div className="space-y-4">
+            {grnReadyMRs.length === 0 && !loading && (
+              <div className="text-center py-16">
+                <Package className="w-10 h-10 mx-auto mb-3 text-gray-300" />
+                <p className="text-gray-500 text-[14px] font-medium">No MRs awaiting allocation</p>
+                <p className="text-gray-400 text-[12px] mt-1">MRs with GRN-fulfilled purchase orders will appear here</p>
+              </div>
+            )}
+            {loading && grnReadyMRs.length === 0 && (
+              [...Array(3)].map((_, i) => (
+                <Card key={i} className="p-6">
+                  <div className="space-y-3"><Skeleton className="h-5 w-1/4" /><Skeleton className="h-4 w-1/2" /></div>
+                </Card>
+              ))
+            )}
+            {grnReadyMRs.map(mr => {
+              const linkedPos = pos.filter(p => p.mrId === mr.id && ["GRN Fulfilled", "GRN Variance"].includes(p.status));
+              // GRN guarantees stock received — don't gate on liveStock; backend validates
+              const allocatableItems = mr.items.filter(i => {
+                const sku = (i.sku || "").trim();
+                if (!sku || sku.toUpperCase() === "N/A") return false;
+                return !["Allocated", "Issued"].includes(i.status || "");
+              });
+              return (
+                <Card key={mr.id} className="overflow-hidden p-0">
+                  <div className="p-4 bg-emerald-50/50 dark:bg-emerald-950/20 border-b border-emerald-100 dark:border-emerald-900/30 flex items-start justify-between gap-3">
+                    <div>
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-[13px] font-black text-primary font-mono">{mr.mrNumber || mr.id}</span>
+                        <span className="px-1.5 py-0.5 bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-400 rounded text-[9px] font-black tracking-widest">GRN RECEIVED</span>
+                      </div>
+                      <div className="flex items-center gap-3 text-[12px] text-gray-500">
+                        <span className="flex items-center gap-1"><Building className="w-3 h-3" />{mr.project || "—"}</span>
+                        <span className="flex items-center gap-1"><User className="w-3 h-3" />{mr.requesterName || "—"}</span>
+                        <span className="flex items-center gap-1"><MapPin className="w-3 h-3" />{mr.location || "—"}</span>
+                      </div>
+                      {linkedPos.length > 0 && (
+                        <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+                          {linkedPos.map(po => (
+                            <span key={po.id} className="text-[10px] font-mono px-1.5 py-0.5 bg-white dark:bg-gray-800 border border-emerald-200 dark:border-emerald-800 rounded text-emerald-600 dark:text-emerald-400">
+                              PO: {po.id} · {po.status}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button
+                        title="View MR"
+                        onClick={() => { setSelectedRequirement(JSON.parse(JSON.stringify(mr))); setViewModal(true); }}
+                        className="p-2 rounded-lg text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
+                      ><Eye className="w-4 h-4" /></button>
+                      {(hasPermission("ALLOCATE_MR") || hasPermission("MANAGE_INVENTORY")) && allocatableItems.length > 0 && (
+                        <button
+                          className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg text-[11px] font-bold transition-all shadow-sm shadow-emerald-500/20"
+                          onClick={async e => {
+                            e.stopPropagation();
+                            try {
+                              const allocItems = allocatableItems
+                                .map(i => ({ sku: i.sku.trim(), qty: i.qty || 0 }))
+                                .filter(i => i.qty > 0);
+                              if (!allocItems.length) { toast.error("No items to allocate."); return; }
+                              const res = await api.post("material-requirements/allocate", { mrId: mr.id, items: allocItems });
+                              if (res.success) {
+                                toast.success(`${allocItems.length} item(s) allocated!`);
+                                fetchResource("material-requirements", 1, 50, false);
+                              }
+                            } catch (err) { toast.error("Allocation failed: " + err.message); }
+                          }}
+                        >
+                          <Check className="w-3.5 h-3.5" /><span>Allocate</span>
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                  <div className="p-4">
+                    <div className="flex flex-wrap gap-2">
+                      {mr.items.map((item, idx) => {
+                        const isAllocated = ["Allocated", "Issued"].includes(item.status || "");
+                        const noSku = !item.sku || item.sku.toUpperCase() === "N/A";
+                        return (
+                          <div key={idx} className={cn(
+                            "px-3 py-2 rounded-lg border flex flex-col gap-1",
+                            isAllocated || noSku
+                              ? "border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/40 opacity-60"
+                              : "border-emerald-200 dark:border-emerald-800/60 bg-emerald-50/40 dark:bg-emerald-950/20"
+                          )}>
+                            <div className="flex items-center gap-2">
+                              <span className="text-[13px] font-medium text-gray-700 dark:text-gray-300">{item.materialName}</span>
+                              <span className="text-[11px] font-bold text-gray-400 ml-auto">x{item.qty} {item.unit}</span>
+                            </div>
+                            {item.sku && item.sku !== "N/A" && (
+                              <span className="text-[10px] text-gray-400 font-mono">{item.sku}</span>
+                            )}
+                            <div>
+                              {isAllocated ? (
+                                <span className="text-[9px] font-black tracking-widest px-1.5 py-0.5 bg-emerald-100 dark:bg-emerald-900/40 text-emerald-600 dark:text-emerald-400 rounded">ALLOCATED</span>
+                              ) : noSku ? (
+                                <span className="text-[9px] font-black tracking-widest px-1.5 py-0.5 bg-gray-100 dark:bg-gray-800 text-gray-500 rounded">NO SKU</span>
+                              ) : (
+                                <span className="text-[9px] font-black tracking-widest px-1.5 py-0.5 bg-emerald-100 dark:bg-emerald-900/40 text-emerald-600 dark:text-emerald-400 rounded">GRN RECEIVED</span>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </Card>
+              );
+            })}
+          </div>
         ) : (
-          <Card className="p-0 overflow-hidden border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 h-[650px] flex flex-col">
-            <div className="flex-1 overflow-x-auto no-scrollbar-lg relative">
-              <table className="w-full text-left border-collapse table-fixed min-w-[800px] md:min-w-0">
-                <thead className="hidden md:table-header-group sticky top-0 z-10">
-                  <tr className="bg-gray-50/90 dark:bg-gray-800/90 backdrop-blur-md border-b border-gray-100 dark:border-gray-800">
-                    {["Engineer / Project", "MR details", "Allocated material", "Qty", "Allocation date", "Actions"].map(h => (
-                      <th key={h} className="px-3 py-3 text-[11px] font-bold text-gray-500 dark:text-gray-400 whitespace-nowrap sticky top-0 z-10">{h}</th>
+          <Card className="p-0 overflow-hidden border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 flex flex-col" style={{ height: "calc(100vh - 280px)", minHeight: 500 }}>
+            {/* Summary strip */}
+            {mrAllocations.length > 0 && (() => {
+              const total = mrAllocations.length;
+              const fullyIssued = mrAllocations.filter(a => (a.remainingQty || 0) === 0).length;
+              const partial = mrAllocations.filter(a => (a.issuedQty || 0) > 0 && (a.remainingQty || 0) > 0).length;
+              const pending = mrAllocations.filter(a => (a.issuedQty || 0) === 0).length;
+              return (
+                <div className="flex items-center gap-6 px-4 py-2.5 border-b border-gray-100 dark:border-gray-800 bg-gray-50/60 dark:bg-gray-800/40 text-[11px] font-bold flex-wrap">
+                  <span className="text-gray-500">{total} allocation{total !== 1 ? "s" : ""}</span>
+                  <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-amber-400 inline-block" /><span className="text-amber-600 dark:text-amber-400">Pending: {pending}</span></span>
+                  <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-blue-400 inline-block" /><span className="text-blue-600 dark:text-blue-400">Partial: {partial}</span></span>
+                  <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" /><span className="text-emerald-600 dark:text-emerald-400">Issued: {fullyIssued}</span></span>
+                </div>
+              );
+            })()}
+            <div className="flex-1 overflow-auto">
+              <table className="w-full text-left border-collapse" style={{ minWidth: 900 }}>
+                <thead className="sticky top-0 z-10">
+                  <tr className="bg-gray-50/95 dark:bg-gray-800/95 backdrop-blur-md border-b border-gray-100 dark:border-gray-800">
+                    {[
+                      ["Engineer / Project", "w-[160px]"],
+                      ["MR", "w-[110px]"],
+                      ["Material", ""],
+                      ["Allocated", "w-[80px] text-center"],
+                      ["Issued", "w-[80px] text-center"],
+                      ["Remaining", "w-[80px] text-center"],
+                      ["Progress", "w-[130px]"],
+                      ["Status", "w-[120px]"],
+                      ["Date", "w-[130px]"],
+                      ["", "w-[40px]"],
+                    ].map(([h, cls]) => (
+                      <th key={h} className={cn("px-3 py-2.5 text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap", cls)}>{h}</th>
                     ))}
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+                <tbody className="divide-y divide-gray-100 dark:divide-gray-800/60">
                   {mrAllocations.length === 0 && !loading && (
-                    <tr><td colSpan={6} className="px-4 py-12 text-center text-gray-500 italic text-[13px]">No active stock allocations found.</td></tr>
+                    <tr><td colSpan={10} className="px-4 py-16 text-center text-gray-400 text-[13px]">No allocations found.</td></tr>
                   )}
-                  {mrAllocations.map((alc, idx) => (
-                    <tr key={alc.id || idx} className="block md:table-row hover:bg-gray-50/50 dark:hover:bg-gray-800/30 transition-all text-[13px]">
-                      <td className="w-full md:w-auto block md:table-cell p-0 md:p-3">
-                        <div className="md:hidden p-4 border-b border-gray-100 dark:border-gray-800">
-                          <div className="flex justify-between items-start mb-2">
-                            <div>
-                              <p className="text-[10px] font-bold text-gray-400">{formatDateTime(alc.allocationDate)}</p>
-                              <h4 className="text-[14px] font-bold text-gray-900 dark:text-white mt-0.5">{alc.itemName}</h4>
-                              <p className="text-[11px] font-mono text-gray-400">{alc.sku}</p>
+                  {mrAllocations.map((alc, idx) => {
+                    const allocated = Number(alc.allocatedQty) || 0;
+                    const issued    = Number(alc.issuedQty)    || 0;
+                    const remaining = Number(alc.remainingQty) || 0;
+                    const pct       = allocated > 0 ? Math.round((issued / allocated) * 100) : 0;
+                    const st        = alc.status || (remaining === 0 ? "Closed" : issued > 0 ? "Partially Issued" : "Allocated");
+                    const stColor   = st === "Closed" ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"
+                                    : st === "Partially Issued" ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
+                                    : "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400";
+                    return (
+                      <tr key={alc.id || idx} className="hover:bg-gray-50/60 dark:hover:bg-gray-800/30 transition-colors text-[12px]">
+                        {/* Engineer / Project */}
+                        <td className="px-3 py-2.5">
+                          <p className="font-semibold text-gray-900 dark:text-white truncate max-w-[150px]" title={alc.engineerName}>{alc.engineerName || "—"}</p>
+                          <p className="text-[10px] text-gray-400 truncate max-w-[150px]" title={alc.projectName}>{alc.projectName || "—"}</p>
+                        </td>
+                        {/* MR */}
+                        <td className="px-3 py-2.5">
+                          <span className="font-mono text-[11px] text-primary font-bold">{alc.mrNumber || alc.mrId}</span>
+                        </td>
+                        {/* Material */}
+                        <td className="px-3 py-2.5">
+                          <p className="font-medium text-gray-800 dark:text-gray-200 truncate max-w-[200px]" title={alc.itemName}>{alc.itemName}</p>
+                          <p className="font-mono text-[10px] text-gray-400">{alc.sku}</p>
+                        </td>
+                        {/* Allocated */}
+                        <td className="px-3 py-2.5 text-center">
+                          <span className="font-bold text-gray-700 dark:text-gray-300 tabular-nums">{allocated}</span>
+                        </td>
+                        {/* Issued */}
+                        <td className="px-3 py-2.5 text-center">
+                          <span className={cn("font-bold tabular-nums", issued > 0 ? "text-emerald-600 dark:text-emerald-400" : "text-gray-400")}>{issued}</span>
+                        </td>
+                        {/* Remaining */}
+                        <td className="px-3 py-2.5 text-center">
+                          <span className={cn("font-bold tabular-nums", remaining > 0 ? "text-amber-600 dark:text-amber-400" : "text-gray-400")}>{remaining}</span>
+                        </td>
+                        {/* Progress bar */}
+                        <td className="px-3 py-2.5">
+                          <div className="flex items-center gap-2">
+                            <div className="flex-1 h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                              <div
+                                className={cn("h-full rounded-full transition-all", pct === 100 ? "bg-emerald-500" : pct > 0 ? "bg-blue-500" : "bg-amber-400")}
+                                style={{ width: `${pct}%` }}
+                              />
                             </div>
-                            <div className="bg-primary/10 dark:bg-primary/20 px-3 py-1 rounded-lg text-center">
-                              <p className="text-[14px] font-black text-primary">{alc.allocatedQty}</p>
-                              <p className="text-[9px] font-bold text-primary/80">Allocated</p>
-                            </div>
+                            <span className="text-[10px] font-bold text-gray-500 w-[28px] text-right tabular-nums">{pct}%</span>
                           </div>
-                          <div className="grid grid-cols-2 gap-4 text-[12px] mt-4 pt-3 border-t border-gray-50 dark:border-gray-800">
-                            <div><p className="text-[9px] font-bold text-gray-400">Engineer</p><p className="font-medium text-gray-700 dark:text-gray-300">{alc.engineerName || "N/A"}</p></div>
-                            <div><p className="text-[9px] font-bold text-gray-400">Project</p><p className="font-medium text-gray-700 dark:text-gray-300 truncate">{alc.projectName || "N/A"}</p></div>
-                          </div>
-                          <div className="mt-2 flex items-center justify-between">
-                            <div className="flex items-center gap-1">
-                              <p className="text-[10px] text-gray-400 font-bold tracking-widest">Mr id:</p>
-                              <p className="text-[11px] font-mono font-bold text-primary">{alc.mrNumber || alc.mrId}</p>
-                            </div>
-                            <button 
-                              title="View / Track MR" 
-                              onClick={() => { window.location.hash = `tracking?id=${alc.mrNumber || alc.mrId}`; }} 
-                              className="p-1.5 rounded text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
-                            >
-                              <Eye className="w-4 h-4" />
-                            </button>
-                          </div>
-                        </div>
-                        <div className="hidden md:flex flex-col min-w-0">
-                          <span className="block truncate font-bold text-[#1A1A2E] dark:text-white text-[12px]">{alc.engineerName || "N/A"}</span>
-                          <span className="block truncate text-[11px] text-[#6B7280] dark:text-gray-400 italic">{alc.projectName || "N/A"}</span>
-                        </div>
-                      </td>
-                      <td className="hidden md:table-cell px-3 py-2.5"><span className="block truncate font-mono text-[11px] text-[#6B7280]">{alc.mrNumber || alc.mrId}</span></td>
-                      <td className="hidden md:table-cell px-3 py-2.5">
-                        <div className="flex flex-col min-w-0">
-                          <span className="block truncate text-[13px] font-medium text-gray-700 dark:text-gray-300">{alc.itemName}</span>
-                          <span className="block truncate text-[10px] text-gray-400 font-mono tracking-tight">{alc.sku}</span>
-                        </div>
-                      </td>
-                      <td className="hidden md:table-cell px-3 py-2.5 text-center">
-                        <span className="inline-flex items-center px-2 py-0.5 bg-primary/10 dark:bg-primary/20 text-primary rounded font-bold text-[12px] min-w-[30px] justify-center">{alc.allocatedQty}</span>
-                      </td>
-                      <td className="hidden md:table-cell px-3 py-2.5 text-[#6B7280] dark:text-gray-500 whitespace-nowrap">{formatDateTime(alc.allocationDate)}</td>
-                      <td className="hidden md:table-cell px-3 py-2.5" onClick={e => e.stopPropagation()}>
-                        <div className="flex items-center gap-1">
-                          <button 
-                            title="View / Track MR" 
-                            onClick={() => { window.location.hash = `tracking?id=${alc.mrNumber || alc.mrId}`; }} 
-                            className="p-1.5 rounded text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
+                        </td>
+                        {/* Status */}
+                        <td className="px-3 py-2.5">
+                          <span className={cn("inline-flex px-2 py-0.5 rounded-full text-[10px] font-bold whitespace-nowrap", stColor)}>{st}</span>
+                        </td>
+                        {/* Date */}
+                        <td className="px-3 py-2.5 text-[11px] text-gray-400 whitespace-nowrap">{formatDateTime(alc.allocationDate)}</td>
+                        {/* Actions */}
+                        <td className="px-3 py-2.5" onClick={e => e.stopPropagation()}>
+                          <button
+                            title="View MR"
+                            onClick={() => { window.location.hash = `tracking?id=${alc.mrNumber || alc.mrId}`; }}
+                            className="text-cyan-500 hover:text-cyan-400 transition-colors"
                           >
-                            <Eye className="w-3.5 h-3.5" />
+                            <Eye className="w-4 h-4" />
                           </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
+                        </td>
+                      </tr>
+                    );
+                  })}
                   {loading && mrAllocations.length > 0 && (
-                    <tr><td colSpan={6} className="py-4 text-center"><div className="flex items-center justify-center text-gray-500 text-xs"><div className="w-3 h-3 border-2 border-primary border-t-transparent rounded-full animate-spin mr-2" />Loading more...</div></td></tr>
+                    <tr><td colSpan={10} className="py-4 text-center text-gray-500 text-xs">Loading...</td></tr>
                   )}
                 </tbody>
               </table>

@@ -275,6 +275,7 @@ const TransactionsPage = /* @__PURE__ */ __name(({ type }) => {
     try {
       if (selectedTransaction?.id) {
         const item = items[0];
+        const editFinalProject = newTransaction.project === "Other" ? newTransaction.otherProjectName : newTransaction.project;
         const updateData = {
           ...newTransaction,
           items,
@@ -282,7 +283,11 @@ const TransactionsPage = /* @__PURE__ */ __name(({ type }) => {
           itemName: item.itemName,
           qty: item.qty,
           unit: item.unit,
-          materialPhotoUrl: item.images?.[0]
+          materialPhotoUrl: item.images?.[0],
+          // Recompute store for Transfer types — spread from newTransaction carries the stale value
+          store: (newTransaction.type || "").includes("Transfer")
+            ? ((newTransaction.type || "").includes("Outward") ? editFinalProject : newTransaction.destinationProject)
+            : newTransaction.store,
         };
         if (newTransaction.type === "Inward Return") {
           updateData.vendor = newTransaction.supplier;
@@ -386,7 +391,8 @@ const TransactionsPage = /* @__PURE__ */ __name(({ type }) => {
       }));
       toast.success("Items loaded from Gate Pass");
     } catch (error) {
-      toast.error(error.message || "Failed to load Gate Pass");
+      const msg = error.response?.data?.message || error.message || "Failed to load Gate Pass";
+      toast.error(msg);
     } finally {
       setActionLoading(false);
     }
@@ -405,7 +411,7 @@ const TransactionsPage = /* @__PURE__ */ __name(({ type }) => {
     setNewTransaction((prev) => ({ ...prev, items: [...prev.items || [], newItem] }));
   }, "addItem");
   const addMiscellaneousItem = /* @__PURE__ */ __name(() => {
-    const randomNum = Math.floor(1e3 + Math.random() * 9e3);
+    const randomNum = Math.floor(100000 + Math.random() * 900000);
     const newItem = {
       sku: `MISC/GEN/${randomNum}`,
       itemName: "",
@@ -596,19 +602,36 @@ const TransactionsPage = /* @__PURE__ */ __name(({ type }) => {
         setPage((prev) => prev + 1);
       }
     }}
+    components={{
+      Table: (props) => (
+        <table 
+          {...props} 
+          className={cn(
+            "w-full text-left text-[13px] border-collapse",
+            type === "Transfer Outward" || type === "Transfer Inward" ? "min-w-[1050px]" : "min-w-[1000px]"
+          )} 
+        />
+      ),
+      TableRow: (props) => <tr {...props} className="hover:bg-gray-50/50 dark:hover:bg-gray-800/30 transition-colors border-b border-gray-100 dark:border-gray-800" />,
+      TableHead: React.forwardRef((props, ref) => <thead {...props} ref={ref} className="z-10" />)
+    }}
     fixedHeaderContent={() => {
       const headerClass = "px-3 py-3 text-[11px] font-bold text-[#6B7280] dark:text-gray-400 whitespace-nowrap overflow-hidden sticky top-0 z-10 sticky-th";
       return <tr className="bg-gray-50/90 dark:bg-gray-800/90 backdrop-blur-md border-b border-[#E8ECF0] dark:border-gray-800">
                 {type === "Transfer Inward" || type === "Transfer Outward" ? <>
                     <th className={cn(headerClass, "w-[148px] block md:table-cell")}><span className="md:hidden text-gray-900 dark:text-white text-[13px]">Transaction Details</span><span className="hidden md:inline">Date</span></th>
-                    <th className={cn(headerClass, "hidden md:table-cell w-[130px]")}>From Site</th>
-                    <th className={cn(headerClass, "hidden md:table-cell w-[130px]")}>To Site</th>
+                    <th className={cn(headerClass, "hidden md:table-cell w-[110px]")}>From Site</th>
+                    <th className={cn(headerClass, "hidden md:table-cell w-[110px]")}>To Site</th>
                     <th className={cn(headerClass, "hidden md:table-cell")}>Item</th>
-                    <th className={cn(headerClass, "hidden md:table-cell text-right w-[80px]")}>Qty</th>
-                    <th className={cn(headerClass, "hidden md:table-cell w-[130px]")}>Gate Pass No.</th>
-                    <th className={cn(headerClass, "hidden md:table-cell w-[110px]")}>Gate Pass</th>
-                    <th className={cn(headerClass, "hidden md:table-cell w-[120px]")}>Photos</th>
-                    <th className={cn(headerClass, "hidden md:table-cell text-right w-[150px]")}>Actions</th>
+                    <th className={cn(headerClass, "hidden md:table-cell text-right w-[70px]")}>Qty</th>
+                    <th className={cn(headerClass, "hidden md:table-cell w-[110px]")}>Gate Pass No.</th>
+                    <th className={cn(headerClass, "hidden md:table-cell w-[80px]")}>Gate Pass</th>
+                    <th className={cn(headerClass, "hidden md:table-cell w-[80px]")}>Photos</th>
+                    {type === "Transfer Outward" && <>
+                      <th className={cn(headerClass, "hidden md:table-cell w-[90px]")}>Status</th>
+                      <th className={cn(headerClass, "hidden md:table-cell w-[80px] text-right")}>Variance</th>
+                    </>}
+                    <th className={cn(headerClass, "hidden md:table-cell text-right w-[100px]")}>Actions</th>
                   </> : type === "Inward" || type === "Inward Return" ? <>
                     <th className={cn(headerClass, "w-[148px] block md:table-cell")}><span className="md:hidden text-gray-900 dark:text-white text-[13px]">Transaction Details</span><span className="hidden md:inline">Date</span></th>
                     <th className={cn(headerClass, "hidden md:table-cell")}>Item</th>
@@ -664,7 +687,7 @@ const TransactionsPage = /* @__PURE__ */ __name(({ type }) => {
                              <p className="text-[10px] font-bold text-gray-400">{trx.unit || trx.items?.[0]?.unit}</p>
                           </div>
                         </div>
-                        <div className="grid grid-cols-2 gap-3 mb-4 text-[12px]">
+                        <div className="grid grid-cols-2 gap-3 mb-3 text-[12px]">
                           <div>
                             <p className="text-[9px] font-bold text-gray-400 tracking-wider">From</p>
                             <p className="font-medium text-gray-700 dark:text-gray-300">{trx.project}</p>
@@ -674,6 +697,14 @@ const TransactionsPage = /* @__PURE__ */ __name(({ type }) => {
                             <p className="font-medium text-gray-700 dark:text-gray-300">{trx.destinationProject || "N/A"}</p>
                           </div>
                         </div>
+                        {type === "Transfer Outward" && (() => {
+                          const st = trx.transferStatus || "Pending";
+                          const colors = { "Pending": "bg-amber-100 text-amber-700", "Fulfilled": "bg-emerald-100 text-emerald-700", "Partially Complete": "bg-blue-100 text-blue-700" };
+                          return <div className="flex items-center gap-2 mb-3">
+                            <span className={cn("inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold", colors[st] || colors["Pending"])}>{st}</span>
+                            {(st === "Partially Complete" || st === "Fulfilled") && trx.transferVariance > 0 && <span className="text-[10px] text-red-500 font-bold">Variance: -{trx.transferVariance}</span>}
+                          </div>;
+                        })()}
                         <div className="flex items-center justify-between pt-3 border-t border-gray-50 dark:border-gray-800">
                            <div className="flex items-center gap-2">
                              <Btn icon={Eye} small outline onClick={() => {
@@ -736,47 +767,69 @@ const TransactionsPage = /* @__PURE__ */ __name(({ type }) => {
       />)}
                       </div>
                     </td>
+                    {type === "Transfer Outward" && <>
+                      <td className="hidden md:table-cell px-4 py-3">
+                        {(() => {
+                          const st = trx.transferStatus || "Pending";
+                          const colors = {
+                            "Pending": "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
+                            "Fulfilled": "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400",
+                            "Partially Complete": "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
+                          };
+                          return <span className={cn("inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold tracking-wide", colors[st] || colors["Pending"])}>{st}</span>;
+                        })()}
+                      </td>
+                      <td className="hidden md:table-cell px-4 py-3 text-right">
+                        {(trx.transferStatus === "Fulfilled" || trx.transferStatus === "Partially Complete") && trx.transferVariance !== undefined ? (
+                          <span className={cn("text-[13px] font-bold tabular-nums", trx.transferVariance > 0 ? "text-red-500" : "text-emerald-500")}>
+                            {trx.transferVariance > 0 ? `-${trx.transferVariance}` : "0"}
+                          </span>
+                        ) : <span className="text-[12px] text-gray-400">—</span>}
+                      </td>
+                    </>}
                     <td className="hidden md:table-cell px-4 py-3 text-right">
-                      <div className="flex items-center justify-end gap-2">
-                        <Btn
-        icon={Eye}
-        small
-        outline
-        onClick={() => {
-          setSelectedTransaction(trx);
-          setViewModal(true);
-        }}
-      />
-                        {hasPermission(getEditPermission(trx.type)) && <Btn
-        icon={Pencil}
-        small
-        outline
-        onClick={() => {
-          setSelectedTransaction(trx);
-          setModal(true);
-          setNewTransaction({
-            ...trx,
-            gatePassNo: trx.gatePassNo,
-            challanPhotoUrl: trx.challanPhotoUrl || trx.challanImageUrl,
-            materialPhotoUrl: trx.materialPhotoUrl || trx.materialImageUrl,
-            items: trx.items || [{
-              sku: trx.sku,
-              itemName: trx.itemName,
-              qty: trx.qty,
-              unit: trx.unit,
-              remarks: trx.remarks,
-              images: trx.materialPhotoUrl || trx.materialImageUrl ? [trx.materialPhotoUrl || trx.materialImageUrl] : []
-            }]
-          });
-        }}
-      />}
-                        {hasPermission(getDeletePermission(trx.type)) && <Btn
-        icon={Trash2}
-        small
-        outline
-        color="red"
-        onClick={() => setDeleteConfirm(trx.id)}
-      />}
+                      <div className="flex items-center justify-end gap-1.5">
+                        <button
+                          title="View Details"
+                          onClick={() => {
+                            setSelectedTransaction(trx);
+                            setViewModal(true);
+                          }}
+                          className="p-2 rounded-lg text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
+                        >
+                          <Eye className="w-4 h-4" />
+                        </button>
+                        {hasPermission(getEditPermission(trx.type)) && <button
+                          title="Edit Transaction"
+                          onClick={() => {
+                            setSelectedTransaction(trx);
+                            setModal(true);
+                            setNewTransaction({
+                              ...trx,
+                              gatePassNo: trx.gatePassNo,
+                              challanPhotoUrl: trx.challanPhotoUrl || trx.challanImageUrl,
+                              materialPhotoUrl: trx.materialPhotoUrl || trx.materialImageUrl,
+                              items: trx.items || [{
+                                sku: trx.sku,
+                                itemName: trx.itemName,
+                                qty: trx.qty,
+                                unit: trx.unit,
+                                remarks: trx.remarks,
+                                images: trx.materialPhotoUrl || trx.materialImageUrl ? [trx.materialPhotoUrl || trx.materialImageUrl] : []
+                              }]
+                            });
+                          }}
+                          className="p-2 rounded-lg text-orange-500 hover:bg-orange-50 dark:hover:bg-orange-900/20 transition-colors"
+                        >
+                          <Pencil className="w-4 h-4" />
+                        </button>}
+                        {hasPermission(getDeletePermission(trx.type)) && <button
+                          title="Delete Transaction"
+                          onClick={() => setDeleteConfirm(trx.id)}
+                          className="p-2 rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>}
                       </div>
                     </td>
                   </> : isInward ? <>
@@ -902,46 +955,48 @@ const TransactionsPage = /* @__PURE__ */ __name(({ type }) => {
                       <Badge text={trx.type || "Manual"} color="gray" />
                     </td>
                     <td className="hidden md:table-cell px-4 py-3 text-right">
-                      <div className="flex items-center justify-end gap-2">
-                        <Btn
-        icon={Eye}
-        small
-        outline
-        onClick={() => {
-          setSelectedTransaction(trx);
-          setViewModal(true);
-        }}
-      />
-                        {hasPermission(getEditPermission(trx.type)) && <Btn
-        icon={Pencil}
-        small
-        outline
-        onClick={() => {
-          setSelectedTransaction(trx);
-          setModal(true);
-          setNewTransaction({
-            ...trx,
-            gatePassNo: trx.gatePassNo,
-            challanPhotoUrl: trx.challanPhotoUrl || trx.challanImageUrl,
-            materialPhotoUrl: trx.materialPhotoUrl || trx.materialImageUrl,
-            items: trx.items || [{
-              sku: trx.sku,
-              itemName: trx.itemName,
-              qty: trx.qty,
-              unit: trx.unit,
-              remarks: trx.remarks,
-              images: trx.materialPhotoUrl || trx.materialImageUrl ? [trx.materialPhotoUrl || trx.materialImageUrl] : []
-            }]
-          });
-        }}
-      />}
-                        {hasPermission(getDeletePermission(trx.type)) && <Btn
-        icon={Trash2}
-        small
-        outline
-        color="red"
-        onClick={() => setDeleteConfirm(trx.id)}
-      />}
+                      <div className="flex items-center justify-end gap-1.5">
+                        <button
+                          title="View Details"
+                          onClick={() => {
+                            setSelectedTransaction(trx);
+                            setViewModal(true);
+                          }}
+                          className="p-2 rounded-lg text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
+                        >
+                          <Eye className="w-4 h-4" />
+                        </button>
+                        {hasPermission(getEditPermission(trx.type)) && <button
+                          title="Edit Transaction"
+                          onClick={() => {
+                            setSelectedTransaction(trx);
+                            setModal(true);
+                            setNewTransaction({
+                              ...trx,
+                              gatePassNo: trx.gatePassNo,
+                              challanPhotoUrl: trx.challanPhotoUrl || trx.challanImageUrl,
+                              materialPhotoUrl: trx.materialPhotoUrl || trx.materialImageUrl,
+                              items: trx.items || [{
+                                sku: trx.sku,
+                                itemName: trx.itemName,
+                                qty: trx.qty,
+                                unit: trx.unit,
+                                remarks: trx.remarks,
+                                images: trx.materialPhotoUrl || trx.materialImageUrl ? [trx.materialPhotoUrl || trx.materialImageUrl] : []
+                              }]
+                            });
+                          }}
+                          className="p-2 rounded-lg text-orange-500 hover:bg-orange-50 dark:hover:bg-orange-900/20 transition-colors"
+                        >
+                          <Pencil className="w-4 h-4" />
+                        </button>}
+                        {hasPermission(getDeletePermission(trx.type)) && <button
+                          title="Delete Transaction"
+                          onClick={() => setDeleteConfirm(trx.id)}
+                          className="p-2 rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>}
                       </div>
                     </td>
                   </> : isOutward ? <>
@@ -1029,47 +1084,48 @@ const TransactionsPage = /* @__PURE__ */ __name(({ type }) => {
                       </div>
                     </td>
                     <td className="hidden md:table-cell px-4 py-3 text-right">
-                      <div className="flex items-center justify-end gap-2">
-                        <Btn
-        icon={Eye}
-        small
-        outline
-        onClick={() => {
-          setSelectedTransaction(trx);
-          setViewModal(true);
-        }}
-      />
-                        {hasPermission(getEditPermission(trx.type)) && <Btn
-        icon={Pencil}
-        small
-        outline
-        onClick={() => {
-          setSelectedTransaction(trx);
-          setModal(true);
-          setNewTransaction({
-            ...trx,
-            gatePassNo: trx.gatePassNo,
-            challanPhotoUrl: trx.challanPhotoUrl || trx.challanImageUrl,
-            materialPhotoUrl: trx.materialPhotoUrl || trx.materialImageUrl,
-            items: trx.items || [{
-              sku: trx.sku,
-              itemName: trx.itemName,
-              qty: trx.qty,
-              unit: trx.unit,
-              remarks: trx.remarks,
-              images: trx.materialPhotoUrl || trx.materialImageUrl ? [trx.materialPhotoUrl || trx.materialImageUrl] : []
-            }]
-          });
-        }}
-      />}
-
-                        {hasPermission(getDeletePermission(trx.type)) && <Btn
-        icon={Trash2}
-        small
-        outline
-        color="red"
-        onClick={() => setDeleteConfirm(trx.id)}
-      />}
+                      <div className="flex items-center justify-end gap-1.5">
+                        <button
+                          title="View Details"
+                          onClick={() => {
+                            setSelectedTransaction(trx);
+                            setViewModal(true);
+                          }}
+                          className="p-2 rounded-lg text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
+                        >
+                          <Eye className="w-4 h-4" />
+                        </button>
+                        {hasPermission(getEditPermission(trx.type)) && <button
+                          title="Edit Transaction"
+                          onClick={() => {
+                            setSelectedTransaction(trx);
+                            setModal(true);
+                            setNewTransaction({
+                              ...trx,
+                              gatePassNo: trx.gatePassNo,
+                              challanPhotoUrl: trx.challanPhotoUrl || trx.challanImageUrl,
+                              materialPhotoUrl: trx.materialPhotoUrl || trx.materialImageUrl,
+                              items: trx.items || [{
+                                sku: trx.sku,
+                                itemName: trx.itemName,
+                                qty: trx.qty,
+                                unit: trx.unit,
+                                remarks: trx.remarks,
+                                images: trx.materialPhotoUrl || trx.materialImageUrl ? [trx.materialPhotoUrl || trx.materialImageUrl] : []
+                              }]
+                            });
+                          }}
+                          className="p-2 rounded-lg text-orange-500 hover:bg-orange-50 dark:hover:bg-orange-900/20 transition-colors"
+                        >
+                          <Pencil className="w-4 h-4" />
+                        </button>}
+                        {hasPermission(getDeletePermission(trx.type)) && <button
+                          title="Delete Transaction"
+                          onClick={() => setDeleteConfirm(trx.id)}
+                          className="p-2 rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>}
                       </div>
                     </td>
                   </> : <>
@@ -1374,7 +1430,7 @@ const TransactionsPage = /* @__PURE__ */ __name(({ type }) => {
     label="Supplier *"
     value={newTransaction.supplier}
     onChange={(e) => setNewTransaction((prev) => ({ ...prev, supplier: e.target.value }))}
-    options={suppliers?.map((v) => v.name) || []}
+    options={suppliers?.map((v) => v.companyName || v.name).filter(Boolean) || []}
     required
     error={errors.supplier}
   /> : <Field
@@ -1547,7 +1603,7 @@ const TransactionsPage = /* @__PURE__ */ __name(({ type }) => {
                               <Field
     label="Quantity *"
     value={item.qty}
-    onChange={(e) => updateItem(idx, { qty: e.target.value })}
+    onChange={(e) => updateItem(idx, { qty: Number(e.target.value) })}
     type="number"
     placeholder="0"
     error={errors[`item_${idx}_qty`]}
@@ -1662,12 +1718,12 @@ const TransactionsPage = /* @__PURE__ */ __name(({ type }) => {
                                 <td className="px-4 py-5 align-top">
                                   <div className="relative group/input">
                                     <input
-    type="number"
-    value={item.qty || 0}
-    onChange={(e) => updateItem(idx, { qty: Number(e.target.value) })}
-    placeholder="0"
-    className="w-full px-3 py-2 bg-white dark:bg-gray-900 border-2 border-gray-100 dark:border-gray-800 rounded-xl text-[14px] font-black text-right focus:outline-none focus:border-orange-500 transition-all shadow-sm group-hover/input:border-gray-200 dark:group-hover/input:border-gray-700"
-  />
+                                      type="number"
+                                      value={item.qty || 0}
+                                      onChange={(e) => updateItem(idx, { qty: Number(e.target.value) })}
+                                      placeholder="0"
+                                      className="w-full px-2 py-2 bg-white dark:bg-gray-900 border-2 border-gray-100 dark:border-gray-800 rounded-xl text-[14px] font-black text-center sm:text-right focus:outline-none focus:border-orange-500 transition-all shadow-sm group-hover/input:border-gray-200 dark:group-hover/input:border-gray-700 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                    />
                                     {newTransaction.type === "Outward" && (item.qty || 0) > (item.originalAllocatedQty || item.allocatedQty || 0) && <div className="absolute -top-2 -right-1 px-1.5 py-0.5 bg-red-500 text-white text-[8px] font-black rounded animate-bounce">
                                         Exceeds!
                                       </div>}
@@ -1974,10 +2030,11 @@ const TransactionsPage = /* @__PURE__ */ __name(({ type }) => {
     loading={actionLoading}
     onConfirm={async () => {
       try {
-        if (type === "Inward" || type === "Transfer Inward") await deleteInward(deleteConfirm);
-        else if (type === "Outward" || type === "Transfer Outward") await deleteOutward(deleteConfirm);
-        else if (type === "Inward Return") await deleteInwardReturn(deleteConfirm);
-        else if (type === "Outward Return") await deleteOutwardReturn(deleteConfirm);
+        const recordType = selectedTransaction?.type || type;
+        if (["Inward", "Transfer Inward", "GRN", "Public Inward", "Public Transfer Inward"].includes(recordType)) await deleteInward(deleteConfirm);
+        else if (["Outward", "Transfer Outward", "MR-Outward", "Public Outward", "Public Transfer Outward"].includes(recordType)) await deleteOutward(deleteConfirm);
+        else if (recordType === "Inward Return" || recordType === "Public Inward Return") await deleteInwardReturn(deleteConfirm);
+        else if (recordType === "Outward Return" || recordType === "Public Outward Return") await deleteOutwardReturn(deleteConfirm);
         else await deleteTransaction(deleteConfirm);
         setDeleteConfirm(null);
       } catch (err) {

@@ -203,9 +203,10 @@ const InventoryRow = memo(
                   </button>}
                 
                 {hasPermission("DELETE_INVENTORY") && <button
-      title="Delete Item"
+      title={(item.allocatedQty || 0) > 0 || (item.issuedQty || 0) > 0 ? "Locked: Transaction history exists" : "Delete Item"}
+      disabled={(item.allocatedQty || 0) > 0 || (item.issuedQty || 0) > 0}
       onClick={() => onDelete(item.sku)}
-      className="p-2 rounded-lg text-red-500 bg-rose-50 dark:bg-rose-900/10 transition-colors"
+      className="p-2 rounded-lg text-red-500 bg-rose-50 dark:bg-rose-900/10 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
     >
                     <Trash2 className="w-4 h-4" />
                   </button>}
@@ -409,15 +410,16 @@ const Inventory = /* @__PURE__ */ __name(() => {
         });
         
         if (item.sites && item.sites.length > 0) {
+           // M2: Use siteName (not siteCode) as dedup key — siteCode is always "" so all sites collapsed into one
            const siteMap = new Map();
-           ex.sites.forEach(s => siteMap.set(s.siteCode, {...s}));
+           ex.sites.forEach(s => siteMap.set(s.siteName, {...s}));
            item.sites.forEach(s => {
-              if (siteMap.has(s.siteCode)) {
-                 const existing = siteMap.get(s.siteCode);
+              if (siteMap.has(s.siteName)) {
+                 const existing = siteMap.get(s.siteName);
                  existing.liveStock = (existing.liveStock || 0) + (s.liveStock || 0);
                  existing.openingStock = (existing.openingStock || 0) + (s.openingStock || 0);
               } else {
-                 siteMap.set(s.siteCode, {...s});
+                 siteMap.set(s.siteName, {...s});
               }
            });
            ex.sites = Array.from(siteMap.values());
@@ -445,6 +447,31 @@ const Inventory = /* @__PURE__ */ __name(() => {
 
     return result;
   }, [inventory, filterStore]);
+
+  const totalStockUnits = useMemo(() => {
+    return filteredInventory.reduce((acc, item) => {
+      let qty = 0;
+      if (filterStore) {
+        qty = Number(item.sites?.find(s => s.siteName === filterStore)?.liveStock || item.locationStock?.[filterStore] || 0);
+      } else {
+        qty = item.totalStock !== undefined ? Number(item.totalStock) : Number(item.liveStock || 0);
+      }
+      return acc + qty;
+    }, 0);
+  }, [filteredInventory, filterStore]);
+
+  const outOfStockCount = useMemo(() => {
+    return filteredInventory.filter((item) => {
+      let qty = 0;
+      if (filterStore) {
+        qty = Number(item.sites?.find(s => s.siteName === filterStore)?.liveStock || item.locationStock?.[filterStore] || 0);
+      } else {
+        qty = item.totalStock !== undefined ? Number(item.totalStock) : Number(item.liveStock || 0);
+      }
+      return qty === 0;
+    }).length;
+  }, [filteredInventory, filterStore]);
+
 
   const loadMore = useCallback(() => {
     if (inventoryPagination && page < inventoryPagination.pages && !loading && !actionLoading) {
@@ -561,7 +588,8 @@ const Inventory = /* @__PURE__ */ __name(() => {
   }, "confirmDelete");
   const exportToExcel = /* @__PURE__ */ __name(() => {
     try {
-      const dataToExport = inventory.map((item) => ({
+      // M4: Export filteredInventory (deduplicated, with active filters applied) not raw paginated array
+      const dataToExport = filteredInventory.map((item) => ({
         SKU: item.sku,
         "Item Name": item.itemName,
         Category: item.category,
@@ -620,7 +648,7 @@ const Inventory = /* @__PURE__ */ __name(() => {
             Total Stock Units
           </p>
           <p className="text-2xl font-bold text-emerald-500 mt-1">
-            {stats.inStock?.toLocaleString() || 0}
+            {totalStockUnits.toLocaleString()}
           </p>
           <p className="text-[10px] text-gray-400 mt-1 font-bold tracking-tight">Physical items count</p>
         </Card>
@@ -629,7 +657,7 @@ const Inventory = /* @__PURE__ */ __name(() => {
             Out of Stock
           </p>
           <p className="text-2xl font-bold text-red-500 mt-1">
-            {stats.outOfStock}
+            {outOfStockCount}
           </p>
           <p className="text-[10px] text-gray-400 mt-1 font-bold tracking-tight">Zero availability</p>
         </Card>

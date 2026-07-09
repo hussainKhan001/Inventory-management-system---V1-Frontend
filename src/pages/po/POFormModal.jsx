@@ -26,7 +26,7 @@ function calcItemTotal(item) {
 }
 
 // Shared class for all inline table inputs/selects — solid bg so text is always visible
-const CELL_INPUT = "w-full px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg text-[13px] bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20";
+const CELL_INPUT = "w-full px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg text-[13px] bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none";
 
 function isPOLocked(po) {
   return !!(po?.paymentTimelines?.some((pt) => (pt.paid || 0) > 0) || po?.accountStatus === "Processed");
@@ -471,8 +471,8 @@ export function POFormModal({
               </div>
 
               {/* ── Desktop: Table (≥ md) — 7 columns instead of 11 ──────── */}
-              <div className="hidden md:block overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-800">
-                <table className="w-full text-left border-collapse" style={{ minWidth: 640 }}>
+              <div className="hidden md:block overflow-x-auto pb-4 custom-scrollbar">
+                <table className="w-full text-left border-collapse min-w-[1000px] rounded-xl border border-gray-200 dark:border-gray-800 overflow-hidden">
                   <thead>
                     <tr className="bg-gray-50 dark:bg-gray-800/60 border-b border-gray-200 dark:border-gray-700">
                       <th className="px-3 py-2.5 text-[11px] font-bold text-gray-500 dark:text-gray-400 w-[35%]">Item</th>
