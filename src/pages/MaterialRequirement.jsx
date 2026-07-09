@@ -41,12 +41,13 @@ export function MaterialRequirementPage() {
 
   const isMRLocked = (mrId, status) => status === "PO Created" || pos.some(po => po.mrId === mrId);
   const isItemPOCreated = (item, mr) => {
-    if (mr?.status === "PO Created") return true;
-    const cat = item.category || "General";
     return pos.some(po =>
       po.mrId === mr?.id &&
-      (po.workType || po.category || "General") === cat &&
-      !["Rejected", "Blocked", "Cancelled"].includes(po.status)
+      !["Rejected", "Blocked", "Cancelled"].includes(po.status) &&
+      po.items?.some(poItem => 
+        (poItem.sku && item.sku && poItem.sku !== "N/A" && poItem.sku === item.sku) ||
+        (poItem.itemName && item.materialName && poItem.itemName === item.materialName)
+      )
     );
   };
 
@@ -321,7 +322,7 @@ export function MaterialRequirementPage() {
                       <Card
                         className={cn(
                           "p-0 overflow-hidden border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 transition-all",
-                          (req.status === "Store Pending" || req.status === "Quotation Phase") &&
+                          (!isMRLocked(req.id, req.status) && (req.status === "Store Pending" || req.status === "Quotation Phase")) &&
                           "approval-highlight ring-1 ring-primary/20 shadow-lg shadow-primary/5"
                         )}
                       >
@@ -333,12 +334,15 @@ export function MaterialRequirementPage() {
                                 <span className="px-1.5 py-0.5 rounded text-[9px] font-black tracking-widest bg-primary text-white animate-pulse">NEW</span>
                               )}
                               <h3 className="text-[14px] font-bold text-[#1A1A2E] dark:text-white">{req.id}</h3>
-                              <StatusBadge status={req.status} />
-                              {isMRLocked(req.id, req.status) && <Badge text="PO Created" color="blue" icon={Link2} className="px-1.5" />}
+                              {isMRLocked(req.id, req.status) ? (
+                                <Badge text="PO Created" color="blue" icon={Link2} className="px-1.5" />
+                              ) : (
+                                <StatusBadge status={req.status} />
+                              )}
                               {req.items.some(i => i.status === "In Stock" || i.status === "Partial") && (
                                 <Badge text="Stock Available" color="green" icon={Check} className="gap-1 px-1.5" />
                               )}
-                              {(req.status === "Store Pending" || req.status === "Quotation Phase") && (
+                              {(!isMRLocked(req.id, req.status) && (req.status === "Store Pending" || req.status === "Quotation Phase")) && (
                                 <span className="flex items-center gap-1 text-[10px] font-bold text-primary animate-bounce ml-1">
                                   <AlertTriangle className="w-3 h-3" />
                                   {req.status === "Quotation Phase" ? "Quotation Finalization Needed" : "Awaiting Review"}

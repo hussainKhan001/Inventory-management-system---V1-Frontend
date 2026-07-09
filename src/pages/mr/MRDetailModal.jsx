@@ -88,11 +88,13 @@ export function MRDetailModal({ requirement, onClose, onRequirementUpdate }) {
   const isMRLocked = mrId => pos.some(po => po.mrId === mrId);
 
   const isItemPOCreated = (item) => {
-    const cat = item.category || "General";
     return pos.some(po =>
       po.mrId === req?.id &&
-      (po.workType || po.category || "General") === cat &&
-      !["Rejected", "Blocked", "Cancelled"].includes(po.status)
+      !["Rejected", "Blocked", "Cancelled"].includes(po.status) &&
+      po.items?.some(poItem => 
+        (poItem.sku && item.sku && poItem.sku !== "N/A" && poItem.sku === item.sku) ||
+        (poItem.itemName && item.materialName && poItem.itemName === item.materialName)
+      )
     );
   };
 
