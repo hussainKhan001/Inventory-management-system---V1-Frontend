@@ -930,6 +930,10 @@ const Quotations = /* @__PURE__ */ __name(() => {
     </div>;
 }, "Quotations");
 const QuotationForm = /* @__PURE__ */ __name(({ initialData, mrData: initialMrData, onClose, onSave }) => {
+  const { gstRates, suppliers } = useAppStore();
+  const GST_PCT_OPTIONS = gstRates.length
+    ? gstRates.map((r) => ({ value: r.rate ?? 0, label: r.label || `${r.rate}% GST`, key: r._id }))
+    : [0, 5, 12, 18, 28].map((v) => ({ value: v, label: `${v}% GST`, key: v }));
   const [formData, setFormData] = useState(() => {
     return {
       ...initialData,
@@ -946,8 +950,9 @@ const QuotationForm = /* @__PURE__ */ __name(({ initialData, mrData: initialMrDa
   });
   const [loading, setLoading] = useState(false);
   const [mrData, setMrData] = useState(initialMrData);
+  const supplierDropdownRef = React.useRef(null);
   const [showSupplierResults, setShowSupplierResults] = useState(false);
-  const [filteredSuppliers, setFilteredSuppliers] = useState([]);
+  const [filteredSuppliers, setFilteredSuppliers] = useState(suppliers || []);
   React.useEffect(() => {
     if (!mrData && initialData.mrId) {
       api.get(`public/mr/${initialData.mrId}`).then((res) => {
@@ -955,20 +960,34 @@ const QuotationForm = /* @__PURE__ */ __name(({ initialData, mrData: initialMrDa
       }).catch(console.error);
     }
   }, [initialData.mrId, mrData]);
+  React.useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (supplierDropdownRef.current && !supplierDropdownRef.current.contains(e.target)) {
+        setShowSupplierResults(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
   const handleSupplierSearch = /* @__PURE__ */ __name(async (val) => {
     setFormData({ ...formData, supplierName: val });
-    if (val.length > 1) {
-      try {
-        const res = await api.get("public/suppliers", { search: val });
-        if (res.success) {
-          setFilteredSuppliers(res.data);
-          setShowSupplierResults(true);
-        }
-      } catch (err) {
-        console.error("Supplier search failed", err);
-      }
+    if (val.length === 0) {
+      setFilteredSuppliers(suppliers || []);
+      setShowSupplierResults((suppliers || []).length > 0);
     } else {
-      setShowSupplierResults(false);
+      const local = (suppliers || []).filter(
+        (s) => (s.companyName || s.name || "").toLowerCase().includes(val.toLowerCase())
+      );
+      setFilteredSuppliers(local);
+      setShowSupplierResults(true);
+      if (local.length === 0) {
+        try {
+          const res = await api.get("public/suppliers", { search: val });
+          if (res.success) setFilteredSuppliers(res.data);
+        } catch (err) {
+          console.error("Supplier search failed", err);
+        }
+      }
     }
   }, "handleSupplierSearch");
   const selectSupplier = /* @__PURE__ */ __name((s) => {
@@ -1021,6 +1040,7 @@ const QuotationForm = /* @__PURE__ */ __name(({ initialData, mrData: initialMrDa
       await onSave(formData);
     } catch (error) {
       console.error(error);
+      toast.error(error?.message || "Failed to save quotation");
     } finally {
       setLoading(false);
     }
@@ -1070,43 +1090,46 @@ const QuotationForm = /* @__PURE__ */ __name(({ initialData, mrData: initialMrDa
               <h3 className="text-xs font-bold text-gray-900 dark:text-white tracking-widest">Supplier details</h3>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
-              <div className="relative lg:col-span-2">
-                <div className="space-y-1.5">
-                  <label className="text-[10px] font-bold text-gray-400 tracking-widest px-1">Search Company / Firm Name *</label>
-                  <input
-    type="text"
+              <div className="relative lg:col-span-2" ref={supplierDropdownRef}>
+                <Field
+    label="Search Company / Firm Name *"
+    placeholder="Type to search your registered name..."
     value={formData.supplierName || ""}
     onChange={(e) => handleSupplierSearch(e.target.value)}
-    onFocus={() => (formData.supplierName || "").length > 1 && setShowSupplierResults(true)}
-    placeholder="Type to search your registered name..."
-    className="w-full bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-700 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-orange-500/20 transition-all font-semibold h-12"
+    onFocus={() => {
+      if ((formData.supplierName || "").length === 0 && (suppliers || []).length > 0) {
+        setFilteredSuppliers(suppliers);
+        setShowSupplierResults(true);
+      } else if ((formData.supplierName || "").length > 0) {
+        setShowSupplierResults(true);
+      }
+    }}
     required
-    autoComplete="off"
+    className="h-12 text-base font-semibold"
   />
-                  <AnimatePresence>
-                    {showSupplierResults && filteredSuppliers.length > 0 && <motion.div
+                <AnimatePresence>
+                  {showSupplierResults && filteredSuppliers.length > 0 && <motion.div
     initial={{ opacity: 0, y: -10, scale: 0.98 }}
     animate={{ opacity: 1, y: 0, scale: 1 }}
     exit={{ opacity: 0, y: -10, scale: 0.98 }}
     className="absolute z-50 w-full mt-2 bg-white dark:bg-[#1E293B] border border-gray-100 dark:border-gray-700 rounded-2xl shadow-2xl max-h-80 overflow-y-auto backdrop-blur-xl"
   >
-                        {filteredSuppliers.map((s) => <button
+                      {filteredSuppliers.map((s) => <button
     key={s.id || s._id}
     type="button"
     onClick={() => selectSupplier(s)}
     className="w-full text-left px-5 py-4 hover:bg-orange-50/50 dark:hover:bg-orange-500/5 border-b border-gray-50 dark:border-gray-700 last:border-0 transition-all flex items-center gap-4 group"
   >
-                            <div className="p-2 bg-gray-50 dark:bg-gray-800 rounded-lg group-hover:bg-orange-100 dark:group-hover:bg-orange-500/20 transition-colors">
-                              <Building2 className="w-5 h-5 text-orange-500" />
-                            </div>
-                            <div>
-                              <p className="text-sm font-bold text-gray-900 dark:text-white group-hover:text-orange-600 dark:group-hover:text-orange-400 transition-colors">{s.companyName || s.name}</p>
-                              <p className="text-[10px] text-gray-400 font-semibold tracking-widest mt-0.5">{s.ownerName || s.contact} &bull; {s.mobile || s.phone}</p>
-                            </div>
-                          </button>)}
-                      </motion.div>}
-                  </AnimatePresence>
-                </div>
+                          <div className="p-2 bg-gray-50 dark:bg-gray-800 rounded-lg group-hover:bg-orange-100 dark:group-hover:bg-orange-500/20 transition-colors">
+                            <Building2 className="w-5 h-5 text-orange-500" />
+                          </div>
+                          <div>
+                            <p className="text-sm font-bold text-gray-900 dark:text-white group-hover:text-orange-600 dark:group-hover:text-orange-400 transition-colors">{s.companyName || s.name}</p>
+                            <p className="text-[10px] text-gray-400 font-semibold tracking-widest mt-0.5">{s.ownerName || s.contact} &bull; {s.mobile || s.phone}</p>
+                          </div>
+                        </button>)}
+                    </motion.div>}
+                </AnimatePresence>
               </div>
               <div className="space-y-1.5">
                 <div className="h-12 mt-0">
@@ -1435,7 +1458,7 @@ const ConfirmModal = /* @__PURE__ */ __name(({ title, message, onConfirm, onCanc
       </div>
     </div>
   </Modal>, "ConfirmModal");
-const Field = /* @__PURE__ */ __name(({ label, value, onChange, placeholder, type = "text", required = false, small = false, icon: Icon }) => <div className={`space-y-1 ${small ? "mb-0" : "mb-4"}`}>
+const Field = /* @__PURE__ */ __name(({ label, value, onChange, onFocus, placeholder, type = "text", required = false, small = false, icon: Icon, className = "" }) => <div className={`space-y-1 ${small ? "mb-0" : "mb-4"}`}>
     {label && <label className={`block font-black text-gray-500 tracking-widest ${small ? "text-[10px]" : "text-[11px] ml-1"}`}>
         {label} {required && <span className="text-red-500">*</span>}
       </label>}
@@ -1447,12 +1470,14 @@ const Field = /* @__PURE__ */ __name(({ label, value, onChange, placeholder, typ
   type={type}
   value={value}
   onChange={onChange}
+  onFocus={onFocus}
   placeholder={placeholder}
   required={required}
   className={cn(
     "w-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl transition-all focus:ring-2 focus:ring-primary/20 focus:border-primary font-bold outline-none",
     small ? "px-3 py-1.5 text-xs" : "px-4 py-3 text-sm",
-    Icon && "pl-10"
+    Icon && "pl-10",
+    className
   )}
 />
     </div>
