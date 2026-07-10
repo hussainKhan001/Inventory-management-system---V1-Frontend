@@ -143,7 +143,15 @@ const PublicOutward = /* @__PURE__ */ __name(() => {
       form.items.forEach((item, idx) => {
         if (!item.qty || item.qty <= 0) newErrors[`item_${idx}_qty`] = `Item ${idx + 1}: Quantity is required`;
         const inv = inventory.find((i) => i.sku === item.sku);
-        if (inv && item.qty > inv.liveStock) newErrors[`item_${idx}_qty`] = `Item ${idx + 1}: Max available is ${inv.liveStock}`;
+        if (inv) {
+          const site = inv.sites?.find((s) => s.name === form.store);
+          const available = site
+            ? Number(site.liveStock || 0)
+            : inv.sites?.length > 0
+            ? inv.sites.reduce((sum, s) => sum + (Number(s.liveStock) || 0), 0)
+            : Number(inv.liveStock || 0);
+          if (item.qty > available) newErrors[`item_${idx}_qty`] = `Item ${idx + 1}: Max available is ${available}`;
+        }
       });
     }
     setErrors(newErrors);
