@@ -3,6 +3,7 @@ var __name = (target, value) => __defProp(target, "name", { value, configurable:
 import { useState, useRef } from "react";
 import { useAppStore } from "../store";
 import { PageHeader, Card, Btn, Field } from "../components/ui";
+import { FormBuilder } from "../components/FormBuilder";
 import {
   Settings as SettingsIcon,
   ShieldAlert,
@@ -22,10 +23,6 @@ import {
   Coins,
   Pencil,
   Layout,
-  Eye,
-  EyeOff,
-  ToggleLeft,
-  ToggleRight,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 const ListManager = /* @__PURE__ */ __name(({
@@ -171,11 +168,6 @@ const SettingsPage = /* @__PURE__ */ __name(() => {
     gstRates,
     addGSTRate,
     removeGSTRate,
-    formConfigs,
-    updateFormConfig,
-    addFormCustomField,
-    removeFormCustomField,
-    resetFormConfig,
   } = useAppStore();
   const isSuperAdmin = role === "Super Admin";
   const [activeTab, setActiveTab] = useState("branding");
@@ -193,11 +185,6 @@ const SettingsPage = /* @__PURE__ */ __name(() => {
   const [editCompanyDraft, setEditCompanyDraft] = useState({ name: "", gstin: "", address: "" });
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [uploadingFavicon, setUploadingFavicon] = useState(false);
-  const [fbFormId, setFbFormId] = useState(null);
-  const [fbFields, setFbFields] = useState([]);
-  const [fbDirty, setFbDirty] = useState(false);
-  const [fbAddOpen, setFbAddOpen] = useState(false);
-  const [fbNewField, setFbNewField] = useState({ label: "", fieldId: "", type: "text", required: false, optionsRaw: "" });
   const logoInputRef = useRef(null);
   const faviconInputRef = useRef(null);
   const getEffectiveList = /* @__PURE__ */ __name((listKey) => {
@@ -1041,239 +1028,7 @@ const SettingsPage = /* @__PURE__ */ __name(() => {
         </Card>}
 
       {activeTab === "form-builder" && <div className="animate-in fade-in slide-in-from-bottom-4 duration-300">
-        <div className="flex gap-6">
-          {/* Left: form list grouped by section */}
-          <div className="w-56 shrink-0 space-y-5">
-            {Object.entries(
-              formConfigs.reduce((acc, f) => { (acc[f.section] = acc[f.section] || []).push(f); return acc; }, {})
-            ).map(([section, forms]) => (
-              <div key={section}>
-                <p className="text-[10px] font-bold tracking-widest uppercase text-gray-400 dark:text-gray-500 px-2 mb-1.5">{section}</p>
-                <div className="space-y-0.5">
-                  {forms.map(f => (
-                    <button
-                      key={f.formId}
-                      onClick={() => { setFbFormId(f.formId); setFbFields(f.fields.map(x => ({ ...x }))); setFbDirty(false); setFbAddOpen(false); }}
-                      className={`w-full text-left px-3 py-2 rounded-lg text-sm font-medium transition-all ${fbFormId === f.formId ? "bg-primary/10 text-primary border border-primary/20" : "text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800/40 border border-transparent"}`}
-                    >
-                      {f.formName}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            ))}
-            {formConfigs.length === 0 && <p className="text-xs text-gray-400 px-2">No form configs loaded yet.</p>}
-          </div>
-
-          {/* Right: field editor */}
-          <div className="flex-1 min-w-0">
-            {!fbFormId
-              ? <div className="flex flex-col items-center justify-center h-48 text-gray-400 dark:text-gray-600 gap-2">
-                  <Layout className="w-8 h-8 opacity-30" />
-                  <p className="text-sm">Select a form from the left to configure its fields</p>
-                </div>
-              : <Card>
-                  {/* Header */}
-                  <div className="flex items-start justify-between mb-5">
-                    <div>
-                      <h3 className="text-base font-bold text-gray-900 dark:text-white">
-                        {formConfigs.find(c => c.formId === fbFormId)?.formName}
-                      </h3>
-                      {formConfigs.find(c => c.formId === fbFormId)?.description && (
-                        <p className="text-xs text-gray-500 mt-0.5">{formConfigs.find(c => c.formId === fbFormId)?.description}</p>
-                      )}
-                    </div>
-                    <div className="flex gap-2 shrink-0 ml-4">
-                      <Btn
-                        size="sm"
-                        label="Reset Defaults"
-                        variant="ghost"
-                        onClick={() => {
-                          if (window.confirm("Reset this form to factory defaults? All custom fields and label changes will be lost.")) {
-                            resetFormConfig(fbFormId).then(() => {
-                              const c = formConfigs.find(x => x.formId === fbFormId);
-                              if (c) setFbFields(c.fields.map(x => ({ ...x })));
-                              setFbDirty(false);
-                            });
-                          }
-                        }}
-                      />
-                      {fbDirty && (
-                        <Btn
-                          size="sm"
-                          label="Save Changes"
-                          onClick={async () => { await updateFormConfig(fbFormId, fbFields); setFbDirty(false); }}
-                          loading={actionLoading}
-                        />
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Column headers */}
-                  <div className="grid gap-3 px-3 mb-2 text-[10px] font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500" style={{ gridTemplateColumns: "1fr 70px 64px 72px 28px" }}>
-                    <span>Field Label</span>
-                    <span className="text-center">Type</span>
-                    <span className="text-center">Visible</span>
-                    <span className="text-center">Required</span>
-                    <span />
-                  </div>
-
-                  {/* Field rows */}
-                  <div className="space-y-2 mb-5">
-                    {fbFields.map((f, idx) => (
-                      <div
-                        key={f.fieldId}
-                        className={`grid gap-3 items-start px-3 py-2.5 rounded-xl transition-opacity ${f.visible === false ? "opacity-40" : ""} bg-gray-50 dark:bg-gray-800/30`}
-                        style={{ gridTemplateColumns: "1fr 70px 64px 72px 28px" }}
-                      >
-                        {/* Label */}
-                        <div>
-                          <input
-                            value={f.label}
-                            onChange={e => { const next = [...fbFields]; next[idx] = { ...f, label: e.target.value }; setFbFields(next); setFbDirty(true); }}
-                            className="w-full text-sm font-medium bg-transparent border-b border-transparent hover:border-gray-300 dark:hover:border-gray-600 focus:border-primary focus:outline-none py-0.5 text-gray-800 dark:text-gray-200 transition-colors"
-                          />
-                          {f.isCustom && <span className="text-[10px] text-primary font-medium">custom</span>}
-                          {f.type === "select" && (
-                            <div className="mt-2 space-y-1.5">
-                              <div className="flex flex-wrap gap-1">
-                                {(f.options || []).map((opt, oi) => (
-                                  <span key={oi} className="inline-flex items-center gap-1 text-[10px] bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 px-2 py-0.5 rounded-full">
-                                    {opt}
-                                    <button
-                                      onClick={() => { const next = [...fbFields]; next[idx] = { ...f, options: f.options.filter((_, i) => i !== oi) }; setFbFields(next); setFbDirty(true); }}
-                                      className="hover:text-red-500 leading-none"
-                                    >×</button>
-                                  </span>
-                                ))}
-                              </div>
-                              <form onSubmit={e => { e.preventDefault(); const v = e.target.opt.value.trim(); if (v && !(f.options || []).includes(v)) { const next = [...fbFields]; next[idx] = { ...f, options: [...(f.options || []), v] }; setFbFields(next); setFbDirty(true); } e.target.opt.value = ""; }}>
-                                <input name="opt" placeholder="Add option…" className="text-[11px] w-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg px-2 py-1 focus:outline-none focus:border-primary" />
-                              </form>
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Type */}
-                        <span className="text-center text-[11px] text-gray-400 capitalize pt-0.5">{f.type}</span>
-
-                        {/* Visible toggle */}
-                        <div className="flex justify-center pt-0.5">
-                          <button
-                            onClick={() => { const next = [...fbFields]; next[idx] = { ...f, visible: f.visible === false ? true : false }; setFbFields(next); setFbDirty(true); }}
-                            className={`transition-colors ${f.visible === false ? "text-gray-300 dark:text-gray-600" : "text-green-500"}`}
-                            title={f.visible === false ? "Hidden — click to show" : "Visible — click to hide"}
-                          >
-                            {f.visible === false ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                          </button>
-                        </div>
-
-                        {/* Required toggle */}
-                        <div className="flex justify-center pt-0.5">
-                          <button
-                            onClick={() => { const next = [...fbFields]; next[idx] = { ...f, required: !f.required }; setFbFields(next); setFbDirty(true); }}
-                            className={`transition-colors ${f.required ? "text-primary" : "text-gray-300 dark:text-gray-600"}`}
-                            title={f.required ? "Required — click to make optional" : "Optional — click to require"}
-                          >
-                            {f.required ? <ToggleRight className="w-5 h-5" /> : <ToggleLeft className="w-5 h-5" />}
-                          </button>
-                        </div>
-
-                        {/* Delete (custom only) */}
-                        <div className="flex justify-center pt-0.5">
-                          {f.isCustom && (
-                            <button
-                              onClick={() => {
-                                if (window.confirm(`Remove field "${f.label}"?`)) {
-                                  removeFormCustomField(fbFormId, f.fieldId).then(() =>
-                                    setFbFields(prev => prev.filter(x => x.fieldId !== f.fieldId))
-                                  );
-                                }
-                              }}
-                              className="text-gray-300 dark:text-gray-600 hover:text-red-500 transition-colors"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* Add custom field */}
-                  {!fbAddOpen
-                    ? <button onClick={() => setFbAddOpen(true)} className="flex items-center gap-2 text-sm text-primary hover:text-primary/80 font-medium transition-colors">
-                        <Plus className="w-4 h-4" /> Add Custom Field
-                      </button>
-                    : <div className="border border-dashed border-primary/40 rounded-xl p-4 bg-primary/5 space-y-3">
-                        <p className="text-xs font-bold text-primary">New Custom Field</p>
-                        <div className="grid grid-cols-2 gap-3">
-                          <div>
-                            <label className="text-[11px] font-medium text-gray-500 mb-1 block">Field Label *</label>
-                            <input
-                              value={fbNewField.label}
-                              onChange={e => setFbNewField(p => ({ ...p, label: e.target.value }))}
-                              placeholder="e.g. Invoice Reference"
-                              className="w-full text-sm border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-lg px-3 py-2 focus:outline-none focus:border-primary"
-                            />
-                          </div>
-                          <div>
-                            <label className="text-[11px] font-medium text-gray-500 mb-1 block">Field ID * <span className="text-gray-400 font-normal">(unique, no spaces)</span></label>
-                            <input
-                              value={fbNewField.fieldId}
-                              onChange={e => setFbNewField(p => ({ ...p, fieldId: e.target.value.replace(/\s+/g, "_").toLowerCase() }))}
-                              placeholder="e.g. invoice_ref"
-                              className="w-full text-sm border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-lg px-3 py-2 focus:outline-none focus:border-primary font-mono"
-                            />
-                          </div>
-                          <div>
-                            <label className="text-[11px] font-medium text-gray-500 mb-1 block">Type</label>
-                            <select
-                              value={fbNewField.type}
-                              onChange={e => setFbNewField(p => ({ ...p, type: e.target.value }))}
-                              className="w-full text-sm border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-lg px-3 py-2 focus:outline-none focus:border-primary"
-                            >
-                              {["text", "number", "date", "select", "textarea", "email", "tel"].map(t => <option key={t} value={t}>{t}</option>)}
-                            </select>
-                          </div>
-                          <div className="flex items-center gap-3 pt-4">
-                            <label className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 cursor-pointer select-none">
-                              <input type="checkbox" checked={fbNewField.required} onChange={e => setFbNewField(p => ({ ...p, required: e.target.checked }))} className="rounded" />
-                              Required field
-                            </label>
-                          </div>
-                        </div>
-                        {fbNewField.type === "select" && (
-                          <div>
-                            <label className="text-[11px] font-medium text-gray-500 mb-1 block">Options <span className="text-gray-400 font-normal">(comma-separated)</span></label>
-                            <input
-                              value={fbNewField.optionsRaw}
-                              onChange={e => setFbNewField(p => ({ ...p, optionsRaw: e.target.value }))}
-                              placeholder="Option A, Option B, Option C"
-                              className="w-full text-sm border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-lg px-3 py-2 focus:outline-none focus:border-primary"
-                            />
-                          </div>
-                        )}
-                        <div className="flex gap-2 pt-1">
-                          <Btn
-                            size="sm"
-                            label="Add Field"
-                            loading={actionLoading}
-                            onClick={async () => {
-                              if (!fbNewField.label.trim() || !fbNewField.fieldId.trim()) { toast.error("Label and Field ID are required"); return; }
-                              const options = fbNewField.type === "select" ? (fbNewField.optionsRaw || "").split(",").map(o => o.trim()).filter(Boolean) : [];
-                              await addFormCustomField(fbFormId, { fieldId: fbNewField.fieldId, label: fbNewField.label, type: fbNewField.type, required: fbNewField.required, options });
-                              setFbFields(prev => [...prev, { fieldId: fbNewField.fieldId, label: fbNewField.label, type: fbNewField.type, required: fbNewField.required, visible: true, isCustom: true, options }]);
-                              setFbNewField({ label: "", fieldId: "", type: "text", required: false, optionsRaw: "" });
-                              setFbAddOpen(false);
-                            }}
-                          />
-                          <Btn size="sm" label="Cancel" variant="ghost" onClick={() => setFbAddOpen(false)} />
-                        </div>
-                      </div>}
-                </Card>}
-          </div>
-        </div>
+        <FormBuilder />
       </div>}
     </div>;
 }, "SettingsPage");

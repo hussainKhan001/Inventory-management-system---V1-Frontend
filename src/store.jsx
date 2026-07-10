@@ -1354,6 +1354,29 @@ const AppProvider = /* @__PURE__ */ __name(({ children }) => {
       setActionLoading(false);
     }
   }, "removeFormCustomField");
+  const fetchFormConfigVersions = /* @__PURE__ */ __name(async (formId) => {
+    try {
+      const res = await api.get(`form-configs/${formId}/versions`);
+      return res.data || [];
+    } catch (err) {
+      toast.error(err.message || "Failed to load versions");
+      return [];
+    }
+  }, "fetchFormConfigVersions");
+  const restoreFormConfigVersion = /* @__PURE__ */ __name(async (formId, idx) => {
+    setActionLoading(true);
+    try {
+      const res = await api.post(`form-configs/${formId}/versions/${idx}/restore`, {});
+      setFormConfigs((prev) => prev.map((c) => c.formId === formId ? res.data : c));
+      toast.success("Version restored");
+      return res.data;
+    } catch (err) {
+      toast.error(err.message || "Failed to restore version");
+      throw err;
+    } finally {
+      setActionLoading(false);
+    }
+  }, "restoreFormConfigVersion");
   const resetFormConfig = /* @__PURE__ */ __name(async (formId) => {
     setActionLoading(true);
     try {
@@ -1711,6 +1734,8 @@ const AppProvider = /* @__PURE__ */ __name(({ children }) => {
       addFormCustomField,
       removeFormCustomField,
       resetFormConfig,
+      fetchFormConfigVersions,
+      restoreFormConfigVersion,
       gstRates,
       fetchGSTRates,
       addGSTRate,

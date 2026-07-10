@@ -3,8 +3,8 @@ var __name = (target, value) => __defProp(target, "name", { value, configurable:
 import { useState, useEffect, useMemo } from "react";
 import { useAppStore } from "../store";
 import { Card, Btn, Field, SField, SearchSelect, MultipleImageUpload } from "../components/ui";
-import { CheckCircle, Plus, Trash2, Package } from "lucide-react";
-import { genId, todayStr, scrollToError, formatDateTime } from "../utils";
+import { CheckCircle, Plus, Trash2, Package, AlertCircle, X } from "lucide-react";
+import { genId, scrollToError, formatDateTime } from "../utils";
 import { toast } from "react-hot-toast";
 const PublicInward = /* @__PURE__ */ __name(() => {
   const {
@@ -19,19 +19,23 @@ const PublicInward = /* @__PURE__ */ __name(() => {
   useEffect(() => {
     fetchResource("public-settings");
   }, [fetchResource]);
-  const { projects: PROJECTS } = settings;
-  const [inventory, setInventory] = useState([]);
-  const [loadingField, setLoadingField] = useState(null);
-  const [form, setForm] = useState({
+  const { projects: PROJECTS, sites: SITES } = settings;
+  const COMBINED_STORES = (SITES || []).map(s => s.siteName);
+  const INITIAL_FORM = {
     project: "",
     otherProjectName: "",
+    store: "",
     supplier: "",
     date: (/* @__PURE__ */ new Date()).toISOString(),
     items: [],
     challanNo: "",
+    gatePassNo: "",
     challanPhotos: [],
     condition: "New"
-  });
+  };
+  const [inventory, setInventory] = useState([]);
+  const [loadingField, setLoadingField] = useState(null);
+  const [form, setForm] = useState(INITIAL_FORM);
   const [errors, setErrors] = useState({});
   const [submitted, setSubmitted] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -58,11 +62,7 @@ const PublicInward = /* @__PURE__ */ __name(() => {
         const existingSkus = new Set(merged.map((i) => i.sku));
         catResults.forEach((c) => {
           if (!existingSkus.has(c.sku)) {
-            merged.push({
-              ...c,
-              liveStock: 0,
-              unit: c.uom
-            });
+            merged.push({ ...c, liveStock: 0, unit: c.uom });
           }
         });
         setInventory((prev) => {
@@ -96,19 +96,7 @@ const PublicInward = /* @__PURE__ */ __name(() => {
     }
   }, [errors]);
   const addItem = /* @__PURE__ */ __name(() => {
-    const newItem = {
-      sku: "",
-      itemName: "",
-      qty: 0,
-      unit: "NOS",
-      category: "",
-      liveStock: 0,
-      remarks: "",
-      images: [],
-      mrNo: "",
-      condition: "New"
-    };
-    setForm((prev) => ({ ...prev, items: [...prev.items || [], newItem] }));
+    setForm((prev) => ({ ...prev, items: [...prev.items || [], { sku: "", itemName: "", qty: 0, unit: "NOS", category: "", liveStock: 0, remarks: "", images: [], mrNo: "", condition: "New" }] }));
   }, "addItem");
   const removeItem = /* @__PURE__ */ __name((index) => {
     const items = [...form.items || []];
@@ -119,14 +107,7 @@ const PublicInward = /* @__PURE__ */ __name(() => {
     const inv = inventory.find((i) => i.sku === sku);
     if (!inv) return;
     const items = [...form.items || []];
-    items[index] = {
-      ...items[index],
-      sku,
-      itemName: inv.itemName,
-      unit: inv.unit,
-      category: inv.category,
-      liveStock: inv.liveStock
-    };
+    items[index] = { ...items[index], sku, itemName: inv.itemName, unit: inv.unit, category: inv.category, liveStock: inv.liveStock };
     setForm((prev) => ({ ...prev, items }));
   }, "handleRowItemSelect");
   const updateItem = /* @__PURE__ */ __name((index, data) => {
@@ -134,49 +115,19 @@ const PublicInward = /* @__PURE__ */ __name(() => {
     items[index] = { ...items[index], ...data };
     setForm((prev) => ({ ...prev, items }));
   }, "updateItem");
-  const handleImageUpload = /* @__PURE__ */ __name(async (index, file) => {
-    setLoadingField(`item-img-${index}`);
-    try {
-      const res = await uploadPublicImage(file);
-      if (!res || !res.url) throw new Error("Invalid response from server");
-      const url = res.url;
-      const items = [...form.items || []];
-      items[index] = {
-        ...items[index],
-        images: [...items[index].images || [], url]
-      };
-      setForm((prev) => ({ ...prev, items }));
-    } catch (error) {
-      console.error("Item image upload failed:", error);
-      throw error;
-    } finally {
-      setLoadingField(null);
-    }
-  }, "handleImageUpload");
-  const handleRemoveImage = /* @__PURE__ */ __name((itemIndex, imgIndex) => {
-    const items = [...form.items || []];
-    items[itemIndex].images = items[itemIndex].images.filter((_, i) => i !== imgIndex);
-    setForm((prev) => ({ ...prev, items }));
-  }, "handleRemoveImage");
   const validateForm = /* @__PURE__ */ __name(() => {
     const newErrors = {};
     if (!form.project) newErrors.project = "Project is required";
-    if (form.project === "Other" && !form.otherProjectName) {
-      newErrors.otherProjectName = "Project Name is required";
-    }
-    if (!form.supplier) newErrors.supplier = "Supplier is required";
+    if (form.project === "Other" && !form.otherProjectName) newErrors.otherProjectName = "Project Name is required";
+    if (!form.store) newErrors.store = "Store / Godown is required";
     if (!form.challanNo) newErrors.challanNo = "Challan No is required";
-    if (!form.challanPhotos || form.challanPhotos.length === 0) {
-      newErrors.challanPhotos = "Challan Photo is required";
-    }
+    if (!form.challanPhotos || form.challanPhotos.length === 0) newErrors.challanPhotos = "Challan Photo is required";
     if (!form.items || form.items.length === 0) {
       toast.error("Please add at least one item");
       return false;
     }
     form.items.forEach((item, idx) => {
-      if (!item.qty || item.qty <= 0) {
-        newErrors[`item_${idx}_qty`] = "Required";
-      }
+      if (!item.qty || item.qty <= 0) newErrors[`item_${idx}_qty`] = "Required";
     });
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -194,8 +145,6 @@ const PublicInward = /* @__PURE__ */ __name(() => {
       mrNo: form.items?.[0]?.mrNo || "",
       materialPhotoUrl: form.items?.[0]?.images?.[0] || "",
       challanPhotoUrl: form.challanPhotos?.[0] || "",
-      // Map items to match backend schema expectations if needed, 
-      // but backend now supports items array directly.
       items: form.items?.map((item) => ({
         ...item,
         received: Number(item.qty),
@@ -215,12 +164,12 @@ const PublicInward = /* @__PURE__ */ __name(() => {
     }
   }, "handleSubmit");
   if (loading) {
-    return <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
-        <div className="w-12 h-12 border-4 border-orange-500 border-t-transparent rounded-full animate-spin" />
+    return <div className="min-h-screen bg-gray-50 dark:bg-gray-950 flex items-center justify-center">
+        <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin" />
       </div>;
   }
   if (submitted) {
-    return <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center p-4">
+    return <div className="min-h-screen bg-gray-50 dark:bg-gray-950 flex items-center justify-center p-4">
         <Card className="max-w-md w-full p-8 text-center space-y-4">
           <div className="flex justify-center">
             <div className="w-16 h-16 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center">
@@ -228,48 +177,28 @@ const PublicInward = /* @__PURE__ */ __name(() => {
             </div>
           </div>
           <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Submission Successful!</h2>
-          <p className="text-gray-600 dark:text-gray-400">
-            Your inward transaction has been recorded in the system.
-          </p>
-          
-          <Btn
-      label="Submit Another"
-      className="w-full"
-      onClick={() => {
-        setSubmitted(false);
-        setForm({
-          project: "",
-          supplier: "",
-          challanNo: "",
-          mrNo: "",
-          date: todayStr(),
-          items: [],
-          challanPhotos: [],
-          condition: "New"
-        });
-        setErrors({});
-      }}
-    />
+          <p className="text-gray-600 dark:text-gray-400">Your inward transaction has been recorded in the system.</p>
+          <Btn label="Submit Another" className="w-full" onClick={() => { setSubmitted(false); setForm(INITIAL_FORM); setErrors({}); }} />
         </Card>
       </div>;
   }
-  return <div className="min-h-screen bg-gray-50 dark:bg-gray-900 py-12 px-4 sm:px-6 lg:px-8 font-sans">
+  return <div className="min-h-screen bg-gray-50 dark:bg-gray-950 py-12 px-4 sm:px-6 lg:px-8 font-sans">
       <div className="max-w-4xl mx-auto">
-        <div className="text-center mb-8">
-          <h1 className="text-3xl font-extrabold text-gray-900 dark:text-white tracking-tight">Material Inward Form</h1>
-          <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">Record materials received at the site (Public Portal)</p>
+        <div className="mb-8">
+          <p className="text-[11px] font-bold tracking-[0.15em] text-primary uppercase mb-1">Public Portal</p>
+          <h1 className="text-2xl font-extrabold text-gray-900 dark:text-white tracking-tight">New Inward Transaction</h1>
+          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Record materials received at the site</p>
         </div>
 
-        <Card className="p-6 sm:p-8 space-y-8">
-          <div className="space-y-6">
-            {errors.form && <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-red-600 dark:text-red-400 text-[13px]">
+        <Card topBar className="p-6 sm:p-8">
+          <div className="space-y-6 pb-4">
+            {errors.form && <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-900/30 rounded-xl flex items-center gap-3 text-red-600 dark:text-red-400 text-sm font-bold">
+                <AlertCircle className="w-5 h-5" />
                 {errors.form}
               </div>}
 
-            <div className="pt-4 border-t border-gray-100 dark:border-gray-800 space-y-6">
-              <label className="text-[11px] font-bold text-gray-500 tracking-widest">1. Transaction details</label>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-6">
                 <SField
     label="Project *"
     value={form.project}
@@ -285,31 +214,19 @@ const PublicInward = /* @__PURE__ */ __name(() => {
     required
     error={errors.otherProjectName}
   />}
+                <SField
+    label="Store / Godown *"
+    value={form.store}
+    onChange={(e) => setForm((prev) => ({ ...prev, store: e.target.value }))}
+    options={COMBINED_STORES}
+    required
+    error={errors.store}
+  />
                 <Field
-    label="Supplier Name *"
+    label="Supplier"
     value={form.supplier}
     onChange={(e) => setForm((prev) => ({ ...prev, supplier: e.target.value }))}
-    required
-    error={errors.supplier}
   />
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <Field
-    label="Date"
-    value={formatDateTime(form.date)}
-    disabled
-  />
-                <SField
-    label="Condition *"
-    value={form.condition}
-    onChange={(e) => setForm((prev) => ({ ...prev, condition: e.target.value }))}
-    options={["New", "Good", "Needs Repair", "Damaged"]}
-    required
-  />
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <Field
     label="Challan / Invoice No. *"
     value={form.challanNo}
@@ -317,87 +234,90 @@ const PublicInward = /* @__PURE__ */ __name(() => {
     required
     error={errors.challanNo}
   />
-                <div />
+                <Field
+    label="Gate Pass No. (Optional)"
+    value={form.gatePassNo}
+    onChange={(e) => setForm((prev) => ({ ...prev, gatePassNo: e.target.value }))}
+  />
               </div>
 
-              <div className="space-y-2">
+              <div className="space-y-6">
+                <div>
+                  <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Transaction Date</p>
+                  <p className="text-[13px] font-bold text-gray-900 dark:text-white px-4 py-2.5 bg-gray-50 dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700">
+                    {formatDateTime(form.date)}
+                  </p>
+                </div>
                 <MultipleImageUpload
     id="common-challan-upload"
     label="Challan / Invoice Photos *"
-    onUpload={(urls) => setForm((prev) => ({
-      ...prev,
-      challanPhotos: [...prev.challanPhotos || [], ...urls]
-    }))}
+    onUpload={(urls) => setForm((prev) => ({ ...prev, challanPhotos: [...prev.challanPhotos || [], ...urls] }))}
     values={form.challanPhotos || []}
     onRemove={(imgIdx) => {
       const newPhotos = (form.challanPhotos || []).filter((_, i) => i !== imgIdx);
       setForm((prev) => ({ ...prev, challanPhotos: newPhotos }));
     }}
+    small
     onUploadingChange={setIsUploading}
     error={errors.challanPhotos}
   />
               </div>
             </div>
 
-            <div className="pt-6 border-t border-gray-100 dark:border-gray-800 space-y-4">
+            <div className="space-y-4 pt-6 border-t border-gray-100 dark:border-gray-800">
               <div className="flex items-center justify-between">
-                <label className="text-[11px] font-bold text-gray-500 tracking-widest">2. Items to inward *</label>
+                <h3 className="text-sm font-bold text-gray-900 dark:text-white">Items List</h3>
                 <Btn
-    label="Add item"
+    label="Add Item"
     icon={Plus}
-    variant="outline"
-    size="sm"
+    outline
+    small
     onClick={addItem}
   />
               </div>
 
               <div className="space-y-4">
                 {form.items && form.items.length > 0 ? <>
-                    {
-    /* Mobile View: Card List */
-  }
-                    <div className="grid grid-cols-1 gap-4 md:hidden">
-                      {form.items.map((item, idx) => <Card key={idx} className="p-4 border-l-4 border-l-orange-500 bg-gray-50/50 dark:bg-gray-800/30 space-y-4 relative">
+                    <div className="grid grid-cols-1 gap-6 md:hidden">
+                      {form.items.map((item, idx) => <Card key={idx} className="p-4 space-y-4 relative bg-gray-50 dark:bg-gray-800/50">
                           <button
     onClick={() => removeItem(idx)}
-    className="absolute top-2 right-2 p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-full transition-all"
+    className="absolute top-2 right-2 p-1 text-gray-400 hover:text-red-500 transition-all"
   >
-                            <Trash2 className="w-4 h-4" />
+                            <X className="w-4 h-4" />
                           </button>
-                          
-                          <div className="space-y-3">
+                          <div className="space-y-4 pt-2">
                             <SearchSelect
-    label="Item Search *"
+    label="Search Material *"
     options={inventoryOptions}
     value={item.sku}
     onChange={(val) => handleRowItemSelect(idx, val)}
     onSearch={(val) => setSearchItemVal(val)}
-    placeholder="Search item..."
+    placeholder="Start typing material name..."
     error={errors[`item_${idx}_sku`]}
   />
-                            
-                              <div className="grid grid-cols-3 gap-3">
-                                <Field
+                            <div className="grid grid-cols-2 gap-4">
+                              <Field
     label="Quantity *"
     value={item.qty}
-    onChange={(e) => updateItem(idx, { qty: e.target.value })}
+    onChange={(e) => updateItem(idx, { qty: Number(e.target.value) })}
     type="number"
     placeholder="0"
     error={errors[`item_${idx}_qty`]}
   />
-                                <Field
-    label="Unit"
-    value={item.unit}
-    disabled
-  />
-                                <Field
+                              <div className="space-y-1">
+                                <p className="text-[11px] font-bold text-gray-500 tracking-wider mb-1">Unit</p>
+                                <div className="px-4 py-2.5 bg-gray-100 dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 text-[13px] font-bold text-gray-500 text-center h-[42px] flex items-center justify-center">
+                                  {item.unit}
+                                </div>
+                              </div>
+                            </div>
+                            <Field
     label="MR No."
     value={item.mrNo}
     onChange={(e) => updateItem(idx, { mrNo: e.target.value })}
-    placeholder="MR No."
+    placeholder="MR-XXXX"
   />
-                              </div>
-
                             <MultipleImageUpload
     id={`item-photos-mob-${idx}`}
     label="Material Photos"
@@ -414,58 +334,59 @@ const PublicInward = /* @__PURE__ */ __name(() => {
                         </Card>)}
                     </div>
 
-                    {
-    /* Desktop View: Table */
-  }
                     <div className="hidden md:block overflow-visible">
-                      <table className="w-full border-collapse min-w-[600px]">
-                        <thead>
-                          <tr className="text-left border-b border-gray-100 dark:border-gray-800">
-                            <th className="pb-2 text-[10px] font-bold text-gray-400 tracking-wider w-[30%]">Item search *</th>
-                            <th className="pb-2 text-[10px] font-bold text-gray-400 tracking-wider w-[10%]">Qty *</th>
-                            <th className="pb-2 text-[10px] font-bold text-gray-400 tracking-wider w-[10%]">Unit</th>
-                            <th className="pb-2 text-[10px] font-bold text-gray-400 tracking-wider w-[15%]">Mr no.</th>
-                            <th className="pb-2 text-[10px] font-bold text-gray-400 tracking-wider w-[27%]">Material photos</th>
-                            <th className="pb-2 text-[10px] font-bold text-gray-400 tracking-wider w-[8%] text-center">Action</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-50 dark:divide-gray-800/50">
-                          {form.items.map((item, idx) => <tr key={idx} className="group">
-                              <td className="py-3 pr-2 align-top">
-                                <SearchSelect
+                      <div className="overflow-visible rounded-xl border border-gray-200 dark:border-gray-800">
+                        <table className="w-full border-collapse">
+                          <thead>
+                            <tr className="bg-gray-50 dark:bg-gray-800/50 border-b border-gray-200 dark:border-gray-800 [&>th:first-child]:rounded-tl-[11px] [&>th:last-child]:rounded-tr-[11px]">
+                              <th className="px-4 py-3 text-[11px] font-bold text-gray-500 dark:text-gray-400 text-left w-[28%]">Material Description *</th>
+                              <th className="px-4 py-3 text-[11px] font-bold text-gray-500 dark:text-gray-400 text-right w-[12%]">Qty *</th>
+                              <th className="px-4 py-3 text-[11px] font-bold text-gray-500 dark:text-gray-400 text-center w-[10%]">Unit</th>
+                              <th className="px-4 py-3 text-[11px] font-bold text-gray-500 dark:text-gray-400 w-[15%]">MR No.</th>
+                              <th className="px-4 py-3 text-[11px] font-bold text-gray-500 dark:text-gray-400 w-[25%]">Photos</th>
+                              <th className="px-4 py-3 text-[11px] font-bold text-gray-500 dark:text-gray-400 w-10 text-center" />
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+                            {form.items.map((item, idx) => <tr key={idx} className="group hover:bg-gray-50/50 dark:hover:bg-gray-800/20 transition-all">
+                                <td className="px-6 py-5 align-top">
+                                  <SearchSelect
     options={inventoryOptions}
     value={item.sku}
     onChange={(val) => handleRowItemSelect(idx, val)}
     onSearch={(val) => setSearchItemVal(val)}
-    placeholder="Search item..."
+    placeholder="Search Material..."
     small
     error={errors[`item_${idx}_sku`]}
   />
-                              </td>
-                              <td className="py-3 pr-2 align-top">
-                                <Field
-    value={item.qty}
-    onChange={(e) => updateItem(idx, { qty: e.target.value })}
+                                  {item.itemName && <div className="mt-1 px-2 py-0.5 bg-orange-50 dark:bg-orange-900/10 border border-orange-100 dark:border-orange-900/20 rounded text-[10px] tracking-wider font-extrabold text-orange-600 dark:text-orange-400">
+                                      {item.itemName}
+                                    </div>}
+                                </td>
+                                <td className="px-4 py-5 align-top">
+                                  <input
     type="number"
+    value={item.qty || 0}
+    onChange={(e) => updateItem(idx, { qty: Number(e.target.value) })}
     placeholder="0"
-    error={errors[`item_${idx}_qty`]}
+    className="w-full px-2 py-2 bg-white dark:bg-gray-900 border-2 border-gray-100 dark:border-gray-800 rounded-xl text-[14px] font-black text-center sm:text-right focus:outline-none focus:border-orange-500 transition-all shadow-sm [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
   />
-                              </td>
-                              <td className="py-3 pr-2 align-top">
-                                <Field
-    value={item.unit}
-    disabled
-  />
-                              </td>
-                              <td className="py-3 pr-2 align-top">
-                                <Field
-    value={item.mrNo}
+                                </td>
+                                <td className="px-6 py-5 align-top">
+                                  <div className="px-3 py-2 bg-gray-100 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-xl text-[11px] font-bold text-gray-500 text-center mt-0.5">
+                                    {item.unit}
+                                  </div>
+                                </td>
+                                <td className="px-6 py-5 align-top">
+                                  <input
+    value={item.mrNo || ""}
     onChange={(e) => updateItem(idx, { mrNo: e.target.value })}
-    placeholder="MR No."
+    placeholder="MR-XXXX"
+    className="w-full px-3 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-[13px] font-bold text-orange-600 focus:outline-none focus:ring-2 focus:ring-[#F97316]/20"
   />
-                              </td>
-                              <td className="py-3 pr-2 align-top">
-                                <MultipleImageUpload
+                                </td>
+                                <td className="px-4 py-5 align-top">
+                                  <MultipleImageUpload
     id={`item-photos-${idx}`}
     label=""
     onUpload={(urls) => updateItem(idx, { images: [...item.images || [], ...urls] })}
@@ -477,32 +398,44 @@ const PublicInward = /* @__PURE__ */ __name(() => {
     small
     onUploadingChange={setIsUploading}
   />
-                              </td>
-                              <td className="py-3 text-center align-top">
-                                <button
+                                </td>
+                                <td className="px-6 py-5 text-center align-top">
+                                  <button
     onClick={() => removeItem(idx)}
-    className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-all"
+    className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl transition-all"
   >
-                                  <Trash2 className="w-4 h-4" />
-                                </button>
-                              </td>
-                            </tr>)}
-                        </tbody>
-                      </table>
+                                    <Trash2 className="w-4 h-5" />
+                                  </button>
+                                </td>
+                              </tr>)}
+                          </tbody>
+                        </table>
+                      </div>
                     </div>
-                  </> : <div className="text-center py-12 border-2 border-dashed border-gray-100 dark:border-gray-800 rounded-xl">
-                    <Package className="w-12 h-12 text-gray-200 dark:text-gray-700 mx-auto mb-3" />
-                    <p className="text-sm text-gray-500">No items added yet. Click "Add Item" to start.</p>
+                  </> : <div className="text-center py-20 border-2 border-dashed border-gray-200 dark:border-gray-800 rounded-3xl bg-gray-50/30 dark:bg-[#0F172A]/50">
+                    <div className="w-16 h-16 bg-white dark:bg-[#1E293B] rounded-2xl shadow-sm flex items-center justify-center mx-auto mb-4 border border-gray-100 dark:border-gray-700">
+                      <Package className="w-8 h-8 text-gray-300 dark:text-gray-600 animate-pulse" />
+                    </div>
+                    <h4 className="text-[14px] font-bold text-gray-900 dark:text-white mb-1">No Items Added</h4>
+                    <p className="text-xs text-gray-500">Click "Add Item" to include materials in this transaction.</p>
                   </div>}
               </div>
             </div>
 
-            <Btn
-    label={actionLoading ? "Submitting..." : isUploading ? "Uploading Images..." : "Submit Inward Record"}
-    className="w-full h-12 text-lg"
-    onClick={handleSubmit}
-    disabled={actionLoading || isUploading || !form.items?.length}
+            <div className="flex justify-end gap-3 pt-4 border-t border-gray-100 dark:border-gray-800">
+              <Btn
+    label="Discard"
+    outline
+    onClick={() => { setForm(INITIAL_FORM); setErrors({}); }}
   />
+              <Btn
+    label={actionLoading ? "Processing..." : isUploading ? "Uploading..." : "Confirm Transaction"}
+    onClick={handleSubmit}
+    loading={actionLoading || isUploading}
+    disabled={actionLoading || isUploading || !form.items?.length}
+    className="px-8"
+  />
+            </div>
           </div>
         </Card>
       </div>

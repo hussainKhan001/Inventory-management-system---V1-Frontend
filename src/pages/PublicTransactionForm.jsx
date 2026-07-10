@@ -3,8 +3,8 @@ var __name = (target, value) => __defProp(target, "name", { value, configurable:
 import { useState, useEffect, useMemo } from "react";
 import { useAppStore } from "../store";
 import { Card, Btn, Field, SField, SearchSelect, MultipleImageUpload } from "../components/ui";
-import { CheckCircle, Trash2, Plus, Package } from "lucide-react";
-import { genId, todayStr, scrollToError, formatDateTime } from "../utils";
+import { CheckCircle, Trash2, Plus, Package, AlertCircle, X } from "lucide-react";
+import { genId, scrollToError, formatDateTime } from "../utils";
 import { toast } from "react-hot-toast";
 const PublicTransactionForm = /* @__PURE__ */ __name(({ type }) => {
   const {
@@ -31,6 +31,7 @@ const PublicTransactionForm = /* @__PURE__ */ __name(({ type }) => {
   const [form, setForm] = useState({
     project: "",
     otherProjectName: "",
+    store: "",
     category: "Construction",
     supplier: "",
     personName: "",
@@ -71,11 +72,7 @@ const PublicTransactionForm = /* @__PURE__ */ __name(({ type }) => {
           const existingSkus = new Set(merged.map((i) => i.sku));
           catResults.forEach((c) => {
             if (!existingSkus.has(c.sku)) {
-              merged.push({
-                ...c,
-                liveStock: 0,
-                unit: c.uom
-              });
+              merged.push({ ...c, liveStock: 0, unit: c.uom });
             }
           });
           setInventory((prev) => {
@@ -101,6 +98,7 @@ const PublicTransactionForm = /* @__PURE__ */ __name(({ type }) => {
     setForm({
       project: "",
       otherProjectName: "",
+      store: "",
       category: "Construction",
       supplier: "",
       personName: "",
@@ -129,36 +127,11 @@ const PublicTransactionForm = /* @__PURE__ */ __name(({ type }) => {
     }
   }, [errors]);
   const addItem = /* @__PURE__ */ __name(() => {
-    const newItem = {
-      sku: "",
-      itemName: "",
-      qty: 0,
-      unit: "NOS",
-      category: "",
-      liveStock: 0,
-      remarks: "",
-      images: [],
-      mrNo: "",
-      condition: "New"
-    };
-    setForm((prev) => ({ ...prev, items: [...prev.items || [], newItem] }));
+    setForm((prev) => ({ ...prev, items: [...prev.items || [], { sku: "", itemName: "", qty: 0, unit: "NOS", category: "", liveStock: 0, remarks: "", images: [], mrNo: "", condition: "New" }] }));
   }, "addItem");
   const addMiscellaneousItem = /* @__PURE__ */ __name(() => {
     const randomNum = Math.floor(1e3 + Math.random() * 9e3);
-    const newItem = {
-      sku: `MISC/GEN/${randomNum}`,
-      itemName: "",
-      qty: 0,
-      unit: "NOS",
-      category: "",
-      liveStock: 0,
-      remarks: "",
-      images: [],
-      mrNo: "",
-      condition: "New",
-      isMiscellaneous: true
-    };
-    setForm((prev) => ({ ...prev, items: [...prev.items || [], newItem] }));
+    setForm((prev) => ({ ...prev, items: [...prev.items || [], { sku: `MISC/GEN/${randomNum}`, itemName: "", qty: 0, unit: "NOS", category: "", liveStock: 0, remarks: "", images: [], mrNo: "", condition: "New", isMiscellaneous: true }] }));
   }, "addMiscellaneousItem");
   const removeItem = /* @__PURE__ */ __name((index) => {
     const items = [...form.items || []];
@@ -169,14 +142,7 @@ const PublicTransactionForm = /* @__PURE__ */ __name(({ type }) => {
     const inv = inventory.find((i) => i.sku === sku);
     if (!inv) return;
     const items = [...form.items || []];
-    items[index] = {
-      ...items[index],
-      sku,
-      itemName: inv.itemName,
-      unit: inv.unit,
-      category: inv.category,
-      liveStock: inv.liveStock
-    };
+    items[index] = { ...items[index], sku, itemName: inv.itemName, unit: inv.unit, category: inv.category, liveStock: inv.liveStock };
     setForm((prev) => ({ ...prev, items }));
   }, "handleRowItemSelect");
   const updateItem = /* @__PURE__ */ __name((index, data) => {
@@ -184,53 +150,24 @@ const PublicTransactionForm = /* @__PURE__ */ __name(({ type }) => {
     items[index] = { ...items[index], ...data };
     setForm((prev) => ({ ...prev, items }));
   }, "updateItem");
-  const handleImageUpload = /* @__PURE__ */ __name(async (index, file) => {
-    setLoadingField(`item-img-${index}`);
-    try {
-      const res = await uploadPublicImage(file);
-      if (!res || !res.url) throw new Error("Invalid response from server");
-      const url = res.url;
-      const items = [...form.items || []];
-      items[index] = {
-        ...items[index],
-        images: [...items[index].images || [], url]
-      };
-      setForm((prev) => ({ ...prev, items }));
-    } catch (error) {
-      console.error("Item image upload failed:", error);
-      throw error;
-    } finally {
-      setLoadingField(null);
-    }
-  }, "handleImageUpload");
-  const handleRemoveImage = /* @__PURE__ */ __name((itemIndex, imgIndex) => {
-    const items = [...form.items || []];
-    items[itemIndex].images = items[itemIndex].images.filter((_, i) => i !== imgIndex);
-    setForm((prev) => ({ ...prev, items }));
-  }, "handleRemoveImage");
   const validateForm = /* @__PURE__ */ __name(() => {
     const newErrors = {};
     if (!form.project) newErrors.project = "Project is required";
-    if (form.project === "Other" && !form.otherProjectName) {
-      newErrors.otherProjectName = "Project Name is required";
+    if (form.project === "Other" && !form.otherProjectName) newErrors.otherProjectName = "Project Name is required";
+    if (!type.includes("Transfer")) {
+      if (!form.store) newErrors.store = "Store / Godown is required";
     }
     if (type.includes("Inward Return")) {
       if (!form.supplier) newErrors.supplier = "Supplier is required";
       if (!form.challanNo) newErrors.challanNo = "Challan No is required";
-      if (!form.challanPhotos || form.challanPhotos.length === 0) {
-        newErrors.challanPhotos = "Challan Photo is required";
-      }
+      if (!form.challanPhotos || form.challanPhotos.length === 0) newErrors.challanPhotos = "Challan Photo is required";
     } else if (type.includes("Outward Return")) {
       if (!form.personName) newErrors.personName = "Person Name is required";
     } else if (type.includes("Transfer")) {
       if (!form.destinationProject) newErrors.destinationProject = "Destination Project is required";
-      if (form.destinationProject === "Other" && !form.otherDestProjectName) {
-        newErrors.otherDestProjectName = "Destination Project Name is required";
-      }
+      if (form.destinationProject === "Other" && !form.otherDestProjectName) newErrors.otherDestProjectName = "Destination Project Name is required";
       if (!form.gatePassNo) newErrors.gatePassNo = "Gate Pass No. is required";
-      if (!form.personPhotos || form.personPhotos.length === 0) {
-        newErrors.personPhotos = "Gate Pass Photo is required";
-      }
+      if (!form.personPhotos || form.personPhotos.length === 0) newErrors.personPhotos = "Gate Pass Photo is required";
       if (!form.location) newErrors.location = "Location / Site is required";
     }
     if (!form.items || form.items.length === 0) {
@@ -238,15 +175,9 @@ const PublicTransactionForm = /* @__PURE__ */ __name(({ type }) => {
       return false;
     }
     form.items.forEach((item, idx) => {
-      if (item.isMiscellaneous && !item.itemName) {
-        newErrors[`item_${idx}_itemName`] = "Required";
-      }
-      if (!item.isMiscellaneous && !item.sku) {
-        newErrors[`item_${idx}_sku`] = "Required";
-      }
-      if (!item.qty || item.qty <= 0) {
-        newErrors[`item_${idx}_qty`] = "Required";
-      }
+      if (item.isMiscellaneous && !item.itemName) newErrors[`item_${idx}_itemName`] = "Required";
+      if (!item.isMiscellaneous && !item.sku) newErrors[`item_${idx}_sku`] = "Required";
+      if (!item.qty || item.qty <= 0) newErrors[`item_${idx}_qty`] = "Required";
     });
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -293,13 +224,23 @@ const PublicTransactionForm = /* @__PURE__ */ __name(({ type }) => {
       toast.error("Submission failed");
     }
   }, "handleSubmit");
+  const isTransfer = type.includes("Transfer");
+  const isInwardReturn = type.includes("Inward Return");
+  const isOutwardReturn = type.includes("Outward Return");
+  const isTransferOutward = type === "Public Transfer Outward";
+  const isTransferInward = type === "Public Transfer Inward";
+  const formTitle = isInwardReturn ? "New Inward Return Transaction" : isOutwardReturn ? "New Outward Return Transaction" : isTransferInward ? "New Transfer Inward Transaction" : "New Transfer Outward Transaction";
+  const INITIAL_RESET = {
+    project: "", otherProjectName: "", store: "", category: "Construction", supplier: "", personName: "", location: "", destinationProject: "", date: (/* @__PURE__ */ new Date()).toISOString(), items: [], personPhotoUrl: "", personPhotos: [], challanNo: "", challanPhotos: [], condition: "New",
+    gatePassNo: isTransferOutward ? genId("GP", Date.now() % 1e3) : ""
+  };
   if (loading) {
-    return <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
-        <div className="w-12 h-12 border-4 border-orange-500 border-t-transparent rounded-full animate-spin" />
+    return <div className="min-h-screen bg-gray-50 dark:bg-gray-950 flex items-center justify-center">
+        <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin" />
       </div>;
   }
   if (submitted) {
-    return <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center p-4">
+    return <div className="min-h-screen bg-gray-50 dark:bg-gray-950 flex items-center justify-center p-4">
         <Card className="max-w-md w-full p-8 text-center space-y-4">
           <div className="flex justify-center">
             <div className="w-16 h-16 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center">
@@ -307,117 +248,73 @@ const PublicTransactionForm = /* @__PURE__ */ __name(({ type }) => {
             </div>
           </div>
           <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Submission Successful!</h2>
-          <p className="text-gray-600 dark:text-gray-400">
-            Your {type} transaction has been recorded in the system.
-          </p>
-
-          <Btn
-      label="Submit Another"
-      className="w-full"
-      onClick={() => {
-        setSubmitted(false);
-        setForm({
-          project: "",
-          otherProjectName: "",
-          category: "Construction",
-          supplier: "",
-          personName: "",
-          location: "",
-          destinationProject: "",
-          date: todayStr(),
-          items: [],
-          personPhotoUrl: "",
-          personPhotos: [],
-          challanNo: "",
-          challanPhotos: [],
-          condition: "New",
-          gatePassNo: type === "Public Transfer Outward" ? genId("GP", Date.now() % 1e3) : ""
-        });
-        setErrors({});
-      }}
-    />
+          <p className="text-gray-600 dark:text-gray-400">Your {type} transaction has been recorded in the system.</p>
+          <Btn label="Submit Another" className="w-full" onClick={() => { setSubmitted(false); setForm(INITIAL_RESET); setErrors({}); }} />
         </Card>
       </div>;
   }
-  return <div className="min-h-screen bg-gray-50 dark:bg-gray-900 py-12 px-4 sm:px-6 lg:px-8 font-sans">
+  return <div className="min-h-screen bg-gray-50 dark:bg-gray-950 py-12 px-4 sm:px-6 lg:px-8 font-sans">
       <div className="max-w-4xl mx-auto">
-        <div className="text-center mb-8">
-          <h1 className="text-3xl font-extrabold text-gray-900 dark:text-white tracking-tight">{type} Form</h1>
-          <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">Record {type.toLowerCase()} at the site (Public Portal)</p>
+        <div className="mb-8">
+          <p className="text-[11px] font-bold tracking-[0.15em] text-primary uppercase mb-1">Public Portal</p>
+          <h1 className="text-2xl font-extrabold text-gray-900 dark:text-white tracking-tight">{formTitle}</h1>
+          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Record {type.toLowerCase()} at the site</p>
         </div>
 
-        <Card className="p-6 sm:p-8">
-          <div className="space-y-6">
-            {errors.form && <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-red-600 dark:text-red-400 text-[13px]">
+        <Card topBar className="p-6 sm:p-8">
+          <div className="space-y-6 pb-4">
+            {errors.form && <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-900/30 rounded-xl flex items-center gap-3 text-red-600 dark:text-red-400 text-sm font-bold">
+                <AlertCircle className="w-5 h-5" />
                 {errors.form}
               </div>}
 
-            <div className="space-y-6">
-              <h3 className="text-[13px] font-bold text-gray-900 dark:text-white tracking-wider">1. Transaction details</h3>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-6">
                 <SField
-    label={type.includes("Transfer") ? "Source Store / Godown *" : "Project *"}
+    label={isTransfer ? "Source Store / Godown *" : "Project *"}
     value={form.project}
     onChange={(e) => setForm((prev) => ({ ...prev, project: e.target.value }))}
-    options={type.includes("Transfer") ? COMBINED_STORES : PROJECTS}
+    options={isTransfer ? COMBINED_STORES : PROJECTS}
     required
     error={errors.project}
   />
-                {!type.includes("Transfer") && form.project === "Other" && <Field
+                {!isTransfer && form.project === "Other" && <Field
     label="Other Project Name *"
     value={form.otherProjectName}
     onChange={(e) => setForm((prev) => ({ ...prev, otherProjectName: e.target.value }))}
     required
     error={errors.otherProjectName}
   />}
-                {type.includes("Transfer") ? <SField
+                {isTransfer ? <SField
     label="Destination Store / Godown *"
     value={form.destinationProject}
     onChange={(e) => setForm((prev) => ({ ...prev, destinationProject: e.target.value }))}
     options={COMBINED_STORES}
     required
     error={errors.destinationProject}
-  /> : type.includes("Inward Return") ? <Field
+  /> : !isTransfer && <SField
+    label="Store / Godown *"
+    value={form.store}
+    onChange={(e) => setForm((prev) => ({ ...prev, store: e.target.value }))}
+    options={COMBINED_STORES}
+    required
+    error={errors.store}
+  />}
+                {isInwardReturn && <Field
     label="Supplier Name *"
     value={form.supplier}
     onChange={(e) => setForm((prev) => ({ ...prev, supplier: e.target.value }))}
     required
     error={errors.supplier}
-  /> : type.includes("Outward Return") ? <Field
+  />}
+                {isOutwardReturn && <Field
     label="Person Name *"
     value={form.personName}
     onChange={(e) => setForm((prev) => ({ ...prev, personName: e.target.value }))}
     required
     error={errors.personName}
-  /> : <div />}
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <Field
-    label="Transaction Date *"
-    value={formatDateTime(form.date)}
-    required
-    disabled
-  />
-                {(type.includes("Inward Return") || type.includes("Outward Return") || type === "Public Transfer Outward") && <SField
-    label="Condition *"
-    value={form.condition}
-    onChange={(e) => setForm((prev) => ({ ...prev, condition: e.target.value }))}
-    options={["New", "Good", "Needs Repair", "Damaged"]}
-    required
   />}
-              </div>
-
-              {type.includes("Transfer") && <>
-                {type === "Public Transfer Outward" ? <Field
-    label="Gate Pass No. (Auto-generated) *"
-    value={form.gatePassNo}
-    readOnly
-    required
-    error={errors.gatePassNo}
-    helperText="Unique Gate Pass ID for this transfer"
-  /> : <SearchSelect
+                {isTransferInward && <SearchSelect
     label="Choose Gate Pass *"
     value={form.gatePassNo}
     onChange={(val) => {
@@ -440,63 +337,48 @@ const PublicTransactionForm = /* @__PURE__ */ __name(({ type }) => {
     placeholder="Select an outward gate pass..."
     error={errors.gatePassNo}
   />}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <Field
-    label="Specific Location / Site *"
-    value={form.location}
-    onChange={(e) => setForm((prev) => ({ ...prev, location: e.target.value }))}
+                {isTransferOutward && <Field
+    label="Gate Pass No. (Auto-generated) *"
+    value={form.gatePassNo}
+    readOnly
     required
-    error={errors.location}
-  />
-                  <MultipleImageUpload
-    id="gate-pass-photos-upload"
-    label="Gate Pass Photo *"
-    onUpload={(urls) => setForm((prev) => {
-      const newPhotos = [...prev.personPhotos || [], ...urls];
-      return {
-        ...prev,
-        personPhotos: newPhotos,
-        personPhotoUrl: newPhotos[0] || ""
-      };
-    })}
-    values={form.personPhotos || []}
-    onRemove={(imgIdx) => {
-      setForm((prev) => {
-        const newPhotos = (prev.personPhotos || []).filter((_, i) => i !== imgIdx);
-        return {
-          ...prev,
-          personPhotos: newPhotos,
-          personPhotoUrl: newPhotos[0] || ""
-        };
-      });
-    }}
-    small
-    onUploadingChange={setIsUploading}
-    error={errors.personPhotos}
-  />
-                </div>
-              </>}
-
-              {type.includes("Inward Return") && <>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <Field
+    error={errors.gatePassNo}
+    helperText="Unique Gate Pass ID for this transfer"
+  />}
+                {isInwardReturn && <Field
     label="Challan / Invoice No. *"
     value={form.challanNo}
     onChange={(e) => setForm((prev) => ({ ...prev, challanNo: e.target.value }))}
     required
     error={errors.challanNo}
-  />
-                    <div />
-                  </div>
+  />}
+              </div>
 
-                  <div className="space-y-4">
-                    <MultipleImageUpload
+              <div className="space-y-6">
+                <div>
+                  <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Transaction Date</p>
+                  <p className="text-[13px] font-bold text-gray-900 dark:text-white px-4 py-2.5 bg-gray-50 dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700">
+                    {formatDateTime(form.date)}
+                  </p>
+                </div>
+                {(isInwardReturn || isOutwardReturn || isTransferOutward) && <SField
+    label="Condition *"
+    value={form.condition}
+    onChange={(e) => setForm((prev) => ({ ...prev, condition: e.target.value }))}
+    options={["New", "Good", "Needs Repair", "Damaged"]}
+    required
+  />}
+                {isTransfer && <Field
+    label="Specific Location / Site *"
+    value={form.location}
+    onChange={(e) => setForm((prev) => ({ ...prev, location: e.target.value }))}
+    required
+    error={errors.location}
+  />}
+                {isInwardReturn && <MultipleImageUpload
     id="common-challan-upload"
     label="Challan / Invoice Photos *"
-    onUpload={(urls) => setForm((prev) => ({
-      ...prev,
-      challanPhotos: [...prev.challanPhotos || [], ...urls]
-    }))}
+    onUpload={(urls) => setForm((prev) => ({ ...prev, challanPhotos: [...prev.challanPhotos || [], ...urls] }))}
     values={form.challanPhotos || []}
     onRemove={(imgIdx) => {
       const newPhotos = (form.challanPhotos || []).filter((_, i) => i !== imgIdx);
@@ -505,44 +387,31 @@ const PublicTransactionForm = /* @__PURE__ */ __name(({ type }) => {
     small
     onUploadingChange={setIsUploading}
     error={errors.challanPhotos}
-  />
-                  </div>
-                </>}
-
-              {type.includes("Outward Return") && <div className="space-y-4">
-                  <MultipleImageUpload
-    id="person-photos-upload"
-    label="Person Photo (Handover) *"
+  />}
+                {(isOutwardReturn || isTransfer) && <MultipleImageUpload
+    id={isTransfer ? "gate-pass-photos-upload" : "person-photos-upload"}
+    label={isTransfer ? "Gate Pass Photo *" : "Person Photo (Handover) *"}
     onUpload={(urls) => setForm((prev) => {
       const newPhotos = [...prev.personPhotos || [], ...urls];
-      return {
-        ...prev,
-        personPhotos: newPhotos,
-        personPhotoUrl: newPhotos[0] || ""
-      };
+      return { ...prev, personPhotos: newPhotos, personPhotoUrl: newPhotos[0] || "" };
     })}
     values={form.personPhotos || []}
     onRemove={(imgIdx) => {
       setForm((prev) => {
         const newPhotos = (prev.personPhotos || []).filter((_, i) => i !== imgIdx);
-        return {
-          ...prev,
-          personPhotos: newPhotos,
-          personPhotoUrl: newPhotos[0] || ""
-        };
+        return { ...prev, personPhotos: newPhotos, personPhotoUrl: newPhotos[0] || "" };
       });
     }}
     small
     onUploadingChange={setIsUploading}
-    error={errors.personPhotoUrl}
-  />
-                </div>}
-
+    error={isTransfer ? errors.personPhotos : errors.personPhotoUrl}
+  />}
+              </div>
             </div>
 
-            <div className="pt-6 border-t border-gray-100 dark:border-gray-800 space-y-4">
+            <div className="space-y-4 pt-6 border-t border-gray-100 dark:border-gray-800">
               <div className="flex items-center justify-between">
-                <h3 className="text-[13px] font-bold text-gray-900 dark:text-white tracking-wider">2. Items to {type} *</h3>
+                <h3 className="text-sm font-bold text-gray-900 dark:text-white">Items List</h3>
                 <div className="flex gap-2">
                   <Btn
     label="Add Item"
@@ -551,8 +420,8 @@ const PublicTransactionForm = /* @__PURE__ */ __name(({ type }) => {
     small
     onClick={addItem}
   />
-                  {type.includes("Transfer") && <Btn
-    label="Miscellaneous"
+                  {isTransfer && <Btn
+    label="Misc Item"
     icon={Plus}
     outline
     small
@@ -563,22 +432,18 @@ const PublicTransactionForm = /* @__PURE__ */ __name(({ type }) => {
 
               <div className="space-y-4">
                 {form.items && form.items.length > 0 ? <>
-                    {
-    /* Mobile View: Card List */
-  }
-                    <div className="grid grid-cols-1 gap-4 md:hidden">
-                      {form.items.map((item, idx) => <Card key={idx} className="p-4 border border-gray-100 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-800/30 space-y-4 relative">
+                    <div className="grid grid-cols-1 gap-6 md:hidden">
+                      {form.items.map((item, idx) => <Card key={idx} className="p-4 space-y-4 relative bg-gray-50 dark:bg-gray-800/50">
                           <button
     onClick={() => removeItem(idx)}
-    className="absolute top-2 right-2 p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-full transition-all"
+    className="absolute top-2 right-2 p-1 text-gray-400 hover:text-red-500 transition-all"
   >
-                            <Trash2 className="w-4 h-4" />
+                            <X className="w-4 h-4" />
                           </button>
-
-                          <div className="space-y-3">
-                            {item.isMiscellaneous ? <div className="space-y-3">
+                          <div className="space-y-4 pt-2">
+                            {item.isMiscellaneous ? <div className="space-y-4">
                                 <Field
-    label="Item Name *"
+    label="Material Name *"
     value={item.itemName}
     onChange={(e) => updateItem(idx, { itemName: e.target.value })}
     placeholder="Enter item name"
@@ -592,20 +457,19 @@ const PublicTransactionForm = /* @__PURE__ */ __name(({ type }) => {
     required
   />
                               </div> : <SearchSelect
-    label="Item Search *"
+    label="Search Material *"
     options={inventoryOptions}
     value={item.sku}
     onChange={(val) => handleRowItemSelect(idx, val)}
     onSearch={(val) => setSearchItemVal(val)}
-    placeholder="Search item..."
+    placeholder="Start typing material name..."
     error={errors[`item_${idx}_sku`]}
   />}
-
-                            <div className="grid grid-cols-3 gap-3">
+                            <div className="grid grid-cols-2 gap-4">
                               <Field
     label="Quantity *"
     value={item.qty}
-    onChange={(e) => updateItem(idx, { qty: e.target.value })}
+    onChange={(e) => updateItem(idx, { qty: Number(e.target.value) })}
     type="number"
     placeholder="0"
     error={errors[`item_${idx}_qty`]}
@@ -616,19 +480,19 @@ const PublicTransactionForm = /* @__PURE__ */ __name(({ type }) => {
     onChange={(e) => updateItem(idx, { unit: e.target.value })}
     options={UNITS}
     required
-  /> : <Field
-    label="Unit"
-    value={item.unit}
-    disabled
-  />}
-                              <Field
+  /> : <div className="space-y-1">
+                                  <p className="text-[11px] font-bold text-gray-500 tracking-wider mb-1">Unit</p>
+                                  <div className="px-4 py-2.5 bg-gray-100 dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 text-[13px] font-bold text-gray-500 text-center h-[42px] flex items-center justify-center">
+                                    {item.unit}
+                                  </div>
+                                </div>}
+                            </div>
+                            <Field
     label="MR No."
     value={item.mrNo}
     onChange={(e) => updateItem(idx, { mrNo: e.target.value })}
-    placeholder="MR No."
+    placeholder="MR-XXXX"
   />
-                            </div>
-
                             <MultipleImageUpload
     id={`item-photos-mob-${idx}`}
     label="Material Photos"
@@ -645,75 +509,106 @@ const PublicTransactionForm = /* @__PURE__ */ __name(({ type }) => {
                         </Card>)}
                     </div>
 
-                    {
-    /* Desktop View: Table */
-  }
                     <div className="hidden md:block overflow-visible">
-                      <table className="w-full border-collapse min-w-[600px]">
-                        <thead>
-                          <tr className="text-left border-b border-gray-100 dark:border-gray-800">
-                            <th className="pb-2 text-[10px] font-bold text-gray-500 dark:text-gray-400 tracking-wider w-[30%]">Item search *</th>
-                            <th className="pb-2 text-[10px] font-bold text-gray-500 dark:text-gray-400 tracking-wider w-[10%]">Qty *</th>
-                            <th className="pb-2 text-[10px] font-bold text-gray-500 dark:text-gray-400 tracking-wider w-[10%]">Unit</th>
-                            <th className="pb-2 text-[10px] font-bold text-gray-400 tracking-wider w-[15%]">Mr no.</th>
-                            <th className="pb-2 text-[10px] font-bold text-gray-500 dark:text-gray-400 tracking-wider w-[27%]">Material photos</th>
-                            <th className="pb-2 text-[10px] font-bold text-gray-500 dark:text-gray-400 tracking-wider w-[8%] text-center">Action</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-50 dark:divide-gray-800/50">
-                          {form.items.map((item, idx) => <tr key={idx} className="group">
-                              <td className="py-3 pr-2 align-top">
-                                {item.isMiscellaneous ? <div className="space-y-3">
-                                    <Field
+                      <div className="overflow-visible rounded-xl border border-gray-200 dark:border-gray-800">
+                        <table className="w-full border-collapse">
+                          <thead>
+                            <tr className="bg-gray-50 dark:bg-gray-800/50 border-b border-gray-200 dark:border-gray-800 [&>th:first-child]:rounded-tl-[11px] [&>th:last-child]:rounded-tr-[11px]">
+                              <th className="px-4 py-3 text-[11px] font-bold text-gray-500 dark:text-gray-400 text-left w-[25%]">Material Description *</th>
+                              {isTransferInward && <th className="px-4 py-3 text-[11px] font-bold text-gray-500 dark:text-gray-400 text-right w-[10%]">Outward Qty</th>}
+                              <th className="px-4 py-3 text-[11px] font-bold text-gray-500 dark:text-gray-400 text-right w-[12%]">
+                                {isTransferInward ? "Received Qty *" : "Qty *"}
+                              </th>
+                              {isTransferInward && <th className="px-4 py-3 text-[11px] font-bold text-gray-500 dark:text-gray-400 text-right w-[10%]">Variance</th>}
+                              <th className="px-4 py-3 text-[11px] font-bold text-gray-500 dark:text-gray-400 text-center w-[10%]">Unit</th>
+                              <th className="px-4 py-3 text-[11px] font-bold text-gray-500 dark:text-gray-400 w-[12%]">MR No.</th>
+                              <th className="px-4 py-3 text-[11px] font-bold text-gray-500 dark:text-gray-400 w-[20%]">Photos</th>
+                              <th className="px-4 py-3 text-[11px] font-bold text-gray-500 dark:text-gray-400 w-10 text-center" />
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+                            {form.items.map((item, idx) => <tr key={idx} className="group hover:bg-gray-50/50 dark:hover:bg-gray-800/20 transition-all">
+                                <td className="px-6 py-5 align-top">
+                                  {item.isMiscellaneous ? <div className="space-y-3">
+                                      <Field
     value={item.itemName}
     onChange={(e) => updateItem(idx, { itemName: e.target.value })}
     placeholder="Item Name"
+    small
     error={errors[`item_${idx}_itemName`]}
   />
-                                    <SField
+                                      <SField
     value={item.category}
     onChange={(e) => updateItem(idx, { category: e.target.value })}
     options={CATEGORIES}
+    small
     placeholder="Category"
   />
-                                  </div> : <SearchSelect
+                                    </div> : <>
+                                      <SearchSelect
     options={inventoryOptions}
     value={item.sku}
     onChange={(val) => handleRowItemSelect(idx, val)}
     onSearch={(val) => setSearchItemVal(val)}
-    placeholder="Search item..."
+    placeholder="Search Material..."
+    small
     error={errors[`item_${idx}_sku`]}
-  />}
-                              </td>
-                              <td className="py-3 pr-2 align-top">
-                                <Field
-    value={item.qty}
-    onChange={(e) => updateItem(idx, { qty: e.target.value })}
-    type="number"
-    placeholder="0"
-    error={errors[`item_${idx}_qty`]}
   />
-                              </td>
-                              <td className="py-3 pr-2 align-top">
-                                {item.isMiscellaneous ? <SField
+                                      {item.itemName && <div className="mt-1 px-2 py-0.5 bg-orange-50 dark:bg-orange-900/10 border border-orange-100 dark:border-orange-900/20 rounded text-[10px] tracking-wider font-extrabold text-orange-600 dark:text-orange-400">
+                                          {item.itemName}
+                                        </div>}
+                                    </>}
+                                </td>
+                                {isTransferInward && <td className="px-4 py-5 align-top text-right">
+                                    <div className="flex flex-col items-end">
+                                      <span className="text-[14px] font-black text-blue-500 font-mono tracking-tighter">{item.outwardQty || 0}</span>
+                                      <span className="text-[9px] text-gray-400 font-black tracking-widest leading-none mt-1">Outward</span>
+                                    </div>
+                                  </td>}
+                                <td className="px-4 py-5 align-top">
+                                  <div className="relative">
+                                    <input
+    type="number"
+    value={item.qty || 0}
+    onChange={(e) => updateItem(idx, { qty: Number(e.target.value) })}
+    placeholder="0"
+    className="w-full px-2 py-2 bg-white dark:bg-gray-900 border-2 border-gray-100 dark:border-gray-800 rounded-xl text-[14px] font-black text-center sm:text-right focus:outline-none focus:border-orange-500 transition-all shadow-sm [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+  />
+                                    {isTransferInward && (item.qty || 0) !== (item.outwardQty || 0) && <div className="absolute -top-2 -right-1 px-1.5 py-0.5 bg-amber-500 text-white text-[8px] font-black rounded">
+                                        Variance!
+                                      </div>}
+                                  </div>
+                                </td>
+                                {isTransferInward && <td className="px-4 py-5 align-top text-right">
+                                    <div className="flex flex-col items-end">
+                                      <span className={`text-[14px] font-black font-mono tracking-tighter ${(item.outwardQty || 0) - (item.qty || 0) === 0 ? "text-emerald-600" : "text-red-500"}`}>
+                                        {(item.outwardQty || 0) - (item.qty || 0)}
+                                      </span>
+                                      <span className="text-[9px] text-gray-400 font-black tracking-widest leading-none mt-1">Variance</span>
+                                    </div>
+                                  </td>}
+                                <td className="px-6 py-5 align-top">
+                                  {item.isMiscellaneous ? <SField
     value={item.unit}
     onChange={(e) => updateItem(idx, { unit: e.target.value })}
     options={UNITS}
-  /> : <Field
-    value={item.unit}
-    disabled
-  />}
-                              </td>
-                              <td className="py-3 pr-2 align-top">
-                                <Field
-    value={item.mrNo}
+    small
+  /> : <div className="px-3 py-2 bg-gray-100 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-xl text-[11px] font-bold text-gray-500 text-center mt-0.5">
+                                      {item.unit}
+                                    </div>}
+                                </td>
+                                <td className="px-6 py-5 align-top">
+                                  <input
+    value={item.mrNo || ""}
     onChange={(e) => updateItem(idx, { mrNo: e.target.value })}
-    placeholder="MR No."
+    placeholder="MR-XXXX"
+    className="w-full px-3 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-[13px] font-bold text-orange-600 focus:outline-none focus:ring-2 focus:ring-[#F97316]/20"
   />
-                              </td>
-                              <td className="py-3 pr-2 align-top">
-                                <MultipleImageUpload
+                                </td>
+                                <td className="px-4 py-5 align-top">
+                                  <MultipleImageUpload
     id={`item-photos-${idx}`}
+    label=""
     onUpload={(urls) => updateItem(idx, { images: [...item.images || [], ...urls] })}
     values={item.images || []}
     onRemove={(imgIdx) => {
@@ -723,32 +618,44 @@ const PublicTransactionForm = /* @__PURE__ */ __name(({ type }) => {
     small
     onUploadingChange={setIsUploading}
   />
-                              </td>
-                              <td className="py-3 text-center align-top">
-                                <button
+                                </td>
+                                <td className="px-6 py-5 text-center align-top">
+                                  <button
     onClick={() => removeItem(idx)}
-    className="mt-2 p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-all"
+    className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl transition-all"
   >
-                                  <Trash2 className="w-4 h-4" />
-                                </button>
-                              </td>
-                            </tr>)}
-                        </tbody>
-                      </table>
+                                    <Trash2 className="w-4 h-5" />
+                                  </button>
+                                </td>
+                              </tr>)}
+                          </tbody>
+                        </table>
+                      </div>
                     </div>
-                  </> : <div className="text-center py-12 border-2 border-dashed border-gray-100 dark:border-gray-800 rounded-xl">
-                    <Package className="w-12 h-12 text-gray-200 dark:text-gray-700 mx-auto mb-3" />
-                    <p className="text-sm text-gray-500">No items added yet. Click "Add Item" to start.</p>
+                  </> : <div className="text-center py-20 border-2 border-dashed border-gray-200 dark:border-gray-800 rounded-3xl bg-gray-50/30 dark:bg-[#0F172A]/50">
+                    <div className="w-16 h-16 bg-white dark:bg-[#1E293B] rounded-2xl shadow-sm flex items-center justify-center mx-auto mb-4 border border-gray-100 dark:border-gray-700">
+                      <Package className="w-8 h-8 text-gray-300 dark:text-gray-600 animate-pulse" />
+                    </div>
+                    <h4 className="text-[14px] font-bold text-gray-900 dark:text-white mb-1">No Items Added</h4>
+                    <p className="text-xs text-gray-500">Click "Add Item" to include materials in this transaction.</p>
                   </div>}
               </div>
             </div>
 
-            <Btn
-    label={actionLoading ? "Submitting..." : isUploading ? "Uploading..." : `Submit ${type} Record`}
-    className="w-full h-12 text-lg"
-    onClick={handleSubmit}
-    disabled={actionLoading || isUploading || !form.items?.length}
+            <div className="flex justify-end gap-3 pt-4 border-t border-gray-100 dark:border-gray-800">
+              <Btn
+    label="Discard"
+    outline
+    onClick={() => { setForm(INITIAL_RESET); setErrors({}); }}
   />
+              <Btn
+    label={actionLoading ? "Processing..." : isUploading ? "Uploading..." : "Confirm Transaction"}
+    onClick={handleSubmit}
+    loading={actionLoading || isUploading}
+    disabled={actionLoading || isUploading || !form.items?.length}
+    className="px-8"
+  />
+            </div>
           </div>
         </Card>
       </div>
