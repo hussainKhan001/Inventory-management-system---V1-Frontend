@@ -171,19 +171,20 @@ const PublicTransactionForm = /* @__PURE__ */ __name(({ type }) => {
       if (!form.location) newErrors.location = "Location / Site is required";
     }
     if (!form.items || form.items.length === 0) {
-      toast.error("Please add at least one item");
-      return false;
+      newErrors.items = "Please add at least one item";
+    } else {
+      form.items.forEach((item, idx) => {
+        if (item.isMiscellaneous && !item.itemName) newErrors[`item_${idx}_itemName`] = `Item ${idx + 1}: Name is required`;
+        if (!item.isMiscellaneous && !item.sku) newErrors[`item_${idx}_sku`] = `Item ${idx + 1}: SKU is required`;
+        if (!item.qty || item.qty <= 0) newErrors[`item_${idx}_qty`] = `Item ${idx + 1}: Quantity is required`;
+      });
     }
-    form.items.forEach((item, idx) => {
-      if (item.isMiscellaneous && !item.itemName) newErrors[`item_${idx}_itemName`] = "Required";
-      if (!item.isMiscellaneous && !item.sku) newErrors[`item_${idx}_sku`] = "Required";
-      if (!item.qty || item.qty <= 0) newErrors[`item_${idx}_qty`] = "Required";
-    });
     setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
+    return newErrors;
   }, "validateForm");
   const handleSubmit = /* @__PURE__ */ __name(async () => {
-    if (!validateForm()) return;
+    const newErrors = validateForm();
+    if (Object.keys(newErrors).length > 0) { toast.error(Object.values(newErrors)[0]); return; }
     const prefix = type === "Public Inward Return" ? "PUB-INR" : type === "Public Outward Return" ? "PUB-OTR" : type === "Public Transfer Inward" ? "PUB-TFI" : "PUB-TFO";
     const finalProject = form.project === "Other" ? form.otherProjectName : form.project;
     const finalDestProject = form.destinationProject === "Other" ? form.otherDestProjectName : form.destinationProject;

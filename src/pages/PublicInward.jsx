@@ -123,17 +123,18 @@ const PublicInward = /* @__PURE__ */ __name(() => {
     if (!form.challanNo) newErrors.challanNo = "Challan No is required";
     if (!form.challanPhotos || form.challanPhotos.length === 0) newErrors.challanPhotos = "Challan Photo is required";
     if (!form.items || form.items.length === 0) {
-      toast.error("Please add at least one item");
-      return false;
+      newErrors.items = "Please add at least one item";
+    } else {
+      form.items.forEach((item, idx) => {
+        if (!item.qty || item.qty <= 0) newErrors[`item_${idx}_qty`] = `Item ${idx + 1}: Quantity is required`;
+      });
     }
-    form.items.forEach((item, idx) => {
-      if (!item.qty || item.qty <= 0) newErrors[`item_${idx}_qty`] = "Required";
-    });
     setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
+    return newErrors;
   }, "validateForm");
   const handleSubmit = /* @__PURE__ */ __name(async () => {
-    if (!validateForm()) return;
+    const newErrors = validateForm();
+    if (Object.keys(newErrors).length > 0) { toast.error(Object.values(newErrors)[0]); return; }
     const finalProject = form.project === "Other" ? form.otherProjectName : form.project;
     const payload = {
       ...form,

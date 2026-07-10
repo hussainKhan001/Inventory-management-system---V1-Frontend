@@ -135,23 +135,24 @@ const PublicOutward = /* @__PURE__ */ __name(() => {
     if (form.project === "Other" && !form.otherProjectName) newErrors.otherProjectName = "Project Name is required";
     if (!form.store) newErrors.store = "Store / Godown is required";
     if (!form.personName) newErrors.personName = "Person Name is required";
-    if (!form.location) newErrors.location = "Location is required";
+    if (!form.location) newErrors.location = "Specific Location / Site is required";
     if (!form.personPhotoUrl) newErrors.personPhotoUrl = "Person photo is required";
     if (!form.items || form.items.length === 0) {
-      newErrors.items = "Please select at least one item";
+      newErrors.items = "Please add at least one item";
     } else {
       form.items.forEach((item, idx) => {
-        if (!item.qty || item.qty <= 0) newErrors[`item_${idx}_qty`] = "Required";
+        if (!item.qty || item.qty <= 0) newErrors[`item_${idx}_qty`] = `Item ${idx + 1}: Quantity is required`;
         const inv = inventory.find((i) => i.sku === item.sku);
-        if (inv && item.qty > inv.liveStock) newErrors[`item_${idx}_qty`] = `Max: ${inv.liveStock}`;
+        if (inv && item.qty > inv.liveStock) newErrors[`item_${idx}_qty`] = `Item ${idx + 1}: Max available is ${inv.liveStock}`;
       });
     }
     setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
+    return newErrors;
   }, "validateForm");
   const handleSubmit = /* @__PURE__ */ __name(async () => {
-    if (!validateForm()) {
-      toast.error("Please fix errors in the form");
+    const newErrors = validateForm();
+    if (Object.keys(newErrors).length > 0) {
+      toast.error(Object.values(newErrors)[0]);
       return;
     }
     const finalProject = form.project === "Other" ? form.otherProjectName : form.project;
