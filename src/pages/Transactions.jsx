@@ -252,7 +252,6 @@ const TransactionsPage = /* @__PURE__ */ __name(({ type }) => {
       if (!item.images || item.images.length === 0) newErrors[`item_${index}_images`] = "Image required";
     });
     if (["Inward", "Inward Return", "Public Inward"].includes(data2.type)) {
-      if (!data2.supplier && !data2.vendor) newErrors.supplier = "Supplier is required";
       if (!data2.challanNo) newErrors.challanNo = "Challan No. is required";
       if (!data2.challanPhotos || data2.challanPhotos.length === 0) newErrors.challanPhotos = "Challan Photo is required";
     }
@@ -1223,7 +1222,6 @@ const TransactionsPage = /* @__PURE__ */ __name(({ type }) => {
                   </>}
               </>;
     }}
-    components={virtuosoTableComponents}
   /> : <Card className="p-0 overflow-hidden border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 flex-1">
           <TableVirtuoso
     style={{ height: "calc(100vh - 350px)", minHeight: "500px" }}
@@ -1427,11 +1425,10 @@ const TransactionsPage = /* @__PURE__ */ __name(({ type }) => {
     required
     error={errors.destinationProject}
   /> : ["Inward", "Inward Return", "Public Inward"].includes(newTransaction.type || "") ? <SField
-    label="Supplier *"
+    label="Supplier"
     value={newTransaction.supplier}
     onChange={(e) => setNewTransaction((prev) => ({ ...prev, supplier: e.target.value }))}
     options={suppliers?.map((v) => v.companyName || v.name).filter(Boolean) || []}
-    required
     error={errors.supplier}
   /> : <Field
     label="Person Name *"

@@ -48,6 +48,7 @@ const AppProvider = /* @__PURE__ */ __name(({ children }) => {
   const [planRevisions, setPlanRevisions] = useState([]);
   const [transactions, setTransactions] = useState([]);
   const [transactionsPagination, setTransactionsPagination] = useState(null);
+  const [formConfigs, setFormConfigs] = useState([]);
   const [availableGatePasses, setAvailableGatePasses] = useState([]);
   const fetchAvailableGatePasses = /* @__PURE__ */ __name(async () => {
     try {
@@ -593,6 +594,9 @@ const AppProvider = /* @__PURE__ */ __name(({ children }) => {
           case "role-permissions":
             setRolePermissions((prev) => JSON.stringify(prev) === JSON.stringify(res.data) ? prev : res.data);
             break;
+          case "form-configs":
+            setFormConfigs(res.data);
+            break;
         }
       }
     } catch (error) {
@@ -631,7 +635,8 @@ const AppProvider = /* @__PURE__ */ __name(({ children }) => {
     try {
       await Promise.all([
         fetchResource("settings", 1, 1, true),
-        fetchRolePermissions()
+        fetchRolePermissions(),
+        fetchResource("form-configs", 1, 100, true),
       ]);
       setTimeout(() => {
         fetchStats();
@@ -1308,6 +1313,60 @@ const AppProvider = /* @__PURE__ */ __name(({ children }) => {
       setActionLoading(false);
     }
   }, "deleteTransaction");
+  const updateFormConfig = /* @__PURE__ */ __name(async (formId, fields) => {
+    setActionLoading(true);
+    try {
+      const res = await api.putSimple(`form-configs/${formId}`, { fields });
+      setFormConfigs((prev) => prev.map((c) => c.formId === formId ? res.data : c));
+      toast.success("Form config saved");
+      return res.data;
+    } catch (err) {
+      toast.error(err.message || "Failed to save form config");
+      throw err;
+    } finally {
+      setActionLoading(false);
+    }
+  }, "updateFormConfig");
+  const addFormCustomField = /* @__PURE__ */ __name(async (formId, field) => {
+    setActionLoading(true);
+    try {
+      const res = await api.post(`form-configs/${formId}/fields`, field);
+      setFormConfigs((prev) => prev.map((c) => c.formId === formId ? res.data : c));
+      toast.success("Field added");
+      return res.data;
+    } catch (err) {
+      toast.error(err.message || "Failed to add field");
+      throw err;
+    } finally {
+      setActionLoading(false);
+    }
+  }, "addFormCustomField");
+  const removeFormCustomField = /* @__PURE__ */ __name(async (formId, fieldId) => {
+    setActionLoading(true);
+    try {
+      const res = await api.delete(`form-configs/${formId}/fields`, fieldId);
+      setFormConfigs((prev) => prev.map((c) => c.formId === formId ? res.data : c));
+      toast.success("Field removed");
+    } catch (err) {
+      toast.error(err.message || "Failed to remove field");
+      throw err;
+    } finally {
+      setActionLoading(false);
+    }
+  }, "removeFormCustomField");
+  const resetFormConfig = /* @__PURE__ */ __name(async (formId) => {
+    setActionLoading(true);
+    try {
+      const res = await api.post(`form-configs/${formId}/reset`, {});
+      setFormConfigs((prev) => prev.map((c) => c.formId === formId ? res.data : c));
+      toast.success("Form reset to defaults");
+    } catch (err) {
+      toast.error(err.message || "Failed to reset form");
+      throw err;
+    } finally {
+      setActionLoading(false);
+    }
+  }, "resetFormConfig");
   const uploadImage = /* @__PURE__ */ __name(async (file) => {
     return await api.upload(file);
   }, "uploadImage");
@@ -1647,6 +1706,11 @@ const AppProvider = /* @__PURE__ */ __name(({ children }) => {
       submitPublicOutwardReturn,
       submitPublicPO,
       uploadPublicImage,
+      formConfigs,
+      updateFormConfig,
+      addFormCustomField,
+      removeFormCustomField,
+      resetFormConfig,
       gstRates,
       fetchGSTRates,
       addGSTRate,
