@@ -144,7 +144,6 @@ const PublicOutward = /* @__PURE__ */ __name(() => {
         if (!item.qty || item.qty <= 0) newErrors[`item_${idx}_qty`] = "Required";
         const inv = inventory.find((i) => i.sku === item.sku);
         if (inv && item.qty > inv.liveStock) newErrors[`item_${idx}_qty`] = `Max: ${inv.liveStock}`;
-        if (!item.images || item.images.length === 0) newErrors[`item_${idx}_images`] = "At least one photo required";
       });
     }
     setErrors(newErrors);

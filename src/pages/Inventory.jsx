@@ -61,7 +61,9 @@ const InventoryRow = memo(
         <Td className="hidden md:table-cell px-4 py-3 text-right">
           <div className="flex flex-col items-end">
             <span className="text-[14px] font-bold text-emerald-500" title="Total Stock">
-              {item.totalStock !== undefined ? item.totalStock : (item.liveStock || 0)}
+              {item.sites && item.sites.length > 0
+                ? item.sites.reduce((sum, s) => sum + (Number(s.liveStock) || 0), 0)
+                : Object.values(item.locationStock || {}).reduce((sum, q) => sum + Number(q), 0) || (item.liveStock || 0)}
             </span>
             <span className="text-[10px] text-gray-400 font-medium uppercase tracking-wide mt-0.5">{item.unit}</span>
           </div>
@@ -448,26 +450,29 @@ const Inventory = /* @__PURE__ */ __name(() => {
     return result;
   }, [inventory, filterStore]);
 
+  const computeItemTotal = (item) => {
+    if (item.sites && item.sites.length > 0)
+      return item.sites.reduce((sum, s) => sum + (Number(s.liveStock) || 0), 0);
+    const locVals = Object.values(item.locationStock || {});
+    return locVals.length > 0
+      ? locVals.reduce((sum, q) => sum + Number(q), 0)
+      : Number(item.liveStock || 0);
+  };
+
   const totalStockUnits = useMemo(() => {
     return filteredInventory.reduce((acc, item) => {
-      let qty = 0;
-      if (filterStore) {
-        qty = Number(item.sites?.find(s => s.siteName === filterStore)?.liveStock || item.locationStock?.[filterStore] || 0);
-      } else {
-        qty = item.totalStock !== undefined ? Number(item.totalStock) : Number(item.liveStock || 0);
-      }
+      const qty = filterStore
+        ? Number(item.sites?.find(s => s.siteName === filterStore)?.liveStock || item.locationStock?.[filterStore] || 0)
+        : computeItemTotal(item);
       return acc + qty;
     }, 0);
   }, [filteredInventory, filterStore]);
 
   const outOfStockCount = useMemo(() => {
     return filteredInventory.filter((item) => {
-      let qty = 0;
-      if (filterStore) {
-        qty = Number(item.sites?.find(s => s.siteName === filterStore)?.liveStock || item.locationStock?.[filterStore] || 0);
-      } else {
-        qty = item.totalStock !== undefined ? Number(item.totalStock) : Number(item.liveStock || 0);
-      }
+      const qty = filterStore
+        ? Number(item.sites?.find(s => s.siteName === filterStore)?.liveStock || item.locationStock?.[filterStore] || 0)
+        : computeItemTotal(item);
       return qty === 0;
     }).length;
   }, [filteredInventory, filterStore]);
@@ -803,7 +808,7 @@ const Inventory = /* @__PURE__ */ __name(() => {
                   <div>
                     <p className="text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1">Total Stock</p>
                     <div className="flex items-baseline gap-1.5 mt-1">
-                      <span className="text-2xl font-black text-emerald-500 leading-none">{viewModal.totalStock !== undefined ? viewModal.totalStock : (viewModal.liveStock || 0)}</span>
+                      <span className="text-2xl font-black text-emerald-500 leading-none">{computeItemTotal(viewModal)}</span>
                       <span className="text-xs font-bold text-gray-400 uppercase">{safeStr(viewModal.unit)}</span>
                     </div>
                   </div>

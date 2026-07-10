@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef, useCallback } from "react";
+import ReactDOM from "react-dom";
 import { Search, X, Plus, Link2, AlertTriangle, RefreshCw, ArrowLeft } from "lucide-react";
 import { Btn, Field, SField } from "../../components/ui";
 import { DatePicker } from "../../components/ui/DatePicker";
@@ -86,6 +87,18 @@ export function POFormModal({
   const [linkingSearch, setLinkingSearch] = useState("");
   const [linkingResults, setLinkingResults] = useState([]);
   const [linkingLoading, setLinkingLoading] = useState(false);
+  const [linkingPos, setLinkingPos] = useState({ top: 0, left: 0, width: 288 });
+  const linkBtnRefs = useRef({});
+  const openLinkPopup = useCallback((idx, isMobile) => {
+    const el = linkBtnRefs.current[`${isMobile ? "m" : "d"}_${idx}`];
+    if (el) {
+      const r = el.getBoundingClientRect();
+      const width = isMobile ? Math.min(300, window.innerWidth - 32) : Math.max(288, r.width);
+      setLinkingPos({ top: r.bottom + 4, left: r.left, width });
+    }
+    setLinkingIndex(idx);
+    setLinkingSearch("");
+  }, []);
   const [showQuickAdd, setShowQuickAdd] = useState(null);
   const [quickAddData, setQuickAddData] = useState({ category: "", unit: "" });
 
@@ -342,7 +355,7 @@ export function POFormModal({
               {/* ── Mobile: Cards (< md) ─────────────────────────────────── */}
               <div className="md:hidden space-y-3">
                 {po.items.map((item, idx) => (
-                  <div key={idx} className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl p-4 shadow-sm relative">
+                  <div key={idx} ref={el => { linkBtnRefs.current[`m_${idx}`] = el; }} className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl p-4 shadow-sm relative">
                     {/* Header row */}
                     <div className="flex justify-between items-start mb-3">
                       <div className="min-w-0 flex-1 pr-2">
@@ -359,7 +372,7 @@ export function POFormModal({
                         </div>
                       </div>
                       <div className="flex items-center gap-1 shrink-0">
-                        <button onClick={() => setLinkingIndex(idx)} className="p-1.5 text-orange-500 hover:bg-orange-50 dark:hover:bg-orange-900/20 rounded-lg transition-colors">
+                        <button onClick={() => openLinkPopup(idx, true)} className="p-1.5 text-orange-500 hover:bg-orange-50 dark:hover:bg-orange-900/20 rounded-lg transition-colors">
                           <Link2 className="w-4 h-4" />
                         </button>
                         <button onClick={() => removeItem(idx)} className="p-1.5 text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors">
@@ -368,9 +381,9 @@ export function POFormModal({
                       </div>
                     </div>
 
-                    {/* Link popup (mobile) */}
-                    {linkingIndex === idx && (
-                      <div className="mb-3 p-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-xl">
+                    {/* Link popup handled via portal below */}
+                    {false && linkingIndex === idx && (
+                      <div className="absolute left-3 right-3 top-16 z-[99999] p-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-2xl">
                         <div className="flex items-center justify-between mb-2">
                           <span className="text-[11px] font-bold text-gray-500">Link inventory item</span>
                           <button onClick={() => setLinkingIndex(null)}><X className="w-3.5 h-3.5 text-gray-400" /></button>
@@ -472,7 +485,7 @@ export function POFormModal({
 
               {/* ── Desktop: Table (≥ md) — 7 columns instead of 11 ──────── */}
               <div className="hidden md:block overflow-x-auto pb-4 custom-scrollbar">
-                <table className="w-full text-left border-collapse min-w-[1000px] rounded-xl border border-gray-200 dark:border-gray-800 overflow-hidden">
+                <table className="w-full text-left border-collapse min-w-[1000px] rounded-xl border border-gray-200 dark:border-gray-800 overflow-visible">
                   <thead>
                     <tr className="bg-gray-50 dark:bg-gray-800/60 border-b border-gray-200 dark:border-gray-700">
                       <th className="px-3 py-2.5 text-[11px] font-bold text-gray-500 dark:text-gray-400 w-[35%]">Item</th>
@@ -488,7 +501,7 @@ export function POFormModal({
                     {po.items.map((item, idx) => (
                       <tr key={idx} className="group hover:bg-gray-50/60 dark:hover:bg-gray-800/30 transition-colors">
                         {/* Item cell — name, SKU, stock/unit/req info, link button */}
-                        <td className="px-3 py-3 relative">
+                        <td ref={el => { linkBtnRefs.current[`d_${idx}`] = el; }} className="px-3 py-3 relative">
                           <div className="flex items-start gap-2">
                             <div className="min-w-0 flex-1">
                               <p className="text-[13px] font-semibold text-gray-900 dark:text-white leading-tight" title={safeStr(item.itemName)}>
@@ -535,16 +548,16 @@ export function POFormModal({
                                 </div>
                               )}
                             </div>
-                            <button onClick={() => setLinkingIndex(idx)}
+                            <button onClick={() => openLinkPopup(idx, false)}
                               className="p-1.5 text-orange-500 hover:bg-orange-50 dark:hover:bg-orange-900/20 rounded-lg shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
                               title="Link to inventory">
                               <Link2 className="w-3.5 h-3.5" />
                             </button>
                           </div>
 
-                          {/* Link popup (desktop) */}
-                          {linkingIndex === idx && (
-                            <div className="absolute z-30 left-0 top-full mt-1 w-72 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-2xl p-3">
+                          {/* Link popup handled via portal below */}
+                          {false && linkingIndex === idx && (
+                            <div className="absolute z-[99999] left-0 top-full mt-1 w-72 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-2xl p-3">
                               <div className="flex items-center justify-between mb-2">
                                 <span className="text-[11px] font-bold text-gray-500">Link inventory item</span>
                                 <button onClick={() => setLinkingIndex(null)}><X className="w-3 h-3 text-gray-400" /></button>
@@ -884,6 +897,48 @@ export function POFormModal({
         <Btn label="Cancel" outline onClick={onClose} className="flex-1" />
         <Btn label={isEditing ? "Update PO" : "Create PO"} onClick={onSubmit} loading={actionLoading} className="flex-1" />
       </div>
+
+      {/* ── Link inventory portal — fixed so no parent overflow clips it ── */}
+      {linkingIndex !== null && ReactDOM.createPortal(
+        <>
+          {/* Backdrop to close on outside click */}
+          <div className="fixed inset-0 z-[99998]" onClick={() => { setLinkingIndex(null); setLinkingSearch(""); }} />
+          <div
+            style={{ position: "fixed", top: linkingPos.top, left: Math.max(8, Math.min(linkingPos.left, window.innerWidth - linkingPos.width - 8)), width: linkingPos.width, zIndex: 99999 }}
+            className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-2xl p-3"
+          >
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-[11px] font-bold text-gray-500">Link inventory item</span>
+              <button onClick={() => { setLinkingIndex(null); setLinkingSearch(""); }}><X className="w-3.5 h-3.5 text-gray-400" /></button>
+            </div>
+            <div className="relative mb-2">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+              <input autoFocus type="text" placeholder="Search inventory..." value={linkingSearch}
+                onChange={(e) => setLinkingSearch(e.target.value)}
+                className="w-full pl-9 pr-3 py-1.5 border border-gray-200 dark:border-gray-700 rounded-lg text-[12px] focus:outline-none bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-white" />
+            </div>
+            <div className="max-h-52 overflow-y-auto space-y-1">
+              {linkingLoading
+                ? <p className="py-4 text-center text-[11px] text-gray-400">Searching...</p>
+                : linkingResults.length === 0
+                  ? <p className="py-4 text-center text-[11px] text-gray-400">{linkingSearch ? "No items found" : "Type to search inventory"}</p>
+                  : linkingResults.map((i, iidx) => (
+                    <div key={iidx}
+                      onClick={() => { linkToInventory(linkingIndex, i); setLinkingIndex(null); setLinkingSearch(""); }}
+                      className="px-3 py-2 hover:bg-orange-50 dark:hover:bg-orange-900/10 cursor-pointer text-[12px] rounded-lg border border-transparent hover:border-orange-100 transition-all">
+                      <div className="font-bold text-gray-900 dark:text-white">{safeStr(i.itemName)}</div>
+                      <div className="flex items-center justify-between mt-0.5">
+                        <span className="text-[10px] text-gray-500 font-mono">{safeStr(i.sku)}</span>
+                        <span className="text-[10px] font-bold text-orange-600">Stock: {safeStr(i.liveStock)}</span>
+                      </div>
+                    </div>
+                  ))
+              }
+            </div>
+          </div>
+        </>,
+        document.body
+      )}
     </div>
   );
 }
