@@ -56,7 +56,7 @@ const Quotations = /* @__PURE__ */ __name(() => {
     settings,
     gstRates
   } = useAppStore();
-  const { categories: CATEGORIES = [] } = settings;
+  const { categories: CATEGORIES = [], projects: PROJECTS = [] } = settings;
   const GST_PCT_OPTIONS = gstRates.length
     ? gstRates.map((r) => ({ value: r.rate ?? 0, label: r.label || `${r.rate}% GST`, key: r._id }))
     : [0, 5, 12, 18, 28].map((v) => ({ value: v, label: `${v}% GST`, key: v }));
@@ -64,11 +64,13 @@ const Quotations = /* @__PURE__ */ __name(() => {
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
+  const [filterProject, setFilterProject] = useState("");
   const [filterCategory, setFilterCategory] = useState("");
   const [filterSupplier, setFilterSupplier] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
   const [viewMode, setViewMode] = useState("card");
   const [tableFilter, setTableFilter] = useState("");
+  const projectOptions = PROJECTS;
   const supplierOptions = React.useMemo(() => {
     const uniqueSuppliers = Array.from(new Set(suppliers.map((s) => s.companyName).filter(Boolean)));
     return uniqueSuppliers.sort();
@@ -200,6 +202,9 @@ const Quotations = /* @__PURE__ */ __name(() => {
           return acc;
         }
       }
+      if (filterProject && mr?.project !== filterProject) {
+        return acc;
+      }
       if (filterCategory && q.category !== filterCategory) {
         return acc;
       }
@@ -214,7 +219,7 @@ const Quotations = /* @__PURE__ */ __name(() => {
       acc[key].push(q);
       return acc;
     }, {});
-  }, [quotations, materialRequirements, hasPermission, filterCategory, filterSupplier, filterStatus]);
+  }, [quotations, materialRequirements, hasPermission, filterProject, filterCategory, filterSupplier, filterStatus]);
   const sortedGroupEntries = React.useMemo(() => {
     return Object.entries(groupedQuotations).sort(([, a], [, b]) => {
       const latestA = Math.max(...a.map(q => new Date(q.createdAt || 0).getTime()));
@@ -254,11 +259,12 @@ const Quotations = /* @__PURE__ */ __name(() => {
 
       <div className="mb-6">
         <FilterRow
-    showClear={!!(search || startDate || endDate || filterCategory || filterSupplier || filterStatus)}
+    showClear={!!(search || startDate || endDate || filterProject || filterCategory || filterSupplier || filterStatus)}
     onClearAll={() => {
       setSearch("");
       setStartDate("");
       setEndDate("");
+      setFilterProject("");
       setFilterCategory("");
       setFilterSupplier("");
       setFilterStatus("");
@@ -278,6 +284,12 @@ const Quotations = /* @__PURE__ */ __name(() => {
     }}
   />
 
+          <SelectFilter
+    value={filterProject}
+    onChange={setFilterProject}
+    options={projectOptions}
+    placeholder="All Projects"
+  />
           <SelectFilter
     value={filterCategory}
     onChange={setFilterCategory}
