@@ -7,6 +7,7 @@ import { CheckCircle2, AlertCircle } from "lucide-react";
 import { scrollToError } from "../utils";
 import { useEffect } from "react";
 import { toast } from "react-hot-toast";
+import { api } from "../services/api";
 const PAN_REGEX = /^[A-Z]{5}[0-9]{4}[A-Z]{1}$/;
 const GST_REGEX = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/;
 const IFSC_REGEX = /^[A-Z]{4}0[A-Z0-9]{6}$/;
@@ -101,11 +102,26 @@ const PublicSupplierRegistration = /* @__PURE__ */ __name(() => {
   }, "handleFileChange");
   const handleSubmit = /* @__PURE__ */ __name(async () => {
     setError("");
-    const maxNum = suppliers.reduce((max, s) => {
-      const match = (s.id || "").match(/VND_(\d+)/i);
-      return match ? Math.max(max, parseInt(match[1], 10)) : max;
-    }, 0);
-    const newId = `VND_${String(maxNum + 1).padStart(4, "0")}`;
+    let newId;
+    if (isAuthenticated) {
+      // Fetch fresh list from API to get accurate last VND number
+      let allSuppliers = suppliers;
+      if (allSuppliers.length === 0) {
+        try {
+          const res = await api.get("suppliers", { limit: 5000 });
+          allSuppliers = res.data || [];
+        } catch (e) {
+          allSuppliers = [];
+        }
+      }
+      const maxNum = allSuppliers.reduce((max, s) => {
+        const match = (s.id || "").match(/VND_(\d+)/i);
+        return match ? Math.max(max, parseInt(match[1], 10)) : max;
+      }, 0);
+      newId = `VND_${String(maxNum + 1).padStart(4, "0")}`;
+    } else {
+      newId = `PUB-S${Date.now().toString().slice(-6)}`;
+    }
     const supplierData = {
       ...newSupplier,
       id: newId,
