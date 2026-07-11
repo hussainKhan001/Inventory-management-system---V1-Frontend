@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 import { useAppStore } from "../store";
 import {
   PageHeader, Card, StatusBadge, Badge, Btn, Modal,
@@ -6,10 +6,9 @@ import {
 } from "../components/ui";
 import {
   Plus, Eye, Pencil, Trash2, User, MapPin, Building, Package,
-  Check, Link2, CheckCircle, TrendingUp, AlertTriangle,
+  Check, Link2, CheckCircle, TrendingUp, AlertTriangle, FileText,
   LayoutList, Table as TableIcon, Search,
 } from "lucide-react";
-import { Virtuoso } from "react-virtuoso";
 import { formatDateTime, safeStr, isNewItem } from "../utils";
 import { toast } from "react-hot-toast";
 import { cn } from "../lib/utils";
@@ -20,7 +19,6 @@ import { MRDetailModal } from "./mr/MRDetailModal";
 const STATUS_OPTIONS = [
   { label: "Store Pending", value: "Store Pending" },
   { label: "Approved by Store", value: "Approved by Store" },
-  { label: "Approved by AGM", value: "Approved by AGM" },
   { label: "Quotation Phase", value: "Quotation Phase" },
   { label: "PO Created", value: "PO Created" },
   { label: "Partially Inwarded", value: "Partially Inwarded" },
@@ -34,7 +32,7 @@ export function MaterialRequirementPage() {
     mrAllocations, mrAllocationsPagination,
     fetchResource, deleteMaterialRequirement,
     inventory, role, loading, actionLoading, api,
-    hasPermission, settings, pos,
+    hasPermission, settings, pos, quotations,
   } = useAppStore();
 
   const { projects: PROJECTS, requesters: REQUESTERS } = settings;
@@ -44,11 +42,30 @@ export function MaterialRequirementPage() {
     return pos.some(po =>
       po.mrId === mr?.id &&
       !["Rejected", "Blocked", "Cancelled"].includes(po.status) &&
-      po.items?.some(poItem => 
+      po.items?.some(poItem =>
         (poItem.sku && item.sku && poItem.sku !== "N/A" && poItem.sku === item.sku) ||
         (poItem.itemName && item.materialName && poItem.itemName === item.materialName)
       )
     );
+  };
+  const getItemLinkedPO = (item, mr) => pos.find(po =>
+    po.mrId === mr?.id &&
+    !["Rejected", "Blocked", "Cancelled"].includes(po.status) &&
+    po.items?.some(poItem =>
+      (poItem.sku && item.sku && poItem.sku !== "N/A" && poItem.sku === item.sku) ||
+      (poItem.itemName && item.materialName && poItem.itemName === item.materialName)
+    )
+  );
+  const getPOPhase = (po) => {
+    if (!po) return { label: "—", color: "gray" };
+    if (["GRN Fulfilled", "PO Closed", "Closed"].includes(po.status)) return { label: "GRN Done", color: "emerald" };
+    if (po.status === "GRN Variance") return { label: "GRN Variance", color: "yellow" };
+    if (po.status === "GRN Pending") return { label: "GRN Pending", color: "amber" };
+    if (po.status === "Ready for Payment") return { label: "Ready for Payment", color: "blue" };
+    if (po.approvalL3 === "Approved") return { label: "L3 Approved", color: "blue" };
+    if (po.approvalL2 === "Approved") return { label: "L2 Approved", color: "blue" };
+    if (po.approvalL1 === "Approved") return { label: "L1 Approved", color: "indigo" };
+    return { label: po.status || "Pending", color: "gray" };
   };
 
   // Filters
@@ -63,6 +80,7 @@ export function MaterialRequirementPage() {
 
   const [viewMode, setViewMode] = useState("card");
   const [tableFilter, setTableFilter] = useState("");
+  const [stableMRs, setStableMRs] = useState([]);
 
   // Modal state
   const [modal, setModal] = useState(false);
@@ -78,6 +96,13 @@ export function MaterialRequirementPage() {
     return () => clearTimeout(t);
   }, [search]);
 
+  // Keep a stable snapshot of loaded MRs so client-side search survives server overwrites
+  useEffect(() => {
+    if (!debouncedSearch && materialRequirements.length > 0) {
+      setStableMRs(materialRequirements);
+    }
+  }, [materialRequirements, debouncedSearch]);
+
   // Fetch on filter change
   useEffect(() => {
     const filterObj = {};
@@ -92,6 +117,7 @@ export function MaterialRequirementPage() {
     }
     if (pos.length === 0) fetchResource("pos", 1, 2000, true);
     if (inventory.length < 500) fetchResource("inventory", 1, 2000, true);
+    if (quotations.length === 0) fetchResource("quotations", 1, 2000, true);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [debouncedSearch, activeTab, startDate, endDate, filterProject, filterRequester, filterStatus]);
 
@@ -125,6 +151,33 @@ export function MaterialRequirementPage() {
     grnFulfilledMrIds.has(mr.id) && !["Closed"].includes(mr.status)
   );
 
+  // Items from approved MRs that don't yet have a PO — shown in Procurement Pending tab
+  const procurementPendingItems = React.useMemo(() => {
+    const result = [];
+    (materialRequirements || [])
+      .filter(mr => ["Approved by Store", "Quotation Phase", "PO Created"].includes(mr.status))
+      .forEach(mr => {
+        const pending = (mr.items || []).filter(item => !isItemPOCreated(item, mr));
+        if (pending.length > 0) result.push({ mr, items: pending });
+      });
+    return result;
+  }, [materialRequirements, pos]);
+
+  // Client-side filter: merge server results with stable snapshot so search works even when server returns empty
+  const filteredMRs = React.useMemo(() => {
+    if (!debouncedSearch.trim()) return materialRequirements || [];
+    const term = debouncedSearch.trim().toLowerCase();
+    // Merge: server results + stable base (deduplicated by id)
+    const pool = [...(materialRequirements || [])];
+    stableMRs.forEach(mr => { if (!pool.find(x => x.id === mr.id)) pool.push(mr); });
+    return pool.filter(mr =>
+      [mr.id, mr.mrNumber, mr.project, mr.requesterName, mr.location].some(f => f?.toLowerCase().includes(term)) ||
+      (mr.items || []).some(item =>
+        item.materialName?.toLowerCase().includes(term) || item.sku?.toLowerCase().includes(term)
+      )
+    );
+  }, [stableMRs, materialRequirements, debouncedSearch]);
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -139,6 +192,7 @@ export function MaterialRequirementPage() {
         <div className="flex items-center gap-1 p-1 bg-gray-100 dark:bg-gray-800 rounded-xl w-fit">
           {[
             ["requirements", "Requisitions (Current)", 0],
+            ["pending-procurement", "PO Pending", procurementPendingItems.reduce((s, g) => s + g.items.length, 0)],
             ["allocations", "Allocated Stock Registry", 0],
             ["grn-ready", "GRN Ready", grnReadyMRs.length],
           ].map(([tab, label, count]) => (
@@ -162,7 +216,7 @@ export function MaterialRequirementPage() {
           <SearchFilter
             value={search}
             onChange={setSearch}
-            placeholder="Search by ID, Requester, Project..."
+            placeholder="Search by ID, Item Name, Requester, Project..."
             className="flex-1 min-w-[240px]"
           />
           <DateRangePicker
@@ -225,7 +279,7 @@ export function MaterialRequirementPage() {
                     <tr><td colSpan={8} className="px-4 py-12 text-center text-gray-500 italic text-[13px]">No material requirements found.</td></tr>
                   )}
                   {materialRequirements
-                    .filter(req => !tableFilter || [req.mrNumber || req.id, req.project, req.requesterName, req.location, req.status].some(f => f?.toLowerCase().includes(tableFilter.toLowerCase())))
+                    .filter(req => !tableFilter.trim() || [req.mrNumber || req.id, req.project, req.requesterName, req.location, req.status, ...(req.items || []).map(i => i.materialName)].some(f => f?.toLowerCase().includes(tableFilter.trim().toLowerCase())))
                     .map(req => (
                     <tr
                       key={req.id}
@@ -283,9 +337,9 @@ export function MaterialRequirementPage() {
                 <div className="w-3.5 h-3.5 border-2 border-primary border-t-transparent rounded-full animate-spin mr-2" />Loading more...
               </div>
             )}
-            {materialRequirementsPagination && materialRequirementsPagination.page < materialRequirementsPagination.pages && !loading && (
-              <div className="flex justify-center py-3 border-t border-gray-100 dark:border-gray-800">
-                <button onClick={() => handlePageChange(materialRequirementsPagination.page + 1)} className="px-4 py-1.5 text-[12px] font-medium text-primary border border-primary/30 rounded-lg hover:bg-primary/5 transition-colors">Load more</button>
+            {materialRequirementsPagination?.pages > 1 && (
+              <div className="p-4 border-t border-gray-100 dark:border-gray-800 flex justify-end">
+                <Pagination data={materialRequirementsPagination} onPageChange={handlePageChange} />
               </div>
             )}
           </Card>
@@ -308,17 +362,18 @@ export function MaterialRequirementPage() {
                 </Card>
               ))
               : (
-                <Virtuoso
-                  style={{ height: "calc(100vh - 350px)" }}
-                  data={materialRequirements || []}
-                  context={{ inventory }}
-                  endReached={() => {
-                    if (materialRequirementsPagination?.page < materialRequirementsPagination?.pages && !loading) {
-                      handlePageChange(materialRequirementsPagination.page + 1);
-                    }
-                  }}
-                  itemContent={(_index, req, { inventory: inv }) => (
-                    <div className="py-2 px-1">
+                <div className="space-y-2">
+                  {filteredMRs.map((req) => {
+                    const inv = inventory;
+                    const mrPos = pos.filter(po =>
+                      (po.mrId === req.id || po.mrId === req.mrNumber) &&
+                      !["Rejected", "Blocked", "Cancelled"].includes(po.status)
+                    );
+                    const mrQuotations = quotations.filter(q =>
+                      q.mrId === req.id || q.mrId === req.mrNumber
+                    );
+                    return (
+                    <div key={req.id} className="py-1 px-1">
                       <Card
                         className={cn(
                           "p-0 overflow-hidden border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 transition-all",
@@ -339,6 +394,24 @@ export function MaterialRequirementPage() {
                               ) : (
                                 <StatusBadge status={req.status} />
                               )}
+                              <span className={cn(
+                                "flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black",
+                                mrPos.length > 0
+                                  ? "bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300"
+                                  : "bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-500"
+                              )}>
+                                <Link2 className="w-2.5 h-2.5" />
+                                {mrPos.length} PO{mrPos.length !== 1 ? "s" : ""}
+                              </span>
+                              <span className={cn(
+                                "flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black",
+                                mrQuotations.length > 0
+                                  ? "bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-300"
+                                  : "bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-500"
+                              )}>
+                                <FileText className="w-2.5 h-2.5" />
+                                {mrQuotations.length} Quote{mrQuotations.length !== 1 ? "s" : ""}
+                              </span>
                               {req.items.some(i => i.status === "In Stock" || i.status === "Partial") && (
                                 <Badge text="Stock Available" color="green" icon={Check} className="gap-1 px-1.5" />
                               )}
@@ -430,16 +503,53 @@ export function MaterialRequirementPage() {
                           </div>
                         </div>
 
+                        {/* Linked POs strip — always visible */}
+                        <div className="px-4 py-2 border-b border-blue-100 dark:border-blue-900/30 bg-blue-50/20 dark:bg-blue-950/10 flex items-center gap-2 flex-wrap">
+                          <span className="text-[10px] font-bold text-gray-400 dark:text-gray-500 shrink-0">Linked POs:</span>
+                          {mrPos.length === 0 ? (
+                            <span className="text-[10px] text-gray-400 dark:text-gray-600 italic">No POs created yet</span>
+                          ) : mrPos.map(po => {
+                            const phase = getPOPhase(po);
+                            const phaseColor = {
+                              emerald: "text-emerald-600 dark:text-emerald-400",
+                              amber: "text-amber-600 dark:text-amber-400",
+                              yellow: "text-yellow-600 dark:text-yellow-400",
+                              blue: "text-blue-600 dark:text-blue-400",
+                              indigo: "text-indigo-600 dark:text-indigo-400",
+                              gray: "text-gray-500 dark:text-gray-400",
+                            }[phase.color] || "text-gray-500";
+                            return (
+                              <span key={po.id} className="flex items-center gap-1.5 text-[10px] px-2 py-0.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded font-mono">
+                                <span className="font-bold text-primary">{po.id}</span>
+                                <span className="text-gray-300 dark:text-gray-600">·</span>
+                                <span className={cn("font-bold", phaseColor)}>{phase.label}</span>
+                              </span>
+                            );
+                          })}
+                        </div>
+
                         {/* Items chips */}
                         <div className="p-4 bg-white dark:bg-gray-900">
                           <div className="flex flex-wrap gap-2">
-                            {req.items.map((item, idx) => (
+                            {req.items.map((item, idx) => {
+                              const linkedPO = getItemLinkedPO(item, req);
+                              const poPhase = linkedPO ? getPOPhase(linkedPO) : null;
+                              const poPhaseColor = poPhase ? ({
+                                emerald: "text-emerald-600 dark:text-emerald-400",
+                                amber: "text-amber-600 dark:text-amber-400",
+                                blue: "text-blue-600 dark:text-blue-400",
+                                indigo: "text-indigo-600 dark:text-indigo-400",
+                                gray: "text-gray-500",
+                              }[poPhase.color] || "text-gray-500") : "";
+                              return (
                               <div
                                 key={idx}
                                 className={cn(
                                   "px-3 py-1.5 bg-gray-50 dark:bg-gray-800 border rounded-lg flex flex-col gap-1",
-                                  isItemPOCreated(item, req)
+                                  linkedPO
                                     ? "border-emerald-200 dark:border-emerald-800/60 bg-emerald-50/40 dark:bg-emerald-950/20"
+                                    : item.status === "Needs Purchase"
+                                    ? "border-amber-200 dark:border-amber-800/40 bg-amber-50/30 dark:bg-amber-950/10"
                                     : "border-gray-100 dark:border-gray-700"
                                 )}
                               >
@@ -448,7 +558,7 @@ export function MaterialRequirementPage() {
                                   <div className="flex flex-col">
                                     <div className="flex items-center gap-1.5">
                                       <span className="text-[13px] font-medium text-gray-700 dark:text-gray-300">{item.materialName}</span>
-                                      {isItemPOCreated(item, req) && (
+                                      {linkedPO && (
                                         <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 bg-emerald-100 dark:bg-emerald-900/40 text-emerald-600 dark:text-emerald-400 rounded-md border border-emerald-200 dark:border-emerald-700/50 text-[9px] font-black tracking-widest shrink-0">
                                           <CheckCircle className="w-2.5 h-2.5" /> PO
                                         </span>
@@ -463,6 +573,14 @@ export function MaterialRequirementPage() {
                                   </div>
                                   <span className="text-[11px] font-bold text-gray-400 dark:text-gray-500 ml-auto">x {item.qty} {item.unit}</span>
                                 </div>
+                                {/* Item status row */}
+                                {linkedPO && (
+                                  <div className="flex items-center gap-1 px-1.5 py-0.5 bg-white/60 dark:bg-gray-700/40 rounded-md">
+                                    <span className="text-[9px] font-bold text-gray-400 font-mono">{linkedPO.id}</span>
+                                    <span className="text-gray-300 dark:text-gray-600 text-[9px]">·</span>
+                                    <span className={cn("text-[9px] font-bold", poPhaseColor)}>{poPhase?.label}</span>
+                                  </div>
+                                )}
                                 {(item.status === "In Stock" || item.status === "Partial") && (
                                   <div className="flex items-center gap-1.5 px-1.5 py-0.5 bg-green-50 dark:bg-green-900/10 rounded-md">
                                     <Check className="w-2.5 h-2.5 text-green-600 dark:text-green-500" />
@@ -474,26 +592,79 @@ export function MaterialRequirementPage() {
                                     </span>
                                   </div>
                                 )}
+                                {item.status === "Needs Purchase" && !linkedPO && (
+                                  <div className="flex items-center gap-1 px-1.5 py-0.5 bg-amber-50 dark:bg-amber-900/10 rounded-md">
+                                    <span className="text-[9px] font-bold text-amber-600 dark:text-amber-400 tracking-widest">
+                                      {req.status === "Store Pending" ? "STORE PENDING" : "PO PENDING"}
+                                    </span>
+                                  </div>
+                                )}
+                                {(item.status === "Allocated" || item.status === "Issued") && (
+                                  <div className="flex items-center gap-1 px-1.5 py-0.5 bg-emerald-50 dark:bg-emerald-900/10 rounded-md">
+                                    <CheckCircle className="w-2.5 h-2.5 text-emerald-600 dark:text-emerald-500" />
+                                    <span className="text-[9px] font-bold text-emerald-700 dark:text-emerald-400 tracking-widest">{item.status.toUpperCase()}</span>
+                                  </div>
+                                )}
                               </div>
-                            ))}
+                              );
+                            })}
                           </div>
                         </div>
                       </Card>
                     </div>
-                  )}
-                />
+                    );
+                  })}
+                </div>
               )}
 
-            {!materialRequirements?.length && !loading && (
+            {!filteredMRs.length && !loading && (
               <div className="text-center py-12 text-gray-500 text-[13px]">No material requirements found.</div>
             )}
-            {loading && materialRequirements.length > 0 && (
-              <div className="flex items-center justify-center py-4 text-gray-500 text-xs">
-                <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin mr-2" />
-                Loading more requirements...
+            {materialRequirementsPagination?.pages > 1 && (
+              <div className="py-4 flex justify-end">
+                <Pagination data={materialRequirementsPagination} onPageChange={handlePageChange} />
               </div>
             )}
           </>
+        ) : activeTab === "pending-procurement" ? (
+          <div className="space-y-3">
+            {procurementPendingItems.length === 0 && !loading && (
+              <div className="text-center py-16">
+                <CheckCircle className="w-10 h-10 mx-auto mb-3 text-emerald-400" />
+                <p className="text-gray-500 text-[14px] font-medium">No pending procurement items</p>
+                <p className="text-gray-400 text-[12px] mt-1">All approved MR items have Purchase Orders</p>
+              </div>
+            )}
+            {procurementPendingItems.map(({ mr, items }) => (
+              <Card key={mr.id} className="p-0 overflow-hidden border-amber-200 dark:border-amber-800/40">
+                <div className="px-4 py-3 bg-amber-50/60 dark:bg-amber-950/20 border-b border-amber-100 dark:border-amber-900/30 flex items-center justify-between gap-3 flex-wrap">
+                  <div className="flex items-center gap-3 flex-wrap">
+                    <span className="text-[13px] font-black text-primary font-mono">{mr.mrNumber || mr.id}</span>
+                    <StatusBadge status={mr.status} />
+                    <span className="flex items-center gap-1 text-[11px] text-gray-500 dark:text-gray-400"><Building className="w-3 h-3" />{mr.project || "—"}</span>
+                    <span className="flex items-center gap-1 text-[11px] text-gray-500 dark:text-gray-400"><User className="w-3 h-3" />{mr.requesterName || "—"}</span>
+                    <span className="flex items-center gap-1 text-[11px] text-gray-500 dark:text-gray-400"><MapPin className="w-3 h-3" />{mr.location || "—"}</span>
+                  </div>
+                  <span className="shrink-0 px-2 py-0.5 bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400 rounded text-[10px] font-black">{items.length} item{items.length !== 1 ? "s" : ""} pending</span>
+                </div>
+                <div className="p-4 flex flex-wrap gap-2">
+                  {items.map((item, idx) => (
+                    <div key={idx} className="px-3 py-2 bg-amber-50/40 dark:bg-amber-950/10 border border-amber-200 dark:border-amber-800/40 rounded-lg flex flex-col gap-1 min-w-[140px]">
+                      <div className="flex items-center gap-2">
+                        <Package className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                        <span className="text-[12px] font-medium text-gray-700 dark:text-gray-300">{item.materialName}</span>
+                        <span className="text-[11px] font-bold text-gray-400 ml-auto shrink-0">x{item.qty} {item.unit}</span>
+                      </div>
+                      {item.sku && item.sku !== "N/A" && (
+                        <span className="text-[10px] text-gray-400 font-mono">{item.sku}</span>
+                      )}
+                      <span className="text-[9px] font-black tracking-widest text-amber-600 dark:text-amber-400 px-1.5 py-0.5 bg-amber-100 dark:bg-amber-900/30 rounded w-fit">PO PENDING</span>
+                    </div>
+                  ))}
+                </div>
+              </Card>
+            ))}
+          </div>
         ) : activeTab === "grn-ready" ? (
           <div className="space-y-4">
             {grnReadyMRs.length === 0 && !loading && (

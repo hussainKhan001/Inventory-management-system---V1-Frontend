@@ -1,8 +1,8 @@
 var __defProp = Object.defineProperty;
 var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useAppStore } from "../store";
-import { PageHeader, Card, Btn, Modal, Skeleton } from "../components/ui";
+import { PageHeader, Card, Btn, Modal, Skeleton, Pagination } from "../components/ui";
 import { DateRangePicker } from "../components/ui/DateRangePicker";
 import { FileText, Download, Eye, Calendar, User, Tag, Search, Trash2 } from "lucide-react";
 import { api } from "../services/api";
@@ -10,7 +10,7 @@ import { toast } from "react-hot-toast";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 const StockCheckReports = /* @__PURE__ */ __name(() => {
-  const { stockCheckReports, role, approveStockCheck, rejectStockCheck, actionLoading, loading, fetchResource } = useAppStore();
+  const { stockCheckReports, stockCheckReportsPagination, role, approveStockCheck, rejectStockCheck, actionLoading, loading, fetchResource } = useAppStore();
   const [selectedReport, setSelectedReport] = useState(null);
   const [approvalModal, setApprovalModal] = useState(null);
   const [reason, setReason] = useState("");
@@ -27,6 +27,12 @@ const StockCheckReports = /* @__PURE__ */ __name(() => {
     if (startDate) filter.startDate = startDate;
     if (endDate) filter.endDate = endDate;
     fetchResource("stock-check-reports", 1, 50, false, debouncedSearch, Object.keys(filter).length > 0 ? filter : null);
+  }, [fetchResource, debouncedSearch, startDate, endDate]);
+  const handlePageChange = useCallback((page) => {
+    const filter = {};
+    if (startDate) filter.startDate = startDate;
+    if (endDate) filter.endDate = endDate;
+    fetchResource("stock-check-reports", page, 50, false, debouncedSearch, Object.keys(filter).length > 0 ? filter : null);
   }, [fetchResource, debouncedSearch, startDate, endDate]);
   const handleApprove = /* @__PURE__ */ __name(async () => {
     if (!approvalModal) return;
@@ -159,7 +165,7 @@ const StockCheckReports = /* @__PURE__ */ __name(() => {
             Complete a physical stock check audit to generate your first report.
           </p>
         </Card> : <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {stockCheckReports.map((report) => <Card key={report.id} className="p-4 hover:shadow-md transition-shadow bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-800">
+          {stockCheckReports.map((report) => <Card key={report._id || report.id} className="p-4 hover:shadow-md transition-shadow bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-800">
               <div className="flex justify-between items-start mb-4">
                 <div className="p-2 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
                   <FileText className="w-6 h-6 text-blue-500 dark:text-blue-400" />
@@ -211,6 +217,12 @@ const StockCheckReports = /* @__PURE__ */ __name(() => {
               </div>
             </Card>)}
         </div>}
+
+      {stockCheckReportsPagination?.pages > 1 && (
+        <div className="py-4 flex justify-end">
+          <Pagination data={stockCheckReportsPagination} onPageChange={handlePageChange} />
+        </div>
+      )}
 
       {selectedReport && <Modal
     title={`Audit Report: ${selectedReport.id}`}

@@ -12,7 +12,11 @@ const GST_REGEX = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/;
 const IFSC_REGEX = /^[A-Z]{4}0[A-Z0-9]{6}$/;
 const MOBILE_REGEX = /^[0-9]{10}$/;
 const PublicSupplierRegistration = /* @__PURE__ */ __name(() => {
-  const { submitPublicSupplierRegistration: submitRegistration, uploadPublicImage } = useAppStore();
+  const { submitPublicSupplierRegistration: submitRegistration, uploadPublicImage, suppliers, addSupplier, fetchResource, isAuthenticated } = useAppStore();
+
+  useEffect(() => {
+    if (isAuthenticated && suppliers.length === 0) fetchResource("suppliers", 1, 5000, true);
+  }, [isAuthenticated]);
   const [section, setSection] = useState(1);
   const [error, setError] = useState("");
   const [errors, setErrors] = useState({});
@@ -97,9 +101,14 @@ const PublicSupplierRegistration = /* @__PURE__ */ __name(() => {
   }, "handleFileChange");
   const handleSubmit = /* @__PURE__ */ __name(async () => {
     setError("");
+    const maxNum = suppliers.reduce((max, s) => {
+      const match = (s.id || "").match(/VND_(\d+)/i);
+      return match ? Math.max(max, parseInt(match[1], 10)) : max;
+    }, 0);
+    const newId = `VND_${String(maxNum + 1).padStart(4, "0")}`;
     const supplierData = {
       ...newSupplier,
-      id: `PUB-S${Date.now().toString().slice(-6)}`,
+      id: newId,
       name: newSupplier.companyName,
       contact: newSupplier.ownerName,
       phone: newSupplier.mobile,
@@ -109,7 +118,11 @@ const PublicSupplierRegistration = /* @__PURE__ */ __name(() => {
       status: "Active"
     };
     try {
-      await submitRegistration(supplierData);
+      if (isAuthenticated) {
+        await addSupplier(supplierData);
+      } else {
+        await submitRegistration(supplierData);
+      }
       setSubmitted(true);
       toast.success("Supplier registration submitted successfully!");
     } catch (err) {

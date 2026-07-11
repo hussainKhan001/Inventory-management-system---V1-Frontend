@@ -202,5 +202,6 @@ const api = {
 export {
   api,
   instance,
-  wakeServer
+  wakeServer,
+  _bust as bustCache,
 };

@@ -1,6 +1,6 @@
 var __defProp = Object.defineProperty;
 var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useAppStore } from "../store";
 import {
   PageHeader,
@@ -9,7 +9,8 @@ import {
   Btn,
   Modal,
   Skeleton,
-  Checkbox
+  Checkbox,
+  Pagination,
 } from "../components/ui";
 import { SearchFilter, DateRangePicker, SelectFilter, FilterRow } from "../components/ui/Filters";
 import {
@@ -26,7 +27,8 @@ import {
   Trash2,
   LayoutList,
   Table as TableIcon,
-  Search
+  Search,
+  RefreshCw
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { formatDate, fmt, safeStr, isNewItem } from "../utils";
@@ -34,7 +36,7 @@ import { toast } from "react-hot-toast";
 import { cn } from "../lib/utils";
 import { Virtuoso } from "react-virtuoso";
 import { DatePicker } from "../components/ui/DatePicker";
-import { api } from "../services/api";
+import { api, bustCache } from "../services/api";
 const Quotations = /* @__PURE__ */ __name(() => {
   const {
     quotations,
@@ -86,7 +88,7 @@ const Quotations = /* @__PURE__ */ __name(() => {
     if (filterSupplier) filterObj.supplierName = filterSupplier;
     if (filterStatus) filterObj.status = filterStatus;
     const finalFilter = Object.keys(filterObj).length > 0 ? filterObj : null;
-    fetchResource("quotations", 1, 1e3, true, debouncedSearch, finalFilter, false, false, startDate, endDate);
+    fetchResource("quotations", 1, 50, false, debouncedSearch, finalFilter, false, false, startDate, endDate);
     fetchResource("material-requirements", 1, 1e3, true);
     fetchResource("pos", 1, 1e3, true);
     if (suppliers.length === 0) fetchResource("suppliers", 1, 5000, true);
@@ -99,6 +101,24 @@ const Quotations = /* @__PURE__ */ __name(() => {
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [debouncedSearch, startDate, endDate, filterCategory, filterSupplier, filterStatus]);
+  const handleRefresh = useCallback(() => {
+    bustCache("quotations");
+    const filterObj = {};
+    if (filterCategory) filterObj.category = filterCategory;
+    if (filterSupplier) filterObj.supplierName = filterSupplier;
+    if (filterStatus) filterObj.status = filterStatus;
+    const finalFilter = Object.keys(filterObj).length > 0 ? filterObj : null;
+    fetchResource("quotations", 1, 50, false, debouncedSearch, finalFilter, false, false, startDate, endDate, true);
+  }, [fetchResource, filterCategory, filterSupplier, filterStatus, debouncedSearch, startDate, endDate]);
+
+  const handlePageChange = useCallback((page) => {
+    const filterObj = {};
+    if (filterCategory) filterObj.category = filterCategory;
+    if (filterSupplier) filterObj.supplierName = filterSupplier;
+    if (filterStatus) filterObj.status = filterStatus;
+    const finalFilter = Object.keys(filterObj).length > 0 ? filterObj : null;
+    fetchResource("quotations", page, 50, false, debouncedSearch, finalFilter, false, false, startDate, endDate);
+  }, [fetchResource, debouncedSearch, filterCategory, filterSupplier, filterStatus, startDate, endDate]);
   const [viewModal, setViewModal] = useState(false);
   const [editModal, setEditModal] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
@@ -175,7 +195,7 @@ const Quotations = /* @__PURE__ */ __name(() => {
     return quotations.reduce((acc, q) => {
       const mr = materialRequirements.find((m) => m.id === q.mrId);
       if (hasPermission("APPROVE_MR_AGM")) {
-        const eligibleMR = !mr || ["Approved by Store", "Approved by AGM", "Closed", "Approved", "Quotation Phase", "PO Created"].includes(mr.status);
+        const eligibleMR = true;
         if (!eligibleMR && q.status !== "Rejected") {
           return acc;
         }
@@ -195,13 +215,21 @@ const Quotations = /* @__PURE__ */ __name(() => {
       return acc;
     }, {});
   }, [quotations, materialRequirements, hasPermission, filterCategory, filterSupplier, filterStatus]);
+  const sortedGroupEntries = React.useMemo(() => {
+    return Object.entries(groupedQuotations).sort(([, a], [, b]) => {
+      const latestA = Math.max(...a.map(q => new Date(q.createdAt || 0).getTime()));
+      const latestB = Math.max(...b.map(q => new Date(q.createdAt || 0).getTime()));
+      return latestB - latestA;
+    });
+  }, [groupedQuotations]);
+
   const flatQuotations = React.useMemo(() => {
-    return Object.entries(groupedQuotations).flatMap(([key, mrQuotations]) => {
+    return sortedGroupEntries.flatMap(([key, mrQuotations]) => {
       const [mrId, category] = key.split("|");
       const mr = materialRequirements.find((m) => m.id === mrId);
       return mrQuotations.map((q) => ({ ...q, _mr: mr, _mrId: mrId, _category: category || "" }));
     });
-  }, [groupedQuotations, materialRequirements]);
+  }, [sortedGroupEntries, materialRequirements]);
   const getMrDetails = /* @__PURE__ */ __name((mrId) => {
     return materialRequirements.find((m) => m.id === mrId);
   }, "getMrDetails");
@@ -212,6 +240,16 @@ const Quotations = /* @__PURE__ */ __name(() => {
       <PageHeader
     title="Quotation Comparison"
     subtitle="Manage and compare supplier quotations separately for each category"
+    actions={
+      <button
+        onClick={handleRefresh}
+        className="flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-medium text-gray-500 dark:text-gray-400 hover:text-primary dark:hover:text-primary border border-gray-200 dark:border-gray-700 rounded-lg hover:border-primary/40 transition-all"
+        title="Refresh quotations"
+      >
+        <RefreshCw className="w-3.5 h-3.5" />
+        Refresh
+      </button>
+    }
   />
 
       <div className="mb-6">
@@ -334,12 +372,17 @@ const Quotations = /* @__PURE__ */ __name(() => {
                 <p className="font-bold tracking-widest text-sm">No quotations to compare</p>
               </div>
             )}
+            {quotationsPagination?.pages > 1 && (
+              <div className="p-4 border-t border-gray-100 dark:border-gray-800 flex justify-end">
+                <Pagination data={quotationsPagination} onPageChange={handlePageChange} />
+              </div>
+            )}
           </div>
         ) : (
           <>
         <Virtuoso
     style={{ height: "calc(100vh - 250px)" }}
-    data={Object.entries(groupedQuotations)}
+    data={sortedGroupEntries}
     increaseViewportBy={300}
     itemContent={(_index, [key, mrQuotations]) => {
       const [mrId, category] = key.split("|");
@@ -493,6 +536,11 @@ const Quotations = /* @__PURE__ */ __name(() => {
     }}
   />
 
+        {quotationsPagination?.pages > 1 && (
+          <div className="py-4 flex justify-end">
+            <Pagination data={quotationsPagination} onPageChange={handlePageChange} />
+          </div>
+        )}
         {Object.keys(groupedQuotations).length === 0 && !loading && <div className="text-center py-20 bg-white dark:bg-[#1E293B] rounded-3xl border border-dashed border-gray-200 dark:border-gray-800">
             <div className="w-20 h-20 bg-gray-50 dark:bg-gray-900/50 rounded-full flex items-center justify-center mx-auto mb-4 text-gray-300">
               <FileText className="w-10 h-10" />
