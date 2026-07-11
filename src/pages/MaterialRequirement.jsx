@@ -157,7 +157,10 @@ export function MaterialRequirementPage() {
     (materialRequirements || [])
       .filter(mr => ["Approved by Store", "Quotation Phase", "PO Created"].includes(mr.status))
       .forEach(mr => {
-        const pending = (mr.items || []).filter(item => !isItemPOCreated(item, mr));
+        const pending = (mr.items || []).filter(item =>
+          !isItemPOCreated(item, mr) &&
+          !["In Stock", "Allocated", "Issued"].includes(item.status)
+        );
         if (pending.length > 0) result.push({ mr, items: pending });
       });
     return result;
