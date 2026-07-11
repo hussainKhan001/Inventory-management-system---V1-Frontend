@@ -991,9 +991,12 @@ const Quotations = /* @__PURE__ */ __name(() => {
 }, "Quotations");
 const QuotationForm = /* @__PURE__ */ __name(({ initialData, mrData: initialMrData, onClose, onSave }) => {
   const { gstRates, suppliers } = useAppStore();
-  const GST_PCT_OPTIONS = gstRates.length
-    ? gstRates.map((r) => ({ value: r.rate ?? 0, label: r.label || `${r.rate}% GST`, key: r._id }))
-    : [0, 5, 12, 18, 28].map((v) => ({ value: v, label: `${v}% GST`, key: v }));
+  const _rates = gstRates.length ? gstRates : [0, 5, 12, 18, 28].map((v) => ({ rate: v, _id: v }));
+  const GST_PCT_OPTIONS = (
+    _rates.some(r => (r.rate ?? -1) === 0)
+      ? _rates
+      : [{ rate: 0, label: "0% GST", _id: "zero" }, ..._rates]
+  ).map((r) => ({ value: r.rate ?? 0, label: r.label || `${r.rate}% GST`, key: r._id }));
   const [formData, setFormData] = useState(() => {
     return {
       ...initialData,

@@ -8,9 +8,10 @@ export function calcChargeTotal(amount, gstPct, gstType) {
 
 // Normalize timeline gst values to numbers
 export function normalizeTimelineGST(pt) {
-  const num = parseFloat(String(pt.gstPct || "").replace(/[^0-9.]/g, ""));
+  const raw = pt.gstPct != null ? String(pt.gstPct) : "";
+  const num = parseFloat(raw.replace(/[^0-9.]/g, ""));
   const gstType = pt.gstType === "Exclusive" ? "Exclusive" : "Inclusive";
-  return { ...pt, gstPct: isNaN(num) || !num ? 18 : num, gstType };
+  return { ...pt, gstPct: isNaN(num) ? 18 : num, gstType };
 }
 
 // Normalize legacy timeline type names

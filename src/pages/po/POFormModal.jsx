@@ -132,6 +132,22 @@ export function POFormModal({
 
   const set = (partial) => onChange({ ...po, ...partial });
 
+  // Sync timeline gstPct/gstType whenever line items' GST changes
+  useEffect(() => {
+    const firstItem = po.items?.[0];
+    if (firstItem?.gstPct == null || !po.paymentTimelines?.length) return;
+    const itemGstPct = Number(firstItem.gstPct);
+    const itemGstType = firstItem.gstType || "Exclusive";
+    const needsSync = po.paymentTimelines.some((pt) => {
+      const norm = normalizeTimelineGST(pt);
+      return norm.gstPct !== itemGstPct || norm.gstType !== itemGstType;
+    });
+    if (needsSync) {
+      const pts = po.paymentTimelines.map((pt) => ({ ...pt, gstPct: itemGstPct, gstType: itemGstType }));
+      onChange({ ...po, paymentTimelines: pts });
+    }
+  }, [po.items]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // When editing, stored mrId is plain ("MR-001") but option values are pipe-separated ("MR-001|Civil|Q-012").
   // Find the matching option value so the SField can display correctly.
   const mrFieldValue = useMemo(() => {
@@ -723,7 +739,12 @@ export function POFormModal({
           <div className="bg-[#1A365D] h-8 flex items-center justify-between px-4">
             <p className="text-white font-black text-[10px] tracking-widest">Payment Timelines</p>
             <button type="button"
-              onClick={() => set({ paymentTimelines: [...(po.paymentTimelines || []), { date: todayStr(), type: "Milestone", mode: "Bank Transfer", amount: 0, gstPct: 18, gstType: "Exclusive", ifPayable: 0 }] })}
+              onClick={() => {
+                const firstItem = po.items?.[0];
+                const newGstPct = firstItem?.gstPct != null ? Number(firstItem.gstPct) : 18;
+                const newGstType = firstItem?.gstType || "Exclusive";
+                set({ paymentTimelines: [...(po.paymentTimelines || []), { date: todayStr(), type: "Milestone", mode: "Bank Transfer", amount: 0, gstPct: newGstPct, gstType: newGstType, ifPayable: 0 }] });
+              }}
               className="text-white text-[9px] border border-white/40 px-2.5 py-0.5 rounded hover:bg-white/10 flex items-center gap-1">
               <Plus className="w-3 h-3" /> Add Row
             </button>

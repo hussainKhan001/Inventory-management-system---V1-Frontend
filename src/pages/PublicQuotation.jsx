@@ -63,11 +63,16 @@ const PublicQuotation = /* @__PURE__ */ __name(() => {
   useEffect(() => {
     fetchSuppliers();
     api.get("gst-rates").then((res) => {
-      if (res.data?.length) setGstRates(res.data.sort((a, b) => {
-        if (a.rate == null) return 1;
-        if (b.rate == null) return -1;
-        return a.rate - b.rate;
-      }));
+      if (res.data?.length) {
+        const rates = res.data;
+        const hasZero = rates.some(r => (r.rate ?? -1) === 0);
+        const withZero = hasZero ? rates : [{ rate: 0, label: "0% GST" }, ...rates];
+        setGstRates(withZero.sort((a, b) => {
+          if (a.rate == null) return 1;
+          if (b.rate == null) return -1;
+          return a.rate - b.rate;
+        }));
+      }
     }).catch(() => {});
     if (mrId) {
       fetchMR();

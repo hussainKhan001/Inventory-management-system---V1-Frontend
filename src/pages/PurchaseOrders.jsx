@@ -495,30 +495,41 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
     const isDefault = newPO.paymentTimelines?.every(
       (pt) => pt.amount === 0 && pt.ifPayable === 0,
     );
+    const firstItem = newPO.items?.[0];
+    const itemGstPct = firstItem?.gstPct != null ? Number(firstItem.gstPct) : null;
+    const itemGstType = firstItem?.gstType || "Exclusive";
+
     if (grandTotal > 0 && isDefault) {
       const pts = [...(newPO.paymentTimelines || [])];
       if (pts.length >= 3) {
-        pts[0].amount = 0;
-        pts[0].ifPayable = 0;
-        pts[1].amount = 0;
-        pts[1].ifPayable = 0;
-        pts[2].amount = Math.round(grandBase * 100) / 100;
-        pts[2].ifPayable = Math.round(grandTotal * 100) / 100;
+        pts[0] = { ...pts[0], amount: 0, ifPayable: 0 };
+        pts[1] = { ...pts[1], amount: 0, ifPayable: 0 };
+        pts[2] = { ...pts[2], amount: Math.round(grandBase * 100) / 100, ifPayable: Math.round(grandTotal * 100) / 100 };
 
-        const firstItem = newPO.items[0];
-        if (firstItem?.gstPct != null) {
-          const gstType = firstItem.gstType || "Exclusive";
-
-          const gstPct = Number(firstItem.gstPct);
-          pts[0] = { ...pts[0], gstPct, gstType };
-          pts[1] = { ...pts[1], gstPct, gstType };
-          pts[2] = { ...pts[2], gstPct, gstType };
+        if (itemGstPct != null) {
+          pts[0] = { ...pts[0], gstPct: itemGstPct, gstType: itemGstType };
+          pts[1] = { ...pts[1], gstPct: itemGstPct, gstType: itemGstType };
+          pts[2] = { ...pts[2], gstPct: itemGstPct, gstType: itemGstType };
         }
         setNewPO((prev) => ({
           ...prev,
           paymentTimelines: pts,
           totalAmount: grandTotal,
         }));
+      }
+    } else if (itemGstPct != null && newPO.paymentTimelines?.length > 0) {
+      // Always sync gstPct/gstType from items even when amounts are already filled
+      const pts = (newPO.paymentTimelines || []).map((pt) => ({
+        ...pt,
+        gstPct: itemGstPct,
+        gstType: itemGstType,
+      }));
+      const unchanged = pts.every((pt, i) =>
+        pt.gstPct === newPO.paymentTimelines[i].gstPct &&
+        pt.gstType === newPO.paymentTimelines[i].gstType
+      );
+      if (!unchanged) {
+        setNewPO((prev) => ({ ...prev, paymentTimelines: pts, totalAmount: grandTotal }));
       }
     }
   }, [
@@ -1043,7 +1054,7 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
   );
 
   const normalizeTimelineGST = /* @__PURE__ */ __name((pt) => {
-    const raw = String(pt.gstPct || "")
+    const raw = (pt.gstPct != null ? String(pt.gstPct) : "")
       .toLowerCase()
       .trim();
 
@@ -1053,7 +1064,7 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
 
     return {
       ...pt,
-      gstPct: isNaN(num) || !num ? 18 : num,
+      gstPct: isNaN(num) ? 18 : num,
       gstType: resolvedType,
     };
   }, "normalizeTimelineGST");
