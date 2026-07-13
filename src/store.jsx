@@ -354,35 +354,15 @@ const AppProvider = /* @__PURE__ */ __name(({ children }) => {
   const login = /* @__PURE__ */ __name(async (email, password) => {
     try {
       const res = await api.post("auth/login", { email, password });
-      // Step 1: OTP sent — return otpSent flag to Login page
-      if (res.data?.otpSent) {
-        return { otpSent: true, email: res.data.email };
-      }
-      // Fallback: direct login (should not happen with OTP enabled)
       const { user: userData, token } = res.data;
       localStorage.setItem("token", token);
       setUser(userData);
       setRole(userData.role);
       setIsAuthenticated(true);
-      return { otpSent: false };
     } catch (error) {
       throw error;
     }
   }, "login");
-
-  const verifyLoginOtp = /* @__PURE__ */ __name(async (email, otp) => {
-    try {
-      const res = await api.post("auth/verify-login-otp", { email, otp });
-      const { user: userData, token } = res.data;
-      localStorage.setItem("token", token);
-      setUser(userData);
-      setRole(userData.role);
-      setIsAuthenticated(true);
-      return true;
-    } catch (error) {
-      throw error;
-    }
-  }, "verifyLoginOtp");
   const changePassword = /* @__PURE__ */ __name(async (currentPassword, newPassword) => {
     setActionLoading(true);
     try {
@@ -1612,7 +1592,6 @@ const AppProvider = /* @__PURE__ */ __name(({ children }) => {
       user,
       isAuthenticated,
       login,
-      verifyLoginOtp,
       changePassword,
       logout,
       checkAuth,
