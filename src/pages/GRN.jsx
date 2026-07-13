@@ -43,7 +43,8 @@ const GRNPage = /* @__PURE__ */ __name(() => {
     loading,
     actionLoading,
     hasPermission,
-    settings
+    settings,
+    user
   } = useAppStore();
   const { projects: PROJECTS = [], sites: SITES = [] } = settings;
   const STORE_OPTIONS = SITES.map(s => s.siteName);
@@ -145,11 +146,14 @@ const GRNPage = /* @__PURE__ */ __name(() => {
     items: [],
     challanPhotos: [],
     images: [],
-    personName: "",
+    personName: user?.name || "",
     personPhotos: [],
     destinationProject: "",
     gatePassNo: ""
   });
+  useEffect(() => {
+    if (user?.name) setNewGRN(prev => ({ ...prev, personName: user.name }));
+  }, [user?.name]);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [editingReceiptIdx, setEditingReceiptIdx] = useState(null);
   const confirmDelete = /* @__PURE__ */ __name(async () => {
@@ -269,7 +273,7 @@ const GRNPage = /* @__PURE__ */ __name(() => {
         patchGrnInStore(selectedGRN.id, res.data);
         setModal(false);
         setEditingReceiptIdx(null);
-        setNewGRN({ poId: "", challan: "", mrNo: "", docType: "Challan", items: [], challanPhotos: [], personPhotos: [], personName: "", destinationProject: "", gatePassNo: "" });
+        setNewGRN({ poId: "", challan: "", mrNo: "", docType: "Challan", items: [], challanPhotos: [], personPhotos: [], personName: user?.name || "", destinationProject: "", gatePassNo: "" });
         setErrors({});
         toast.success("Shipment updated");
       } catch (error) {
@@ -289,7 +293,7 @@ const GRNPage = /* @__PURE__ */ __name(() => {
         await updateGRN(newGRN.id, updateData);
         toast.success("GRN updated successfully");
         setModal(false);
-        setNewGRN({ poId: "", challan: "", mrNo: "", docType: "Challan", items: [], personName: "", personPhotos: [], destinationProject: "", gatePassNo: "" });
+        setNewGRN({ poId: "", challan: "", mrNo: "", docType: "Challan", items: [], personName: user?.name || "", personPhotos: [], destinationProject: "", gatePassNo: "" });
         setIsEditing(false);
         setErrors({});
       } catch (error) {
@@ -311,7 +315,7 @@ const GRNPage = /* @__PURE__ */ __name(() => {
         toast.success("Receipt added successfully");
         setModal(false);
         setTargetGRNId(null);
-        setNewGRN({ poId: "", challan: "", mrNo: "", docType: "Challan", items: [], challanPhotos: [], personPhotos: [], personName: "", destinationProject: "", gatePassNo: "" });
+        setNewGRN({ poId: "", challan: "", mrNo: "", docType: "Challan", items: [], challanPhotos: [], personPhotos: [], personName: user?.name || "", destinationProject: "", gatePassNo: "" });
         setErrors({});
       } catch (error) {
         toast.error(`Failed to add receipt: ${error.message}`);
@@ -353,7 +357,7 @@ const GRNPage = /* @__PURE__ */ __name(() => {
         mrNo: "",
         docType: "Challan",
         items: [],
-        personName: "",
+        personName: user?.name || "",
         vendor: "",
         store: "",
         destinationProject: "",
@@ -398,7 +402,8 @@ const GRNPage = /* @__PURE__ */ __name(() => {
           challan: "",
           mrNo: "",
           docType: "Challan",
-          items: []
+          items: [],
+          personName: user?.name || ""
         });
         setIsEditing(false);
         setModal(true);
@@ -594,7 +599,7 @@ const GRNPage = /* @__PURE__ */ __name(() => {
           .filter((it) => it.ordered > 0);
         if (outstandingItems.length === 0) { toast.info("All items already fully received"); return; }
         setTargetGRNId(grn.id);
-        setNewGRN({ poId: grn.poId, project: grn.project, store: grn.store || "", vendor: grn.vendor || grn.supplier, supplier: grn.supplier || grn.vendor, mrNo: grn.mrNo || "", challan: "", docType: grn.docType || "Challan", items: outstandingItems, challanPhotos: [], personPhotos: [], personName: "", destinationProject: grn.destinationProject || "", gatePassNo: grn.gatePassNo || "" });
+        setNewGRN({ poId: grn.poId, project: grn.project, store: grn.store || "", vendor: grn.vendor || grn.supplier, supplier: grn.supplier || grn.vendor, mrNo: grn.mrNo || "", challan: "", docType: grn.docType || "Challan", items: outstandingItems, challanPhotos: [], personPhotos: [], personName: user?.name || "", destinationProject: grn.destinationProject || "", gatePassNo: grn.gatePassNo || "" });
         setIsEditing(false);
         setModal(true);
       }}
@@ -1008,7 +1013,7 @@ const GRNPage = /* @__PURE__ */ __name(() => {
       setErrors({});
       setTargetGRNId(null);
       setEditingReceiptIdx(null);
-      setNewGRN({ poId: "", challan: "", mrNo: "", docType: "Challan", store: "", items: [], challanPhotos: [], images: [], personName: "", personPhotos: [], destinationProject: "", gatePassNo: "" });
+      setNewGRN({ poId: "", challan: "", mrNo: "", docType: "Challan", store: "", items: [], challanPhotos: [], images: [], personName: user?.name || "", personPhotos: [], destinationProject: "", gatePassNo: "" });
       setIsEditing(false);
     }}
     footer={
@@ -1181,6 +1186,8 @@ const GRNPage = /* @__PURE__ */ __name(() => {
                 onChange={(e) => setNewGRN({ ...newGRN, personName: e.target.value })}
                 required
                 error={errors.personName}
+                disabled
+                className="opacity-70 cursor-not-allowed"
               />
               <MultipleImageUpload
                 label="Person Photos"
