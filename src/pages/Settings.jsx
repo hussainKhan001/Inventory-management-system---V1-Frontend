@@ -185,6 +185,8 @@ const SettingsPage = /* @__PURE__ */ __name(() => {
   const [editCompanyDraft, setEditCompanyDraft] = useState({ name: "", gstin: "", address: "" });
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [uploadingFavicon, setUploadingFavicon] = useState(false);
+  const [isDraggingLogo, setIsDraggingLogo] = useState(false);
+  const [isDraggingFavicon, setIsDraggingFavicon] = useState(false);
   const logoInputRef = useRef(null);
   const faviconInputRef = useRef(null);
   const getEffectiveList = /* @__PURE__ */ __name((listKey) => {
@@ -441,7 +443,16 @@ const SettingsPage = /* @__PURE__ */ __name(() => {
                   </label>
                   <div
     onClick={() => isSuperAdmin && logoInputRef.current?.click()}
-    className={`border-2 border-dashed border-gray-200 dark:border-gray-700 rounded-2xl p-6 text-center transition-all bg-gray-50/50 dark:bg-gray-800/10 group relative overflow-hidden h-40 flex flex-col justify-center items-center ${isSuperAdmin ? "cursor-pointer hover:border-primary/50 dark:hover:border-primary/50 hover:bg-gray-50 dark:hover:bg-gray-800/20" : "cursor-not-allowed opacity-60"}`}
+    onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); if (isSuperAdmin) setIsDraggingLogo(true); }}
+    onDragEnter={(e) => { e.preventDefault(); e.stopPropagation(); if (isSuperAdmin) setIsDraggingLogo(true); }}
+    onDragLeave={(e) => { e.preventDefault(); e.stopPropagation(); if (!e.currentTarget.contains(e.relatedTarget)) setIsDraggingLogo(false); }}
+    onDrop={(e) => {
+      e.preventDefault(); e.stopPropagation(); setIsDraggingLogo(false);
+      if (!isSuperAdmin) return;
+      const file = e.dataTransfer.files?.[0];
+      if (file) handleFileUpload(file, "logo");
+    }}
+    className={`border-2 border-dashed rounded-2xl p-6 text-center transition-all bg-gray-50/50 dark:bg-gray-800/10 group relative overflow-hidden h-40 flex flex-col justify-center items-center ${isDraggingLogo ? "border-primary bg-primary/5 dark:bg-primary/10 scale-[1.01]" : isSuperAdmin ? "border-gray-200 dark:border-gray-700 cursor-pointer hover:border-primary/50 dark:hover:border-primary/50 hover:bg-gray-50 dark:hover:bg-gray-800/20" : "border-gray-200 dark:border-gray-700 cursor-not-allowed opacity-60"}`}
   >
                     {uploadingLogo ? <div className="flex flex-col items-center gap-2">
                         <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
@@ -478,7 +489,16 @@ const SettingsPage = /* @__PURE__ */ __name(() => {
                   </label>
                   <div
     onClick={() => isSuperAdmin && faviconInputRef.current?.click()}
-    className={`border-2 border-dashed border-gray-200 dark:border-gray-700 rounded-2xl p-6 text-center transition-all bg-gray-50/50 dark:bg-gray-800/10 group relative overflow-hidden h-40 flex flex-col justify-center items-center ${isSuperAdmin ? "cursor-pointer hover:border-primary/50 dark:hover:border-primary/50 hover:bg-gray-50 dark:hover:bg-gray-800/20" : "cursor-not-allowed opacity-60"}`}
+    onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); if (isSuperAdmin) setIsDraggingFavicon(true); }}
+    onDragEnter={(e) => { e.preventDefault(); e.stopPropagation(); if (isSuperAdmin) setIsDraggingFavicon(true); }}
+    onDragLeave={(e) => { e.preventDefault(); e.stopPropagation(); if (!e.currentTarget.contains(e.relatedTarget)) setIsDraggingFavicon(false); }}
+    onDrop={(e) => {
+      e.preventDefault(); e.stopPropagation(); setIsDraggingFavicon(false);
+      if (!isSuperAdmin) return;
+      const file = e.dataTransfer.files?.[0];
+      if (file) handleFileUpload(file, "favicon");
+    }}
+    className={`border-2 border-dashed rounded-2xl p-6 text-center transition-all bg-gray-50/50 dark:bg-gray-800/10 group relative overflow-hidden h-40 flex flex-col justify-center items-center ${isDraggingFavicon ? "border-primary bg-primary/5 dark:bg-primary/10 scale-[1.01]" : isSuperAdmin ? "border-gray-200 dark:border-gray-700 cursor-pointer hover:border-primary/50 dark:hover:border-primary/50 hover:bg-gray-50 dark:hover:bg-gray-800/20" : "border-gray-200 dark:border-gray-700 cursor-not-allowed opacity-60"}`}
   >
                     {uploadingFavicon ? <div className="flex flex-col items-center gap-2">
                         <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />

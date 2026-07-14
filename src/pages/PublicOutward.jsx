@@ -50,15 +50,25 @@ const PublicOutward = /* @__PURE__ */ __name(() => {
   const [loading, setLoading] = useState(true);
   const [isUploading, setIsUploading] = useState(false);
   const [searchItemVal, setSearchItemVal] = useState("");
+  const getStoreStock = (inv, store) => {
+    if (!store || !inv) return Number(inv?.liveStock || 0);
+    if (inv.locationStock && inv.locationStock[store] !== undefined) return Number(inv.locationStock[store]) || 0;
+    const site = inv.sites?.find(s => s.siteName === store || s.name === store);
+    if (site) return Number(site.liveStock) || 0;
+    return 0;
+  };
   const inventoryOptions = useMemo(() => {
-    return inventory.map((i) => ({
-      value: i.sku,
-      label: i.itemName,
-      subLabel: `${i.sku} | Stock: ${i.liveStock}`,
-      stock: i.liveStock,
-      unit: i.unit
-    }));
-  }, [inventory]);
+    return inventory.map((i) => {
+      const storeStock = form.store ? getStoreStock(i, form.store) : Number(i.liveStock || 0);
+      return {
+        value: i.sku,
+        label: i.itemName,
+        subLabel: `${i.sku} | ${form.store ? `${form.store} Stock` : "Stock"}: ${storeStock}`,
+        stock: storeStock,
+        unit: i.unit
+      };
+    });
+  }, [inventory, form.store]);
   useEffect(() => {
     if (!searchItemVal) return;
     const delayDebounceFn = setTimeout(async () => {
@@ -104,6 +114,18 @@ const PublicOutward = /* @__PURE__ */ __name(() => {
       scrollToError();
     }
   }, [errors]);
+  useEffect(() => {
+    if (!form.store || !form.items?.length) return;
+    setForm(prev => ({
+      ...prev,
+      items: prev.items.map(item => {
+        if (!item.sku) return item;
+        const inv = inventory.find(i => i.sku === item.sku);
+        if (!inv) return item;
+        return { ...item, liveStock: getStoreStock(inv, form.store) };
+      })
+    }));
+  }, [form.store, inventory]);
   const addItem = /* @__PURE__ */ __name(() => {
     setForm((prev) => ({ ...prev, items: [...prev.items || [], { sku: "", itemName: "", qty: 0, unit: "NOS", category: "", liveStock: 0, remarks: "", images: [], mrNo: "" }] }));
   }, "addItem");
@@ -116,7 +138,7 @@ const PublicOutward = /* @__PURE__ */ __name(() => {
     const inv = inventory.find((i) => i.sku === sku);
     if (!inv) return;
     const items = [...form.items || []];
-    items[index] = { ...items[index], sku, itemName: inv.itemName, unit: inv.unit, category: inv.category, liveStock: inv.liveStock };
+    items[index] = { ...items[index], sku, itemName: inv.itemName, unit: inv.unit, category: inv.category, liveStock: getStoreStock(inv, form.store) };
     setForm((prev) => ({ ...prev, items }));
   }, "handleRowItemSelect");
   const updateItem = /* @__PURE__ */ __name((index, data) => {
@@ -144,12 +166,7 @@ const PublicOutward = /* @__PURE__ */ __name(() => {
         if (!item.qty || item.qty <= 0) newErrors[`item_${idx}_qty`] = `Item ${idx + 1}: Quantity is required`;
         const inv = inventory.find((i) => i.sku === item.sku);
         if (inv) {
-          const site = inv.sites?.find((s) => s.name === form.store);
-          const available = site
-            ? Number(site.liveStock || 0)
-            : inv.sites?.length > 0
-            ? inv.sites.reduce((sum, s) => sum + (Number(s.liveStock) || 0), 0)
-            : Number(inv.liveStock || 0);
+          const available = getStoreStock(inv, form.store);
           if (item.qty > available) newErrors[`item_${idx}_qty`] = `Item ${idx + 1}: Max available is ${available}`;
         }
       });

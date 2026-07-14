@@ -30,6 +30,7 @@ const WriteOffPage = lazy(() => import("./pages/WriteOff").then((m) => ({ defaul
 const StockCheck = lazy(() => import("./pages/StockCheck").then((m) => ({ default: m.StockCheck })));
 const StockCheckReports = lazy(() => import("./pages/StockCheckReports").then((m) => ({ default: m.StockCheckReports })));
 const DailyReport = lazy(() => import("./pages/DailyReport").then((m) => ({ default: m.DailyReport })));
+const DailyMovementReport = lazy(() => import("./pages/DailyMovementReport").then((m) => ({ default: m.DailyMovementReport })));
 const ProjectReports = lazy(() => import("./pages/ProjectReports").then((m) => ({ default: m.ProjectReports })));
 const Archive = lazy(() => import("./pages/Archive").then((m) => ({ default: m.Archive })));
 const AuditLogs = lazy(() => import("./pages/AuditLogs").then((m) => ({ default: m.AuditLogs })));
@@ -199,6 +200,8 @@ const AppContent = /* @__PURE__ */ __name(() => {
         return <StockCheckReports />;
       case "daily-report":
         return <DailyReport />;
+      case "daily-movement":
+        return <DailyMovementReport />;
       case "project-reports":
         return <ProjectReports />;
       case "profile":

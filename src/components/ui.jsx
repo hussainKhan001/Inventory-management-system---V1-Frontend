@@ -829,16 +829,13 @@ const ImageUpload = /* @__PURE__ */ __name(({
   onRemove
 }) => {
   const [compressing, setCompressing] = React.useState(false);
+  const [isDragging, setIsDragging] = React.useState(false);
   const inputRef = React.useRef(null);
-  const handleFileChange = /* @__PURE__ */ __name(async (e) => {
-    const file = e.target.files?.[0];
+  const processFile = /* @__PURE__ */ __name(async (file) => {
     if (!file) return;
-    const isImage = /* @__PURE__ */ __name((f) => {
-      return f.type?.startsWith("image/") || f.name?.toLowerCase().endsWith(".heic") || f.name?.toLowerCase().endsWith(".heif");
-    }, "isImage");
+    const isImage = (f) => f.type?.startsWith("image/") || f.name?.toLowerCase().endsWith(".heic") || f.name?.toLowerCase().endsWith(".heif");
     if (!isImage(file)) {
       toast.error("Please upload an image file");
-      if (inputRef.current) inputRef.current.value = "";
       return;
     }
     setCompressing(true);
@@ -856,12 +853,23 @@ const ImageUpload = /* @__PURE__ */ __name(({
       }
     } finally {
       setCompressing(false);
-      if (inputRef.current) {
-        inputRef.current.value = "";
-      }
-      e.target.value = "";
+      if (inputRef.current) inputRef.current.value = "";
     }
+  }, "processFile");
+  const handleFileChange = /* @__PURE__ */ __name(async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    await processFile(file);
   }, "handleFileChange");
+  const handleDragOver = (e) => { e.preventDefault(); e.stopPropagation(); if (!isDragging) setIsDragging(true); };
+  const handleDragEnter = (e) => { e.preventDefault(); e.stopPropagation(); setIsDragging(true); };
+  const handleDragLeave = (e) => { e.preventDefault(); e.stopPropagation(); setIsDragging(false); };
+  const handleDrop = (e) => {
+    e.preventDefault(); e.stopPropagation(); setIsDragging(false);
+    if (loading || compressing) return;
+    const file = e.dataTransfer.files?.[0];
+    if (file) processFile(file);
+  };
   return <div className="space-y-2">
       {label && <label className={cn("block font-bold text-gray-700 dark:text-gray-300 tracking-wider", small ? "text-[9px]" : "text-[11px]")}>
           {label} {required && <span className="text-red-500">*</span>}
@@ -879,13 +887,27 @@ const ImageUpload = /* @__PURE__ */ __name(({
   />
         <label
     htmlFor={id}
+    onDragOver={handleDragOver}
+    onDragEnter={handleDragEnter}
+    onDragLeave={handleDragLeave}
+    onDrop={handleDrop}
     className={cn(
       "flex flex-col items-center justify-center gap-2 w-full border-2 border-dashed rounded-md cursor-pointer transition-all duration-200 overflow-hidden relative group",
       aspect || (small ? "aspect-square" : "aspect-[16/9]"),
       small && "p-2",
-      value ? "border-green-200 dark:border-green-900/30 bg-green-50/30 dark:bg-green-900/10" : error ? "border-red-200 dark:border-red-900/30 bg-red-50/30 dark:bg-red-900/10" : "border-[#E8ECF0] dark:border-[#334155] hover:border-[#F97316] dark:hover:border-[#F97316] bg-gray-50/50 dark:bg-transparent"
+      isDragging
+        ? "border-[#F97316] bg-orange-50/40 dark:bg-orange-900/20 scale-[1.01]"
+        : value
+        ? "border-green-200 dark:border-green-900/30 bg-green-50/30 dark:bg-green-900/10"
+        : error
+        ? "border-red-200 dark:border-red-900/30 bg-red-50/30 dark:bg-red-900/10"
+        : "border-[#E8ECF0] dark:border-[#334155] hover:border-[#F97316] dark:hover:border-[#F97316] bg-gray-50/50 dark:bg-transparent"
     )}
   >
+          {isDragging && !loading && !compressing && <div className="absolute inset-0 flex flex-col items-center justify-center bg-orange-50/60 dark:bg-orange-900/30 z-10 pointer-events-none rounded-md">
+              <Upload className={cn("text-[#F97316]", small ? "w-5 h-5" : "w-8 h-8")} />
+              {!small && <span className="text-[11px] font-bold text-[#F97316] tracking-wider mt-1">Drop to upload</span>}
+            </div>}
           {loading || compressing ? <div className="flex flex-col items-center gap-1">
               <Loader2 className={cn("animate-spin text-[#F97316]", small ? "w-5 h-5" : "w-6 h-6")} />
               {!small && <span className="text-[11px] font-bold text-[#6B7280] tracking-wider">
@@ -896,7 +918,7 @@ const ImageUpload = /* @__PURE__ */ __name(({
               <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                 <div className="flex flex-col items-center gap-1 text-white">
                   <Icon className={cn(small ? "w-4 h-4" : "w-5 h-5")} />
-                  {!small && <span className="text-[10px] font-bold tracking-wider">Change</span>}
+                  {!small && <span className="text-[10px] font-bold tracking-wider">Change photo or drop new one</span>}
                 </div>
               </div>
               {onRemove && <button
@@ -917,7 +939,7 @@ const ImageUpload = /* @__PURE__ */ __name(({
             </div> : <div className="flex flex-col items-center gap-1">
               <Icon className={cn(small ? "w-5 h-5" : "w-8 h-8", error ? "text-red-400" : "text-[#6B7280] dark:text-[#475569] group-hover:text-[#F97316]")} />
               {!small && <span className={cn("text-[10px] font-bold tracking-wider transition-colors", error ? "text-red-500" : "text-gray-700 dark:text-gray-300 group-hover:text-[#F97316]")}>
-                  Upload
+                  Click or drag & drop
                 </span>}
             </div>}
         </label>
@@ -940,17 +962,13 @@ const MultipleImageUpload = /* @__PURE__ */ __name(({
 }) => {
   const [uploading, setUploading] = React.useState(false);
   const [progress, setProgress] = React.useState([]);
+  const [isDragging, setIsDragging] = React.useState(false);
   const inputRef = React.useRef(null);
-  const handleFileChange = /* @__PURE__ */ __name(async (e) => {
-    const files = Array.from(e.target.files || []);
+  const processFiles = /* @__PURE__ */ __name(async (files) => {
     if (files.length === 0) return;
-    const isImage = /* @__PURE__ */ __name((f) => {
-      return f.type?.startsWith("image/") || f.name?.toLowerCase().endsWith(".heic") || f.name?.toLowerCase().endsWith(".heif");
-    }, "isImage");
+    const isImage = (f) => f.type?.startsWith("image/") || f.name?.toLowerCase().endsWith(".heic") || f.name?.toLowerCase().endsWith(".heif");
     const imageFiles = files.filter(isImage);
-    if (imageFiles.length !== files.length) {
-      toast.error("Some files were skipped (only images allowed)");
-    }
+    if (imageFiles.length !== files.length) toast.error("Some files were skipped (only images allowed)");
     if (imageFiles.length === 0) return;
     setUploading(true);
     onUploadingChange?.(true);
@@ -958,7 +976,7 @@ const MultipleImageUpload = /* @__PURE__ */ __name(({
       const { uploadMultipleImages } = await import("../lib/upload");
       const urls = await uploadMultipleImages(imageFiles, (p) => setProgress(p));
       onUpload(urls);
-      toast.success(`${urls.length} images uploaded successfully`);
+      toast.success(`${urls.length} image${urls.length !== 1 ? "s" : ""} uploaded`);
     } catch (error2) {
       console.error("Multiple upload failed:", error2);
       toast.error(`Upload failed: ${error2.message}`);
@@ -968,15 +986,43 @@ const MultipleImageUpload = /* @__PURE__ */ __name(({
       setProgress([]);
       if (inputRef.current) inputRef.current.value = "";
     }
+  }, "processFiles");
+  const handleFileChange = /* @__PURE__ */ __name(async (e) => {
+    const files = Array.from(e.target.files || []);
+    await processFiles(files);
   }, "handleFileChange");
-  return <div className="space-y-2">
+  const handleDragOver = (e) => { e.preventDefault(); e.stopPropagation(); if (!isDragging) setIsDragging(true); };
+  const handleDragEnter = (e) => { e.preventDefault(); e.stopPropagation(); setIsDragging(true); };
+  const handleDragLeave = (e) => { e.preventDefault(); e.stopPropagation(); if (!e.currentTarget.contains(e.relatedTarget)) setIsDragging(false); };
+  const handleDrop = (e) => {
+    e.preventDefault(); e.stopPropagation(); setIsDragging(false);
+    if (loading || uploading) return;
+    const files = Array.from(e.dataTransfer.files || []);
+    if (files.length > 0) processFiles(files);
+  };
+  return <div
+    className="space-y-2"
+    onDragOver={handleDragOver}
+    onDragEnter={handleDragEnter}
+    onDragLeave={handleDragLeave}
+    onDrop={handleDrop}
+  >
       {label && <label className={cn("block font-bold text-gray-700 dark:text-gray-300 tracking-wider", small ? "text-[9px]" : "text-[11px]")}>
           {label} {required && <span className="text-red-500">*</span>}
         </label>}
-      
+
       <div className={cn(
+    "relative",
     small ? "flex flex-wrap gap-2" : "grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4"
   )}>
+        {isDragging && <div className={cn(
+          "absolute inset-0 z-20 flex flex-col items-center justify-center rounded-lg border-2 border-dashed border-blue-500 bg-blue-50/80 dark:bg-blue-900/30 pointer-events-none",
+          small && "rounded-md"
+        )}>
+            <Camera className={cn("text-blue-500", small ? "w-4 h-4" : "w-8 h-8")} />
+            {!small && <span className="text-[11px] font-bold text-blue-600 dark:text-blue-400 mt-1">Drop photos here</span>}
+          </div>}
+
         {values.map((url, idx) => <div key={idx} className={cn(
     "relative group rounded-md overflow-hidden border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shrink-0",
     small ? "w-10 h-10" : "aspect-square"
@@ -994,7 +1040,7 @@ const MultipleImageUpload = /* @__PURE__ */ __name(({
               {!small && <span className="text-[8px] font-bold tracking-wider">Discard</span>}
             </button>
           </div>)}
-        
+
         <div className={cn("relative", small ? "w-10 h-10 shrink-0" : "aspect-square")}>
           <input
     ref={inputRef}
@@ -1011,12 +1057,12 @@ const MultipleImageUpload = /* @__PURE__ */ __name(({
     htmlFor={id}
     className={cn(
       "flex flex-col items-center justify-center h-full border-2 border-dashed rounded-md cursor-pointer transition-all duration-200 group",
-      uploading ? "bg-gray-50 dark:bg-gray-800/50 cursor-not-allowed border-blue-200" : "hover:border-blue-500 hover:bg-blue-50/30 dark:hover:bg-blue-900/10 border-gray-200 dark:border-gray-700"
+      uploading ? "bg-gray-50 dark:bg-gray-800/50 cursor-not-allowed border-blue-200" : isDragging ? "border-blue-500 bg-blue-50/30" : "hover:border-blue-500 hover:bg-blue-50/30 dark:hover:bg-blue-900/10 border-gray-200 dark:border-gray-700"
     )}
   >
             {uploading ? <Loader2 className="animate-spin text-blue-500" size={small ? 16 : 24} /> : <>
                 <Camera className={cn("text-gray-400 group-hover:text-blue-500 transition-colors", small ? "w-4 h-4" : "w-6 h-6")} />
-                {!small && <span className="text-[10px] text-gray-400 group-hover:text-blue-500 transition-colors mt-1 font-bold">Add</span>}
+                {!small && <span className="text-[10px] text-gray-400 group-hover:text-blue-500 transition-colors mt-1 font-bold">Click or drop</span>}
               </>}
           </label>
         </div>

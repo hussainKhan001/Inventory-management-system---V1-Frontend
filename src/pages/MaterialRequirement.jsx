@@ -13,6 +13,7 @@ import { formatDateTime, safeStr, isNewItem } from "../utils";
 import { toast } from "react-hot-toast";
 import { cn } from "../lib/utils";
 import { SearchFilter, DateRangePicker, SelectFilter, FilterRow } from "../components/ui/Filters";
+import { Virtuoso } from "react-virtuoso";
 import { MRFormModal } from "./mr/MRFormModal";
 import { MRDetailModal } from "./mr/MRDetailModal";
 
@@ -32,7 +33,7 @@ export function MaterialRequirementPage() {
     mrAllocations, mrAllocationsPagination,
     fetchResource, deleteMaterialRequirement,
     inventory, role, loading, actionLoading, api,
-    hasPermission, settings, pos, quotations,
+    hasPermission, settings, pos, quotations, grns,
   } = useAppStore();
 
   const { projects: PROJECTS, requesters: REQUESTERS } = settings;
@@ -49,7 +50,7 @@ export function MaterialRequirementPage() {
     );
   };
   const getItemLinkedPO = (item, mr) => pos.find(po =>
-    po.mrId === mr?.id &&
+    (po.mrId === mr?.id || po.mrId === mr?.mrNumber) &&
     !["Rejected", "Blocked", "Cancelled"].includes(po.status) &&
     po.items?.some(poItem =>
       (poItem.sku && item.sku && poItem.sku !== "N/A" && poItem.sku === item.sku) ||
@@ -89,6 +90,33 @@ export function MaterialRequirementPage() {
   const [viewModal, setViewModal] = useState(false);
   const [selectedRequirement, setSelectedRequirement] = useState(null);
   const [deletingId, setDeletingId] = useState(null);
+  // { [mrId]: { [sku]: qty } } — user-entered allot qty per item
+  const [allocQtys, setAllocQtys] = useState({});
+  const setItemAllocQty = (mrId, sku, qty) =>
+    setAllocQtys(prev => ({ ...prev, [mrId]: { ...(prev[mrId] || {}), [sku]: qty } }));
+  // { "mrId:sku": true } — per-item allocation in progress
+  const [allocLoading, setAllocLoading] = useState({});
+  // GRN Allocation Modal
+  const [grnAllocModal, setGrnAllocModal] = useState(null); // { mr, receivedQtyBySku }
+  const [grnAllocStore, setGrnAllocStore] = useState("");
+
+  const getStoreStock = (inv, store) => {
+    if (!store || !inv) return Number(inv?.liveStock || 0);
+    if (inv.locationStock?.[store] !== undefined) return Number(inv.locationStock[store]) || 0;
+    const site = inv.sites?.find(s => s.siteName === store || s.name === store);
+    if (site) return Number(site.liveStock) || 0;
+    return 0;
+  };
+
+  // GRN Ready tab: show skeleton until materialRequirements + grns + pos all arrive
+  const [grnReadyReady, setGrnReadyReady] = useState(false);
+  useEffect(() => {
+    if (activeTab !== "grn-ready") { setGrnReadyReady(false); return; }
+    if (!loading && materialRequirements.length >= 0 && grns.length >= 0 && pos.length >= 0) {
+      const t = setTimeout(() => setGrnReadyReady(true), 300);
+      return () => clearTimeout(t);
+    }
+  }, [activeTab, loading, materialRequirements.length, grns.length, pos.length]);
 
   // Debounce search
   useEffect(() => {
@@ -110,7 +138,9 @@ export function MaterialRequirementPage() {
     if (filterRequester) filterObj.requesterName = filterRequester;
     if (filterStatus) filterObj.status = filterStatus;
     const filter = Object.keys(filterObj).length > 0 ? filterObj : null;
-    if (activeTab === "requirements" || activeTab === "grn-ready") {
+    if (activeTab === "grn-ready") {
+      fetchResource("material-requirements", 1, 2000, false, debouncedSearch, filter, false, false, startDate, endDate);
+    } else if (activeTab === "requirements") {
       fetchResource("material-requirements", 1, 50, materialRequirements.length > 0, debouncedSearch, filter, false, false, startDate, endDate);
     } else {
       fetchResource("mr-allocations", 1, 1000, true, debouncedSearch, filter, false, false, startDate, endDate);
@@ -118,11 +148,12 @@ export function MaterialRequirementPage() {
     if (pos.length === 0) fetchResource("pos", 1, 2000, true);
     if (inventory.length < 500) fetchResource("inventory", 1, 2000, true);
     if (quotations.length === 0) fetchResource("quotations", 1, 2000, true);
+    if (grns.length === 0) fetchResource("grns", 1, 2000, true);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [debouncedSearch, activeTab, startDate, endDate, filterProject, filterRequester, filterStatus]);
 
   const handlePageChange = useCallback(page => {
-    if (activeTab === "requirements" || activeTab === "grn-ready") {
+    if (activeTab === "requirements") {
       fetchResource("material-requirements", page, 50, false, debouncedSearch);
     } else {
       fetchResource("mr-allocations", page, 50, false, debouncedSearch);
@@ -143,12 +174,13 @@ export function MaterialRequirementPage() {
     setModal(true);
   };
 
-  // GRN Ready: MRs whose linked PO has been GRN-fulfilled but not yet allocated
-  const grnFulfilledMrIds = new Set(
-    pos.filter(p => ["GRN Fulfilled", "GRN Variance"].includes(p.status) && p.mrId).map(p => p.mrId)
+  // GRN Ready: MR ka koi bhi PO mein GRN exist karta ho to show karo
+  const poIdsWithGRN = new Set(grns.filter(g => g.poId).map(g => g.poId));
+  const mrIdsWithGRN = new Set(
+    pos.filter(p => poIdsWithGRN.has(p.id) && p.mrId).map(p => p.mrId)
   );
   const grnReadyMRs = materialRequirements.filter(mr =>
-    grnFulfilledMrIds.has(mr.id) && !["Closed"].includes(mr.status)
+    mrIdsWithGRN.has(mr.id) || mrIdsWithGRN.has(mr.mrNumber)
   );
 
   // Items from approved MRs that don't yet have a PO — shown in Procurement Pending tab
@@ -194,11 +226,11 @@ export function MaterialRequirementPage() {
       <div className="mb-6 space-y-3">
         <div className="flex items-center gap-1 p-1 bg-gray-100 dark:bg-gray-800 rounded-xl w-fit">
           {[
-            ["requirements", "Requisitions (Current)", 0],
-            ["pending-procurement", "PO Pending", procurementPendingItems.reduce((s, g) => s + g.items.length, 0)],
-            ["allocations", "Allocated Stock Registry", 0],
-            ["grn-ready", "GRN Ready", grnReadyMRs.length],
-          ].map(([tab, label, count]) => (
+            ["requirements", "Requisitions (Current)", 0, true],
+            ["pending-procurement", "PO Pending", procurementPendingItems.reduce((s, g) => s + g.items.length, 0), hasPermission("VIEW_MR_PO_PENDING_TAB")],
+            ["allocations", "Allocated Stock Registry", 0, hasPermission("VIEW_MR_ALLOCATIONS_TAB")],
+            ["grn-ready", "GRN Ready", grnReadyMRs.length, hasPermission("VIEW_MR_GRN_READY_TAB")],
+          ].filter(([,,,allowed]) => allowed).map(([tab, label, count]) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -365,8 +397,11 @@ export function MaterialRequirementPage() {
                 </Card>
               ))
               : (
-                <div className="space-y-2">
-                  {filteredMRs.map((req) => {
+                <Virtuoso
+                  style={{ height: "calc(100vh - 250px)", minHeight: "500px" }}
+                  data={filteredMRs}
+                  increaseViewportBy={600}
+                  itemContent={(_index, req) => {
                     const inv = inventory;
                     const mrPos = pos.filter(po =>
                       (po.mrId === req.id || po.mrId === req.mrNumber) &&
@@ -376,7 +411,7 @@ export function MaterialRequirementPage() {
                       q.mrId === req.id || q.mrId === req.mrNumber
                     );
                     return (
-                    <div key={req.id} className="py-1 px-1">
+                    <div className="py-1 px-1">
                       <Card
                         className={cn(
                           "p-0 overflow-hidden border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 transition-all",
@@ -536,20 +571,33 @@ export function MaterialRequirementPage() {
                           <div className="flex flex-wrap gap-2">
                             {req.items.map((item, idx) => {
                               const linkedPO = getItemLinkedPO(item, req);
-                              const poPhase = linkedPO ? getPOPhase(linkedPO) : null;
+                              // fallback: use best MR-level PO when item-level match fails
+                              const effectivePO = linkedPO || (mrPos.length > 0 ? (
+                                mrPos.find(po => po.status === "GRN Pending") ||
+                                mrPos.find(po => po.status === "GRN Variance") ||
+                                mrPos.find(po => po.status === "Ready for Payment") ||
+                                mrPos.find(po => ["GRN Fulfilled","PO Closed","Closed"].includes(po.status)) ||
+                                mrPos.find(po => po.approvalL3 === "Approved") ||
+                                mrPos.find(po => po.approvalL2 === "Approved") ||
+                                mrPos.find(po => po.approvalL1 === "Approved") ||
+                                mrPos[0]
+                              ) : null);
+                              const poPhase = effectivePO ? getPOPhase(effectivePO) : null;
                               const poPhaseColor = poPhase ? ({
                                 emerald: "text-emerald-600 dark:text-emerald-400",
                                 amber: "text-amber-600 dark:text-amber-400",
+                                yellow: "text-yellow-600 dark:text-yellow-400",
                                 blue: "text-blue-600 dark:text-blue-400",
                                 indigo: "text-indigo-600 dark:text-indigo-400",
                                 gray: "text-gray-500",
                               }[poPhase.color] || "text-gray-500") : "";
+                              const hasPO = !!effectivePO;
                               return (
                               <div
                                 key={idx}
                                 className={cn(
                                   "px-3 py-1.5 bg-gray-50 dark:bg-gray-800 border rounded-lg flex flex-col gap-1",
-                                  linkedPO
+                                  hasPO
                                     ? "border-emerald-200 dark:border-emerald-800/60 bg-emerald-50/40 dark:bg-emerald-950/20"
                                     : item.status === "Needs Purchase"
                                     ? "border-amber-200 dark:border-amber-800/40 bg-amber-50/30 dark:bg-amber-950/10"
@@ -561,7 +609,7 @@ export function MaterialRequirementPage() {
                                   <div className="flex flex-col">
                                     <div className="flex items-center gap-1.5">
                                       <span className="text-[13px] font-medium text-gray-700 dark:text-gray-300">{item.materialName}</span>
-                                      {linkedPO && (
+                                      {hasPO && (
                                         <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 bg-emerald-100 dark:bg-emerald-900/40 text-emerald-600 dark:text-emerald-400 rounded-md border border-emerald-200 dark:border-emerald-700/50 text-[9px] font-black tracking-widest shrink-0">
                                           <CheckCircle className="w-2.5 h-2.5" /> PO
                                         </span>
@@ -577,9 +625,9 @@ export function MaterialRequirementPage() {
                                   <span className="text-[11px] font-bold text-gray-400 dark:text-gray-500 ml-auto">x {item.qty} {item.unit}</span>
                                 </div>
                                 {/* Item status row */}
-                                {linkedPO && (
+                                {hasPO && (
                                   <div className="flex items-center gap-1 px-1.5 py-0.5 bg-white/60 dark:bg-gray-700/40 rounded-md">
-                                    <span className="text-[9px] font-bold text-gray-400 font-mono">{linkedPO.id}</span>
+                                    <span className="text-[9px] font-bold text-gray-400 font-mono">{effectivePO.id}</span>
                                     <span className="text-gray-300 dark:text-gray-600 text-[9px]">·</span>
                                     <span className={cn("text-[9px] font-bold", poPhaseColor)}>{poPhase?.label}</span>
                                   </div>
@@ -595,7 +643,7 @@ export function MaterialRequirementPage() {
                                     </span>
                                   </div>
                                 )}
-                                {item.status === "Needs Purchase" && !linkedPO && (
+                                {item.status === "Needs Purchase" && !hasPO && (
                                   <div className="flex items-center gap-1 px-1.5 py-0.5 bg-amber-50 dark:bg-amber-900/10 rounded-md">
                                     <span className="text-[9px] font-bold text-amber-600 dark:text-amber-400 tracking-widest">
                                       {req.status === "Store Pending" ? "STORE PENDING" : "PO PENDING"}
@@ -616,8 +664,8 @@ export function MaterialRequirementPage() {
                       </Card>
                     </div>
                     );
-                  })}
-                </div>
+                  }}
+                />
               )}
 
             {!filteredMRs.length && !loading && (
@@ -670,28 +718,46 @@ export function MaterialRequirementPage() {
           </div>
         ) : activeTab === "grn-ready" ? (
           <div className="space-y-4">
-            {grnReadyMRs.length === 0 && !loading && (
+            {!grnReadyReady && (
+              [...Array(4)].map((_, i) => (
+                <Card key={i} className="p-6">
+                  <div className="space-y-3">
+                    <Skeleton className="h-5 w-1/4" />
+                    <Skeleton className="h-4 w-1/2" />
+                    <div className="flex gap-2 mt-3">
+                      <Skeleton className="h-20 w-40 rounded-lg" />
+                      <Skeleton className="h-20 w-40 rounded-lg" />
+                      <Skeleton className="h-20 w-40 rounded-lg" />
+                    </div>
+                  </div>
+                </Card>
+              ))
+            )}
+            {grnReadyReady && grnReadyMRs.length === 0 && (
               <div className="text-center py-16">
                 <Package className="w-10 h-10 mx-auto mb-3 text-gray-300" />
                 <p className="text-gray-500 text-[14px] font-medium">No MRs awaiting allocation</p>
                 <p className="text-gray-400 text-[12px] mt-1">MRs with GRN-fulfilled purchase orders will appear here</p>
               </div>
             )}
-            {loading && grnReadyMRs.length === 0 && (
-              [...Array(3)].map((_, i) => (
-                <Card key={i} className="p-6">
-                  <div className="space-y-3"><Skeleton className="h-5 w-1/4" /><Skeleton className="h-4 w-1/2" /></div>
-                </Card>
-              ))
-            )}
             {grnReadyMRs.map(mr => {
-              const linkedPos = pos.filter(p => p.mrId === mr.id && ["GRN Fulfilled", "GRN Variance"].includes(p.status));
-              // GRN guarantees stock received — don't gate on liveStock; backend validates
-              const allocatableItems = mr.items.filter(i => {
-                const sku = (i.sku || "").trim();
-                if (!sku || sku.toUpperCase() === "N/A") return false;
-                return !["Allocated", "Issued"].includes(i.status || "");
-              });
+              const linkedPos = pos.filter(p =>
+                (p.mrId === mr.id || p.mrId === mr.mrNumber) &&
+                ["GRN Pending", "GRN Fulfilled", "GRN Variance", "Ready for Payment", "PO Closed", "Closed"].includes(p.status)
+              );
+              const mrPoIds = new Set(linkedPos.map(p => p.id));
+              // Sum received qty per SKU from all confirmed GRNs for this MR
+              const receivedQtyBySku = {};
+              grns
+                .filter(g => mrPoIds.has(g.poId) && ["Confirmed", "Over-Received", "Partial"].includes(g.status))
+                .forEach(g => {
+                  (g.items || []).forEach(gi => {
+                    const sku = (gi.sku || "").trim();
+                    if (sku && sku.toUpperCase() !== "N/A") {
+                      receivedQtyBySku[sku] = (receivedQtyBySku[sku] || 0) + (gi.received || 0);
+                    }
+                  });
+                });
               return (
                 <Card key={mr.id} className="overflow-hidden p-0">
                   <div className="p-4 bg-emerald-50/50 dark:bg-emerald-950/20 border-b border-emerald-100 dark:border-emerald-900/30 flex items-start justify-between gap-3">
@@ -716,62 +782,50 @@ export function MaterialRequirementPage() {
                       )}
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
-                      <button
-                        title="View MR"
-                        onClick={() => { setSelectedRequirement(JSON.parse(JSON.stringify(mr))); setViewModal(true); }}
-                        className="p-2 rounded-lg text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
-                      ><Eye className="w-4 h-4" /></button>
-                      {(hasPermission("ALLOCATE_MR") || hasPermission("MANAGE_INVENTORY")) && allocatableItems.length > 0 && (
+                      {(hasPermission("ALLOCATE_MR") || hasPermission("MANAGE_INVENTORY")) && (
                         <button
                           className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg text-[11px] font-bold transition-all shadow-sm shadow-emerald-500/20"
-                          onClick={async e => {
-                            e.stopPropagation();
-                            try {
-                              const allocItems = allocatableItems
-                                .map(i => ({ sku: i.sku.trim(), qty: i.qty || 0 }))
-                                .filter(i => i.qty > 0);
-                              if (!allocItems.length) { toast.error("No items to allocate."); return; }
-                              const res = await api.post("material-requirements/allocate", { mrId: mr.id, items: allocItems });
-                              if (res.success) {
-                                toast.success(`${allocItems.length} item(s) allocated!`);
-                                fetchResource("material-requirements", 1, 50, false);
-                              }
-                            } catch (err) { toast.error("Allocation failed: " + err.message); }
-                          }}
+                          onClick={e => { e.stopPropagation(); setGrnAllocModal({ mr, receivedQtyBySku }); setGrnAllocStore(""); }}
                         >
-                          <Check className="w-3.5 h-3.5" /><span>Allocate</span>
+                          <Check className="w-3.5 h-3.5" />
+                          <span>Allocate</span>
                         </button>
                       )}
                     </div>
                   </div>
-                  <div className="p-4">
+                  <div className="px-4 pb-4 pt-3">
                     <div className="flex flex-wrap gap-2">
                       {mr.items.map((item, idx) => {
                         const isAllocated = ["Allocated", "Issued"].includes(item.status || "");
                         const noSku = !item.sku || item.sku.toUpperCase() === "N/A";
+                        const received = receivedQtyBySku[(item.sku || "").trim()] || 0;
+                        const maxQty = Math.max(0, received - (item.allocatedQty || 0));
+                        const statusChip = isAllocated
+                          ? { label: "ALLOCATED", cls: "bg-emerald-100 dark:bg-emerald-900/40 text-emerald-600 dark:text-emerald-400" }
+                          : noSku
+                          ? { label: "NO SKU", cls: "bg-gray-100 dark:bg-gray-800 text-gray-400" }
+                          : received <= 0
+                          ? { label: "GRN PENDING", cls: "bg-gray-100 dark:bg-gray-800 text-gray-400" }
+                          : maxQty <= 0
+                          ? { label: "FULLY ALLOCATED", cls: "bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400" }
+                          : received < (item.qty || 0)
+                          ? { label: `PARTIAL · ${received}/${item.qty}`, cls: "bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400" }
+                          : { label: `READY · ${received} ${item.unit}`, cls: "bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-400" };
                         return (
                           <div key={idx} className={cn(
-                            "px-3 py-2 rounded-lg border flex flex-col gap-1",
-                            isAllocated || noSku
+                            "px-2.5 py-1.5 rounded-lg border flex flex-col gap-0.5 min-w-[120px]",
+                            isAllocated || noSku || received <= 0
                               ? "border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/40 opacity-60"
-                              : "border-emerald-200 dark:border-emerald-800/60 bg-emerald-50/40 dark:bg-emerald-950/20"
+                              : "border-emerald-200 dark:border-emerald-800/50 bg-emerald-50/30 dark:bg-emerald-950/10"
                           )}>
-                            <div className="flex items-center gap-2">
-                              <span className="text-[13px] font-medium text-gray-700 dark:text-gray-300">{item.materialName}</span>
-                              <span className="text-[11px] font-bold text-gray-400 ml-auto">x{item.qty} {item.unit}</span>
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="text-[12px] font-medium text-gray-700 dark:text-gray-300 truncate max-w-[120px]">{item.materialName}</span>
+                              <span className="text-[10px] font-bold text-gray-400 shrink-0">×{item.qty}</span>
                             </div>
                             {item.sku && item.sku !== "N/A" && (
-                              <span className="text-[10px] text-gray-400 font-mono">{item.sku}</span>
+                              <span className="text-[9px] text-gray-400 font-mono">{item.sku}</span>
                             )}
-                            <div>
-                              {isAllocated ? (
-                                <span className="text-[9px] font-black tracking-widest px-1.5 py-0.5 bg-emerald-100 dark:bg-emerald-900/40 text-emerald-600 dark:text-emerald-400 rounded">ALLOCATED</span>
-                              ) : noSku ? (
-                                <span className="text-[9px] font-black tracking-widest px-1.5 py-0.5 bg-gray-100 dark:bg-gray-800 text-gray-500 rounded">NO SKU</span>
-                              ) : (
-                                <span className="text-[9px] font-black tracking-widest px-1.5 py-0.5 bg-emerald-100 dark:bg-emerald-900/40 text-emerald-600 dark:text-emerald-400 rounded">GRN RECEIVED</span>
-                              )}
-                            </div>
+                            <span className={cn("text-[9px] font-black tracking-widest px-1 py-0.5 rounded w-fit mt-0.5", statusChip.cls)}>{statusChip.label}</span>
                           </div>
                         );
                       })}
@@ -955,6 +1009,201 @@ export function MaterialRequirementPage() {
           loading={actionLoading}
         />
       )}
+
+      {/* GRN Allocation Modal */}
+      {grnAllocModal && (() => {
+        const { mr, receivedQtyBySku: rqbs } = grnAllocModal;
+        const SITES = (settings?.sites || []).map(s => s.siteName).filter(Boolean);
+        return (
+          <Modal
+            title={`Allocate Stock — ${mr.mrNumber || mr.id}`}
+            onClose={() => setGrnAllocModal(null)}
+            wide
+            footer={
+              <div className="flex items-center justify-between gap-3 w-full">
+                <div className="flex items-center gap-3 text-[12px] text-gray-500">
+                  <span className="flex items-center gap-1"><User className="w-3.5 h-3.5" />{mr.requesterName || "—"}</span>
+                  <span className="flex items-center gap-1"><Building className="w-3.5 h-3.5" />{mr.project || "—"}</span>
+                  <span className="flex items-center gap-1"><MapPin className="w-3.5 h-3.5" />{mr.location || "—"}</span>
+                </div>
+                <button
+                  disabled={allocLoading[`${mr.id}:all`] || !grnAllocStore}
+                  onClick={async () => {
+                    setAllocLoading(p => ({ ...p, [`${mr.id}:all`]: true }));
+                    try {
+                      const items = mr.items
+                        .filter(i => {
+                          const sku = (i.sku || "").trim();
+                          if (!sku || sku.toUpperCase() === "N/A") return false;
+                          if (["Allocated", "Issued"].includes(i.status || "")) return false;
+                          return Math.max(0, (rqbs[sku] || 0) - (i.allocatedQty || 0)) > 0;
+                        })
+                        .map(i => {
+                          const sku = i.sku.trim();
+                          const maxQ = Math.max(0, (rqbs[sku] || 0) - (i.allocatedQty || 0));
+                          const qty = Math.min(allocQtys[mr.id]?.[sku] ?? maxQ, maxQ);
+                          return { sku, qty, store: grnAllocStore };
+                        })
+                        .filter(i => i.qty > 0);
+                      if (!items.length) { toast.error("Koi item allocatable nahi hai."); return; }
+                      const res = await api.post("material-requirements/allocate", { mrId: mr.id, items });
+                      if (res.success) {
+                        toast.success(`${items.length} item(s) allocated from ${grnAllocStore}!`);
+                        fetchResource("material-requirements", 1, 2000, false);
+                        setGrnAllocModal(null);
+                      }
+                    } catch (err) { toast.error("Failed: " + err.message); }
+                    finally { setAllocLoading(p => ({ ...p, [`${mr.id}:all`]: false })); }
+                  }}
+                  className="flex items-center gap-2 px-4 py-2 bg-emerald-500 hover:bg-emerald-600 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-xl text-[12px] font-bold transition-all"
+                >
+                  {allocLoading[`${mr.id}:all`]
+                    ? <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    : <Check className="w-3.5 h-3.5" />}
+                  Allocate All
+                </button>
+              </div>
+            }
+          >
+            {/* Godown selector */}
+            <div className="mb-5 p-4 bg-gray-50 dark:bg-gray-800/60 rounded-xl border border-gray-200 dark:border-gray-700">
+              <label className="text-[10px] font-bold text-gray-500 tracking-widest uppercase block mb-2">
+                Godown / Store Select Karo
+              </label>
+              <div className="flex flex-wrap gap-2">
+                {SITES.map(site => (
+                  <button
+                    key={site}
+                    onClick={() => {
+                      setGrnAllocStore(site);
+                      // auto-fill all items qty based on godown stock
+                      mr.items.forEach(item => {
+                        const sku = (item.sku || "").trim();
+                        if (!sku || sku.toUpperCase() === "N/A") return;
+                        const invItem = inventory.find(i => i.sku === sku);
+                        const storeStock = getStoreStock(invItem, site);
+                        const received = rqbs[sku] || 0;
+                        const maxQ = Math.max(0, received - (item.allocatedQty || 0));
+                        setItemAllocQty(mr.id, sku, Math.min(maxQ, storeStock));
+                      });
+                    }}
+                    className={cn(
+                      "px-3 py-1.5 rounded-lg text-[12px] font-bold border transition-all",
+                      grnAllocStore === site
+                        ? "bg-emerald-500 text-white border-emerald-500 shadow-sm"
+                        : "bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-700 hover:border-emerald-400"
+                    )}
+                  >{site}</button>
+                ))}
+                {SITES.length === 0 && (
+                  <p className="text-[12px] text-gray-400 italic">Settings mein koi site/godown nahi hai.</p>
+                )}
+              </div>
+              {grnAllocStore && (
+                <p className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 mt-2.5 flex items-center gap-1">
+                  <CheckCircle className="w-3.5 h-3.5" /> {grnAllocStore} selected — stock auto-loaded
+                </p>
+              )}
+            </div>
+
+            {/* Items list */}
+            <div className="space-y-2">
+              {mr.items.map((item, idx) => {
+                const sku = (item.sku || "").trim();
+                const isAllocated = ["Allocated", "Issued"].includes(item.status || "");
+                const noSku = !sku || sku.toUpperCase() === "N/A";
+                const received = rqbs[sku] || 0;
+                const alreadyAllocated = item.allocatedQty || 0;
+                const maxQty = Math.max(0, received - alreadyAllocated);
+                const invItem = inventory.find(i => i.sku === sku);
+                const storeStock = grnAllocStore ? getStoreStock(invItem, grnAllocStore) : null;
+                const curVal = allocQtys[mr.id]?.[sku] ?? maxQty;
+                const loadKey = `${mr.id}:${sku}`;
+                const canAllot = !isAllocated && !noSku && maxQty > 0;
+                return (
+                  <div key={idx} className={cn(
+                    "flex items-center gap-3 p-3.5 rounded-xl border transition-all",
+                    isAllocated
+                      ? "border-emerald-200 dark:border-emerald-800/40 bg-emerald-50/30 dark:bg-emerald-950/10 opacity-60"
+                      : canAllot
+                      ? "border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/50"
+                      : "border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/30 opacity-50"
+                  )}>
+                    {/* Item info */}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[13px] font-semibold text-gray-800 dark:text-gray-200 truncate">{item.materialName}</p>
+                      <div className="flex items-center gap-3 mt-0.5">
+                        {sku && sku !== "N/A" && <span className="text-[10px] font-mono text-gray-400">{sku}</span>}
+                        <span className="text-[10px] text-gray-400">Req: <b className="text-gray-600 dark:text-gray-300">{item.qty} {item.unit}</b></span>
+                        <span className="text-[10px] text-gray-400">Rcvd: <b className={received > 0 ? "text-emerald-600 dark:text-emerald-400" : "text-gray-400"}>{received}</b></span>
+                        {grnAllocStore && storeStock !== null && (
+                          <span className="text-[10px] text-gray-400">
+                            In {grnAllocStore}: <b className={storeStock > 0 ? "text-blue-600 dark:text-blue-400" : "text-red-500"}>{storeStock}</b>
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Allot control or status */}
+                    {canAllot ? (
+                      <div className="flex items-center gap-2 shrink-0">
+                        <div className="flex items-center gap-1 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg px-2.5 py-1.5">
+                          <input
+                            type="number"
+                            min={0}
+                            max={maxQty}
+                            value={curVal}
+                            onChange={e => setItemAllocQty(mr.id, sku, Math.min(maxQty, Math.max(0, Number(e.target.value))))}
+                            className="w-14 bg-transparent text-[14px] font-black text-center text-emerald-600 dark:text-emerald-400 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                          />
+                          <span className="text-[10px] text-gray-400 shrink-0">/{maxQty}</span>
+                        </div>
+                        <button
+                          disabled={allocLoading[loadKey] || curVal <= 0 || !grnAllocStore}
+                          title={!grnAllocStore ? "Pehle godown select karo" : ""}
+                          onClick={async () => {
+                            setAllocLoading(p => ({ ...p, [loadKey]: true }));
+                            try {
+                              const qty = Math.min(Number(curVal), maxQty);
+                              if (qty <= 0) { toast.error("Valid qty enter karo"); return; }
+                              const res = await api.post("material-requirements/allocate", {
+                                mrId: mr.id,
+                                items: [{ sku, qty, store: grnAllocStore }],
+                              });
+                              if (res.success) {
+                                toast.success(`${item.materialName} — ${qty} ${item.unit} allocated!`);
+                                fetchResource("material-requirements", 1, 2000, false);
+                                setGrnAllocModal(null);
+                              }
+                            } catch (err) { toast.error("Failed: " + err.message); }
+                            finally { setAllocLoading(p => ({ ...p, [loadKey]: false })); }
+                          }}
+                          className="flex items-center gap-1 px-3 py-1.5 bg-emerald-500 hover:bg-emerald-600 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-lg text-[11px] font-bold transition-all"
+                        >
+                          {allocLoading[loadKey]
+                            ? <span className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                            : <Check className="w-3 h-3" />}
+                          Allot
+                        </button>
+                      </div>
+                    ) : (
+                      <span className={cn(
+                        "text-[9px] font-black tracking-widest px-2 py-1 rounded shrink-0",
+                        isAllocated ? "bg-emerald-100 dark:bg-emerald-900/40 text-emerald-600 dark:text-emerald-400"
+                        : noSku ? "bg-gray-100 dark:bg-gray-800 text-gray-400"
+                        : received <= 0 ? "bg-gray-100 dark:bg-gray-800 text-gray-400"
+                        : "bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400"
+                      )}>
+                        {isAllocated ? "ALLOCATED ✓" : noSku ? "NO SKU" : received <= 0 ? "GRN PENDING" : "FULLY ALLOCATED"}
+                      </span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </Modal>
+        );
+      })()}
     </div>
   );
 }

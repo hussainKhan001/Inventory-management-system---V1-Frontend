@@ -231,6 +231,13 @@ const ROUTES = [
     permission: "VIEW_DAILY_REPORT"
   },
   {
+    id: "daily-movement",
+    label: "Daily Movement",
+    icon: BarChart2,
+    roles: ALL_ROLES,
+    permission: "VIEW_DAILY_REPORT"
+  },
+  {
     id: "project-reports",
     label: "Reports",
     icon: TrendingUp,

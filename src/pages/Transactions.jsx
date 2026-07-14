@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef, useMemo } from "react";
 import { useAppStore } from "../store";
 import { PageHeader, Card, Btn, Modal, Field, SField, ConfirmModal, Badge, StatusBadge, Skeleton, SearchSelect, MultipleImageUpload, Th, Td } from "../components/ui";
 import { SearchFilter, DateRangePicker, SelectFilter, FilterRow } from "../components/ui/Filters";
-import { Plus, Camera, AlertCircle, Eye, Pencil, Trash2, ArrowRightLeft, ArrowUpRight, ArrowDownLeft, Loader2, X, FileText, Package } from "lucide-react";
+import { Plus, Camera, AlertCircle, Eye, Pencil, Trash2, ArrowRightLeft, ArrowUpRight, ArrowDownLeft, Loader2, X, FileText, Package, Clock } from "lucide-react";
 import { TableVirtuoso } from "react-virtuoso";
 import { genId, scrollToError, formatDateTime } from "../utils";
 import { cn } from "../lib/utils";
@@ -117,7 +117,7 @@ const TransactionsPage = /* @__PURE__ */ __name(({ type }) => {
   const [loadingField, setLoadingField] = useState(null);
   const observerRef = useRef(null);
   const virtuosoTableComponents = useMemo(() => ({
-    Table: /* @__PURE__ */ __name((props) => <table {...props} className="w-full text-left border-collapse table-fixed min-w-[800px] md:min-w-0" />, "Table"),
+    Table: /* @__PURE__ */ __name((props) => <table {...props} className="w-full text-left border-collapse" />, "Table"),
     TableBody: React.forwardRef((props, ref) => <tbody {...props} ref={ref} className="divide-y divide-[#E8ECF0] dark:divide-gray-800" />),
     TableRow: /* @__PURE__ */ __name((props) => <tr {...props} className={cn("hover:bg-gray-50/50 dark:hover:bg-gray-800/30 transition-colors", props.className)} />, "TableRow")
   }), []);
@@ -378,7 +378,7 @@ const TransactionsPage = /* @__PURE__ */ __name(({ type }) => {
     if (!gatePassNo) return;
     try {
       setActionLoading(true);
-      const res = await api.get(`gate-passes/${gatePassNo}`);
+      const res = await api.get(`gate-passes/${encodeURIComponent(gatePassNo)}`);
       const outwardTrx = res.data;
       setNewTransaction((prev) => ({
         ...prev,
@@ -664,17 +664,14 @@ const TransactionsPage = /* @__PURE__ */ __name(({ type }) => {
                     <th className={cn(headerClass, "hidden md:table-cell w-[100px]")}>Type</th>
                     <th className={cn(headerClass, "hidden md:table-cell text-right w-[150px]")}>Actions</th>
                   </> : type === "Outward" || type === "Outward Return" ? <>
-                    <th className={cn(headerClass, "w-[148px] block md:table-cell")}><span className="md:hidden text-gray-900 dark:text-white text-[13px]">Transaction Details</span><span className="hidden md:inline">Date</span></th>
-                    <th className={cn(headerClass, "hidden md:table-cell w-[120px]")}>Project</th>
-                    <th className={cn(headerClass, "hidden md:table-cell w-[110px]")}>Godown</th>
-                    <th className={cn(headerClass, "hidden md:table-cell w-[110px]")}>Category</th>
+                    <th className={cn(headerClass, "w-[140px] block md:table-cell")}><span className="md:hidden text-gray-900 dark:text-white text-[13px]">Transaction Details</span><span className="hidden md:inline">Date</span></th>
+                    <th className={cn(headerClass, "hidden md:table-cell w-[140px]")}>Project</th>
+                    <th className={cn(headerClass, "hidden md:table-cell w-[100px]")}>Godown</th>
+                    <th className={cn(headerClass, "hidden md:table-cell w-[90px]")}>Category</th>
                     <th className={cn(headerClass, "hidden md:table-cell")}>Item</th>
-                    <th className={cn(headerClass, "hidden md:table-cell text-right w-[80px]")}>Qty</th>
-                    <th className={cn(headerClass, "hidden md:table-cell w-[120px]")}>
-                      {["Transfer Inward", "Transfer Outward"].includes(type || "") ? "Gate Pass Details" : "Person Name"}
-                    </th>
-                    <th className={cn(headerClass, "hidden md:table-cell w-[120px]")}>Photos</th>
-                    <th className={cn(headerClass, "hidden md:table-cell text-right w-[150px]")}>Actions</th>
+                    <th className={cn(headerClass, "hidden md:table-cell text-right w-[75px]")}>Qty</th>
+                    <th className={cn(headerClass, "hidden md:table-cell w-[90px]")}>Photos</th>
+                    <th className={cn(headerClass, "hidden md:table-cell text-right w-[110px]")}>Actions</th>
                   </> : <>
                     <th className={cn(headerClass, "w-[148px] block md:table-cell")}><span className="md:hidden text-gray-900 dark:text-white text-[13px]">Transaction Details</span><span className="hidden md:inline">Date</span></th>
                     <th className={cn(headerClass, "hidden md:table-cell w-[110px]")}>Type</th>
@@ -899,7 +896,7 @@ const TransactionsPage = /* @__PURE__ */ __name(({ type }) => {
                        </div>
                     </td>
                     <td className="hidden md:table-cell px-3 py-2.5 overflow-hidden">
-                      <div className="flex flex-col min-w-0">
+                      <div className="flex flex-col min-w-0 max-w-[250px]">
                         <span className="text-[13px] font-bold text-gray-900 dark:text-white truncate block" title={trx.itemName || trx.items?.[0]?.itemName || inventory.find((i) => i.sku === (trx.sku || trx.items?.[0]?.sku))?.itemName || catalogue.find((c) => c.sku === (trx.sku || trx.items?.[0]?.sku))?.itemName || trx.sku || "N/A"}>
                           {trx.itemName || trx.items?.[0]?.itemName || inventory.find((i) => i.sku === (trx.sku || trx.items?.[0]?.sku))?.itemName || catalogue.find((c) => c.sku === (trx.sku || trx.items?.[0]?.sku))?.itemName || trx.sku || "N/A"}
                         </span>
@@ -1067,7 +1064,7 @@ const TransactionsPage = /* @__PURE__ */ __name(({ type }) => {
                     <td className="hidden md:table-cell px-3 py-2.5 overflow-hidden"><span className="block truncate text-[13px] text-orange-600 dark:text-orange-400 font-medium" title={trx.store || ""}>{trx.store || "—"}</span></td>
                     <td className="hidden md:table-cell px-3 py-2.5 overflow-hidden"><span className="block truncate text-[13px] text-gray-600 dark:text-gray-400">{currentInventory.find((i) => i.sku === (trx.sku || trx.items?.[0]?.sku))?.category || "Hardware"}</span></td>
                     <td className="hidden md:table-cell px-3 py-2.5 overflow-hidden">
-                      <div className="flex flex-col min-w-0">
+                      <div className="flex flex-col min-w-0 max-w-[250px]">
                         <span className="text-[13px] font-bold text-gray-900 dark:text-white truncate block" title={trx.itemName || trx.items?.[0]?.itemName || inventory.find((i) => i.sku === (trx.sku || trx.items?.[0]?.sku))?.itemName || catalogue.find((c) => c.sku === (trx.sku || trx.items?.[0]?.sku))?.itemName || trx.sku || "N/A"}>
                           {trx.itemName || trx.items?.[0]?.itemName || inventory.find((i) => i.sku === (trx.sku || trx.items?.[0]?.sku))?.itemName || catalogue.find((c) => c.sku === (trx.sku || trx.items?.[0]?.sku))?.itemName || trx.sku || "N/A"}
                         </span>
@@ -1080,7 +1077,6 @@ const TransactionsPage = /* @__PURE__ */ __name(({ type }) => {
                         <span className="text-[11px] font-bold text-red-500 ">{trx.unit || trx.items?.[0]?.unit}</span>
                       </div>
                     </td>
-                    <td className="hidden md:table-cell px-3 py-2.5 overflow-hidden"><span className="block truncate text-[13px] text-gray-600 dark:text-gray-400" title={trx.personName || trx.handoverTo || trx.handoverFrom || ""}>{trx.personName || trx.handoverTo || trx.handoverFrom}</span></td>
                     <td className="hidden md:table-cell px-4 py-3">
                       <div className="flex -space-x-2">
                         {(trx.materialPhotoUrl || trx.materialImageUrl) && <img
@@ -1270,14 +1266,14 @@ const TransactionsPage = /* @__PURE__ */ __name(({ type }) => {
               </tr>}
     itemContent={(_index, alc) => <>
                 <Td className="px-3 py-2.5 overflow-hidden">
-                   <div className="flex flex-col min-w-0">
+                   <div className="flex flex-col min-w-0 max-w-[250px]">
                      <span className="block truncate font-bold text-primary font-mono text-[12px]" title={alc.mrNumber || alc.mrId}>{alc.mrNumber || alc.mrId}</span>
                      {alc.engineerName && <span className="block truncate text-[11px] text-gray-800 dark:text-gray-200 font-semibold" title={alc.engineerName}>{alc.engineerName}</span>}
                      <span className="block truncate text-[11px] text-gray-500 font-medium" title={alc.projectName}>{alc.projectName}</span>
                    </div>
                 </Td>
                 <Td className="px-3 py-2.5 overflow-hidden">
-                  <div className="flex flex-col min-w-0">
+                  <div className="flex flex-col min-w-0 max-w-[250px]">
                     <span className="block truncate font-medium text-gray-900 dark:text-white" title={alc.itemName}>{alc.itemName}</span>
                     <span className="block truncate text-[10px] text-gray-400 font-mono tracking-tight" title={alc.sku}>{alc.sku}</span>
                   </div>
@@ -1678,146 +1674,117 @@ const TransactionsPage = /* @__PURE__ */ __name(({ type }) => {
                         </Card>)}
                     </div>
 
-                    <div className="hidden md:block overflow-visible">
-                      <div className="overflow-visible rounded-xl border border-gray-200 dark:border-gray-800">
-                        <table className="w-full border-collapse">
-                          <thead>
-                            <tr className="bg-gray-50 dark:bg-gray-800/50 border-b border-gray-200 dark:border-gray-800 [&>th:first-child]:rounded-tl-[11px] [&>th:last-child]:rounded-tr-[11px]">
-                              <th className="px-4 py-3 text-[11px] font-bold text-gray-500 dark:text-gray-400 text-left w-[25%]">Material Description *</th>
-                              {newTransaction.type === "Transfer Inward" && <th className="px-4 py-3 text-[11px] font-bold text-gray-500 dark:text-gray-400 text-right w-[10%]">Outward Qty</th>}
-                              {newTransaction.type === "Outward" && <th className="px-4 py-3 text-[11px] font-bold text-gray-500 dark:text-gray-400 text-right w-[8%]">Allocated</th>}
-                              <th className="px-4 py-3 text-[11px] font-bold text-gray-500 dark:text-gray-400 text-right w-[12%]">
-                                {newTransaction.type === "Transfer Inward" ? "Received Qty *" : "Issue Qty *"}
-                              </th>
-                              {(newTransaction.type === "Outward" || newTransaction.type === "Transfer Inward") && <th className="px-4 py-3 text-[11px] font-bold text-gray-500 dark:text-gray-400 text-right w-[10%]">
-                                  {newTransaction.type === "Transfer Inward" ? "Variance" : "Remaining"}
-                                </th>}
-                              <th className="px-4 py-3 text-[11px] font-bold text-gray-500 dark:text-gray-400 text-center w-[10%]">Unit</th>
-                              <th className="px-4 py-3 text-[11px] font-bold text-gray-500 dark:text-gray-400 w-[12%]">MR No.</th>
-                              <th className="px-4 py-3 text-[11px] font-bold text-gray-500 dark:text-gray-400 w-[20%]">Photos</th>
-                              <th className="px-4 py-3 text-[11px] font-bold text-gray-500 dark:text-gray-400 w-10 text-center" />
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-                            {newTransaction.items.map((item, idx) => <tr key={idx} className="group hover:bg-gray-50/50 dark:hover:bg-gray-800/20 transition-all">
-                                <td className="px-6 py-5 align-top">
-                                  {item.isMiscellaneous ? <div className="space-y-3">
-                                      <Field
-    value={item.itemName}
-    onChange={(e) => updateItem(idx, { itemName: e.target.value })}
-    placeholder="Item Name"
-    small
-    error={errors[`item_${idx}_itemName`]}
-  />
-                                      <SField
-    value={item.category}
-    onChange={(e) => updateItem(idx, { category: e.target.value })}
-    options={CATEGORIES}
-    small
-    placeholder="Category"
-  />
-                                    </div> : <>
-                                      <SearchSelect
-    options={inventoryOptions}
-    value={item.sku}
-    onChange={(val) => handleRowItemSelect(idx, val)}
-    onSearch={(val) => setSearchItemVal(val)}
-    placeholder="Search Material..."
-    small
-    error={errors[`item_${idx}_sku`]}
-  />
-                                      {item.itemName && <div className="mt-1 px-2 py-0.5 bg-orange-50 dark:bg-orange-900/10 border border-orange-100 dark:border-orange-900/20 rounded text-[10px] tracking-wider font-extrabold text-orange-600 dark:text-orange-400">
-                                          {item.itemName}
-                                        </div>}
-                                    </>}
-                                </td>
-                                {newTransaction.type === "Transfer Inward" && <td className="px-4 py-5 align-top text-right">
-                                    <div className="flex flex-col items-end">
-                                      <span className="text-[14px] font-black text-blue-500 font-mono tracking-tighter">
-                                        {item.outwardQty || 0}
-                                      </span>
-                                      <span className="text-[9px] text-gray-400 font-black tracking-widest leading-none mt-1">Outward</span>
-                                    </div>
-                                  </td>}
-                                {newTransaction.type === "Outward" && <td className="px-4 py-5 align-top text-right">
-                                    <div className="flex flex-col items-end">
-                                      <span className="text-[14px] font-black text-blue-500 font-mono tracking-tighter">
-                                        {item.originalAllocatedQty || item.allocatedQty || 0}
-                                      </span>
-                                      <span className="text-[9px] text-gray-400 font-black tracking-widest leading-none mt-1">Allocated</span>
-                                    </div>
-                                  </td>}
-                                <td className="px-4 py-5 align-top">
-                                  <div className="relative group/input">
-                                    <input
-                                      type="number"
-                                      value={item.qty || 0}
-                                      onChange={(e) => updateItem(idx, { qty: Number(e.target.value) })}
-                                      placeholder="0"
-                                      className="w-full px-2 py-2 bg-white dark:bg-gray-900 border-2 border-gray-100 dark:border-gray-800 rounded-xl text-[14px] font-black text-center sm:text-right focus:outline-none focus:border-orange-500 transition-all shadow-sm group-hover/input:border-gray-200 dark:group-hover/input:border-gray-700 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                                    />
-                                    {newTransaction.type === "Outward" && (item.qty || 0) > (item.originalAllocatedQty || item.allocatedQty || 0) && <div className="absolute -top-2 -right-1 px-1.5 py-0.5 bg-red-500 text-white text-[8px] font-black rounded animate-bounce">
-                                        Exceeds!
-                                      </div>}
-                                    {newTransaction.type === "Transfer Inward" && (item.qty || 0) !== (item.outwardQty || 0) && <div className="absolute -top-2 -right-1 px-1.5 py-0.5 bg-amber-500 text-white text-[8px] font-black rounded ">
-                                        Variance!
-                                      </div>}
-                                  </div>
-                                </td>
-                                {(newTransaction.type === "Outward" || newTransaction.type === "Transfer Inward") && <td className="px-4 py-5 align-top text-right">
-                                    <div className="flex flex-col items-end">
-                                      <span className={`text-[14px] font-black font-mono tracking-tighter ${newTransaction.type === "Transfer Inward" ? item.variance === 0 ? "text-emerald-600" : "text-red-500" : (item.originalAllocatedQty || item.allocatedQty || 0) - (item.qty || 0) < 0 ? "text-red-500 animate-pulse" : "text-emerald-600"}`}>
-                                        {newTransaction.type === "Transfer Inward" ? item.variance || 0 : (item.originalAllocatedQty || item.allocatedQty || 0) - (item.qty || 0)}
-                                      </span>
-                                      <span className="text-[9px] text-gray-400 font-black tracking-widest leading-none mt-1">
-                                        {newTransaction.type === "Transfer Inward" ? "Variance" : "Remaining"}
-                                      </span>
-                                    </div>
-                                  </td>}
-                                <td className="px-6 py-5 align-top">
-                                  {item.isMiscellaneous ? <SField
-    value={item.unit}
-    onChange={(e) => updateItem(idx, { unit: e.target.value })}
-    options={UNITS}
-    small
-  /> : <div className="px-3 py-2 bg-gray-100 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-xl text-[11px] font-bold text-gray-500 text-center mt-0.5">
-                                      {item.unit}
-                                    </div>}
-                                </td>
-                                <td className="px-6 py-5 align-top">
-                                  <input
-    value={item.mrNo || ""}
-    onChange={(e) => updateItem(idx, { mrNo: e.target.value })}
-    placeholder="MR-XXXX"
-    className="w-full px-3 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-[13px] font-bold text-orange-600 focus:outline-none focus:ring-2 focus:ring-[#F97316]/20"
-  />
-                                </td>
-                                <td className="px-4 py-5 align-top">
-                                  <MultipleImageUpload
-    id={`item-photos-${idx}`}
-    label=""
-    onUpload={(urls) => updateItem(idx, { images: [...item.images || [], ...urls] })}
-    values={item.images || []}
-    onRemove={(imgIdx) => {
-      const newImages = (item.images || []).filter((_, i) => i !== imgIdx);
-      updateItem(idx, { images: newImages });
-    }}
-    small
-    onUploadingChange={setIsUploading}
-  />
-                                </td>
-                                <td className="px-6 py-5 text-center align-top">
-                                  <button
-    onClick={() => removeItem(idx)}
-    className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl transition-all"
-  >
-                                    <Trash2 className="w-4 h-5" />
-                                  </button>
-                                </td>
-                              </tr>)}
-                          </tbody>
-                        </table>
+                    <div className="hidden md:block space-y-2">
+                      {/* Header row */}
+                      <div className="grid gap-3 px-4 py-2 bg-gray-50 dark:bg-gray-800/50 rounded-xl border border-gray-200 dark:border-gray-800"
+                        style={{ gridTemplateColumns: `1fr${newTransaction.type === "Transfer Inward" ? " 72px" : ""}${newTransaction.type === "Outward" ? " 72px" : ""} 90px${(newTransaction.type === "Outward" || newTransaction.type === "Transfer Inward") ? " 72px" : ""} 72px 32px` }}
+                      >
+                        <span className="text-[11px] font-bold text-gray-500 dark:text-gray-400">Material Description *</span>
+                        {newTransaction.type === "Transfer Inward" && <span className="text-[11px] font-bold text-gray-500 dark:text-gray-400 text-right">Outward Qty</span>}
+                        {newTransaction.type === "Outward" && <span className="text-[11px] font-bold text-gray-500 dark:text-gray-400 text-right">Allocated</span>}
+                        <span className="text-[11px] font-bold text-gray-500 dark:text-gray-400 text-right">{newTransaction.type === "Transfer Inward" ? "Received Qty *" : "Issue Qty *"}</span>
+                        {(newTransaction.type === "Outward" || newTransaction.type === "Transfer Inward") && <span className="text-[11px] font-bold text-gray-500 dark:text-gray-400 text-right">{newTransaction.type === "Transfer Inward" ? "Variance" : "Remaining"}</span>}
+                        <span className="text-[11px] font-bold text-gray-500 dark:text-gray-400 text-center">Unit</span>
+                        <span />
                       </div>
+
+                      {/* Item rows — 2 rows per item */}
+                      {newTransaction.items.map((item, idx) => (
+                        <div key={idx} className="border border-gray-200 dark:border-gray-800 rounded-xl overflow-visible bg-white dark:bg-gray-900 hover:border-gray-300 dark:hover:border-gray-700 transition-colors">
+                          {/* Row 1: Material + qty controls */}
+                          <div className="grid gap-3 px-4 py-3 items-center"
+                            style={{ gridTemplateColumns: `1fr${newTransaction.type === "Transfer Inward" ? " 72px" : ""}${newTransaction.type === "Outward" ? " 72px" : ""} 90px${(newTransaction.type === "Outward" || newTransaction.type === "Transfer Inward") ? " 72px" : ""} 72px 32px` }}
+                          >
+                            {/* Material */}
+                            <div className="min-w-0">
+                              {item.isMiscellaneous ? <div className="flex gap-2">
+                                  <Field value={item.itemName} onChange={(e) => updateItem(idx, { itemName: e.target.value })} placeholder="Item Name" small error={errors[`item_${idx}_itemName`]} />
+                                  <SField value={item.category} onChange={(e) => updateItem(idx, { category: e.target.value })} options={CATEGORIES} small placeholder="Category" />
+                                </div> : <>
+                                  <SearchSelect options={inventoryOptions} value={item.sku} onChange={(val) => handleRowItemSelect(idx, val)} onSearch={(val) => setSearchItemVal(val)} placeholder="Search Material..." small error={errors[`item_${idx}_sku`]} />
+                                  {item.itemName && <div className="mt-1 px-2 py-0.5 bg-orange-50 dark:bg-orange-900/10 border border-orange-100 dark:border-orange-900/20 rounded text-[10px] tracking-wider font-extrabold text-orange-600 dark:text-orange-400 truncate">{item.itemName}</div>}
+                                </>}
+                            </div>
+
+                            {/* Transfer Inward: Outward Qty */}
+                            {newTransaction.type === "Transfer Inward" && (
+                              <div className="flex flex-col items-end">
+                                <span className="text-[14px] font-black text-blue-500 font-mono">{item.outwardQty || 0}</span>
+                                <span className="text-[9px] text-gray-400 font-black tracking-widest">Outward</span>
+                              </div>
+                            )}
+
+                            {/* Outward: Allocated */}
+                            {newTransaction.type === "Outward" && (
+                              <div className="flex flex-col items-end">
+                                <span className="text-[14px] font-black text-blue-500 font-mono">{item.originalAllocatedQty || item.allocatedQty || 0}</span>
+                                <span className="text-[9px] text-gray-400 font-black tracking-widest">Allocated</span>
+                              </div>
+                            )}
+
+                            {/* Issue / Received Qty input */}
+                            <div className="relative">
+                              <input
+                                type="number"
+                                value={item.qty || 0}
+                                onChange={(e) => updateItem(idx, { qty: Number(e.target.value) })}
+                                placeholder="0"
+                                className="w-full px-2 py-2 bg-white dark:bg-gray-900 border-2 border-gray-100 dark:border-gray-800 rounded-xl text-[14px] font-black text-right focus:outline-none focus:border-orange-500 transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                              />
+                              {newTransaction.type === "Outward" && (item.qty || 0) > (item.originalAllocatedQty || item.allocatedQty || 0) && (
+                                <div className="absolute -top-2 -right-1 px-1.5 py-0.5 bg-red-500 text-white text-[8px] font-black rounded animate-bounce">Exceeds!</div>
+                              )}
+                              {newTransaction.type === "Transfer Inward" && (item.qty || 0) !== (item.outwardQty || 0) && (
+                                <div className="absolute -top-2 -right-1 px-1.5 py-0.5 bg-amber-500 text-white text-[8px] font-black rounded">Variance!</div>
+                              )}
+                            </div>
+
+                            {/* Remaining / Variance */}
+                            {(newTransaction.type === "Outward" || newTransaction.type === "Transfer Inward") && (
+                              <div className="flex flex-col items-end">
+                                <span className={`text-[14px] font-black font-mono ${newTransaction.type === "Transfer Inward" ? item.variance === 0 ? "text-emerald-600" : "text-red-500" : (item.originalAllocatedQty || item.allocatedQty || 0) - (item.qty || 0) < 0 ? "text-red-500 animate-pulse" : "text-emerald-600"}`}>
+                                  {newTransaction.type === "Transfer Inward" ? (item.variance || 0) : (item.originalAllocatedQty || item.allocatedQty || 0) - (item.qty || 0)}
+                                </span>
+                                <span className="text-[9px] text-gray-400 font-black tracking-widest">{newTransaction.type === "Transfer Inward" ? "Variance" : "Remaining"}</span>
+                              </div>
+                            )}
+
+                            {/* Unit */}
+                            <div>
+                              {item.isMiscellaneous ? <SField value={item.unit} onChange={(e) => updateItem(idx, { unit: e.target.value })} options={UNITS} small /> : (
+                                <div className="px-2 py-2 bg-gray-100 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-xl text-[11px] font-bold text-gray-500 text-center">{item.unit || "—"}</div>
+                              )}
+                            </div>
+
+                            {/* Delete */}
+                            <button onClick={() => removeItem(idx)} className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl transition-all">
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+
+                          {/* Row 2: MR No. + Photos */}
+                          <div className="flex items-center gap-3 px-4 py-2.5 border-t border-dashed border-gray-100 dark:border-gray-800">
+                            <div className="flex items-center gap-2 flex-1 min-w-0">
+                              <span className="px-2 py-0.5 rounded bg-gray-100 dark:bg-gray-800 text-[9px] font-extrabold tracking-widest text-gray-500 dark:text-gray-400 uppercase shrink-0">MR No.</span>
+                              <input
+                                value={item.mrNo || ""}
+                                onChange={(e) => updateItem(idx, { mrNo: e.target.value })}
+                                placeholder="MR-XXXX"
+                                className="flex-1 max-w-[200px] px-2.5 py-1 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-[12px] font-bold text-orange-500 dark:text-orange-400 placeholder:text-gray-400 dark:placeholder:text-gray-600 focus:outline-none focus:border-orange-400 dark:focus:border-orange-500 transition-colors"
+                              />
+                            </div>
+                            <MultipleImageUpload
+                              id={`item-photos-${idx}`}
+                              label="Photos"
+                              onUpload={(urls) => updateItem(idx, { images: [...(item.images || []), ...urls] })}
+                              values={item.images || []}
+                              onRemove={(imgIdx) => updateItem(idx, { images: (item.images || []).filter((_, i) => i !== imgIdx) })}
+                              small
+                              onUploadingChange={setIsUploading}
+                            />
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   </> : <div className="text-center py-20 border-2 border-dashed border-gray-200 dark:border-gray-800 rounded-3xl bg-gray-50/30 dark:bg-[#0F172A]/50">
                     <div className="w-16 h-16 bg-white dark:bg-[#1E293B] rounded-2xl shadow-sm flex items-center justify-center mx-auto mb-4 border border-gray-100 dark:border-gray-700">
@@ -2042,6 +2009,34 @@ const TransactionsPage = /* @__PURE__ */ __name(({ type }) => {
                 </table>
               </div>
             </div>
+
+            {selectedTransaction.updateHistory && selectedTransaction.updateHistory.length > 0 && (
+              <div>
+                <div className="flex items-center gap-2 mb-3">
+                  <Clock className="w-4 h-4 text-gray-400" />
+                  <p className="text-[11px] font-bold text-gray-500 tracking-wider uppercase">Update History</p>
+                </div>
+                <div className="space-y-2">
+                  {[...selectedTransaction.updateHistory].reverse().map((h, i) => (
+                    <div key={i} className="p-3 bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-800/40 rounded-xl">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-[12px] font-bold text-amber-700 dark:text-amber-400">{h.updatedBy}</span>
+                        <span className="text-[11px] text-gray-500 font-mono">{h.updatedAt ? new Date(h.updatedAt).toLocaleString("en-IN") : ""}</span>
+                      </div>
+                      <div className="text-[11px] text-gray-600 dark:text-gray-400 space-y-1">
+                        {h.changes?.project && <p><span className="font-semibold">Project:</span> {h.changes.project}</p>}
+                        {h.changes?.store && <p><span className="font-semibold">Store:</span> {h.changes.store}</p>}
+                        {h.changes?.personName && <p><span className="font-semibold">Person:</span> {h.changes.personName}</p>}
+                        {h.changes?.mrNo && <p><span className="font-semibold">MR No:</span> {h.changes.mrNo}</p>}
+                        {h.changes?.items && h.changes.items.length > 0 && (
+                          <p><span className="font-semibold">Items:</span> {h.changes.items.map(it => `${it.itemName} × ${it.qty} ${it.unit}`).join(", ")}</p>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
           </div>
         </Modal>}

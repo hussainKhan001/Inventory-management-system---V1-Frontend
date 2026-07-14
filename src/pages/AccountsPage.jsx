@@ -606,6 +606,7 @@ const DetailPanel = /* @__PURE__ */ __name(({
   handleFileChange,
   suppliers
 }) => {
+  const [isDraggingPayment, setIsDraggingPayment] = useState(false);
   const poStatus = (po.status || "").toLowerCase();
   const status = po.accountStatus || (["approved", "fulfilled", "grn pending", "grn fulfilled", "grn variance"].includes(poStatus) ? "bill_verify" : "other");
   const getSupplierName = /* @__PURE__ */ __name((id) => {
@@ -969,10 +970,23 @@ const DetailPanel = /* @__PURE__ */ __name(({
               <FormGroup label="Payment Proof Screenshot *" hint="Mandatory for internal audit">
                 <div
       onClick={() => fileInputRef.current?.click()}
-      className="border-2 border-dashed border-gray-200 dark:border-[#334155] rounded-2xl p-8 flex flex-col items-center justify-center gap-3 cursor-pointer hover:bg-gray-50 dark:hover:bg-[#0F172A]/50 transition-all font-medium group"
+      onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); setIsDraggingPayment(true); }}
+      onDragEnter={(e) => { e.preventDefault(); e.stopPropagation(); setIsDraggingPayment(true); }}
+      onDragLeave={(e) => { e.preventDefault(); e.stopPropagation(); if (!e.currentTarget.contains(e.relatedTarget)) setIsDraggingPayment(false); }}
+      onDrop={(e) => {
+        e.preventDefault(); e.stopPropagation(); setIsDraggingPayment(false);
+        const file = e.dataTransfer.files?.[0];
+        if (file) { const url = URL.createObjectURL(file); setPaymentForm(prev => ({ ...prev, screenshot: file, previewUrl: url })); }
+      }}
+      className={`border-2 border-dashed rounded-2xl p-8 flex flex-col items-center justify-center gap-3 cursor-pointer transition-all font-medium group ${isDraggingPayment ? "border-blue-400 bg-blue-50 dark:bg-blue-900/20 scale-[1.01]" : "border-gray-200 dark:border-[#334155] hover:bg-gray-50 dark:hover:bg-[#0F172A]/50"}`}
     >
                   <input type="file" ref={fileInputRef} className="hidden" onChange={handleFileChange} accept="image/*,.pdf" />
-                  {paymentForm.previewUrl ? <div className="relative group">
+                  {isDraggingPayment ? <>
+                      <div className="p-4 bg-blue-100 dark:bg-blue-900/20 text-blue-500 rounded-full">
+                        <Upload className="w-8 h-8" />
+                      </div>
+                      <p className="text-[11px] font-black text-blue-500">Drop file here</p>
+                    </> : paymentForm.previewUrl ? <div className="relative group">
                        <img src={paymentForm.previewUrl} className="h-24 rounded-xl shadow-lg border border-white dark:border-[#334155]" alt="Preview" />
                        <div className="absolute inset-0 bg-black/40 rounded-xl flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                          <Upload className="text-white w-6 h-6 animate-bounce" />
@@ -983,7 +997,7 @@ const DetailPanel = /* @__PURE__ */ __name(({
                         <Upload className="w-8 h-8" />
                       </div>
                       <div className="text-center">
-                        <p className="text-[11px] font-black text-[#3B82F6] mb-1">Click to upload</p>
+                        <p className="text-[11px] font-black text-[#3B82F6] mb-1">Click or drag & drop</p>
                         <p className="text-[10px] font-bold text-gray-400 dark:text-[#64748B] italic">Tally Snapshot or Bank Receipt</p>
                       </div>
                     </>}
