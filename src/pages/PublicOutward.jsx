@@ -17,13 +17,13 @@ const PublicOutward = /* @__PURE__ */ __name(() => {
     fetchResource,
     settings
   } = useAppStore();
+  const [publicMRs, setPublicMRs] = useState([]);
   useEffect(() => {
     fetchResource("public-settings");
-    fetchPublicMRs();
+    fetchPublicMRs().then(data => { if (Array.isArray(data)) setPublicMRs(data); }).catch(() => {});
   }, [fetchResource, fetchPublicMRs]);
   const { projects: PROJECTS, sites: SITES } = settings;
   const COMBINED_STORES = (SITES || []).map(s => s.siteName);
-  const { materialRequirements: publicMRs } = useAppStore();
   const INITIAL_FORM = {
     project: "",
     otherProjectName: "",
@@ -42,8 +42,8 @@ const PublicOutward = /* @__PURE__ */ __name(() => {
   const [form, setForm] = useState(INITIAL_FORM);
   const mrOptions = useMemo(() => {
     return (publicMRs || []).filter(
-      (m) => ["Approved", "Approved by Store", "Approved by AGM", "Approved by Director", "Partially Issued"].includes(m.status) && m.items.some((i) => (i.allocatedQty || 0) > 0)
-    ).map((m) => ({ label: `${m.id} | ${m.project} | ${m.requesterName}`, value: m.id }));
+      (m) => ["Approved", "Approved by Store", "Approved by AGM", "Approved by Director", "Partially Issued", "Allocated", "Partially Allocated"].includes(m.status) && m.items.some((i) => (i.allocatedQty || 0) > 0)
+    ).map((m) => ({ label: `${m.id} | ${m.project} | ${m.requesterName || ""}`, value: m.id }));
   }, [publicMRs]);
   const [errors, setErrors] = useState({});
   const [submitted, setSubmitted] = useState(false);

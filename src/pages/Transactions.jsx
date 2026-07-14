@@ -94,6 +94,11 @@ const TransactionsPage = /* @__PURE__ */ __name(({ type }) => {
   }, [searchQuery]);
   const [filterProject, setFilterProject] = useState("");
   const [filterType, setFilterType] = useState(type || "");
+  const [allocSearch, setAllocSearch] = useState("");
+  const [allocFilterRequester, setAllocFilterRequester] = useState("");
+  const requesterOptions = useMemo(() =>
+    [...new Set(mrAllocations.map(a => a.engineerName).filter(Boolean))].sort().map(n => ({ label: n, value: n }))
+  , [mrAllocations]);
   const [page, setPage] = useState(1);
   const filterTypeOptions = useMemo(() => [
     { label: "Inward", value: "Inward" },
@@ -552,7 +557,7 @@ const TransactionsPage = /* @__PURE__ */ __name(({ type }) => {
               Ready for Issue (Allocated)
             </button>
           </div>}
-        <FilterRow
+        {activeTab === "history" && <FilterRow
     showClear={!!(searchQuery || startDate || endDate || filterProject || !type && filterType)}
     onClearAll={() => {
       setSearchQuery("");
@@ -587,7 +592,24 @@ const TransactionsPage = /* @__PURE__ */ __name(({ type }) => {
     options={filterTypeOptions}
     placeholder="All Types"
   />}
-        </FilterRow>
+        </FilterRow>}
+        {activeTab === "ready" && <FilterRow
+    showClear={!!(allocSearch || allocFilterRequester)}
+    onClearAll={() => { setAllocSearch(""); setAllocFilterRequester(""); }}
+  >
+          <SearchFilter
+    value={allocSearch}
+    onChange={setAllocSearch}
+    placeholder="Search MR No., Requester, Material..."
+    className="flex-1 min-w-[200px]"
+  />
+          <SelectFilter
+    value={allocFilterRequester}
+    onChange={setAllocFilterRequester}
+    options={requesterOptions}
+    placeholder="All Requesters"
+  />
+        </FilterRow>}
       </div>
 
       <Card className="p-0 overflow-hidden border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 flex-1">
@@ -1225,7 +1247,19 @@ const TransactionsPage = /* @__PURE__ */ __name(({ type }) => {
   /> : <Card className="p-0 overflow-hidden border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 flex-1">
           <TableVirtuoso
     style={{ height: "calc(100vh - 350px)", minHeight: "500px" }}
-    data={mrAllocations.filter((alc) => alc.remainingQty > 0)}
+    data={mrAllocations.filter((alc) => {
+      if (alc.remainingQty <= 0) return false;
+      if (allocFilterRequester && alc.engineerName !== allocFilterRequester) return false;
+      if (allocSearch) {
+        const q = allocSearch.toLowerCase();
+        return (alc.mrNumber || alc.mrId || "").toLowerCase().includes(q)
+          || (alc.engineerName || "").toLowerCase().includes(q)
+          || (alc.itemName || "").toLowerCase().includes(q)
+          || (alc.projectName || "").toLowerCase().includes(q)
+          || (alc.sku || "").toLowerCase().includes(q);
+      }
+      return true;
+    })}
     increaseViewportBy={300}
     fixedHeaderContent={() => <tr className="bg-gray-50/90 dark:bg-gray-800/90 backdrop-blur-md border-b border-gray-100 dark:border-gray-800">
                 <Th className="px-3 py-3 text-[11px] font-bold text-gray-500 dark:text-gray-400 whitespace-nowrap overflow-hidden">MR / Project</Th>
@@ -1238,6 +1272,7 @@ const TransactionsPage = /* @__PURE__ */ __name(({ type }) => {
                 <Td className="px-3 py-2.5 overflow-hidden">
                    <div className="flex flex-col min-w-0">
                      <span className="block truncate font-bold text-primary font-mono text-[12px]" title={alc.mrNumber || alc.mrId}>{alc.mrNumber || alc.mrId}</span>
+                     {alc.engineerName && <span className="block truncate text-[11px] text-gray-800 dark:text-gray-200 font-semibold" title={alc.engineerName}>{alc.engineerName}</span>}
                      <span className="block truncate text-[11px] text-gray-500 font-medium" title={alc.projectName}>{alc.projectName}</span>
                    </div>
                 </Td>
