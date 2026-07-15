@@ -8,7 +8,7 @@ import { fmtCur, formatDateTime, safeStr } from "../../utils";
 import { cn } from "../../lib/utils";
 import toast from "react-hot-toast";
 import {
-  calcChargeTotal, normalizeTimelineGST, normalizeTimelineType,
+  calcChargeTotal, normalizeTimelineType,
   computeTimelineDates, formatPrettyDate,
 } from "./poUtils";
 
@@ -398,21 +398,12 @@ export function POViewModal({ po, onClose, onApproveL1, onApproveL2, onApproveL3
                       <th className="p-2 text-left border-r border-[#1A365D]/30">Type</th>
                       <th className="p-2 text-left border-r border-[#1A365D]/30">Mode</th>
                       <th className="p-2 text-right border-r border-[#1A365D]/30">Amount</th>
-                      <th className="p-2 text-center border-r border-[#1A365D]/30">GST %</th>
-                      <th className="p-2 text-center border-r border-[#1A365D]/30">GST Type</th>
-                      <th className="p-2 text-right border-r border-[#1A365D]/30">GST Amt</th>
                       <th className="p-2 text-right">If Payable</th>
                     </tr>
                   </thead>
                   <tbody>
                     {(editTimelines ? draftTimelines : (po.paymentTimelines || [])).map((pt, idx) => {
-                      const norm = normalizeTimelineGST(pt);
                       const baseAmt = parseFloat(String(pt.amount || 0)) || 0;
-                      // Recompute dynamically — don't trust stored ifPayable (may be stale)
-                      const computedPayable = norm.gstType === "Exclusive" && norm.gstPct > 0
-                        ? parseFloat((baseAmt + baseAmt * norm.gstPct / 100).toFixed(2))
-                        : baseAmt;
-                      const computedGstAmt = parseFloat((computedPayable - baseAmt).toFixed(2));
 
                       return (
                       <tr key={idx} className="border-t border-[#1A365D]/20 hover:bg-[#1A365D]/5 transition-colors">
@@ -427,58 +418,17 @@ export function POViewModal({ po, onClose, onApproveL1, onApproveL2, onApproveL3
                             <td className="p-1.5 border-r border-[#1A365D]/20">
                               <input value={pt.mode || ""} onChange={(e) => { const ts = [...draftTimelines]; ts[idx] = { ...ts[idx], mode: e.target.value }; setDraftTimelines(ts); }} className="w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded px-1.5 py-1 text-xs" />
                             </td>
-                            {/* Amount input — recomputes ifPayable on change */}
                             <td className="p-1.5 border-r border-[#1A365D]/20">
                               <input type="text" value={pt.amount ?? ""} onChange={(e) => {
                                 const valStr = e.target.value.replace(/[^0-9.]/g, "");
                                 const val = parseFloat(valStr) || 0;
                                 const ts = [...draftTimelines];
-                                const n = normalizeTimelineGST(ts[idx]);
-                                const payable = n.gstType === "Exclusive" && n.gstPct > 0 ? val + val * n.gstPct / 100 : val;
-                                ts[idx] = { ...ts[idx], amount: valStr, ifPayable: parseFloat(payable.toFixed(2)) };
+                                ts[idx] = { ...ts[idx], amount: valStr, ifPayable: val };
                                 setDraftTimelines(ts);
                               }} className="w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded px-1.5 py-1 text-xs text-right" />
                             </td>
-                            {/* GST % number input — recomputes ifPayable on change */}
-                            <td className="p-1.5 border-r border-[#1A365D]/20">
-                              <input type="number" min="0" max="100" value={norm.gstPct} onFocus={(e) => e.target.select()}
-                                onChange={(e) => {
-                                  const pct = parseFloat(e.target.value) || 0;
-                                  const ts = [...draftTimelines];
-                                  const amt = parseFloat(String(ts[idx].amount)) || 0;
-                                  const gstType = ts[idx].gstType || "Exclusive";
-                                  const payable = gstType === "Exclusive" && pct > 0 ? amt + amt * pct / 100 : amt;
-                                  ts[idx] = { ...ts[idx], gstPct: pct, ifPayable: parseFloat(payable.toFixed(2)) };
-                                  setDraftTimelines(ts);
-                                }}
-                                className="w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded px-1.5 py-1 text-xs text-center font-medium"
-                              />
-                            </td>
-                            {/* GST Type select — recomputes ifPayable on change */}
-                            <td className="p-1.5 border-r border-[#1A365D]/20">
-                              <select value={norm.gstType}
-                                onChange={(e) => {
-                                  const gstType = e.target.value;
-                                  const ts = [...draftTimelines];
-                                  const amt = parseFloat(String(ts[idx].amount)) || 0;
-                                  const pct = normalizeTimelineGST(ts[idx]).gstPct;
-                                  const payable = gstType === "Exclusive" && pct > 0 ? amt + amt * pct / 100 : amt;
-                                  ts[idx] = { ...ts[idx], gstType, ifPayable: parseFloat(payable.toFixed(2)) };
-                                  setDraftTimelines(ts);
-                                }}
-                                className="w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded px-1.5 py-1 text-xs text-center"
-                              >
-                                <option value="Exclusive">Exclusive</option>
-                                <option value="Inclusive">Inclusive</option>
-                              </select>
-                            </td>
-                            {/* GST Amt — computed, read-only in edit mode */}
-                            <td className="p-1.5 border-r border-[#1A365D]/20 text-right text-[11px] font-bold text-emerald-600 dark:text-emerald-400">
-                              {(() => { const n = normalizeTimelineGST(pt); const a = parseFloat(String(pt.amount || 0)) || 0; const p = n.gstType === "Exclusive" && n.gstPct > 0 ? a + a * n.gstPct / 100 : a; const g = p - a; return g > 0.01 ? fmtCur(g) : <span className="text-gray-400 font-normal">—</span>; })()}
-                            </td>
-                            {/* If Payable — computed, shown as read-only */}
                             <td className="p-1.5 text-right font-bold text-[#1A365D] dark:text-blue-400">
-                              {(() => { const n = normalizeTimelineGST(pt); const a = parseFloat(String(pt.amount || 0)) || 0; const p = n.gstType === "Exclusive" && n.gstPct > 0 ? a + a * n.gstPct / 100 : a; return p > 0 ? fmtCur(p) : <span className="text-gray-400 font-normal">0.00</span>; })()}
+                              {baseAmt > 0 ? fmtCur(baseAmt) : <span className="text-gray-400 font-normal">0.00</span>}
                             </td>
                           </>
                         ) : (
@@ -489,17 +439,8 @@ export function POViewModal({ po, onClose, onApproveL1, onApproveL2, onApproveL3
                             <td className="p-2 border-r border-[#1A365D]/20 text-right">
                               {baseAmt > 0 ? fmtCur(baseAmt) : <span className="text-gray-400">—</span>}
                             </td>
-                            <td className="p-2 border-r border-[#1A365D]/20 text-center font-black text-[#1A365D] dark:text-blue-300">
-                              {norm.gstPct}%
-                            </td>
-                            <td className="p-2 border-r border-[#1A365D]/20 text-center text-[10px] font-medium text-gray-500">
-                              {norm.gstType}
-                            </td>
-                            <td className="p-2 border-r border-[#1A365D]/20 text-right font-bold text-emerald-600 dark:text-emerald-400">
-                              {computedGstAmt > 0.01 ? fmtCur(computedGstAmt) : <span className="text-gray-400 font-normal">—</span>}
-                            </td>
                             <td className="p-2 text-right font-bold text-[#1A365D] dark:text-blue-400">
-                              {computedPayable > 0 ? fmtCur(computedPayable) : <span className="text-gray-400 font-normal">0.00</span>}
+                              {baseAmt > 0 ? fmtCur(baseAmt) : <span className="text-gray-400 font-normal">0.00</span>}
                             </td>
                           </>
                         )}
@@ -509,7 +450,7 @@ export function POViewModal({ po, onClose, onApproveL1, onApproveL2, onApproveL3
                   </tbody>
                   <tfoot>
                     <tr className="bg-[#1A365D] text-white">
-                      <td colSpan={7} className="p-2 text-right text-[10px] font-black tracking-wide">Grand Total</td>
+                      <td colSpan={4} className="p-2 text-right text-[10px] font-black tracking-wide">Grand Total</td>
                       <td className="p-2 text-right text-[13px] font-black">{fmtCur(po.totalValue)}</td>
                     </tr>
                   </tfoot>

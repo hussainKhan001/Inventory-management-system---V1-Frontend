@@ -102,29 +102,8 @@ const PublicSupplierRegistration = /* @__PURE__ */ __name(() => {
   }, "handleFileChange");
   const handleSubmit = /* @__PURE__ */ __name(async () => {
     setError("");
-    let newId;
-    if (isAuthenticated) {
-      // Fetch fresh list from API to get accurate last VND number
-      let allSuppliers = suppliers;
-      if (allSuppliers.length === 0) {
-        try {
-          const res = await api.get("suppliers", { limit: 5000 });
-          allSuppliers = res.data || [];
-        } catch (e) {
-          allSuppliers = [];
-        }
-      }
-      const maxNum = allSuppliers.reduce((max, s) => {
-        const match = (s.id || "").match(/VND_(\d+)/i);
-        return match ? Math.max(max, parseInt(match[1], 10)) : max;
-      }, 0);
-      newId = `VND_${String(maxNum + 1).padStart(4, "0")}`;
-    } else {
-      newId = `PUB-S${Date.now().toString().slice(-6)}`;
-    }
     const supplierData = {
       ...newSupplier,
-      id: newId,
       name: newSupplier.companyName,
       contact: newSupplier.ownerName,
       phone: newSupplier.mobile,

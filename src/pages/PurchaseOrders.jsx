@@ -1104,6 +1104,21 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
     const totalValue =
       itemsTotal + freightTotal + loadingTotal + unloadingTotal;
 
+    if (newPO.paymentTimelines?.length > 0) {
+      const timelinesTotal = newPO.paymentTimelines.reduce(
+        (s, pt) => s + (parseFloat(pt.amount) || 0),
+        0
+      );
+      if (Math.abs(timelinesTotal - totalValue) > 0.01) {
+        const diff = totalValue - timelinesTotal;
+        toast.error(
+          `Payment timelines total (₹${timelinesTotal.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}) does not match Grand Total (₹${totalValue.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}). ${diff > 0 ? `Remaining ₹${diff.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} is unaccounted.` : `Excess of ₹${Math.abs(diff).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} entered.`}`,
+          { duration: 5000 }
+        );
+        return;
+      }
+    }
+
     const isAutoApproved = totalValue <= settings.poThreshold;
     const bypassL1 = !!settings.bypassApprovals?.l1;
     const bypassL2 = !!settings.bypassApprovals?.l2;

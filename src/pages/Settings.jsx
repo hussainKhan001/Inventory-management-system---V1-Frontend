@@ -23,6 +23,8 @@ import {
   Coins,
   Pencil,
   Layout,
+  Clock,
+  AlarmClock,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 const ListManager = /* @__PURE__ */ __name(({
@@ -171,6 +173,30 @@ const SettingsPage = /* @__PURE__ */ __name(() => {
   } = useAppStore();
   const isSuperAdmin = role === "Super Admin";
   const [activeTab, setActiveTab] = useState("branding");
+  const defaultSlaConfig = {
+    defaultDuration: 3,
+    defaultUnit: "days",
+    byPriority: { urgent: 1, normal: 3, low: 7 },
+    workingHours: { start: "09:00", end: "18:00" },
+    workingDays: [1, 2, 3, 4, 5],
+    warnBeforeHours: 4,
+    escalateTo: "Super Admin"
+  };
+  const [slaForm, setSlaForm] = useState(() => ({ ...defaultSlaConfig, ...(settings.slaConfig || {}) }));
+  const mergeSlaForm = (patch) => setSlaForm((prev) => ({ ...prev, ...patch }));
+  const toggleWorkingDay = (day) => setSlaForm((prev) => ({
+    ...prev,
+    workingDays: prev.workingDays.includes(day)
+      ? prev.workingDays.filter((d) => d !== day)
+      : [...prev.workingDays, day].sort((a, b) => a - b)
+  }));
+  const saveSlaConfig = async () => {
+    try {
+      await saveSettings({ ...settings, slaConfig: slaForm });
+    } catch (err) {
+      toast.error(`Failed to save SLA config: ${err.message}`);
+    }
+  };
   const [newItem, setNewItem] = useState({
     projects: "",
     requesters: "",
@@ -313,6 +339,7 @@ const SettingsPage = /* @__PURE__ */ __name(() => {
     { id: "policies", label: "Compliance & Policies", icon: Coins },
     { id: "approvers", label: "Approvers & Workflow", icon: Users },
     { id: "master-data", label: "Master Data Databases", icon: DatabaseIcon },
+    { id: "sla", label: "SLA & Tasks", icon: Clock },
     { id: "form-builder", label: "Form Builder", icon: Layout },
   ].map((t) => <button
     key={t.id}
@@ -1046,6 +1073,176 @@ const SettingsPage = /* @__PURE__ */ __name(() => {
   />
             </div>}
         </Card>}
+
+      {activeTab === "sla" && <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-300">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Default SLA Duration */}
+          <Card className="p-6 space-y-5">
+            <div className="flex items-center gap-3 mb-1">
+              <div className="w-9 h-9 rounded-xl bg-blue-50 dark:bg-blue-900/20 flex items-center justify-center">
+                <AlarmClock className="w-5 h-5 text-blue-500" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-gray-900 dark:text-white">Default SLA Duration</h3>
+                <p className="text-xs text-gray-500 mt-0.5">Applied when priority-specific SLA is not set</p>
+              </div>
+            </div>
+            <div className="flex gap-3 items-end">
+              <div className="flex-1">
+                <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1.5">Duration</label>
+                <input
+                  type="number"
+                  min="1"
+                  value={slaForm.defaultDuration}
+                  onChange={(e) => mergeSlaForm({ defaultDuration: parseInt(e.target.value) || 1 })}
+                  disabled={!isSuperAdmin}
+                  className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary/30 disabled:opacity-60"
+                />
+              </div>
+              <div className="flex-1">
+                <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1.5">Unit</label>
+                <select
+                  value={slaForm.defaultUnit}
+                  onChange={(e) => mergeSlaForm({ defaultUnit: e.target.value })}
+                  disabled={!isSuperAdmin}
+                  className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary/30 disabled:opacity-60"
+                >
+                  <option value="hours">Hours</option>
+                  <option value="days">Days</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="pt-2 border-t border-gray-100 dark:border-gray-700/50">
+              <p className="text-xs font-semibold text-gray-600 dark:text-gray-400 mb-3">By Priority (working days)</p>
+              <div className="space-y-3">
+                {[
+                  { key: "urgent", label: "Urgent", color: "text-red-500 bg-red-50 dark:bg-red-900/20" },
+                  { key: "normal", label: "Normal", color: "text-blue-500 bg-blue-50 dark:bg-blue-900/20" },
+                  { key: "low",    label: "Low",    color: "text-gray-500 bg-gray-100 dark:bg-gray-800" },
+                ].map(({ key, label, color }) => (
+                  <div key={key} className="flex items-center gap-3">
+                    <span className={`text-[11px] font-bold px-2.5 py-1 rounded-full w-16 text-center ${color}`}>{label}</span>
+                    <input
+                      type="number"
+                      min="1"
+                      value={slaForm.byPriority?.[key] ?? ""}
+                      onChange={(e) => mergeSlaForm({ byPriority: { ...slaForm.byPriority, [key]: parseInt(e.target.value) || 1 } })}
+                      disabled={!isSuperAdmin}
+                      className="w-20 px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm text-center text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary/30 disabled:opacity-60"
+                    />
+                    <span className="text-xs text-gray-400">days</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </Card>
+
+          {/* Working Hours & Days */}
+          <Card className="p-6 space-y-5">
+            <div className="flex items-center gap-3 mb-1">
+              <div className="w-9 h-9 rounded-xl bg-green-50 dark:bg-green-900/20 flex items-center justify-center">
+                <Clock className="w-5 h-5 text-green-500" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-gray-900 dark:text-white">Working Hours</h3>
+                <p className="text-xs text-gray-500 mt-0.5">SLA counts only during these hours</p>
+              </div>
+            </div>
+            <div className="flex gap-3 items-end">
+              <div className="flex-1">
+                <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1.5">Start Time</label>
+                <input
+                  type="time"
+                  value={slaForm.workingHours?.start || "09:00"}
+                  onChange={(e) => mergeSlaForm({ workingHours: { ...slaForm.workingHours, start: e.target.value } })}
+                  disabled={!isSuperAdmin}
+                  className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary/30 disabled:opacity-60"
+                />
+              </div>
+              <div className="flex-1">
+                <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1.5">End Time</label>
+                <input
+                  type="time"
+                  value={slaForm.workingHours?.end || "18:00"}
+                  onChange={(e) => mergeSlaForm({ workingHours: { ...slaForm.workingHours, end: e.target.value } })}
+                  disabled={!isSuperAdmin}
+                  className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary/30 disabled:opacity-60"
+                />
+              </div>
+            </div>
+
+            <div className="pt-2 border-t border-gray-100 dark:border-gray-700/50">
+              <p className="text-xs font-semibold text-gray-600 dark:text-gray-400 mb-3">Working Days</p>
+              <div className="flex gap-2 flex-wrap">
+                {["Sun","Mon","Tue","Wed","Thu","Fri","Sat"].map((day, idx) => {
+                  const active = slaForm.workingDays?.includes(idx);
+                  return (
+                    <button
+                      key={idx}
+                      onClick={() => isSuperAdmin && toggleWorkingDay(idx)}
+                      disabled={!isSuperAdmin}
+                      className={`w-10 h-10 rounded-lg text-xs font-bold transition-all ${active ? "bg-primary text-white shadow-sm" : "bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700"} disabled:cursor-not-allowed`}
+                    >
+                      {day}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </Card>
+        </div>
+
+        {/* Warning & Escalation */}
+        <Card className="p-6">
+          <div className="flex items-center gap-3 mb-5">
+            <div className="w-9 h-9 rounded-xl bg-amber-50 dark:bg-amber-900/20 flex items-center justify-center">
+              <ShieldAlert className="w-5 h-5 text-amber-500" />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-gray-900 dark:text-white">Warning & Escalation</h3>
+              <p className="text-xs text-gray-500 mt-0.5">Notify before deadline and escalate overdue tasks</p>
+            </div>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            <div>
+              <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1.5">Warn Before (hours)</label>
+              <p className="text-[11px] text-gray-400 mb-2">Send warning notification this many hours before deadline</p>
+              <input
+                type="number"
+                min="1"
+                value={slaForm.warnBeforeHours}
+                onChange={(e) => mergeSlaForm({ warnBeforeHours: parseInt(e.target.value) || 1 })}
+                disabled={!isSuperAdmin}
+                className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary/30 disabled:opacity-60"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1.5">Escalate To (Role)</label>
+              <p className="text-[11px] text-gray-400 mb-2">Overdue tasks are escalated to this role</p>
+              <input
+                type="text"
+                value={slaForm.escalateTo}
+                onChange={(e) => mergeSlaForm({ escalateTo: e.target.value })}
+                disabled={!isSuperAdmin}
+                placeholder="e.g. Super Admin"
+                className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary/30 disabled:opacity-60"
+              />
+            </div>
+          </div>
+        </Card>
+
+        {isSuperAdmin && (
+          <div className="flex justify-end">
+            <Btn
+              label="Save SLA Configuration"
+              onClick={saveSlaConfig}
+              loading={actionLoading}
+              icon={Check}
+            />
+          </div>
+        )}
+      </div>}
 
       {activeTab === "form-builder" && <div className="animate-in fade-in slide-in-from-bottom-4 duration-300">
         <FormBuilder />

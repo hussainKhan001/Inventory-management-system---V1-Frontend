@@ -132,7 +132,8 @@ const AppProvider = /* @__PURE__ */ __name(({ children }) => {
       l3: "Rahul Gupta"
     },
     bypassApprovals: { l1: false, l2: false, l3: false },
-    stores: []
+    stores: [],
+    slaConfig: null
   });
   const [gstRates, setGstRates] = useState([]);
   const fetchGSTRates = /* @__PURE__ */ __name(async () => {
@@ -544,7 +545,8 @@ const AppProvider = /* @__PURE__ */ __name(({ children }) => {
                   : prev.sites?.length
                     ? prev.sites
                     : (serverData.stores || prev.stores || []).map((n) => ({ siteName: n, siteCode: "" })),
-                gstRates: serverData.gstRates?.length ? serverData.gstRates : prev.gstRates?.length ? prev.gstRates : ["0%","5%","12%","18%","28%"]
+                gstRates: serverData.gstRates?.length ? serverData.gstRates : prev.gstRates?.length ? prev.gstRates : ["0%","5%","12%","18%","28%"],
+                slaConfig: serverData.slaConfig ?? prev.slaConfig ?? null
               };
               const isEmpty = !serverData.projects?.length && !serverData.requesters?.length && !serverData.categories?.length && !serverData.units?.length && !serverData.workTypes?.length && !serverData.companies?.length;
               if (resource === "settings" && isEmpty) {
@@ -955,6 +957,40 @@ const AppProvider = /* @__PURE__ */ __name(({ children }) => {
       toast.error(error.message || "Failed to delete MR");
     }
   }, "deleteMaterialRequirement");
+  const deleteAllocation = /* @__PURE__ */ __name(async (id) => {
+    setActionLoading(true);
+    try {
+      await api.delete("mr-allocations", id);
+      toast.success("Allocation removed");
+      await Promise.all([
+        fetchResource("mr-allocations", 1, 1000, true, "", null, false, false, "", "", true),
+        fetchResource("inventory", 1, 100, true, "", null, false, false, "", "", true),
+        fetchResource("material-requirements", 1, 100, true, "", null, false, false, "", "", true)
+      ]);
+    } catch (error) {
+      toast.error(error.message || "Failed to remove allocation");
+    } finally {
+      setActionLoading(false);
+    }
+  }, "deleteAllocation");
+  const updateAllocation = /* @__PURE__ */ __name(async (id, data) => {
+    setActionLoading(true);
+    try {
+      const res = await api.put("mr-allocations", id, data);
+      toast.success("Allocation updated");
+      await Promise.all([
+        fetchResource("mr-allocations", 1, 1000, true, "", null, false, false, "", "", true),
+        fetchResource("inventory", 1, 100, true, "", null, false, false, "", "", true),
+        fetchResource("material-requirements", 1, 100, true, "", null, false, false, "", "", true)
+      ]);
+      return res.data;
+    } catch (error) {
+      toast.error(error.message || "Failed to update allocation");
+      throw error;
+    } finally {
+      setActionLoading(false);
+    }
+  }, "updateAllocation");
   const updateQuotation = /* @__PURE__ */ __name(async (id, data) => {
     setActionLoading(true);
     try {
@@ -1125,7 +1161,7 @@ const AppProvider = /* @__PURE__ */ __name(({ children }) => {
       await api.post("outward", data);
       await Promise.all([
         fetchResource("outward"),
-        fetchResource("inventory", 1, 100, true)
+        fetchResource("inventory", 1, 100, true, "", null, false, false, "", "", true)
       ]);
     } finally {
       setActionLoading(false);
@@ -1139,8 +1175,8 @@ const AppProvider = /* @__PURE__ */ __name(({ children }) => {
       await api.delete("outward", id);
       toast.success("Outward deleted");
       await Promise.all([
-        fetchResource("inventory", 1, 100, true),
-        fetchResource("material-requirements", 1, 100, true)
+        fetchResource("inventory", 1, 100, true, "", null, false, false, "", "", true),
+        fetchResource("material-requirements", 1, 100, true, "", null, false, false, "", "", true)
       ]);
     } catch (error) {
       setOutwards(previousOutwards);
@@ -1680,6 +1716,8 @@ const AppProvider = /* @__PURE__ */ __name(({ children }) => {
       patchMrInStore,
       addMaterialRequirement,
       deleteMaterialRequirement,
+      deleteAllocation,
+      updateAllocation,
       quotations,
       quotationsPagination,
       updateQuotation,

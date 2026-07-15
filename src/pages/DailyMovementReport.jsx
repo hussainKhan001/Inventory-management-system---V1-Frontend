@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { useAppStore } from "../store";
-import { PageHeader, Card, Btn, StatusBadge } from "../components/ui";
-import { FilterRow, SelectFilter, DateFilter } from "../components/ui/Filters";
+import { PageHeader, Card, Btn, StatusBadge, KPICard, DateField } from "../components/ui";
+import { FilterRow, SelectFilter } from "../components/ui/Filters";
 import {
   ClipboardList, ShoppingCart, FileText, PackagePlus, ArrowUpFromLine,
   Download, ChevronDown, ChevronUp
@@ -82,7 +82,7 @@ const Td = ({ children, right, mono, className = "" }) => (
 export function DailyMovementReport() {
   const {
     materialRequirements, quotations, pos, grns, transactions,
-    settings, fetchResource
+    settings, fetchResource, suppliers
   } = useAppStore();
 
   const [date, setDate] = useState(today);
@@ -94,6 +94,7 @@ export function DailyMovementReport() {
     fetchResource("pos", 1, 10000, false);
     fetchResource("grn", 1, 10000, false);
     fetchResource("transactions", 1, 10000, false);
+    fetchResource("suppliers", 1, 10000, false);
     fetchResource("settings");
   }, [fetchResource]);
 
@@ -155,38 +156,83 @@ export function DailyMovementReport() {
     { label: "Issues (Outward)", count: filteredIssues.length, color: "red", icon: ArrowUpFromLine },
   ];
 
+  const getSupplierName = (code) => {
+    if (!code) return "-";
+    const sup = suppliers?.find(s => s.id === code || s.supplierId === code || s._id === code);
+    return sup ? sup.name : code;
+  };
+
   const handleExportPDF = () => {
     try {
-      const doc = new jsPDF({ orientation: "landscape" });
-      doc.setFontSize(14);
-      doc.text(`Daily Movement Report — ${fmt(date)}${project ? `  |  Project: ${project}` : ""}`, 14, 14);
-      doc.setFontSize(9);
-      doc.text(`Generated: ${new Date().toLocaleString("en-IN")}`, 14, 20);
+      const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const pageHeight = doc.internal.pageSize.getHeight();
+      
+      // Header Banner
+      doc.setFillColor(15, 23, 42); // dark slate for a classy header
+      doc.rect(0, 0, pageWidth, 25, "F");
 
-      let y = 28;
+      // Title
+      doc.setTextColor(255, 255, 255);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(15);
+      doc.text(`Daily Movement Report`, 14, 11);
+      
+      // Subtitle
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(9);
+      doc.text(`Date: ${fmt(date)}${project ? `  |  Project: ${project}` : ""}`, 14, 18);
+      
+      // Generation time
+      doc.setFontSize(8);
+      doc.setTextColor(148, 163, 184);
+      doc.text(`Generated: ${new Date().toLocaleString("en-IN")}`, pageWidth - 14, 18, { align: "right" });
+
+      let y = 35; // Start Y below banner
 
       const addSection = (title, head, body) => {
-        if (y > 170) { doc.addPage(); y = 14; }
+        if (y > pageHeight - 40) { doc.addPage(); y = 20; }
+        
+        doc.setFont("helvetica", "bold");
         doc.setFontSize(10);
-        doc.setTextColor(80, 80, 80);
+        doc.setTextColor(30, 41, 59);
         doc.text(title, 14, y);
-        y += 2;
+        y += 4;
+        
         if (body.length === 0) {
+          doc.setFont("helvetica", "italic");
           doc.setFontSize(8);
-          doc.setTextColor(150, 150, 150);
-          doc.text("No records", 14, y + 4);
-          y += 10;
+          doc.setTextColor(148, 163, 184);
+          doc.text("No records for this section", 14, y + 2);
+          y += 12;
           return;
         }
+        
         autoTable(doc, {
           startY: y,
           head: [head],
           body,
-          styles: { fontSize: 8, cellPadding: 2 },
-          headStyles: { fillColor: [240, 240, 240], textColor: [60, 60, 60], fontStyle: "bold" },
+          theme: "grid",
+          styles: { 
+            font: "helvetica",
+            fontSize: 7.5, 
+            cellPadding: 3,
+            lineColor: [226, 232, 240], // light border
+            lineWidth: 0.1,
+          },
+          headStyles: { 
+            fillColor: [248, 250, 252], 
+            textColor: [15, 23, 42],
+            fontStyle: "bold",
+            lineColor: [203, 213, 225],
+            lineWidth: 0.1,
+          },
+          alternateRowStyles: {
+            fillColor: [252, 252, 252]
+          },
           margin: { left: 14, right: 14 },
         });
-        y = doc.lastAutoTable.finalY + 8;
+        y = doc.lastAutoTable.finalY + 12;
       };
 
       addSection(
@@ -210,7 +256,7 @@ export function DailyMovementReport() {
           fmt(q.createdAt),
           mrMap[q.mrId]?.project || "-",
           q.supplierName || "-",
-          q.totalAmount ? `₹${Number(q.totalAmount).toLocaleString("en-IN")}` : "-",
+          q.totalAmount ? `Rs. ${Number(q.totalAmount).toLocaleString("en-IN")}` : "-",
           q.status || "-"
         ])
       );
@@ -222,7 +268,7 @@ export function DailyMovementReport() {
           po.id,
           fmt(po.date),
           po.project || "-",
-          po.supplier || "-",
+          getSupplierName(po.supplier),
           po.status || "-"
         ])
       );
@@ -234,7 +280,7 @@ export function DailyMovementReport() {
           g.id,
           fmt(g.date),
           g.project || "-",
-          g.vendor || g.supplier || "-",
+          getSupplierName(g.vendor || g.supplier),
           (g.items || []).length,
           g.status || "-"
         ])
@@ -252,6 +298,19 @@ export function DailyMovementReport() {
           (t.items || []).length
         ])
       );
+
+      // Add Footer with page numbers
+      const pageCount = doc.internal.getNumberOfPages();
+      for (let i = 1; i <= pageCount; i++) {
+        doc.setPage(i);
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(8);
+        doc.setTextColor(148, 163, 184);
+        doc.setDrawColor(226, 232, 240);
+        doc.line(14, pageHeight - 15, pageWidth - 14, pageHeight - 15);
+        doc.text(`${settings?.appName || 'Neoteric Properties'} - Confidential`, 14, pageHeight - 10);
+        doc.text(`Page ${i} of ${pageCount}`, pageWidth - 14, pageHeight - 10, { align: "right" });
+      }
 
       doc.save(`daily-movement-${date}.pdf`);
       toast.success("PDF exported");
@@ -274,7 +333,7 @@ export function DailyMovementReport() {
         showClear={!!(date !== today || project)}
         onClearAll={() => { setDate(today); setProject(""); }}
       >
-        <DateFilter value={date} onChange={setDate} placeholder="Date" />
+        <DateField value={date} onChange={(e) => setDate(e.target.value)} className="mb-0 flex-1 min-w-[160px] max-w-[240px]" />
         <SelectFilter
           value={project}
           onChange={setProject}
@@ -286,26 +345,9 @@ export function DailyMovementReport() {
 
       {/* Summary Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-        {summary.map(({ label, count, color, icon: Icon }) => {
-          const colorMap = {
-            blue: { bg: "bg-blue-50 dark:bg-blue-900/20", text: "text-blue-600 dark:text-blue-400", border: "border-blue-100 dark:border-blue-800" },
-            purple: { bg: "bg-purple-50 dark:bg-purple-900/20", text: "text-purple-600 dark:text-purple-400", border: "border-purple-100 dark:border-purple-800" },
-            green: { bg: "bg-green-50 dark:bg-green-900/20", text: "text-green-600 dark:text-green-400", border: "border-green-100 dark:border-green-800" },
-            orange: { bg: "bg-orange-50 dark:bg-orange-900/20", text: "text-orange-600 dark:text-orange-400", border: "border-orange-100 dark:border-orange-800" },
-            red: { bg: "bg-red-50 dark:bg-red-900/20", text: "text-red-600 dark:text-red-400", border: "border-red-100 dark:border-red-800" },
-          }[color];
-          return (
-            <Card key={label} className={`p-4 flex items-center gap-3 border ${colorMap.border}`}>
-              <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${colorMap.bg}`}>
-                <Icon className={`w-5 h-5 ${colorMap.text}`} />
-              </div>
-              <div className="min-w-0">
-                <p className={`text-[26px] font-black leading-none ${colorMap.text}`}>{count}</p>
-                <p className="text-[10px] font-semibold text-gray-500 mt-0.5 truncate">{label}</p>
-              </div>
-            </Card>
-          );
-        })}
+        {summary.map(({ label, count, color, icon: Icon }) => (
+          <KPICard key={label} label={label} value={count} icon={Icon} color={color} />
+        ))}
       </div>
 
       {/* MR Requests */}
@@ -395,7 +437,7 @@ export function DailyMovementReport() {
                   <Td mono className="font-bold text-green-600 dark:text-green-400">{po.id}</Td>
                   <Td>{fmt(po.date)}</Td>
                   <Td>{po.project || "-"}</Td>
-                  <Td>{po.supplier || "-"}</Td>
+                  <Td>{getSupplierName(po.supplier)}</Td>
                   <Td right>{(po.items || []).length}</Td>
                   <Td><StatusBadge status={po.status} small /></Td>
                 </tr>
@@ -426,7 +468,7 @@ export function DailyMovementReport() {
                   <Td mono className="font-bold text-orange-600 dark:text-orange-400">{g.id}</Td>
                   <Td>{fmt(g.date)}</Td>
                   <Td>{g.project || "-"}</Td>
-                  <Td>{g.vendor || g.supplier || "-"}</Td>
+                  <Td>{getSupplierName(g.vendor || g.supplier)}</Td>
                   <Td mono>{g.challan || "-"}</Td>
                   <Td right>{(g.items || []).length}</Td>
                   <Td><StatusBadge status={g.status} small /></Td>

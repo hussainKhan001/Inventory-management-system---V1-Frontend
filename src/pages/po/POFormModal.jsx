@@ -655,13 +655,30 @@ export function POFormModal({
                     ))}
                   </tbody>
                   <tfoot className="border-t-2 border-gray-200 dark:border-gray-700 bg-gray-50/80 dark:bg-gray-800/40">
-                    <tr>
-                      <td colSpan={5} className="px-3 py-2.5 text-right text-[10px] font-bold text-gray-400 tracking-widest uppercase">Items Subtotal (Incl. GST)</td>
-                      <td className="px-3 py-2.5 text-right text-[13px] font-bold text-gray-700 dark:text-gray-300">
-                        {fmtCur(po.items?.reduce((s, it) => s + (it.totalWithGST || 0), 0) || 0)}
-                      </td>
-                      <td />
-                    </tr>
+                    {(() => {
+                      const itemsBase = po.items?.reduce((s, it) => s + (Number(it.qty) || 0) * (Number(it.rate) || 0), 0) || 0;
+                      const itemsWithGst = po.items?.reduce((s, it) => s + calcItemTotal(it), 0) || 0;
+                      const itemsGst = itemsWithGst - itemsBase;
+                      return (
+                        <>
+                          <tr>
+                            <td colSpan={5} className="px-3 py-1.5 text-right text-[10px] font-bold text-gray-400 tracking-widest uppercase">Items Base Amount (Excl. GST)</td>
+                            <td className="px-3 py-1.5 text-right text-[12px] font-bold text-gray-600 dark:text-gray-400">{fmtCur(itemsBase)}</td>
+                            <td />
+                          </tr>
+                          <tr>
+                            <td colSpan={5} className="px-3 py-1.5 text-right text-[10px] font-bold text-gray-400 tracking-widest uppercase">GST Amount</td>
+                            <td className="px-3 py-1.5 text-right text-[12px] font-bold text-emerald-600 dark:text-emerald-400">{fmtCur(itemsGst)}</td>
+                            <td />
+                          </tr>
+                          <tr className="border-t border-gray-200 dark:border-gray-700">
+                            <td colSpan={5} className="px-3 py-2 text-right text-[10px] font-bold text-gray-500 tracking-widest uppercase">Items Subtotal (Incl. GST)</td>
+                            <td className="px-3 py-2 text-right text-[13px] font-bold text-gray-700 dark:text-gray-300">{fmtCur(itemsWithGst)}</td>
+                            <td />
+                          </tr>
+                        </>
+                      );
+                    })()}
                     {[
                       ["Freight", po.freightAmount, po.freightGstPct, po.freightGstType],
                       ["Loading", po.loadingAmount, po.loadingGstPct, po.loadingGstType],
@@ -743,7 +760,7 @@ export function POFormModal({
                 const firstItem = po.items?.[0];
                 const newGstPct = firstItem?.gstPct != null ? Number(firstItem.gstPct) : 18;
                 const newGstType = firstItem?.gstType || "Exclusive";
-                set({ paymentTimelines: [...(po.paymentTimelines || []), { date: todayStr(), type: "Milestone", mode: "Bank Transfer", amount: 0, gstPct: newGstPct, gstType: newGstType, ifPayable: 0 }] });
+                set({ paymentTimelines: [...(po.paymentTimelines || []), { date: todayStr(), type: "Milestone", mode: "Bank Transfer", amount: 0, ifPayable: 0 }] });
               }}
               className="text-white text-[9px] border border-white/40 px-2.5 py-0.5 rounded hover:bg-white/10 flex items-center gap-1">
               <Plus className="w-3 h-3" /> Add Row
@@ -753,15 +770,13 @@ export function POFormModal({
             <table className="w-full text-[11px]">
               <thead>
                 <tr className="bg-[#1A365D]/10 dark:bg-[#1A365D]/30 text-[9px] font-black text-gray-500 tracking-wide">
-                  {["Date", "Type", "Mode", "Amount", "GST %", "GST Type", "GST Amt", "If Payable", ""].map((h) => (
+                  {["Date", "Type", "Mode", "Amount", "If Payable", ""].map((h) => (
                     <th key={h} className="p-2 text-left border-r border-[#1A365D]/30 last:border-none">{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {(po.paymentTimelines || []).map((pt, idx) => {
-                  const norm = normalizeTimelineGST(pt);
-                  const gstAmt = Math.max(0, (pt.ifPayable || 0) - (pt.amount || 0));
                   return (
                     <tr key={idx} className="border-t border-[#1A365D]/20 hover:bg-[#1A365D]/5">
                       <td className="p-1.5 border-r border-[#1A365D]/20">
@@ -779,33 +794,13 @@ export function POFormModal({
                         <input type="text" className="w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded px-1.5 py-1 text-xs text-right"
                           value={pt.amount ?? ""}
                           onChange={(e) => {
-                            const val = parseFloat(e.target.value.replace(/[^0-9.]/g, "")) || 0;
-                            const payable = norm.gstType === "Exclusive" && norm.gstPct > 0 ? val + val * norm.gstPct / 100 : val;
-                            updateTimeline(idx, { amount: e.target.value.replace(/[^0-9.]/g, ""), ifPayable: parseFloat(payable.toFixed(2)) });
+                            const raw = e.target.value.replace(/[^0-9.]/g, "");
+                            const val = parseFloat(raw) || 0;
+                            updateTimeline(idx, { amount: raw, ifPayable: val });
                           }} />
                       </td>
-                      <td className="p-1.5 border-r border-[#1A365D]/20">
-                        <input type="number" min="0" max="100" className="w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded px-1.5 py-1 text-xs text-center"
-                          value={norm.gstPct} onFocus={(e) => e.target.select()}
-                          onChange={(e) => {
-                            const pct = parseFloat(e.target.value) || 0;
-                            const amt = parseFloat(String(pt.amount)) || 0;
-                            const payable = norm.gstType === "Exclusive" && pct > 0 ? amt + amt * pct / 100 : amt;
-                            updateTimeline(idx, { gstPct: pct, ifPayable: parseFloat(payable.toFixed(2)) });
-                          }} />
-                      </td>
-                      <td className="p-1.5 border-r border-[#1A365D]/20 text-center text-[11px] font-medium text-gray-700 dark:text-gray-300">{norm.gstType}</td>
-                      <td className="p-1.5 border-r border-[#1A365D]/20 text-right text-[11px] font-bold text-emerald-600 dark:text-emerald-400 min-w-[70px]">
-                        {gstAmt > 0 ? fmtCur(gstAmt) : <span className="text-gray-400 font-normal">—</span>}
-                      </td>
-                      <td className="p-1.5 border-r border-[#1A365D]/20">
-                        <input type="text" className="w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded px-1.5 py-1 text-xs text-right font-bold"
-                          value={pt.ifPayable ?? ""}
-                          onChange={(e) => {
-                            const val = parseFloat(e.target.value.replace(/[^0-9.]/g, "")) || 0;
-                            const amt = norm.gstType === "Exclusive" && norm.gstPct > 0 ? val / (1 + norm.gstPct / 100) : val;
-                            updateTimeline(idx, { ifPayable: e.target.value.replace(/[^0-9.]/g, ""), amount: parseFloat(amt.toFixed(2)) });
-                          }} />
+                      <td className="p-1.5 border-r border-[#1A365D]/20 text-right text-[12px] font-bold text-emerald-600 dark:text-emerald-400 min-w-[80px]">
+                        {fmtCur(parseFloat(pt.amount) || 0)}
                       </td>
                       <td className="p-1.5 text-center">
                         <button type="button" onClick={() => set({ paymentTimelines: (po.paymentTimelines || []).filter((_, i) => i !== idx) })}
@@ -819,8 +814,9 @@ export function POFormModal({
               </tbody>
               <tfoot>
                 <tr className="bg-[#1A365D] text-white">
-                  <td colSpan={8} className="p-2 text-right text-[10px] font-black tracking-wide">Grand Total</td>
+                  <td colSpan={4} className="p-2 text-right text-[10px] font-black tracking-wide">Grand Total</td>
                   <td className="p-2 text-right text-[13px] font-black pr-3">{fmtCur(grandTotal)}</td>
+                  <td></td>
                 </tr>
               </tfoot>
             </table>

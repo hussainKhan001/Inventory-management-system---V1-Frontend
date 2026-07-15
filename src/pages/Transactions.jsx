@@ -251,14 +251,14 @@ const TransactionsPage = /* @__PURE__ */ __name(({ type }) => {
     if (!data2.store && !data2.type?.includes("Transfer")) newErrors.store = "Store / Godown is required";
     if (!data2.items || data2.items.length === 0) newErrors.items = "At least one item is required";
     data2.items?.forEach((item, index) => {
-      if (!item.isMiscellaneous && !item.sku) newErrors[`item_${index}_sku`] = "Item selection required";
-      if (item.isMiscellaneous && !item.itemName) newErrors[`item_${index}_itemName`] = "Item Name required";
-      if (!item.qty || item.qty <= 0) newErrors[`item_${index}_qty`] = "Qty required";
-      if (!item.images || item.images.length === 0) newErrors[`item_${index}_images`] = "Image required";
+      if (!item.isMiscellaneous && !item.sku) newErrors[`item_${index}_sku`] = `Item ${index + 1}: Select an item`;
+      if (item.isMiscellaneous && !item.itemName) newErrors[`item_${index}_itemName`] = `Item ${index + 1}: Name required`;
+      if (!item.qty || item.qty <= 0) newErrors[`item_${index}_qty`] = `Item ${index + 1}: Quantity required`;
+      if (!item.images || item.images.length === 0) newErrors[`item_${index}_images`] = `Item ${index + 1}: Photo required`;
     });
     if (["Inward", "Inward Return", "Public Inward"].includes(data2.type)) {
       if (!data2.challanNo) newErrors.challanNo = "Challan No. is required";
-      if (!data2.challanPhotos || data2.challanPhotos.length === 0) newErrors.challanPhotos = "Challan Photo is required";
+      if (!data2.challanPhotos || data2.challanPhotos.length === 0) newErrors.challanPhotos = "Challan photo is required";
     }
     if (["Outward", "Outward Return", "Public Outward"].includes(data2.type)) {
       if (!data2.personName) newErrors.personName = "Person Name is required";
@@ -268,11 +268,17 @@ const TransactionsPage = /* @__PURE__ */ __name(({ type }) => {
       if (!data2.gatePassNo) newErrors.gatePassNo = "Gate Pass No. is required";
     }
     setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
+    return newErrors;
   }, "validateForm");
   const handleSubmit = /* @__PURE__ */ __name(async () => {
-    if (!validateForm(newTransaction)) {
-      toast.error("Please fix the errors in the form");
+    const formErrors = validateForm(newTransaction);
+    if (Object.keys(formErrors).length > 0) {
+      const messages = Object.values(formErrors);
+      if (messages.length === 1) {
+        toast.error(messages[0]);
+      } else {
+        toast.error(`${messages.length} errors: ${messages[0]}${messages.length > 1 ? ` (+${messages.length - 1} more)` : ""}`);
+      }
       return;
     }
     const items = newTransaction.items;
@@ -1024,9 +1030,11 @@ const TransactionsPage = /* @__PURE__ */ __name(({ type }) => {
                              <div>
                                <p className="text-[10px] font-bold text-gray-400">{formatDateTime(trx.date)}</p>
                                <h4 className="text-[14px] font-bold text-gray-900 dark:text-white mt-0.5">
-                                 {trx.itemName || trx.items?.[0]?.itemName || "Outward Item"}
+                                 {trx.items && trx.items.length > 1
+                                   ? trx.items.map(i => i.itemName || inventory.find(inv => inv.sku === i.sku)?.itemName || i.sku).join(", ")
+                                   : trx.itemName || trx.items?.[0]?.itemName || inventory.find(i => i.sku === (trx.sku || trx.items?.[0]?.sku))?.itemName || "Outward Item"}
                                </h4>
-                               <p className="text-[11px] font-mono text-gray-500">{trx.sku || trx.items?.[0]?.sku}</p>
+                               <p className="text-[11px] font-mono text-gray-500">{trx.items && trx.items.length > 1 ? `${trx.items.length} items` : (trx.sku || trx.items?.[0]?.sku)}</p>
                              </div>
                              <div className="text-right">
                                 <span className="text-lg font-black text-red-500">-{trx.qty || trx.items?.[0]?.qty}</span>
@@ -1065,15 +1073,28 @@ const TransactionsPage = /* @__PURE__ */ __name(({ type }) => {
                     <td className="hidden md:table-cell px-3 py-2.5 overflow-hidden"><span className="block truncate text-[13px] text-gray-600 dark:text-gray-400">{currentInventory.find((i) => i.sku === (trx.sku || trx.items?.[0]?.sku))?.category || "Hardware"}</span></td>
                     <td className="hidden md:table-cell px-3 py-2.5 overflow-hidden">
                       <div className="flex flex-col min-w-0 max-w-[250px]">
-                        <span className="text-[13px] font-bold text-gray-900 dark:text-white truncate block" title={trx.itemName || trx.items?.[0]?.itemName || inventory.find((i) => i.sku === (trx.sku || trx.items?.[0]?.sku))?.itemName || catalogue.find((c) => c.sku === (trx.sku || trx.items?.[0]?.sku))?.itemName || trx.sku || "N/A"}>
-                          {trx.itemName || trx.items?.[0]?.itemName || inventory.find((i) => i.sku === (trx.sku || trx.items?.[0]?.sku))?.itemName || catalogue.find((c) => c.sku === (trx.sku || trx.items?.[0]?.sku))?.itemName || trx.sku || "N/A"}
-                        </span>
-                        <span className="text-[11px] text-gray-500 font-mono truncate block">{trx.sku || trx.items?.[0]?.sku}</span>
+                        {trx.items && trx.items.length > 1 ? (
+                          <div className="flex flex-col gap-0.5">
+                            {trx.items.map((it, idx) => (
+                              <span key={idx} className="text-[12px] font-semibold text-gray-900 dark:text-white truncate block" title={it.itemName || currentInventory.find(i => i.sku === it.sku)?.itemName || it.sku}>
+                                {it.itemName || currentInventory.find(i => i.sku === it.sku)?.itemName || it.sku}
+                                <span className="text-[10px] font-normal text-gray-400 ml-1">×{it.qty}</span>
+                              </span>
+                            ))}
+                          </div>
+                        ) : (
+                          <>
+                            <span className="text-[13px] font-bold text-gray-900 dark:text-white truncate block" title={trx.itemName || trx.items?.[0]?.itemName || currentInventory.find((i) => i.sku === (trx.sku || trx.items?.[0]?.sku))?.itemName || catalogue.find((c) => c.sku === (trx.sku || trx.items?.[0]?.sku))?.itemName || trx.sku || "N/A"}>
+                              {trx.itemName || trx.items?.[0]?.itemName || currentInventory.find((i) => i.sku === (trx.sku || trx.items?.[0]?.sku))?.itemName || catalogue.find((c) => c.sku === (trx.sku || trx.items?.[0]?.sku))?.itemName || trx.sku || "N/A"}
+                            </span>
+                            <span className="text-[11px] text-gray-500 font-mono truncate block">{trx.sku || trx.items?.[0]?.sku}</span>
+                          </>
+                        )}
                       </div>
                     </td>
                     <td className="hidden md:table-cell px-3 py-2.5 text-right">
                       <div className="flex flex-col items-end">
-                        <span className="text-[14px] font-black text-red-500">-{trx.qty || trx.items?.[0]?.qty}</span>
+                        <span className="text-[14px] font-black text-red-500">-{trx.qty || trx.items?.reduce((s, i) => s + (Number(i.qty) || 0), 0) || trx.items?.[0]?.qty}</span>
                         <span className="text-[11px] font-bold text-red-500 ">{trx.unit || trx.items?.[0]?.unit}</span>
                       </div>
                     </td>
@@ -1415,13 +1436,20 @@ const TransactionsPage = /* @__PURE__ */ __name(({ type }) => {
         setNewTransaction((prev) => ({ ...prev, mrId: val }));
       }
     }}
-    options={materialRequirements.filter(
-      (m) => ["Approved", "Approved by Store", "Approved by AGM", "Approved by Director", "Partially Issued", "Allocated", "Partially Allocated"].includes(m.status) && m.items.some((i) => (i.allocatedQty || 0) > 0)
-    ).map((m) => ({
-      label: `${m.mrNumber || m.id} | ${m.requesterName} | Site: ${m.project} | Items: ${m.items.length}`,
-      subLabel: `Date: ${formatDateTime(m.createdAt)} | Status: ${m.status}`,
-      value: m.id
-    }))}
+    options={(() => {
+      const mrIdsWithStock = new Set(
+        (mrAllocations || [])
+          .filter(a => (a.allocatedQty || 0) > (a.issuedQty || 0))
+          .map(a => a.mrId)
+      );
+      return materialRequirements
+        .filter(m => mrIdsWithStock.has(m.id))
+        .map(m => ({
+          label: `${m.mrNumber || m.id} | ${m.requesterName} | Site: ${m.project} | Items: ${m.items.length}`,
+          subLabel: `Date: ${formatDateTime(m.createdAt)} | Status: ${m.status}`,
+          value: m.id
+        }));
+    })()}
     placeholder="Select MR to issue materials against allocated stock"
     error={errors.mrId}
   />}

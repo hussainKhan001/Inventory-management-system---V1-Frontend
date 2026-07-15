@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from "react";
+import React, { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import { useAppStore } from "../store";
 import {
   PageHeader, Card, StatusBadge, Badge, Btn, Modal,
@@ -22,15 +22,16 @@ const STATUS_OPTIONS = [
   { label: "Approved by Store", value: "Approved by Store" },
   { label: "Quotation Phase", value: "Quotation Phase" },
   { label: "PO Created", value: "PO Created" },
-  { label: "Partially Inwarded", value: "Partially Inwarded" },
-  { label: "Inwarded", value: "Inwarded" },
+  { label: "Allocated", value: "Allocated" },
+  { label: "Partially Issued", value: "Partially Issued" },
+  { label: "Fulfilled", value: "Fulfilled" },
   { label: "Cancelled", value: "Cancelled" },
 ];
 
 export function MaterialRequirementPage() {
   const {
     materialRequirements, materialRequirementsPagination,
-    mrAllocations, mrAllocationsPagination,
+    mrAllocations,
     fetchResource, deleteMaterialRequirement,
     inventory, role, loading, actionLoading, api,
     hasPermission, settings, pos, quotations, grns,
@@ -82,6 +83,7 @@ export function MaterialRequirementPage() {
   const [viewMode, setViewMode] = useState("card");
   const [tableFilter, setTableFilter] = useState("");
   const [stableMRs, setStableMRs] = useState([]);
+  const grnFullFetched = useRef(false);
 
   // Modal state
   const [modal, setModal] = useState(false);
@@ -90,6 +92,29 @@ export function MaterialRequirementPage() {
   const [viewModal, setViewModal] = useState(false);
   const [selectedRequirement, setSelectedRequirement] = useState(null);
   const [deletingId, setDeletingId] = useState(null);
+  const [deleteAllocConfirm, setDeleteAllocConfirm] = useState(null); // allocation id
+  const [editAllocModal, setEditAllocModal] = useState(null); // { alc }
+  const [editAllocQty, setEditAllocQty] = useState("");
+
+  // Show only records from mrallocations DB collection
+  const derivedAllocations = useMemo(() => {
+    return (mrAllocations || []).map(a => ({
+      id: a.id || `${a.mrId}__${a.sku}`,
+      mrId: a.mrId,
+      mrNumber: a.mrNumber || a.mrId,
+      engineerName: a.engineerName,
+      projectName: a.projectName,
+      sku: a.sku,
+      itemName: a.itemName,
+      allocatedQty: a.allocatedQty || 0,
+      issuedQty: a.issuedQty || 0,
+      remainingQty: Math.max(0, (a.allocatedQty || 0) - (a.issuedQty || 0)),
+      status: a.status,
+      allocationDate: a.allocationDate || a.createdAt,
+      _fromDB: true,
+    }));
+  }, [mrAllocations]);
+
   // { [mrId]: { [sku]: qty } } — user-entered allot qty per item
   const [allocQtys, setAllocQtys] = useState({});
   const setItemAllocQty = (mrId, sku, qty) =>
@@ -139,7 +164,11 @@ export function MaterialRequirementPage() {
     if (filterStatus) filterObj.status = filterStatus;
     const filter = Object.keys(filterObj).length > 0 ? filterObj : null;
     if (activeTab === "grn-ready") {
-      fetchResource("material-requirements", 1, 2000, false, debouncedSearch, filter, false, false, startDate, endDate);
+      const hasFilters = !!(debouncedSearch || filterProject || filterRequester || filterStatus || startDate || endDate);
+      if (!grnFullFetched.current || hasFilters) {
+        fetchResource("material-requirements", 1, 2000, false, debouncedSearch, filter, false, false, startDate, endDate);
+        if (!hasFilters) grnFullFetched.current = true;
+      }
     } else if (activeTab === "requirements") {
       fetchResource("material-requirements", 1, 50, materialRequirements.length > 0, debouncedSearch, filter, false, false, startDate, endDate);
     } else {
@@ -179,15 +208,43 @@ export function MaterialRequirementPage() {
   const mrIdsWithGRN = new Set(
     pos.filter(p => poIdsWithGRN.has(p.id) && p.mrId).map(p => p.mrId)
   );
-  const grnReadyMRs = materialRequirements.filter(mr =>
-    mrIdsWithGRN.has(mr.id) || mrIdsWithGRN.has(mr.mrNumber)
-  );
+  const grnReadyMRs = materialRequirements.filter(mr => {
+    if (!mrIdsWithGRN.has(mr.id) && !mrIdsWithGRN.has(mr.mrNumber)) return false;
+    if (filterProject && mr.project !== filterProject) return false;
+    if (filterRequester && mr.requesterName !== filterRequester) return false;
+    if (filterStatus && mr.status !== filterStatus) return false;
+    if (startDate && mr.date < startDate) return false;
+    if (endDate && mr.date > endDate) return false;
+    if (debouncedSearch) {
+      const s = debouncedSearch.toLowerCase();
+      const inHeader = [mr.mrNumber, mr.id, mr.requesterName, mr.project, mr.location, mr.status]
+        .some(f => f?.toLowerCase().includes(s));
+      const inItems = (mr.items || []).some(i => i.materialName?.toLowerCase().includes(s) || i.sku?.toLowerCase().includes(s));
+      if (!inHeader && !inItems) return false;
+    }
+    return true;
+  });
 
   // Items from approved MRs that don't yet have a PO — shown in Procurement Pending tab
   const procurementPendingItems = React.useMemo(() => {
     const result = [];
     (materialRequirements || [])
-      .filter(mr => ["Approved by Store", "Quotation Phase", "PO Created"].includes(mr.status))
+      .filter(mr => {
+        if (!["Approved by Store", "Quotation Phase", "PO Created"].includes(mr.status)) return false;
+        if (filterProject && mr.project !== filterProject) return false;
+        if (filterRequester && mr.requesterName !== filterRequester) return false;
+        if (filterStatus && mr.status !== filterStatus) return false;
+        if (startDate && mr.date < startDate) return false;
+        if (endDate && mr.date > endDate) return false;
+        if (debouncedSearch) {
+          const s = debouncedSearch.toLowerCase();
+          const inHeader = [mr.mrNumber, mr.id, mr.requesterName, mr.project, mr.location, mr.status]
+            .some(f => f?.toLowerCase().includes(s));
+          const inItems = (mr.items || []).some(i => i.materialName?.toLowerCase().includes(s) || i.sku?.toLowerCase().includes(s));
+          if (!inHeader && !inItems) return false;
+        }
+        return true;
+      })
       .forEach(mr => {
         const pending = (mr.items || []).filter(item =>
           !isItemPOCreated(item, mr) &&
@@ -196,7 +253,7 @@ export function MaterialRequirementPage() {
         if (pending.length > 0) result.push({ mr, items: pending });
       });
     return result;
-  }, [materialRequirements, pos]);
+  }, [materialRequirements, pos, filterProject, filterRequester, filterStatus, startDate, endDate, debouncedSearch]);
 
   // Client-side filter: merge server results with stable snapshot so search works even when server returns empty
   const filteredMRs = React.useMemo(() => {
@@ -427,7 +484,7 @@ export function MaterialRequirementPage() {
                                 <span className="px-1.5 py-0.5 rounded text-[9px] font-black tracking-widest bg-primary text-white animate-pulse">NEW</span>
                               )}
                               <h3 className="text-[14px] font-bold text-[#1A1A2E] dark:text-white">{req.id}</h3>
-                              {isMRLocked(req.id, req.status) ? (
+                              {isMRLocked(req.id, req.status) && !["Fulfilled", "Closed"].includes(req.status) ? (
                                 <Badge text="PO Created" color="blue" icon={Link2} className="px-1.5" />
                               ) : (
                                 <StatusBadge status={req.status} />
@@ -517,7 +574,7 @@ export function MaterialRequirementPage() {
                                   </button>
                                 )}
 
-                              {hasPermission("EDIT_MATERIAL_REQUIREMENT") && (
+{hasPermission("EDIT_MATERIAL_REQUIREMENT") && (
                                 <button
                                   title={isMRLocked(req.id, req.status) && role !== "Super Admin" ? "Locked: Purchase Order exists" : "Edit MR"}
                                   disabled={isMRLocked(req.id, req.status) && role !== "Super Admin"}
@@ -754,7 +811,7 @@ export function MaterialRequirementPage() {
                   (g.items || []).forEach(gi => {
                     const sku = (gi.sku || "").trim();
                     if (sku && sku.toUpperCase() !== "N/A") {
-                      receivedQtyBySku[sku] = (receivedQtyBySku[sku] || 0) + (gi.received || 0);
+                      receivedQtyBySku[sku] = (receivedQtyBySku[sku] || 0) + (gi.received ?? gi.qty ?? 0);
                     }
                   });
                 });
@@ -838,11 +895,11 @@ export function MaterialRequirementPage() {
         ) : (
           <Card className="p-0 overflow-hidden border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 flex flex-col" style={{ height: "calc(100vh - 280px)", minHeight: 500 }}>
             {/* Summary strip */}
-            {mrAllocations.length > 0 && (() => {
-              const total = mrAllocations.length;
-              const fullyIssued = mrAllocations.filter(a => (a.remainingQty || 0) === 0).length;
-              const partial = mrAllocations.filter(a => (a.issuedQty || 0) > 0 && (a.remainingQty || 0) > 0).length;
-              const pending = mrAllocations.filter(a => (a.issuedQty || 0) === 0).length;
+            {derivedAllocations.length > 0 && (() => {
+              const total = derivedAllocations.length;
+              const fullyIssued = derivedAllocations.filter(a => (a.remainingQty || 0) === 0).length;
+              const partial = derivedAllocations.filter(a => (a.issuedQty || 0) > 0 && (a.remainingQty || 0) > 0).length;
+              const pending = derivedAllocations.filter(a => (a.issuedQty || 0) === 0).length;
               return (
                 <div className="flex items-center gap-6 px-4 py-2.5 border-b border-gray-100 dark:border-gray-800 bg-gray-50/60 dark:bg-gray-800/40 text-[11px] font-bold flex-wrap">
                   <span className="text-gray-500">{total} allocation{total !== 1 ? "s" : ""}</span>
@@ -866,17 +923,17 @@ export function MaterialRequirementPage() {
                       ["Progress", "w-[130px]"],
                       ["Status", "w-[120px]"],
                       ["Date", "w-[130px]"],
-                      ["", "w-[40px]"],
+                      ["Actions", "w-[100px]"],
                     ].map(([h, cls]) => (
                       <th key={h} className={cn("px-3 py-2.5 text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap", cls)}>{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100 dark:divide-gray-800/60">
-                  {mrAllocations.length === 0 && !loading && (
+                  {derivedAllocations.length === 0 && !loading && (
                     <tr><td colSpan={10} className="px-4 py-16 text-center text-gray-400 text-[13px]">No allocations found.</td></tr>
                   )}
-                  {mrAllocations.map((alc, idx) => {
+                  {derivedAllocations.map((alc, idx) => {
                     const allocated = Number(alc.allocatedQty) || 0;
                     const issued    = Number(alc.issuedQty)    || 0;
                     const remaining = Number(alc.remainingQty) || 0;
@@ -933,28 +990,42 @@ export function MaterialRequirementPage() {
                         <td className="px-3 py-2.5 text-[11px] text-gray-400 whitespace-nowrap">{formatDateTime(alc.allocationDate)}</td>
                         {/* Actions */}
                         <td className="px-3 py-2.5" onClick={e => e.stopPropagation()}>
-                          <button
-                            title="View MR"
-                            onClick={() => { window.location.hash = `tracking?id=${alc.mrNumber || alc.mrId}`; }}
-                            className="text-cyan-500 hover:text-cyan-400 transition-colors"
-                          >
-                            <Eye className="w-4 h-4" />
-                          </button>
+                          <div className="flex items-center gap-1">
+                            <button
+                              title="View MR"
+                              onClick={() => { window.location.hash = `tracking?id=${alc.mrNumber || alc.mrId}`; }}
+                              className="p-1 rounded text-cyan-500 hover:bg-cyan-50 dark:hover:bg-cyan-900/20 transition-colors"
+                            >
+                              <Eye className="w-3.5 h-3.5" />
+                            </button>
+                            {(alc.issuedQty || 0) === 0 && (
+                              <button
+                                title="Edit Allocation"
+                                onClick={() => { setEditAllocModal({ alc }); setEditAllocQty(String(alc.allocatedQty || "")); }}
+                                className="p-1 rounded text-orange-500 hover:bg-orange-50 dark:hover:bg-orange-900/20 transition-colors"
+                              >
+                                <Pencil className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                            <button
+                              title={(alc.issuedQty || 0) > 0 ? "Cannot delete: items already issued" : "Delete Allocation"}
+                              disabled={(alc.issuedQty || 0) > 0}
+                              onClick={() => setDeleteAllocConfirm(alc.id)}
+                              className="p-1 rounded text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     );
                   })}
-                  {loading && mrAllocations.length > 0 && (
+                  {loading && derivedAllocations.length > 0 && (
                     <tr><td colSpan={10} className="py-4 text-center text-gray-500 text-xs">Loading...</td></tr>
                   )}
                 </tbody>
               </table>
             </div>
-            {mrAllocationsPagination?.pages > 1 && (
-              <div className="p-4 border-t border-gray-100 dark:border-gray-800 flex justify-end">
-                <Pagination data={mrAllocationsPagination} onPageChange={handlePageChange} />
-              </div>
-            )}
           </Card>
         )}
       </div>
@@ -1010,6 +1081,99 @@ export function MaterialRequirementPage() {
         />
       )}
 
+      {/* Delete Allocation confirm */}
+      {deleteAllocConfirm && (
+        <ConfirmModal
+          title="Remove Allocation"
+          message="Remove this allocation? The allocated qty will be returned to available inventory."
+          onConfirm={async () => {
+            const alc = derivedAllocations.find(a => a.id === deleteAllocConfirm);
+            if (!alc) { setDeleteAllocConfirm(null); return; }
+            try {
+              await api.delete(`material-requirements/${alc.mrId}/items/${encodeURIComponent(alc.sku)}/allocation`);
+              toast.success("Allocation removed");
+              fetchResource("material-requirements", 1, 100, true, "", null, false, false, "", "", true);
+              fetchResource("inventory", 1, 100, true, "", null, false, false, "", "", true);
+            } catch (err) {
+              toast.error(err?.message || "Failed to remove allocation");
+            }
+            setDeleteAllocConfirm(null);
+          }}
+          onCancel={() => setDeleteAllocConfirm(null)}
+          loading={actionLoading}
+        />
+      )}
+
+      {/* Edit Allocation Modal */}
+      {editAllocModal && (
+        <Modal
+          title="Edit Allocation"
+          onClose={() => { setEditAllocModal(null); setEditAllocQty(""); }}
+          footer={
+            <div className="flex justify-end gap-3 w-full">
+              <Btn label="Cancel" outline onClick={() => { setEditAllocModal(null); setEditAllocQty(""); }} />
+              <Btn
+                label="Save"
+                loading={actionLoading}
+                onClick={async () => {
+                  const qty = Number(editAllocQty);
+                  if (!qty || qty <= 0) { toast.error("Enter a valid quantity"); return; }
+                  try {
+                    const { mrId, sku } = editAllocModal.alc;
+                    await api.put(`material-requirements/${mrId}/items/${encodeURIComponent(sku)}/allocation`, { allocatedQty: qty });
+                    toast.success("Allocation updated");
+                    fetchResource("material-requirements", 1, 100, true, "", null, false, false, "", "", true);
+                    fetchResource("inventory", 1, 100, true, "", null, false, false, "", "", true);
+                    setEditAllocModal(null);
+                    setEditAllocQty("");
+                  } catch (err) {
+                    toast.error(err?.message || "Failed to update allocation");
+                  }
+                }}
+              />
+            </div>
+          }
+        >
+          <div className="space-y-4 py-2">
+            <div>
+              <p className="text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1">Item</p>
+              <p className="text-[14px] font-bold text-gray-900 dark:text-white">{editAllocModal.alc.itemName}</p>
+              <p className="text-[11px] font-mono text-gray-400">{editAllocModal.alc.sku}</p>
+            </div>
+            <div className="grid grid-cols-3 gap-3 text-center text-[12px]">
+              <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-3">
+                <p className="text-gray-400 text-[10px] font-bold uppercase tracking-wide">Issued</p>
+                <p className="text-[18px] font-black text-emerald-500 mt-1">{editAllocModal.alc.issuedQty || 0}</p>
+              </div>
+              <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-3">
+                <p className="text-gray-400 text-[10px] font-bold uppercase tracking-wide">Current Alloc</p>
+                <p className="text-[18px] font-black text-gray-700 dark:text-gray-300 mt-1">{editAllocModal.alc.allocatedQty}</p>
+              </div>
+              <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-3">
+                <p className="text-gray-400 text-[10px] font-bold uppercase tracking-wide">Remaining</p>
+                <p className="text-[18px] font-black text-amber-500 mt-1">{editAllocModal.alc.remainingQty || 0}</p>
+              </div>
+            </div>
+            <div>
+              <label className="block text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-1.5">
+                New Allocated Qty <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="number"
+                min={editAllocModal.alc.issuedQty || 0}
+                value={editAllocQty}
+                onChange={e => setEditAllocQty(e.target.value)}
+                className="w-full px-3 py-2.5 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-[14px] font-bold focus:outline-none focus:ring-2 focus:ring-primary/40"
+                placeholder={`Min: ${editAllocModal.alc.issuedQty || 0}`}
+              />
+              {(editAllocModal.alc.issuedQty || 0) > 0 && (
+                <p className="text-[11px] text-amber-600 mt-1">Cannot go below {editAllocModal.alc.issuedQty} (already issued)</p>
+              )}
+            </div>
+          </div>
+        </Modal>
+      )}
+
       {/* GRN Allocation Modal */}
       {grnAllocModal && (() => {
         const { mr, receivedQtyBySku: rqbs } = grnAllocModal;
@@ -1045,11 +1209,11 @@ export function MaterialRequirementPage() {
                           return { sku, qty, store: grnAllocStore };
                         })
                         .filter(i => i.qty > 0);
-                      if (!items.length) { toast.error("Koi item allocatable nahi hai."); return; }
+                      if (!items.length) { toast.error("No items available to allocate."); return; }
                       const res = await api.post("material-requirements/allocate", { mrId: mr.id, items });
                       if (res.success) {
                         toast.success(`${items.length} item(s) allocated from ${grnAllocStore}!`);
-                        fetchResource("material-requirements", 1, 2000, false);
+                        fetchResource("material-requirements");
                         setGrnAllocModal(null);
                       }
                     } catch (err) { toast.error("Failed: " + err.message); }
@@ -1096,7 +1260,7 @@ export function MaterialRequirementPage() {
                   >{site}</button>
                 ))}
                 {SITES.length === 0 && (
-                  <p className="text-[12px] text-gray-400 italic">Settings mein koi site/godown nahi hai.</p>
+                  <p className="text-[12px] text-gray-400 italic">No site/godown configured in Settings.</p>
                 )}
               </div>
               {grnAllocStore && (
@@ -1160,19 +1324,19 @@ export function MaterialRequirementPage() {
                         </div>
                         <button
                           disabled={allocLoading[loadKey] || curVal <= 0 || !grnAllocStore}
-                          title={!grnAllocStore ? "Pehle godown select karo" : ""}
+                          title={!grnAllocStore ? "Please select a godown first" : ""}
                           onClick={async () => {
                             setAllocLoading(p => ({ ...p, [loadKey]: true }));
                             try {
                               const qty = Math.min(Number(curVal), maxQty);
-                              if (qty <= 0) { toast.error("Valid qty enter karo"); return; }
+                              if (qty <= 0) { toast.error("Please enter a valid quantity"); return; }
                               const res = await api.post("material-requirements/allocate", {
                                 mrId: mr.id,
                                 items: [{ sku, qty, store: grnAllocStore }],
                               });
                               if (res.success) {
                                 toast.success(`${item.materialName} — ${qty} ${item.unit} allocated!`);
-                                fetchResource("material-requirements", 1, 2000, false);
+                                fetchResource("material-requirements");
                                 setGrnAllocModal(null);
                               }
                             } catch (err) { toast.error("Failed: " + err.message); }

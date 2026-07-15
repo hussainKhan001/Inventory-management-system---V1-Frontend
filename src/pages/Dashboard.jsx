@@ -557,9 +557,9 @@ const AdminDashboard = /* @__PURE__ */ __name(({ stats, pos, loading, plans, mat
     /* KPIs */
   }
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 sm:gap-6">
-        <KPICard label="Total Items" value={totalSKUs} icon={BarChart3} color="blue" sub="Unique catalog SKUs" />
-        <KPICard label="Available Items" value={totalSKUs - outOfStock} icon={CheckSquare} color="green" sub="Items in stock" />
-        <KPICard label="Allocated" value={`${allocatedStock?.toLocaleString() || 0} Units`} icon={ArrowRightLeft} color="orange" sub="Reserved for MRs" />
+        <KPICard label="Pending MR Count" value={storePendingMRs.length} icon={ClipboardList} color="blue" sub="Store Pending MRs" />
+        <KPICard label="Pending PO Count" value={(pos || []).filter(p => p.status?.toLowerCase().includes("pending")).length} icon={FileText} color="orange" sub="Awaiting Approvals" />
+        <KPICard label="Pending GRN Count" value={(pos || []).filter(p => ["GRN Pending", "GRN Variance"].includes(p.status)).length} icon={Package} color="purple" sub="POs awaiting GRN" />
         <KPICard label="Out of Stock" value={outOfStock} icon={AlertTriangle} color="red" sub={outOfStock > 0 ? "Immediate attention" : "All SKUs available"} />
       </div>
 

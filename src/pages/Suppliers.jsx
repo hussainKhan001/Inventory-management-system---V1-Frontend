@@ -187,13 +187,7 @@ const Suppliers = /* @__PURE__ */ __name(() => {
     }
     const supplierData = {
       ...newSupplier,
-      id: isEditing ? newSupplier.id : (() => {
-        const maxNum = suppliers.reduce((max, s) => {
-          const match = (s.id || "").match(/VND_(\d+)/i);
-          return match ? Math.max(max, parseInt(match[1], 10)) : max;
-        }, 0);
-        return `VND_${String(maxNum + 1).padStart(4, "0")}`;
-      })(),
+      ...(isEditing ? { id: newSupplier.id } : {}),
       name: newSupplier.companyName,
       contact: newSupplier.ownerName,
       phone: newSupplier.mobile,

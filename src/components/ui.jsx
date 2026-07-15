@@ -65,6 +65,10 @@ const StatusBadge = React.memo(({ status, accountStatus, small }) => {
     color = "red";
   else if (["PO RAISED", "ALLOCATED", "STAGED", "PROCESSING"].includes(normalizedStatus))
     color = "blue";
+  else if (["PARTIALLY ALLOCATED"].includes(normalizedStatus))
+    color = "blue";
+  else if (["PARTIALLY ISSUED"].includes(normalizedStatus))
+    color = "green";
   else if (["NEEDS REPAIR", "REPAIR", "OLD", "GRN VARIANCE", "OVER-RECEIVED"].includes(normalizedStatus))
     color = "orange";
   else if (["DRAFT"].includes(normalizedStatus))

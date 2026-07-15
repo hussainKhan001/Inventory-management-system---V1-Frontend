@@ -131,53 +131,60 @@ const generatePOPDF = /* @__PURE__ */ __name((po, supplier, settings = {}, retur
   autoTable(doc, {
     startY: y + 2,
     margin: { left: 10, right: 10 },
-    head: [["S.NO", "ITEM DESCRIPTION", "UQC", "QTY", "RATE (RS)", "AMOUNT (RS)"]],
-    body: po.items.map((it, i) => [
-      i + 1,
-      (it.itemName || "").toUpperCase(),
-      (it.unit || "NOS").toUpperCase(),
-      it.qty,
-      fmtRs(it.rate),
-      fmtRs(it.qty * it.rate)
-    ]),
+    head: [["S.NO", "ITEM DESCRIPTION", "UQC", "QTY", "RATE (RS)", "GST %", "TOTAL (INCL. GST)"]],
+    body: po.items.map((it, i) => {
+      const base = it.qty * it.rate;
+      const gstPct = it.gstPct ?? 18;
+      const isInclusive = (it.gstType || "Exclusive") === "Inclusive";
+      const total = isInclusive ? base : base * (1 + gstPct / 100);
+      return [
+        i + 1,
+        (it.itemName || "").toUpperCase(),
+        (it.unit || "NOS").toUpperCase(),
+        it.qty,
+        fmtRs(it.rate),
+        isInclusive ? `${gstPct}% (Incl.)` : `${gstPct}%`,
+        fmtRs(total)
+      ];
+    }),
     styles: { fontSize: 8.5, cellPadding: 1.8, lineColor: [220, 220, 220], lineWidth: 0.1 },
     headStyles: { fillColor: [primaryColor[0], primaryColor[1], primaryColor[2]], textColor: 255, fontStyle: "bold" },
     columnStyles: {
       4: { halign: "right" },
-      5: { halign: "right" }
+      5: { halign: "center" },
+      6: { halign: "right", fontStyle: "bold" }
     }
   });
   y = doc.lastAutoTable.finalY + 2;
   checkPage(45);
-  const subtotalLabel = `Items Subtotal (${gstType === "Inclusive" ? "Incl." : "Excl."} GST)`;
-  const gstLabel = `GST on Items (${po.items[0]?.gstPct || 18}% \xB7 ${gstType})`;
-  const freightLabel = `Freight Charges (${po.freightGstPct ?? 18}% GST \xB7 ${po.freightGstType || "Exclusive"})`;
-  const loadingLabel = `Loading Charges (${po.loadingGstPct ?? 18}% GST \xB7 ${po.loadingGstType || "Exclusive"})`;
-  const unloadingLabel = `Unloading Charges (${po.unloadingGstPct ?? 18}% GST \xB7 ${po.unloadingGstType || "Exclusive"})`;
+  const itemsSubtotalInclGst = subTotal + gstTotal;
   const darkColor = [40, 40, 40];
   const rowBg = [248, 250, 252];
   const totalsBody = [
     [
-      { content: subtotalLabel, styles: { textColor: darkColor, fillColor: rowBg } },
+      { content: "Items Base Amount (Excl. GST)", styles: { textColor: darkColor, fillColor: rowBg } },
       { content: `Rs. ${fmtRs(subTotal)}`, styles: { halign: "right", fontStyle: "bold", fillColor: rowBg, textColor: darkColor } }
     ],
     [
-      { content: gstLabel, styles: { textColor: darkColor } },
-      { content: `Rs. ${fmtRs(gstTotal)}`, styles: { halign: "right", textColor: darkColor } }
+      { content: "GST Amount", styles: { textColor: [22, 163, 74] } },
+      { content: `Rs. ${fmtRs(gstTotal)}`, styles: { halign: "right", fontStyle: "bold", textColor: [22, 163, 74] } }
     ],
     [
-      { content: freightLabel, styles: { textColor: darkColor } },
+      { content: "Items Subtotal (Incl. GST)", styles: { textColor: darkColor, fillColor: [240, 244, 248] } },
+      { content: `Rs. ${fmtRs(itemsSubtotalInclGst)}`, styles: { halign: "right", fontStyle: "bold", fillColor: [240, 244, 248], textColor: darkColor } }
+    ],
+    ...(freightTotal > 0 ? [[
+      { content: `Freight Charges (${po.freightGstPct ?? 18}% GST \xB7 ${po.freightGstType || "Exclusive"})`, styles: { textColor: darkColor } },
       { content: `Rs. ${fmtRs(freightTotal)}`, styles: { halign: "right", textColor: darkColor } }
-    ],
-    [
-      { content: loadingLabel, styles: { textColor: darkColor } },
+    ]] : []),
+    ...(loadingTotal > 0 ? [[
+      { content: `Loading Charges (${po.loadingGstPct ?? 18}% GST \xB7 ${po.loadingGstType || "Exclusive"})`, styles: { textColor: darkColor } },
       { content: `Rs. ${fmtRs(loadingTotal)}`, styles: { halign: "right", textColor: darkColor } }
-    ],
-    [
-      { content: unloadingLabel, styles: { textColor: darkColor } },
+    ]] : []),
+    ...(unloadingTotal > 0 ? [[
+      { content: `Unloading Charges (${po.unloadingGstPct ?? 18}% GST \xB7 ${po.unloadingGstType || "Exclusive"})`, styles: { textColor: darkColor } },
       { content: `Rs. ${fmtRs(unloadingTotal)}`, styles: { halign: "right", textColor: darkColor } }
-    ],
-    // Grand total row — dark-blue background
+    ]] : []),
     [
       { content: "TOTAL PAYABLE", styles: { fontStyle: "bold", fontSize: 10.5, fillColor: primaryColor, textColor: [255, 255, 255] } },
       { content: `Rs. ${fmtRs(po.totalValue)}`, styles: { halign: "right", fontStyle: "bold", fontSize: 10.5, fillColor: primaryColor, textColor: [255, 255, 255] } }
@@ -218,35 +225,23 @@ const generatePOPDF = /* @__PURE__ */ __name((po, supplier, settings = {}, retur
         return dateStr;
       }
     }, "fmtPtDate");
-    const timelineGrandTotal = po.totalValue || po.paymentTimelines.reduce((s, pt) => s + (pt.ifPayable || 0), 0);
+    const timelineGrandTotal = po.totalValue || po.paymentTimelines.reduce((s, pt) => s + (parseFloat(pt.amount) || 0), 0);
     autoTable(doc, {
       startY: y,
       margin: { left: 10, right: 10 },
-      head: [["DATE", "TYPE", "MODE", "AMOUNT", "GST %", "IF PAYABLE"]],
+      head: [["DATE", "TYPE", "MODE", "AMOUNT", "IF PAYABLE"]],
       body: [
-        ...po.paymentTimelines.map((pt) => [
-          fmtPtDate(pt.date),
-          (pt.type || "").toUpperCase(),
-          (pt.mode || "").toUpperCase(),
-          pt.amount ? fmtRs(pt.amount) : "0.00",
-          (() => {
-            const gstLabel = (pt.gstType || "Exclusive").toUpperCase();
-            if (gstLabel === "INCLUSIVE") return "INCLUSIVE";
-            const g = String(pt.gstPct || "").toLowerCase().trim();
-            const amt = pt.amount || 0;
-            const payable = pt.ifPayable || 0;
-            if (amt > 0 && payable > amt + 0.5) {
-              const pct = (payable / amt - 1) * 100;
-              const pctStr = Number.isInteger(pct) ? pct : pct.toFixed(1);
-              return `${pctStr}% EXCLUSIVE`;
-            }
-            if (!g || g === "-" || g === "exclusive") return "\u2014";
-            const num = parseFloat(g.replace("%", ""));
-            return !isNaN(num) && num > 0 ? `${num}% EXCLUSIVE` : "\u2014";
-          })(),
-          pt.ifPayable ? fmtRs(pt.ifPayable) : "0.00"
-        ]),
-        ["GRAND TOTAL", "", "", "", "", fmtRs(timelineGrandTotal)]
+        ...po.paymentTimelines.map((pt) => {
+          const amt = parseFloat(pt.amount) || 0;
+          return [
+            fmtPtDate(pt.date),
+            (pt.type || "").toUpperCase(),
+            (pt.mode || "").toUpperCase(),
+            amt > 0 ? fmtRs(amt) : "0.00",
+            amt > 0 ? fmtRs(amt) : "0.00"
+          ];
+        }),
+        ["GRAND TOTAL", "", "", "", fmtRs(timelineGrandTotal)]
       ],
       styles: { fontSize: 8.5, cellPadding: 1.8, lineColor: [220, 220, 220], lineWidth: 0.1 },
       headStyles: { fillColor: [primaryColor[0], primaryColor[1], primaryColor[2]], textColor: 255, fontStyle: "bold" },
@@ -260,11 +255,10 @@ const generatePOPDF = /* @__PURE__ */ __name((po, supplier, settings = {}, retur
       }, "didParseCell"),
       columnStyles: {
         0: { cellWidth: 28 },
-        1: { cellWidth: 48 },
-        2: { cellWidth: 32 },
-        3: { cellWidth: 25, halign: "right" },
-        4: { cellWidth: 22, halign: "center" },
-        5: { cellWidth: 30, halign: "right", fontStyle: "bold" }
+        1: { cellWidth: 55 },
+        2: { cellWidth: 38 },
+        3: { cellWidth: 32, halign: "right" },
+        4: { cellWidth: 32, halign: "right", fontStyle: "bold" }
       }
     });
     y = doc.lastAutoTable.finalY + 2;

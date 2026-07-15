@@ -336,7 +336,7 @@ export function MRDetailModal({ requirement, onClose, onRequirementUpdate }) {
                   Revise
                 </button>
               )}
-              {req.status !== "Rejected" && hasPermission("REJECT_MR") && (
+{req.status !== "Rejected" && hasPermission("REJECT_MR") && (
                 <Btn
                   label="Reject Requirement"
                   color="red"

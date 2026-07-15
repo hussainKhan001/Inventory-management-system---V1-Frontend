@@ -182,7 +182,7 @@ const TrackingPage = /* @__PURE__ */ __name(() => {
           {
     /* Action Required Banner */
   }
-          {data.mr.status !== "Closed" && data.mr.status !== "Rejected" && <div className="relative">
+          {!["Closed","Fulfilled"].includes(data.mr.status) && data.mr.status !== "Rejected" && <div className="relative">
               {(() => {
     const isCompleted = ["PAID", "PO CLOSED", "GRN FULFILLED", "FULFILLED"].includes(data.po?.status?.toUpperCase() || "") || data.po?.accountStatus === "paid";
     return <Card className={cn(
@@ -255,7 +255,7 @@ const TrackingPage = /* @__PURE__ */ __name(() => {
               <div className="min-w-0">
                 <p className="text-[9px] font-black text-gray-400 tracking-widest leading-none">Lifecycle state</p>
                 <p className="text-sm font-bold text-gray-900 dark:text-white mt-1">
-                  {["PAID", "PO CLOSED", "GRN FULFILLED", "FULFILLED"].includes(data.po?.status?.toUpperCase() || "") || data.mr.status === "Closed" ? "Closed" : data.grns.length > 0 ? "Receiving / In Progress" : "Pending"}
+                  {["PAID", "PO CLOSED", "GRN FULFILLED", "FULFILLED"].includes(data.po?.status?.toUpperCase() || "") || ["Closed","Fulfilled"].includes(data.mr.status) ? "Fulfilled" : data.grns.length > 0 ? "Receiving / In Progress" : "Pending"}
                 </p>
               </div>
             </Card>
@@ -338,75 +338,98 @@ const TrackingPage = /* @__PURE__ */ __name(() => {
 
               <Step
     title="Purchase Order Phase"
-    status={data.po ? data.po.status : "Waiting for MR/Quote Approval"}
-    completed={data.po?.status === "Approved" || ["GRN FULFILLED", "GRN VARIANCE", "FULFILLED", "PAID", "PO CLOSED"].includes(data.po?.status?.toUpperCase() || "")}
-    active={!!data.po && !["APPROVED", "GRN FULFILLED", "GRN VARIANCE", "FULFILLED", "PAID", "PO CLOSED"].includes(data.po.status?.toUpperCase() || "")}
+    status={data.pos?.length > 1 ? `${data.pos.length} POs` : (data.po ? data.po.status : "Waiting for MR/Quote Approval")}
+    completed={(data.pos || (data.po ? [data.po] : [])).length > 0 && (data.pos || [data.po]).every(p => p && (p.status === "Approved" || ["GRN FULFILLED", "GRN VARIANCE", "FULFILLED", "PAID", "PO CLOSED"].includes(p.status?.toUpperCase() || "")))}
+    active={!!(data.pos || (data.po ? [data.po] : [])).find(p => p && !["APPROVED", "GRN FULFILLED", "GRN VARIANCE", "FULFILLED", "PAID", "PO CLOSED"].includes(p.status?.toUpperCase() || ""))}
     date={data.po?.date}
   >
-                {data.po ? <div className="space-y-6">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      <div className="space-y-4">
-                        <div
-    onClick={() => !isPublic && (window.location.hash = `pos?id=${data.po.id}`)}
-    className={cn(
-      "flex items-center justify-between p-3 bg-white dark:bg-gray-800/80 rounded-xl border border-gray-100 dark:border-gray-700/50 shadow-sm transition-colors",
-      !isPublic ? "cursor-pointer hover:border-orange-500 group" : ""
-    )}
-  >
-                           <div className="flex items-center gap-2">
-                             <ShoppingCart className={cn("w-4 h-4 text-orange-500 transition-transform", !isPublic && "group-hover:scale-110")} />
-                             <span className="text-[13px] font-black text-gray-900 dark:text-white">{data.po.id}</span>
-                           </div>
-                           <div className="flex items-center gap-2">
-                             <span className="text-xs font-bold text-orange-600">{fmtCur(data.po.totalValue)}</span>
-                             {!isPublic && <ArrowRight className="w-3 h-3 text-gray-300 group-hover:text-orange-500 transition-colors" />}
-                           </div>
+                {(data.pos?.length > 0 || data.po) ? <div className="space-y-6">
+                    {(data.pos?.length > 0 ? data.pos : [data.po]).map((po, poIdx) => (
+                      <div key={po.id || poIdx} className={poIdx > 0 ? "pt-4 border-t border-gray-100 dark:border-gray-800" : ""}>
+                        {data.pos?.length > 1 && (
+                          <p className="text-[10px] font-black text-gray-400 tracking-widest mb-3">PO {poIdx + 1} of {data.pos.length}</p>
+                        )}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                          <div className="space-y-4">
+                            <div
+                              onClick={() => !isPublic && (window.location.hash = `pos?id=${po.id}`)}
+                              className={cn(
+                                "flex items-center justify-between p-3 bg-white dark:bg-gray-800/80 rounded-xl border border-gray-100 dark:border-gray-700/50 shadow-sm transition-colors",
+                                !isPublic ? "cursor-pointer hover:border-orange-500 group" : ""
+                              )}
+                            >
+                              <div className="flex items-center gap-2">
+                                <ShoppingCart className={cn("w-4 h-4 text-orange-500 transition-transform", !isPublic && "group-hover:scale-110")} />
+                                <span className="text-[13px] font-black text-gray-900 dark:text-white">{po.id}</span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs font-bold text-orange-600">{fmtCur(po.totalValue)}</span>
+                                {!isPublic && <ArrowRight className="w-3 h-3 text-gray-300 group-hover:text-orange-500 transition-colors" />}
+                              </div>
+                            </div>
+                            <div className="p-3 bg-gray-50/80 dark:bg-gray-700/30 rounded-xl border border-gray-100 dark:border-gray-700/50">
+                              <p className="text-[9px] font-black text-gray-400 tracking-widest mb-1.5 flex items-center gap-1.5"><Building className="w-3 h-3" /> Vendor Details</p>
+                              <p className="text-[13px] font-bold text-gray-700 dark:text-gray-300 truncate">
+                                {data.quotations.find(q => q.status === "Approved" && (!q.poId || q.poId === po.id))?.supplierName || po.companyName || po.supplier || "N/A"}
+                              </p>
+                              <div className="flex flex-col gap-0.5 mt-1">
+                                <p className="text-[11px] text-gray-500 font-medium font-mono tracking-tight">GST: {data.quotations.find(q => q.status === "Approved" && (!q.poId || q.poId === po.id))?.gstNumber || po.gstNo || po.companyGst || "N/A"}</p>
+                                <p className="text-[10px] text-gray-400 italic font-medium">{po.vendorContact || po.companyName || "No contact info"}</p>
+                              </div>
+                            </div>
+                          </div>
+                          <div className="space-y-3">
+                            <p className="text-[10px] font-black text-gray-400 tracking-widest flex items-center gap-1.5"><CheckCircle2 className="w-3.5 h-3.5" /> Approval hierarchy</p>
+                            <div className="space-y-2">
+                              <ApprovalItem label="L1: Procurement Head" status={po.approvalL1} date={po.approvalL1At} isActive={po.status === "Pending" && po.approvalL1 !== "Approved"} />
+                              <ApprovalItem label="L2: Operations (AGM)" status={po.approvalL2} date={po.approvalL2At} isActive={po.status === "Pending" && po.approvalL1 === "Approved" && po.approvalL2 !== "Approved"} />
+                              <ApprovalItem label="L3: Final (Director)" status={po.approvalL3} date={po.approvalL3At} isActive={po.status === "Pending" && po.approvalL2 === "Approved" && po.approvalL3 !== "Approved"} />
+                            </div>
+                          </div>
                         </div>
-                        <div className="p-3 bg-gray-50/80 dark:bg-gray-700/30 rounded-xl border border-gray-100 dark:border-gray-700/50">
-                           <p className="text-[9px] font-black text-gray-400 tracking-widest mb-1.5 flex items-center gap-1.5"><Building className="w-3 h-3" /> Vendor Details</p>
-                           <p className="text-[13px] font-bold text-gray-700 dark:text-gray-300 truncate">
-                             {data.quotations.find((q) => q.status === "Approved")?.supplierName || data.po.companyName || data.po.supplier || "N/A"}
-                           </p>
-                           <div className="flex flex-col gap-0.5 mt-1">
-                             <p className="text-[11px] text-gray-500 font-medium font-mono tracking-tight">GST: {data.quotations.find((q) => q.status === "Approved")?.gstNumber || data.po.gstNo || data.po.companyGst || "N/A"}</p>
-                             <p className="text-[10px] text-gray-400 italic font-medium">{data.po.vendorContact || data.quotations.find((q) => q.status === "Approved")?.supplierName || "No contact info"}</p>
-                           </div>
-                        </div>
+                        {po.status === "Approved" && (
+                          <div className="mt-4 p-3 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-100 dark:border-emerald-900/30 rounded-xl flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-full bg-emerald-500 flex items-center justify-center text-white"><IndianRupee className="w-4 h-4" /></div>
+                            <div className="flex-1">
+                              <p className="text-[12px] font-black text-emerald-800 dark:text-emerald-400 tracking-tight">Finance authorization</p>
+                              <p className="text-[10px] text-emerald-600/70 font-medium">Verified & cleared for procurement</p>
+                            </div>
+                            <Btn icon={CheckCircle} label="Released" small className="bg-emerald-500 border-none text-white h-7 text-[10px] font-black" />
+                          </div>
+                        )}
+                        {/* GRN Status for this PO */}
+                        {(() => {
+                          const poGrns = (data.grns || []).filter(g => g.poId === po.id);
+                          const grnDone = ["GRN FULFILLED", "GRN VARIANCE", "FULFILLED", "PAID", "PO CLOSED"].includes(po.status?.toUpperCase() || "") || poGrns.length > 0;
+                          return (
+                            <div className={cn("mt-4 p-3 rounded-xl border", grnDone ? "bg-emerald-50 dark:bg-emerald-900/10 border-emerald-100 dark:border-emerald-900/30" : "bg-amber-50 dark:bg-amber-900/10 border-amber-100 dark:border-amber-900/30")}>
+                              <div className="flex items-center gap-2 mb-2">
+                                <Truck className={cn("w-3.5 h-3.5", grnDone ? "text-emerald-500" : "text-amber-500")} />
+                                <p className={cn("text-[10px] font-black tracking-widest", grnDone ? "text-emerald-700 dark:text-emerald-400" : "text-amber-700 dark:text-amber-400")}>
+                                  {grnDone ? `GRN Received (${poGrns.length})` : "GRN Pending"}
+                                </p>
+                                {!grnDone && <span className="ml-auto text-[9px] font-bold text-amber-500 bg-amber-100 dark:bg-amber-900/40 px-2 py-0.5 rounded-full">Awaiting Shipment</span>}
+                              </div>
+                              {poGrns.length > 0 ? (
+                                <div className="space-y-2">
+                                  {poGrns.map((grn, gi) => (
+                                    <div key={gi} className="flex items-center justify-between bg-white dark:bg-gray-800/60 rounded-lg px-3 py-2 border border-gray-100 dark:border-gray-700/40">
+                                      <div>
+                                        <p className="text-[11px] font-black text-gray-700 dark:text-gray-300">{grn.id}</p>
+                                        <p className="text-[10px] text-gray-400 font-medium">{formatDate(grn.date)} · {grn.items?.length || 0} items</p>
+                                      </div>
+                                      <StatusBadge status={grn.status} small />
+                                    </div>
+                                  ))}
+                                </div>
+                              ) : (
+                                <p className="text-[10px] text-amber-600/70 dark:text-amber-400/60 font-medium">No goods received yet for this PO</p>
+                              )}
+                            </div>
+                          );
+                        })()}
                       </div>
-                      <div className="space-y-3">
-                        <p className="text-[10px] font-black text-gray-400 tracking-widest flex items-center gap-1.5"><CheckCircle2 className="w-3.5 h-3.5" /> Approval hierarchy</p>
-                        <div className="space-y-2">
-                          <ApprovalItem
-    label="L1: Procurement Head"
-    status={data.po.approvalL1}
-    date={data.po.approvalL1At}
-    isActive={data.po.status === "Pending" && data.po.approvalL1 !== "Approved"}
-  />
-                          <ApprovalItem
-    label="L2: Operations (AGM)"
-    status={data.po.approvalL2}
-    date={data.po.approvalL2At}
-    isActive={data.po.status === "Pending" && data.po.approvalL1 === "Approved" && data.po.approvalL2 !== "Approved"}
-  />
-                          <ApprovalItem
-    label="L3: Final (Director)"
-    status={data.po.approvalL3}
-    date={data.po.approvalL3At}
-    isActive={data.po.status === "Pending" && data.po.approvalL2 === "Approved" && data.po.approvalL3 !== "Approved"}
-  />
-                        </div>
-                      </div>
-                    </div>
-                    {data.po.status === "Approved" && <div className="p-3 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-100 dark:border-emerald-900/30 rounded-xl flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-emerald-500 flex items-center justify-center text-white">
-                          <IndianRupee className="w-4 h-4" />
-                        </div>
-                        <div className="flex-1">
-                          <p className="text-[12px] font-black text-emerald-800 dark:text-emerald-400 tracking-tight">Finance authorization</p>
-                          <p className="text-[10px] text-emerald-600/70 font-medium">Verified & cleared for procurement</p>
-                        </div>
-                        <Btn icon={CheckCircle} label="Released" small className="bg-emerald-500 border-none text-white h-7 text-[10px] font-black" />
-                      </div>}
+                    ))}
                   </div> : <div className="flex flex-col items-center py-6 gap-2 text-gray-300 dark:text-gray-700">
                     <ShoppingCart className="w-10 h-10 opacity-20" />
                     <p className="text-[11px] font-bold tracking-wider">Awaiting order generation</p>
@@ -415,8 +438,8 @@ const TrackingPage = /* @__PURE__ */ __name(() => {
 
               <Step
     title="Delivery & Fulfillment Phase"
-    status={["GRN FULFILLED", "FULFILLED", "PAID", "PO CLOSED"].includes(data.po?.status?.toUpperCase() || "") ? "Fulfilled" : data.grns.length > 0 ? data.mr.status === "Closed" ? "Fulfilled" : "Partial/Fulfilled" : "Awaiting Shipment"}
-    completed={["GRN FULFILLED", "FULFILLED", "PAID", "PO CLOSED"].includes(data.po?.status?.toUpperCase() || "") || data.grns.length > 0 && (data.mr.status === "Closed" || data.mr.items.every((i) => i.status === "Issued"))}
+    status={["GRN FULFILLED", "FULFILLED", "PAID", "PO CLOSED"].includes(data.po?.status?.toUpperCase() || "") ? "Fulfilled" : data.grns.length > 0 ? ["Closed","Fulfilled"].includes(data.mr.status) ? "Fulfilled" : "Partial/Fulfilled" : "Awaiting Shipment"}
+    completed={["GRN FULFILLED", "FULFILLED", "PAID", "PO CLOSED"].includes(data.po?.status?.toUpperCase() || "") || data.grns.length > 0 && (["Closed","Fulfilled"].includes(data.mr.status) || data.mr.items.every((i) => i.status === "Issued"))}
     active={data.grns.length > 0 && !["GRN FULFILLED", "FULFILLED", "PAID", "PO CLOSED"].includes(data.po?.status?.toUpperCase() || "") && !data.mr.items.every((i) => i.status === "Issued")}
   >
                 {data.grns.length > 0 ? <div className="space-y-4">
