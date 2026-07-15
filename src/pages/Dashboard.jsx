@@ -29,7 +29,9 @@ import {
   CircleCheck,
   Boxes,
   Bell,
-  ChevronRight
+  ChevronRight,
+  PackageCheck,
+  ShoppingCart
 } from "lucide-react";
 import { fmtCur, formatDateTime } from "../utils";
 import {
@@ -201,7 +203,7 @@ const SiteEngineerDashboard = /* @__PURE__ */ __name(({ user, plans, materialReq
         </Card>}
     </div>;
 }, "SiteEngineerDashboard");
-const AGMDashboard = /* @__PURE__ */ __name(({ user, plans, materialRequirements, mrAllocations, planRevisions, pos, role }) => {
+const AGMDashboard = /* @__PURE__ */ __name(({ user, plans, materialRequirements, mrAllocations, planRevisions, pos, quotations, role }) => {
   const myName = user?.name || "";
   const myPlans = useMemo(
     () => role === "AGM" ? plans.filter((p) =>
@@ -224,6 +226,14 @@ const AGMDashboard = /* @__PURE__ */ __name(({ user, plans, materialRequirements
     () => (pos || []).filter((po) => po.status === "Pending L1"),
     [pos]
   );
+  const pendingAllPOs = useMemo(
+    () => (pos || []).filter((po) => ["Pending", "Pending L1", "Pending L2", "Pending L3"].includes(po.status)),
+    [pos]
+  );
+  const pendingQuotations = useMemo(
+    () => (quotations || []).filter((q) => !["Approved", "Rejected", "PO Created", "Cancelled"].includes(q.status)),
+    [quotations]
+  );
   const projectStats = useMemo(
     () => myProjects.map((proj) => {
       const projPlans = myPlans.filter((p) => p.project === proj);
@@ -242,11 +252,13 @@ const AGMDashboard = /* @__PURE__ */ __name(({ user, plans, materialRequirements
       {
     /* KPIs */
   }
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
         <KPICard label="My Projects" value={myProjects.length} icon={Boxes} color="blue" sub="Under oversight" />
         <KPICard label="Active Plans" value={myPlans.length} icon={Layers} color="orange" sub="Material plans" />
         <KPICard label="Pending L1 POs" value={pendingL1POs.length} icon={FileText} color={pendingL1POs.length > 0 ? "red" : "green"} sub="Awaiting L1 approval" />
         <KPICard label="Pending MRs" value={pendingMRs.length} icon={ClipboardList} color={pendingMRs.length > 0 ? "orange" : "green"} sub="Awaiting store action" />
+        <KPICard label="Pending Quotations" value={pendingQuotations.length} icon={FileText} color={pendingQuotations.length > 0 ? "orange" : "green"} sub="Under review" />
+        <KPICard label="PO Pending" value={pendingAllPOs.length} icon={ShoppingCart} color={pendingAllPOs.length > 0 ? "red" : "green"} sub="All approval stages" />
       </div>
 
       {
@@ -350,11 +362,13 @@ const AGMDashboard = /* @__PURE__ */ __name(({ user, plans, materialRequirements
       </div>
     </div>;
 }, "AGMDashboard");
-const StoreInchargeDashboard = /* @__PURE__ */ __name(({ stats, materialRequirements, mrAllocations, loading }) => {
+const StoreInchargeDashboard = /* @__PURE__ */ __name(({ stats, materialRequirements, mrAllocations, pos, loading }) => {
   const { lowStockCount = 0, outOfStock = 0, totalSKUs = 0 } = stats;
   const storePending = materialRequirements.filter((mr) => mr.status === "Store Pending");
   const approvedByStore = materialRequirements.filter((mr) => mr.status === "Approved by Store");
   const recentAllocations = [...mrAllocations].sort((a, b) => new Date(b.allocationDate).getTime() - new Date(a.allocationDate).getTime()).slice(0, 6);
+  const grnPending = useMemo(() => (pos || []).filter((p) => p.status === "GRN Pending").length, [pos]);
+  const outwardPending = useMemo(() => mrAllocations.filter((a) => (a.issuedQty || 0) < (a.allocatedQty || 0)).length, [mrAllocations]);
   return <div className="space-y-6 pb-12">
       <div className="flex items-end justify-between">
         <PageHeader title="Store Dashboard" sub="Pending allocations, stock alerts and recent activity" />
@@ -368,10 +382,10 @@ const StoreInchargeDashboard = /* @__PURE__ */ __name(({ stats, materialRequirem
     /* KPIs */
   }
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <KPICard label="Awaiting Review" value={storePending.length} icon={Clock} color={storePending.length > 0 ? "red" : "green"} sub="Store Pending MRs" />
-        <KPICard label="Ready to Allocate" value={approvedByStore.length} icon={CircleCheck} color={approvedByStore.length > 0 ? "orange" : "green"} sub="Approved by Store" />
-        <KPICard label="Low Stock Items" value={lowStockCount} icon={AlertTriangle} color={lowStockCount > 0 ? "red" : "green"} sub="Below reorder level" />
-        <KPICard label="Total SKUs" value={totalSKUs} icon={Boxes} color="blue" sub="Catalog entries" />
+        <KPICard label="MR Pending" value={storePending.length} icon={Clock} color={storePending.length > 0 ? "red" : "green"} sub="Awaiting store review" />
+        <KPICard label="Allocation Pending" value={approvedByStore.length} icon={CircleCheck} color={approvedByStore.length > 0 ? "orange" : "green"} sub="Approved, not allocated" />
+        <KPICard label="GRN Pending" value={grnPending} icon={PackageCheck} color={grnPending > 0 ? "orange" : "green"} sub="POs awaiting GRN" />
+        <KPICard label="Outward Pending" value={outwardPending} icon={ArrowUpRight} color={outwardPending > 0 ? "orange" : "green"} sub="Allocated, not issued" />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -506,6 +520,8 @@ const AdminDashboard = /* @__PURE__ */ __name(({ stats, pos, loading, plans, mat
   const pendingRevisions = planRevisions.filter((r) => r.status === "pending");
   const storePendingMRs = materialRequirements.filter((mr) => mr.status === "Store Pending");
   const openPlans = plans.filter((p) => p.status === "Open");
+  // Accurate MR counts from backend (not limited by frontend pagination)
+  const mrCounts = stats.mrStatusCounts || {};
   if (loading && !stats.totalSKUs) {
     return <div className="space-y-6">
         <PageHeader title="Dashboard" sub="Loading overview..." />
@@ -557,8 +573,34 @@ const AdminDashboard = /* @__PURE__ */ __name(({ stats, pos, loading, plans, mat
     /* KPIs */
   }
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 sm:gap-6">
-        <KPICard label="Pending MR Count" value={storePendingMRs.length} icon={ClipboardList} color="blue" sub="Store Pending MRs" />
-        <KPICard label="Pending PO Count" value={(pos || []).filter(p => p.status?.toLowerCase().includes("pending")).length} icon={FileText} color="orange" sub="Awaiting Approvals" />
+        <KPICard label="Pending MR Count" value={mrCounts["Store Pending"] || 0} icon={ClipboardList} color="blue" sub="Awaiting store approval" />
+        {(() => {
+          const l1 = (pos || []).filter(p => p.status === "Pending L1").length;
+          const l2 = (pos || []).filter(p => p.status === "Pending L2").length;
+          const l3 = (pos || []).filter(p => p.status === "Pending L3").length;
+          const other = (pos || []).filter(p => p.status === "Pending").length;
+          const total = l1 + l2 + l3 + other;
+          return (
+            <div className="bg-white dark:bg-gray-800/80 rounded-xl border border-gray-100 dark:border-gray-700/50 shadow-sm hover:shadow-md transition-all duration-300 p-5 flex flex-col justify-between min-h-[130px]">
+              <div>
+                <p className="text-sm font-medium text-gray-500 dark:text-gray-400 leading-tight">Pending PO Count</p>
+                <p className="text-2xl font-bold text-gray-900 dark:text-white mt-1.5">{total}</p>
+              </div>
+              <div className="flex items-end justify-between mt-2">
+                <div className="flex flex-wrap gap-1.5">
+                  {l1 > 0 && <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400">L1: {l1}</span>}
+                  {l2 > 0 && <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400">L2: {l2}</span>}
+                  {l3 > 0 && <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400">L3: {l3}</span>}
+                  {other > 0 && <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400">Pending: {other}</span>}
+                  {total === 0 && <span className="text-[11px] text-gray-400 font-medium">All approved</span>}
+                </div>
+                <div className="p-2.5 rounded-lg shrink-0 bg-orange-50 text-orange-500 dark:bg-orange-500/10 dark:text-orange-400">
+                  <FileText className="w-5 h-5 sm:w-6 sm:h-6" />
+                </div>
+              </div>
+            </div>
+          );
+        })()}
         <KPICard label="Pending GRN Count" value={(pos || []).filter(p => ["GRN Pending", "GRN Variance"].includes(p.status)).length} icon={Package} color="purple" sub="POs awaiting GRN" />
         <KPICard label="Out of Stock" value={outOfStock} icon={AlertTriangle} color="red" sub={outOfStock > 0 ? "Immediate attention" : "All SKUs available"} />
       </div>
@@ -725,6 +767,7 @@ const Dashboard = /* @__PURE__ */ __name(() => {
     materialRequirements,
     mrAllocations,
     planRevisions,
+    quotations,
     loading,
     role,
     user,
@@ -738,6 +781,7 @@ const Dashboard = /* @__PURE__ */ __name(() => {
     fetchResource("mr-allocations", 1, 1e3, true);
     fetchResource("plan-revisions", 1, 200, true);
     fetchResource("pos", 1, 500, true);
+    fetchResource("quotations", 1, 1000, true);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   const showEngineer = hasPermission("VIEW_ENGINEER_DASHBOARD") || role === "Site Engineer";
@@ -748,10 +792,10 @@ const Dashboard = /* @__PURE__ */ __name(() => {
     return <AdminDashboard stats={stats} pos={pos} loading={loading} plans={plans} materialRequirements={materialRequirements} planRevisions={planRevisions} settings={settings} />;
   }
   if (showAGM) {
-    return <AGMDashboard user={user} plans={plans} materialRequirements={materialRequirements} mrAllocations={mrAllocations} planRevisions={planRevisions} pos={pos} role={role} />;
+    return <AGMDashboard user={user} plans={plans} materialRequirements={materialRequirements} mrAllocations={mrAllocations} planRevisions={planRevisions} pos={pos} quotations={quotations} role={role} />;
   }
   if (showStore) {
-    return <StoreInchargeDashboard stats={stats} materialRequirements={materialRequirements} mrAllocations={mrAllocations} loading={loading} />;
+    return <StoreInchargeDashboard stats={stats} materialRequirements={materialRequirements} mrAllocations={mrAllocations} pos={pos} loading={loading} />;
   }
   if (showEngineer) {
     return <SiteEngineerDashboard user={user} plans={plans} materialRequirements={materialRequirements} mrAllocations={mrAllocations} />;

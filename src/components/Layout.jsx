@@ -1,6 +1,6 @@
 var __defProp = Object.defineProperty;
 var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import { useAppStore } from "../store";
 import {
   ShieldAlert,
@@ -15,7 +15,8 @@ import {
   RefreshCw,
   Search,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  ArrowLeft
 } from "lucide-react";
 import { ROUTES } from "../routes";
 import { ThemeToggle } from "./ui";
@@ -61,13 +62,55 @@ const Layout = /* @__PURE__ */ __name(({ children }) => {
   const [showSwitchUserMenu, setShowSwitchUserMenu] = useState(false);
   const [switchUserSearch, setSwitchUserSearch] = useState("");
   const [currentHash, setCurrentHash] = useState(window.location.hash.replace("#", "") || "dashboard");
+  const navHistory = useRef([window.location.hash.replace("#", "") || "dashboard"]);
+  const isGoingBack = useRef(false);
+  const [canGoBack, setCanGoBack] = useState(false);
+  const mainRef = useRef(null);
+  const scrollPositions = useRef({});
+  const prevHashRef = useRef(window.location.hash.replace("#", "") || "dashboard");
+
   React.useEffect(() => {
     const handleHashChange = /* @__PURE__ */ __name(() => {
-      setCurrentHash(window.location.hash.replace("#", "") || "dashboard");
+      const newHash = window.location.hash.replace("#", "") || "dashboard";
+
+      // Save scroll for the page we're leaving
+      if (mainRef.current) {
+        scrollPositions.current[prevHashRef.current] = mainRef.current.scrollTop;
+      }
+      prevHashRef.current = newHash;
+      setCurrentHash(newHash);
+
+      if (isGoingBack.current) {
+        isGoingBack.current = false;
+        // Restore saved scroll after React re-renders
+        const saved = scrollPositions.current[newHash] || 0;
+        setTimeout(() => { if (mainRef.current) mainRef.current.scrollTop = saved; }, 60);
+        return;
+      }
+
+      if (navHistory.current[navHistory.current.length - 1] !== newHash) {
+        navHistory.current = [...navHistory.current, newHash];
+        setCanGoBack(navHistory.current.length > 1);
+      }
+      // When navigating forward, scroll new page to top
+      setTimeout(() => { if (mainRef.current) mainRef.current.scrollTop = 0; }, 30);
     }, "handleHashChange");
     window.addEventListener("hashchange", handleHashChange);
     return () => window.removeEventListener("hashchange", handleHashChange);
   }, []);
+
+  const goBack = () => {
+    if (navHistory.current.length > 1) {
+      navHistory.current = navHistory.current.slice(0, -1);
+      const prev = navHistory.current[navHistory.current.length - 1];
+      setCanGoBack(navHistory.current.length > 1);
+      isGoingBack.current = true;
+      window.location.hash = prev;
+    }
+  };
+
+  const prevRouteId = canGoBack ? navHistory.current[navHistory.current.length - 2]?.split("?")[0] : null;
+  const prevLabel = ROUTES.find(r => r.id === prevRouteId)?.label || "Back";
   const canSwitchUsers = ["Super Admin", "superadmin"].includes(role || "") || isSwitched;
   React.useEffect(() => {
     if (showProfileDropdown && canSwitchUsers && users.length === 0) {
@@ -236,6 +279,16 @@ const Layout = /* @__PURE__ */ __name(({ children }) => {
   >
               <Menu className="w-5 h-5" />
             </button>
+            {canGoBack && (
+              <button
+                onClick={goBack}
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[12px] font-medium text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                title={`Go back to ${prevLabel}`}
+              >
+                <ArrowLeft className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">{prevLabel}</span>
+              </button>
+            )}
             <div className="text-[13px] text-gray-500 dark:text-gray-400 hidden sm:block">
               {settings?.appName || "Garden City"} /{" "}
               <span className="text-gray-900 dark:text-white font-medium capitalize">
@@ -457,7 +510,7 @@ const Layout = /* @__PURE__ */ __name(({ children }) => {
           </div>
         </header>
 
-        <main className={`flex-1 overflow-y-auto bg-gray-100 dark:bg-gray-900 custom-scrollbar px-2 sm:px-3 ${isSwitched ? "pt-14 pb-2" : "py-2 sm:py-3"}`}>
+        <main ref={mainRef} className={`flex-1 overflow-y-auto bg-gray-100 dark:bg-gray-900 custom-scrollbar px-2 sm:px-3 ${isSwitched ? "pt-14 pb-2" : "py-2 sm:py-3"}`}>
           <div className="mx-auto w-full min-h-full bg-white dark:bg-gray-800/50 rounded-xl border border-gray-100/80 dark:border-gray-700/30 shadow-sm p-4 sm:p-6">
             {children}
           </div>

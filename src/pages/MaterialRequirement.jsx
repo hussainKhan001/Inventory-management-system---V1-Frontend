@@ -174,10 +174,10 @@ export function MaterialRequirementPage() {
     } else {
       fetchResource("mr-allocations", 1, 1000, true, debouncedSearch, filter, false, false, startDate, endDate);
     }
-    if (pos.length === 0) fetchResource("pos", 1, 2000, true);
+    fetchResource("pos", 1, 2000, false);
+    fetchResource("quotations", 1, 2000, false);
+    fetchResource("grns", 1, 2000, false);
     if (inventory.length < 500) fetchResource("inventory", 1, 2000, true);
-    if (quotations.length === 0) fetchResource("quotations", 1, 2000, true);
-    if (grns.length === 0) fetchResource("grns", 1, 2000, true);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [debouncedSearch, activeTab, startDate, endDate, filterProject, filterRequester, filterStatus]);
 

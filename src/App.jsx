@@ -1,6 +1,6 @@
 var __defProp = Object.defineProperty;
 var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
-import { useEffect, useState, Suspense, lazy } from "react";
+import { useEffect, useState, useRef, Suspense, lazy } from "react";
 import { AppProvider, useAppStore } from "./store";
 import { Layout } from "./components/Layout";
 import { Toaster } from "react-hot-toast";
@@ -98,6 +98,10 @@ const AppContent = /* @__PURE__ */ __name(() => {
     return h.split("?")[0] || "dashboard";
   }, "getHash");
   const [hash, setHash] = useState(getHash());
+  const [visitedRoutes, setVisitedRoutes] = useState(() => new Set([getHash()]));
+  // Tracking remounts when the ?id= query param changes
+  const [trackingKey, setTrackingKey] = useState(() => window.location.hash);
+
   useEffect(() => {
     if (!isAuthLoading && isAuthenticated) {
       const currentHash = getHash();
@@ -119,7 +123,12 @@ const AppContent = /* @__PURE__ */ __name(() => {
     }
   }, [isAuthenticated, role, hash, isAuthLoading, hasPermission]);
   useEffect(() => {
-    const handleHashChange = /* @__PURE__ */ __name(() => setHash(getHash()), "handleHashChange");
+    const handleHashChange = /* @__PURE__ */ __name(() => {
+      const newHash = getHash();
+      setHash(newHash);
+      setVisitedRoutes(prev => { const n = new Set(prev); n.add(newHash); return n; });
+      if (newHash === "tracking") setTrackingKey(window.location.hash);
+    }, "handleHashChange");
     window.addEventListener("hashchange", handleHashChange);
     return () => window.removeEventListener("hashchange", handleHashChange);
   }, []);
@@ -144,83 +153,65 @@ const AppContent = /* @__PURE__ */ __name(() => {
       </div>;
   }
   if (!isAuthenticated) return <Login />;
-  const renderPage = /* @__PURE__ */ __name(() => {
-    const currentRoute = ROUTES.find((r) => r.id === hash);
-    if (currentRoute) {
-      const isAllowed = currentRoute.permission ? hasPermission(currentRoute.permission) : currentRoute.roles.includes(role || "");
-      if (!isAllowed) {
-        if (window.location.hash !== "#dashboard") window.location.hash = "dashboard";
-        return <Dashboard />;
-      }
-    }
-    switch (hash) {
-      case "dashboard":
-        return <Dashboard />;
-      case "users-manage":
-        return <SuperAdmin />;
-      case "audit-logs":
-        return <AuditLogs />;
-      case "catalogue":
-        return <Catalogue />;
-      case "suppliers":
-        return <Suppliers />;
-      case "inventory":
-        return <Inventory />;
-      case "planning":
-        return <MaterialPlanning />;
-      case "pos":
-        return <PurchaseOrders />;
-      case "accounts":
-        return <AccountsPage />;
-      case "grn":
-        return <GRNPage />;
-      case "inward":
-        return <TransactionsPage type="Inward" />;
-      case "outward":
-        return <TransactionsPage type="Outward" />;
-      case "inward-returns":
-        return <TransactionsPage type="Inward Return" />;
-      case "outward-returns":
-        return <TransactionsPage type="Outward Return" />;
-      case "transfer-inward":
-        return <TransactionsPage type="Transfer Inward" />;
-      case "transfer-outward":
-        return <TransactionsPage type="Transfer Outward" />;
-      case "material-requirements":
-        return <MaterialRequirementPage />;
-      case "po-report":
-        return <POReport />;
-      case "quotations":
-        return <Quotations />;
-      case "writeoffs":
-        return <WriteOffPage />;
-      case "stockcheck":
-        return <StockCheck />;
-      case "stockcheck-reports":
-        return <StockCheckReports />;
-      case "daily-report":
-        return <DailyReport />;
-      case "daily-movement":
-        return <DailyMovementReport />;
-      case "project-reports":
-        return <ProjectReports />;
-      case "profile":
-        return <Profile />;
-      case "settings":
-        return <SettingsPage />;
-      case "archive":
-        return <Archive />;
-      case "tracking":
-        return <TrackingPage />;
-      default:
-        return <Dashboard />;
-    }
-  }, "renderPage");
-  return <Layout>
-      <Suspense fallback={<PageLoader />}>
-        {renderPage()}
-      </Suspense>
-    </Layout>;
+  // Pages that stay mounted once visited — preserves filters, pagination, scroll
+  const PAGE_ELEMENTS = [
+    { id: "dashboard",            el: <Dashboard /> },
+    { id: "users-manage",         el: <SuperAdmin /> },
+    { id: "audit-logs",           el: <AuditLogs /> },
+    { id: "catalogue",            el: <Catalogue /> },
+    { id: "suppliers",            el: <Suppliers /> },
+    { id: "inventory",            el: <Inventory /> },
+    { id: "planning",             el: <MaterialPlanning /> },
+    { id: "pos",                  el: <PurchaseOrders /> },
+    { id: "accounts",             el: <AccountsPage /> },
+    { id: "grn",                  el: <GRNPage /> },
+    { id: "inward",               el: <TransactionsPage type="Inward" /> },
+    { id: "outward",              el: <TransactionsPage type="Outward" /> },
+    { id: "inward-returns",       el: <TransactionsPage type="Inward Return" /> },
+    { id: "outward-returns",      el: <TransactionsPage type="Outward Return" /> },
+    { id: "transfer-inward",      el: <TransactionsPage type="Transfer Inward" /> },
+    { id: "transfer-outward",     el: <TransactionsPage type="Transfer Outward" /> },
+    { id: "material-requirements",el: <MaterialRequirementPage /> },
+    { id: "po-report",            el: <POReport /> },
+    { id: "quotations",           el: <Quotations /> },
+    { id: "writeoffs",            el: <WriteOffPage /> },
+    { id: "stockcheck",           el: <StockCheck /> },
+    { id: "stockcheck-reports",   el: <StockCheckReports /> },
+    { id: "daily-report",         el: <DailyReport /> },
+    { id: "daily-movement",       el: <DailyMovementReport /> },
+    { id: "project-reports",      el: <ProjectReports /> },
+    { id: "profile",              el: <Profile /> },
+    { id: "settings",             el: <SettingsPage /> },
+    { id: "archive",              el: <Archive /> },
+  ];
+
+  const effectiveHash = PAGE_ELEMENTS.find(p => p.id === hash) || hash === "tracking" ? hash : "dashboard";
+
+  return (
+    <Layout>
+      {PAGE_ELEMENTS.map(({ id, el }) => {
+        if (!visitedRoutes.has(id)) return null;
+        const route = ROUTES.find(r => r.id === id);
+        if (route) {
+          const isAllowed = route.permission ? hasPermission(route.permission) : route.roles.includes(role || "");
+          if (!isAllowed) return null;
+        }
+        return (
+          <div key={id} style={{ display: effectiveHash === id ? "block" : "none" }}>
+            <Suspense fallback={<PageLoader />}>{el}</Suspense>
+          </div>
+        );
+      })}
+      {/* Tracking remounts on each visit / each new ?id= so it always loads fresh data */}
+      <div style={{ display: effectiveHash === "tracking" ? "block" : "none" }}>
+        {visitedRoutes.has("tracking") && (
+          <Suspense key={trackingKey} fallback={<PageLoader />}>
+            <TrackingPage />
+          </Suspense>
+        )}
+      </div>
+    </Layout>
+  );
 }, "AppContent");
 function App() {
   return <AppProvider>
