@@ -800,7 +800,7 @@ export function POFormModal({
                           }} />
                       </td>
                       <td className="p-1.5 border-r border-[#1A365D]/20 text-right text-[12px] font-bold text-emerald-600 dark:text-emerald-400 min-w-[80px]">
-                        {fmtCur(parseFloat(pt.amount) || 0)}
+                        {fmtCur(parseFloat(pt.ifPayable || pt.amount) || 0)}
                       </td>
                       <td className="p-1.5 text-center">
                         <button type="button" onClick={() => set({ paymentTimelines: (po.paymentTimelines || []).filter((_, i) => i !== idx) })}

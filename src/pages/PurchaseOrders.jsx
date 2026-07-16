@@ -490,8 +490,6 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
 
     const grandTotal = itemsTotalWithGST + chargesTotal;
 
-    const grandBase = totalBase + chargesTotal;
-
     const isDefault = newPO.paymentTimelines?.every(
       (pt) => pt.amount === 0 && pt.ifPayable === 0,
     );
@@ -504,7 +502,7 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
       if (pts.length >= 3) {
         pts[0] = { ...pts[0], amount: 0, ifPayable: 0 };
         pts[1] = { ...pts[1], amount: 0, ifPayable: 0 };
-        pts[2] = { ...pts[2], amount: Math.round(grandBase * 100) / 100, ifPayable: Math.round(grandTotal * 100) / 100 };
+        pts[2] = { ...pts[2], amount: Math.round(grandTotal * 100) / 100, ifPayable: Math.round(grandTotal * 100) / 100 };
 
         if (itemGstPct != null) {
           pts[0] = { ...pts[0], gstPct: itemGstPct, gstType: itemGstType };
