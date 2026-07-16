@@ -52,6 +52,7 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [loadingQuotes, setLoadingQuotes] = useState(false);
   const [realGRN, setRealGRN] = useState(null);
+  const [allGrns, setAllGrns] = useState([]);
   const [paymentForm, setPaymentForm] = useState({
     date: (/* @__PURE__ */ new Date()).toISOString().split("T")[0],
     mode: "NEFT",
@@ -107,15 +108,50 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
         { status: { $in: ["GRN Fulfilled", "GRN Variance", "Ready for Payment", "PO Closed"] } }
       ]
     };
-    await Promise.all([
-      fetchResource("pos", 1, 500, false, "", accountsFilter),
-      fetchResource("suppliers", 1, 5000, true)
-    ]);
+    try {
+      const [_, __, grnRes] = await Promise.all([
+        fetchResource("pos", 1, 500, false, "", accountsFilter),
+        fetchResource("suppliers", 1, 5000, true),
+        api.get("grn", { limit: 1000 }).catch(() => ({ success: false }))
+      ]);
+      if (grnRes && grnRes.success && grnRes.data) {
+        setAllGrns(grnRes.data);
+      }
+    } catch (err) {
+      console.error(err);
+    }
     setIsRefreshing(false);
   }, "refresh");
   useEffect(() => {
     refresh();
   }, [fetchResource]);
+
+  const getPayableAmount = /* @__PURE__ */ __name((po) => {
+    if (po.payment && po.payment.amountPaid && (po.accountStatus === 'paid' || po.accountStatus === 'partial_paid')) return po.payment.amountPaid;
+    const poAmount = po.totalValue || 0;
+    const poStatus = (po.status || "").toLowerCase();
+    const accStatus = (po.accountStatus || "").toLowerCase();
+    const isRemainingPayment = (accStatus === "partial_paid" || (accStatus === "payment_pending" && po.payment?.isPartial)) && poStatus === "grn fulfilled";
+    const partialPaid = po.payment?.partialAmount || po.payment?.amountPaid || 0;
+
+    const rGrn = allGrns.find(g => g.poId === po.id);
+    const grnReceivedValue = rGrn
+      ? rGrn.items.reduce((sum, gi) => {
+          const rcv = gi.received ?? gi.qty ?? 0;
+          const rate = gi.rate || po.items?.find(pi =>
+            (pi.sku && pi.sku === gi.sku) ||
+            (pi.materialName || "").toLowerCase() === (gi.itemName || "").toLowerCase()
+          )?.rate || 0;
+          return sum + rcv * rate;
+        }, 0)
+      : 0;
+
+    return isRemainingPayment
+      ? Math.max(0, poAmount - partialPaid)
+      : poStatus === "grn variance" && grnReceivedValue > 0
+        ? grnReceivedValue
+        : poAmount;
+  }, "getPayableAmount");
   const getSupplierName = /* @__PURE__ */ __name((supplierIdOption) => {
     if (!supplierIdOption) return "Unknown Vendor";
     const s = suppliers.find(
@@ -129,7 +165,9 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
     const pendingVerify = all.filter((p) => {
       const accStatus = (p.accountStatus || "").toLowerCase();
       const poStatus = (p.status || "").toLowerCase();
-      return accStatus === "bill_verify" || !accStatus && ["grn fulfilled", "grn variance", "ready for payment"].includes(poStatus);
+      if (accStatus === "bill_verify") return true;
+      if (accStatus === "partial_paid" && poStatus === "grn fulfilled") return true;
+      return !accStatus && ["grn fulfilled", "grn variance", "ready for payment"].includes(poStatus);
     }).length;
     const paidThisMonth = all.filter((p) => {
       const accStatus = (p.accountStatus || "").toLowerCase();
@@ -139,11 +177,17 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
       return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
     });
     const totalPaidAmount = paidThisMonth.reduce((sum, p) => sum + (p.payment?.amountPaid || 0), 0);
+    const partialPaidCount = all.filter((p) => {
+      const accStatus = (p.accountStatus || "").toLowerCase();
+      const poStatus = (p.status || "").toLowerCase();
+      return accStatus === "partial_paid" && poStatus !== "grn fulfilled";
+    }).length;
     return {
       pendingPayment,
       pendingVerify,
       paidCount: paidThisMonth.length,
       totalPaidAmount,
+      partialPaidCount,
       rejectedCount: all.filter((p) => (p.accountStatus || "").toLowerCase() === "rejected").length
     };
   }, [pos]);
@@ -168,10 +212,14 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
           status = "other";
         }
       }
-      if (filter === "All" && !["bill_verify", "payment_pending", "paid", "rejected"].includes(status)) return false;
+      // partial_paid + GRN Fulfilled → treat as bill_verify (remaining payment)
+      if (accStatus === "partial_paid" && poStatus === "grn fulfilled") status = "bill_verify";
+      else if (accStatus === "partial_paid") status = "partial_paid";
+      if (filter === "All" && !["bill_verify", "payment_pending", "paid", "partial_paid", "rejected"].includes(status)) return false;
       if (filter === "Verify Bills" && status !== "bill_verify") return false;
       if (filter === "Pending Payment" && status !== "payment_pending") return false;
       if (filter === "Paid" && status !== "paid") return false;
+      if (filter === "Partial Paid" && status !== "partial_paid") return false;
       if (filter === "Rejected" && status !== "rejected") return false;
       if (search) {
         const q = search.toLowerCase();
@@ -222,6 +270,43 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
       setIsSubmitting(false);
     }
   }, "handleBillApprove");
+
+  const handleRevokeApproval = /* @__PURE__ */ __name(async (poId) => {
+    if (!hasPermission("VERIFY_BILL")) {
+      toast.error("Unauthorized: Access to verify bills is restricted.");
+      return;
+    }
+    setIsSubmitting(true);
+    try {
+      const timestamp = (/* @__PURE__ */ new Date()).toISOString();
+      const po = pos.find((p) => p.id === poId);
+      
+      const isRevertingRemaining = po.payment?.isPartial || po.payment?.partialAmount;
+      const newStatus = isRevertingRemaining ? "partial_paid" : null;
+
+      const audit = {
+        timestamp,
+        action: "approval_revised",
+        po_number: poId,
+        done_by: user?.name || "System",
+        amount: po?.totalValue || 0,
+        details: { note: "Approval revoked for revision" }
+      };
+      
+      await updatePO(poId, {
+        accountStatus: newStatus,
+        billApprovedBy: null,
+        billApprovedDate: null,
+        auditTrail: [...po?.auditTrail || [], audit]
+      });
+      toast.success("Approval revoked. Bill sent back for verification.");
+      setSelectedPO(null);
+    } catch (err) {
+      toast.error("Failed to revoke approval.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  }, "handleRevokeApproval");
   const handleBillReject = /* @__PURE__ */ __name(async (poId) => {
     if (!hasPermission("REJECT_BILL")) {
       toast.error("Unauthorized: Access to reject bills is restricted.");
@@ -299,20 +384,41 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
         screenshotUrl,
         screenshotName: screenshot?.name || "payment_proof.png"
       };
+      // Determine if this is a partial payment (GRN Variance) or final payment
+      const isPartialPayment = (po?.status || "").toLowerCase() === "grn variance" &&
+        (po?.accountStatus || "").toLowerCase() !== "partial_paid";
+      const isFinalPayment = (po?.accountStatus || "").toLowerCase() === "partial_paid" || po?.payment?.isPartial;
+      const newAccountStatus = isPartialPayment ? "partial_paid" : "paid";
+      // For final payment of a previously partial_paid PO, preserve partial payment history
+      const finalPaymentData = isFinalPayment ? {
+        ...paymentData,
+        partialPayment: {
+          amount: po?.payment?.amountPaid || 0,
+          date: po?.payment?.date || "",
+          mode: po?.payment?.mode || "",
+          ref: po?.payment?.ref || "",
+          paidBy: po?.payment?.paidBy || "",
+        },
+        amountPaid: (po?.payment?.amountPaid || 0) + paymentData.amountPaid,
+      } : isPartialPayment ? {
+        ...paymentData,
+        isPartial: true,
+        partialAmount: paymentData.amountPaid,
+      } : paymentData;
       const audit = {
         timestamp,
-        action: "payment_submitted",
+        action: isPartialPayment ? "partial_payment_submitted" : "payment_submitted",
         po_number: poId,
         done_by: user?.name || "System",
         amount: paymentForm.amountPaid,
         details: { mode: paymentForm.mode, ref: paymentForm.ref }
       };
       await updatePO(poId, {
-        accountStatus: "paid",
-        payment: paymentData,
+        accountStatus: newAccountStatus,
+        payment: finalPaymentData,
         auditTrail: [...po?.auditTrail || [], audit]
       });
-      toast.success("Payment confirmed! ERP Synced.");
+      toast.success(isPartialPayment ? "Partial payment recorded! Remaining will activate after full GRN." : "Payment confirmed! ERP Synced.");
       setSelectedPO(null);
       setIsEditingPayment(false);
     } catch (err) {
@@ -384,10 +490,11 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
   />
 
       {/* KPI Stats */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
         {[
           { label: "To Verify", value: metrics.pendingVerify, sub: "Bills awaiting verification", icon: ShieldAlert, iconCls: "bg-blue-50 dark:bg-blue-500/10 text-blue-500 dark:text-blue-400" },
           { label: "Payment Pending", value: metrics.pendingPayment, sub: "Approved, awaiting payment", icon: Clock, iconCls: "bg-orange-50 dark:bg-orange-500/10 text-orange-500 dark:text-orange-400" },
+          { label: "Partial Paid", value: metrics.partialPaidCount, sub: "GRN variance — awaiting balance", icon: IndianRupee, iconCls: "bg-amber-50 dark:bg-amber-500/10 text-amber-500 dark:text-amber-400" },
           { label: "Paid This Month", value: metrics.paidCount, sub: fmtCur(metrics.totalPaidAmount), icon: CheckCircle, iconCls: "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-500 dark:text-emerald-400" },
           { label: "Rejected", value: metrics.rejectedCount, sub: "Bills rejected", icon: XSquare, iconCls: "bg-red-50 dark:bg-red-500/10 text-red-500 dark:text-red-400" },
         ].map(({ label, value, sub, icon: Icon, iconCls }) => (
@@ -411,6 +518,7 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
             ["All", "All", 0],
             ["Verify Bills", "To Verify", metrics.pendingVerify],
             ["Pending Payment", "Pending Payment", metrics.pendingPayment],
+            ["Partial Paid", "Partial Paid", metrics.partialPaidCount],
             ["Paid", "Paid", metrics.paidCount],
             ["Rejected", "Rejected", metrics.rejectedCount],
           ].map(([tab, label, count]) => (
@@ -501,9 +609,14 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
         const sup = suppliers.find(
           (s) => s.id === po.supplier || s._id === po.supplier || (s.companyName || "").toLowerCase() === (po.supplier || "").toLowerCase() || (s.name || "").toLowerCase() === (po.supplier || "").toLowerCase()
         );
+        const _accSt = (po.accountStatus || "").toLowerCase();
+        const _poSt = (po.status || "").toLowerCase();
+        const _isRemaining = (_accSt === "partial_paid" || (_accSt === "payment_pending" && po.payment?.isPartial)) && _poSt === "grn fulfilled";
+        const _priorPartial = _isRemaining ? (po.payment?.partialAmount || 0) : 0;
+        const _initAmt = _isRemaining && _priorPartial > 0 ? Math.max(0, (po.totalValue || 0) - _priorPartial) : (po.totalValue || 0);
         setPaymentForm((prev) => ({
           ...prev,
-          amountPaid: po.totalValue,
+          amountPaid: _initAmt,
           fromCompany: po.companyName || "Our Company",
           toCompany: sup?.companyName || po.supplier || "Unknown Vendor",
           vendorBankDetails: po.vendorBankDetails ? { ...po.vendorBankDetails } : sup ? {
@@ -546,7 +659,7 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
                     
                     <div className="hidden sm:flex items-center justify-end">
                       <p className="text-[13px] sm:text-sm font-black text-gray-900 dark:text-[#F1F5F9] tabular-nums whitespace-nowrap truncate">
-                        {fmtCur(po.totalValue)}
+                        {fmtCur(getPayableAmount(po))}
                       </p>
                     </div>
                     
@@ -558,6 +671,7 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
                       <StatusBadge status={
                         po.accountStatus === "payment_pending" ? "Payment Pending"
                         : po.accountStatus === "paid" ? "Paid"
+                        : po.accountStatus === "partial_paid" ? "Partial Paid"
                         : po.accountStatus === "rejected" ? "Rejected"
                         : "To Verify"
                       } />
@@ -569,7 +683,7 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
                       </p>
                     </div>
                     <div className="hidden md:flex items-center justify-end gap-1 pr-2 sm:pr-4">
-                      {po.accountStatus === "paid" && <>
+                      {["paid", "partial_paid"].includes(po.accountStatus) && <>
                         <button
                           onClick={(e) => handleEditPayment(e, po)}
                           className="p-1.5 rounded-lg bg-blue-50 dark:bg-blue-500/10 text-blue-500 hover:opacity-80 transition-opacity"
@@ -596,7 +710,13 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
       {selectedPO && (() => {
         const accStatus = (selectedPO.accountStatus || "").toLowerCase();
         const poSt = (selectedPO.status || "").toLowerCase();
-        const resolvedStatus = accStatus || (["grn fulfilled", "grn variance", "ready for payment"].includes(poSt) ? "bill_verify" : "other");
+        const resolvedStatus = (() => {
+          if (accStatus === "partial_paid" && poSt === "grn fulfilled") return "bill_verify"; // remaining payment due
+          if (accStatus) return accStatus;
+          if (["grn fulfilled", "grn variance", "ready for payment"].includes(poSt)) return "bill_verify";
+          return "other";
+        })();
+        const isRemainingPayment = (accStatus === "partial_paid" || (accStatus === "payment_pending" && selectedPO.payment?.isPartial)) && poSt === "grn fulfilled";
         const drawerFooter = resolvedStatus === "bill_verify" ? (
           showRejectForm ? (
             <div className="flex flex-col sm:flex-row gap-3 items-end w-full">
@@ -617,18 +737,51 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
             </div>
           ) : (
             <div className="flex justify-end gap-3 w-full">
-              <Btn label="Reject bill" color="red" onClick={() => setShowRejectForm(true)} />
-              <Btn label="Approve bill" color="green" onClick={() => handleBillApprove(selectedPO.id)} loading={isSubmitting} disabled={isSubmitting} />
+              {!isRemainingPayment && <Btn label="Reject bill" color="red" onClick={() => setShowRejectForm(true)} />}
+              <Btn
+                label={isRemainingPayment ? "Approve Remaining Bill" : "Approve bill"}
+                color="green"
+                onClick={() => handleBillApprove(selectedPO.id)}
+                loading={isSubmitting}
+                disabled={isSubmitting}
+              />
             </div>
           )
-        ) : (resolvedStatus === "payment_pending" || (resolvedStatus === "paid" && isEditingPayment)) ? (
-          <div className="flex justify-end w-full">
+        ) : (resolvedStatus === "payment_pending" || ((resolvedStatus === "paid" || resolvedStatus === "partial_paid") && isEditingPayment)) ? (
+          <div className="flex justify-end gap-3 w-full">
+            {resolvedStatus === "payment_pending" && (
+              <button
+                onClick={() => handleRevokeApproval(selectedPO.id)}
+                disabled={isSubmitting}
+                className="bg-white dark:bg-[#0F172A] hover:bg-red-50 dark:hover:bg-red-900/10 border border-gray-200 dark:border-[#334155] hover:border-red-200 dark:hover:border-red-900/30 text-gray-700 dark:text-gray-300 hover:text-red-600 dark:hover:text-red-400 disabled:opacity-50 py-2.5 px-6 rounded-xl text-[13px] font-bold shadow-sm transition-all active:scale-[0.98]"
+              >
+                Revise Approval
+              </button>
+            )}
             <button
               onClick={() => handlePaymentSubmit(selectedPO.id)}
               disabled={isSubmitting}
               className="bg-[#F97316] hover:bg-[#EA580C] disabled:opacity-50 text-white py-2.5 px-8 rounded-xl text-[13px] font-black shadow-lg shadow-orange-500/20 flex items-center justify-center gap-2 transition-all active:scale-[0.98]"
             >
-              {isSubmitting ? "Syncing with ERP..." : isEditingPayment ? "Update Payment ✓" : "Mark Payment as Complete ✓"}
+              {isSubmitting ? "Syncing with ERP..." : isEditingPayment ? "Update Payment ✓" : isRemainingPayment ? "Pay Remaining Balance ✓" : (selectedPO.status || "").toLowerCase() === "grn variance" ? "Mark Partial Payment ✓" : "Mark Payment as Complete ✓"}
+            </button>
+          </div>
+        ) : resolvedStatus === "partial_paid" ? (
+          <div className="flex items-center gap-3 w-full">
+            <div className="flex items-center gap-2 flex-1 px-3 py-2 bg-amber-50 dark:bg-amber-500/10 rounded-xl border border-amber-200 dark:border-amber-500/20">
+              <Clock className="w-4 h-4 text-amber-500 shrink-0" />
+              <p className="text-[12px] font-bold text-amber-700 dark:text-amber-400">
+                Partial payment of {fmtCur(selectedPO.payment?.amountPaid || 0)} recorded. Remaining balance will activate once GRN is fulfilled.
+              </p>
+            </div>
+          </div>
+        ) : resolvedStatus === "paid" && !isEditingPayment ? (
+          <div className="flex justify-end w-full">
+            <button
+              onClick={() => { setSelectedPO(null); setIsEditingPayment(false); }}
+              className="px-7 py-2.5 bg-white text-gray-900 text-[13px] font-bold rounded-xl hover:bg-gray-100 transition-colors shadow-sm"
+            >
+              Close
             </button>
           </div>
         ) : null;
@@ -661,6 +814,8 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
             suppliers={suppliers}
             onViewPO={() => setPreviewPO(selectedPO)}
             isEditingPayment={isEditingPayment}
+            isRemainingPayment={isRemainingPayment}
+            onClose={() => { setSelectedPO(null); setIsEditingPayment(false); }}
           />
         </Modal>;
       })()}
@@ -695,12 +850,18 @@ const DetailPanel = /* @__PURE__ */ __name(({
   handleFileChange,
   suppliers,
   onViewPO,
-  isEditingPayment
+  isEditingPayment,
+  isRemainingPayment,
+  onClose
 }) => {
   const [isDraggingPayment, setIsDraggingPayment] = useState(false);
   const [viewGRNDetail, setViewGRNDetail] = useState(false);
   const poStatus = (po.status || "").toLowerCase();
-  const status = po.accountStatus || (["approved", "fulfilled", "grn pending", "grn fulfilled", "grn variance"].includes(poStatus) ? "bill_verify" : "other");
+  // Only force bill_verify when accountStatus is "partial_paid" (awaiting approval for remaining)
+  // When accountStatus is "payment_pending" (already approved), show the payment form
+  const status = (isRemainingPayment && (po.accountStatus || "").toLowerCase() === "partial_paid")
+    ? "bill_verify"
+    : (po.accountStatus || (["approved", "fulfilled", "grn pending", "grn fulfilled", "grn variance"].includes(poStatus) ? "bill_verify" : "other"));
   const getSupplierName = /* @__PURE__ */ __name((id) => {
     if (!id) return "Unknown Vendor";
     const s = suppliers?.find(
@@ -711,6 +872,37 @@ const DetailPanel = /* @__PURE__ */ __name(({
   const invoiceAmount = po.payment?.amountPaid || po.totalValue || 0;
   const poAmount = po.totalValue || 0;
   const isMismatch = Math.abs(invoiceAmount - poAmount) > 0.01;
+
+  const partialPaid = po.payment?.partialAmount || po.payment?.amountPaid || 0;
+  const grnReceivedValue = realGrn
+    ? realGrn.items.reduce((sum, gi) => {
+        const rcv = gi.received ?? gi.qty ?? 0;
+        const rate = gi.rate || po.items?.find(pi =>
+          (pi.sku && pi.sku === gi.sku) ||
+          (pi.materialName || "").toLowerCase() === (gi.itemName || "").toLowerCase()
+        )?.rate || 0;
+        return sum + rcv * rate;
+      }, 0)
+    : 0;
+  const payableAmount = isRemainingPayment
+    ? Math.max(0, poAmount - partialPaid)
+    : poStatus === "grn variance" && grnReceivedValue > 0
+      ? grnReceivedValue
+      : poAmount;
+  const payableLabel = isRemainingPayment
+    ? "Remaining payable amount"
+    : poStatus === "grn variance"
+      ? "Payable amount (received goods)"
+      : "Payable amount";
+
+  useEffect(() => {
+    if (status === "payment_pending" || (status === "paid" && isEditingPayment)) {
+      if (paymentForm.amountPaid === poAmount && payableAmount !== poAmount) {
+        setPaymentForm(prev => ({ ...prev, amountPaid: payableAmount }));
+      }
+    }
+  }, [payableAmount, poAmount, paymentForm.amountPaid, setPaymentForm, status, isEditingPayment]);
+
   if (status === "bill_verify") {
     const grnNo = realGrn?.id || po.grn?.number || "WAITING";
     const itemsReceived = realGrn ? `${realGrn.items.reduce((sum, i) => sum + (i.received || 0), 0)} Items` : po.grn?.qty || "As per PO";
@@ -788,10 +980,144 @@ const DetailPanel = /* @__PURE__ */ __name(({
           </section>
         </div>
 
+      {/* Payable Amount Summary */}
+      <div className="px-5 py-4 bg-green-50 dark:bg-green-500/10 rounded-2xl border border-green-200 dark:border-green-500/20 space-y-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-white dark:bg-[#0F172A] rounded-xl shadow-sm">
+              <IndianRupee className="w-4 h-4 text-green-600 dark:text-green-400" />
+            </div>
+            <p className="text-[10px] font-black text-gray-400 dark:text-[#64748B] uppercase tracking-wide">{payableLabel}</p>
+          </div>
+          <p className="text-xl font-black text-green-700 dark:text-green-400 tabular-nums">{fmtCur(payableAmount)}</p>
+        </div>
+
+        {/* Item-wise bill breakdown */}
+        {realGrn && (poStatus === "grn variance" || isRemainingPayment) && (() => {
+          // Received items — primary source is GRN (correct names & qty)
+          const receivedRows = realGrn.items
+            .map(gi => {
+              const rcv = gi.received ?? gi.qty ?? 0;
+              const rate = gi.rate ||
+                po.items?.find(pi =>
+                  (pi.sku && gi.sku && pi.sku === gi.sku) ||
+                  (pi.materialName || "").toLowerCase() === (gi.itemName || "").toLowerCase()
+                )?.rate || 0;
+              return { name: gi.itemName || gi.name || "Item", qty: rcv, rate, amt: rcv * rate };
+            })
+            .filter(r => r.qty > 0);
+
+          // Pending items — PO items with undelivered qty
+          const pendingRows = (po.items || []).map(pi => {
+            const grnItem = realGrn.items.find(gi =>
+              (pi.sku && gi.sku && pi.sku === gi.sku) ||
+              (pi.materialName || "").toLowerCase() === (gi.itemName || "").toLowerCase()
+            );
+            const ordered = pi.qty || pi.quantity || 0;
+            const received = grnItem ? (grnItem.received ?? grnItem.qty ?? 0) : 0;
+            const pending = Math.max(0, ordered - received);
+            const rate = pi.rate || grnItem?.rate || 0;
+            return { name: pi.materialName || pi.name || "Item", ordered, pending, rate, amt: pending * rate };
+          }).filter(r => r.pending > 0);
+
+          if (receivedRows.length === 0) return null;
+
+          return (
+            <div className="pt-3 border-t border-green-200 dark:border-green-500/20 overflow-x-auto space-y-2">
+              {/* Received (payable) */}
+              <p className="text-[9px] font-black text-green-600 dark:text-green-400 uppercase tracking-widest px-1">Received — Payable</p>
+              <table className="w-full text-[10px] border-collapse">
+                <thead>
+                  <tr className="bg-green-100/50 dark:bg-green-500/10">
+                    <th className="text-left font-black py-1.5 px-2 text-gray-500 dark:text-gray-400 rounded-l">Item</th>
+                    <th className="text-right font-black py-1.5 px-2 text-gray-500 dark:text-gray-400">Qty</th>
+                    <th className="text-right font-black py-1.5 px-2 text-gray-500 dark:text-gray-400">Rate</th>
+                    <th className="text-right font-black py-1.5 px-2 text-green-700 dark:text-green-400 rounded-r">Amount</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {receivedRows.map((r, i) => (
+                    <tr key={i} className="border-b border-green-100 dark:border-green-500/10 last:border-0">
+                      <td className="py-1.5 px-2 font-bold text-gray-800 dark:text-gray-100">{r.name}</td>
+                      <td className="py-1.5 px-2 text-right text-gray-600 dark:text-gray-300 tabular-nums">{r.qty}</td>
+                      <td className="py-1.5 px-2 text-right text-gray-500 dark:text-gray-400 tabular-nums">{fmtCur(r.rate)}</td>
+                      <td className="py-1.5 px-2 text-right font-black text-green-700 dark:text-green-300 tabular-nums">{fmtCur(r.amt)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  {isRemainingPayment && partialPaid > 0 && (
+                    <tr className="border-t border-green-300 dark:border-green-500/30">
+                      <td colSpan={3} className="pt-1.5 px-2 text-gray-400 dark:text-gray-500 text-[9px] font-bold">
+                        Received total
+                      </td>
+                      <td className="pt-1.5 px-2 text-right text-gray-400 dark:text-gray-400 tabular-nums text-[10px]">
+                        {fmtCur(receivedRows.reduce((s, r) => s + r.amt, 0))}
+                      </td>
+                    </tr>
+                  )}
+                  {isRemainingPayment && partialPaid > 0 && (
+                    <tr>
+                      <td colSpan={3} className="py-0.5 px-2 text-amber-500 text-[9px] font-bold">
+                        − Partial already paid
+                      </td>
+                      <td className="py-0.5 px-2 text-right text-amber-500 tabular-nums text-[10px] font-bold">
+                        − {fmtCur(partialPaid)}
+                      </td>
+                    </tr>
+                  )}
+                  <tr className="border-t-2 border-green-400 dark:border-green-500/40">
+                    <td colSpan={3} className="pt-1.5 px-2 font-black text-green-700 dark:text-green-400 text-[9px] uppercase tracking-wide">
+                      {isRemainingPayment ? "Remaining payable" : "Total payable"}
+                    </td>
+                    <td className="pt-1.5 px-2 text-right font-black text-green-700 dark:text-green-300 tabular-nums">{fmtCur(payableAmount)}</td>
+                  </tr>
+                </tfoot>
+              </table>
+
+              {/* Pending (not payable) */}
+              {pendingRows.length > 0 && <>
+                <p className="text-[9px] font-black text-red-400 uppercase tracking-widest px-1 pt-1">Pending Delivery — Not Payable</p>
+                <table className="w-full text-[10px] border-collapse opacity-60">
+                  <tbody>
+                    {pendingRows.map((r, i) => (
+                      <tr key={i} className="border-b border-red-100 dark:border-red-500/10 last:border-0">
+                        <td className="py-1.5 px-2 text-gray-500 dark:text-gray-400 line-through">{r.name}</td>
+                        <td className="py-1.5 px-2 text-right text-gray-400 tabular-nums">{r.pending}</td>
+                        <td className="py-1.5 px-2 text-right text-gray-400 tabular-nums">{fmtCur(r.rate)}</td>
+                        <td className="py-1.5 px-2 text-right text-red-400 tabular-nums line-through">{fmtCur(r.amt)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot>
+                    <tr className="border-t border-red-200 dark:border-red-500/20">
+                      <td colSpan={3} className="pt-1.5 px-2 text-red-400 text-[9px] font-black uppercase tracking-wide">Not payable (variance)</td>
+                      <td className="pt-1.5 px-2 text-right text-red-400 font-black tabular-nums">{fmtCur(Math.max(0, poAmount - payableAmount))}</td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </>}
+
+              {isRemainingPayment && partialPaid > 0 && (
+                <div className="pt-2 border-t border-green-100 dark:border-green-500/10 space-y-1">
+                  <p className="text-[9px] font-black text-amber-500 uppercase tracking-widest px-1">Prior partial payment history</p>
+                  <div className="grid grid-cols-2 gap-x-6 gap-y-1 px-1">
+                    <InfoItem label="Amount paid" value={fmtCur(partialPaid)} highlight />
+                    <InfoItem label="Date" value={formatDate(po.payment?.date)} />
+                    <InfoItem label="Mode" value={po.payment?.mode || "—"} />
+                    <InfoItem label="ERP ref" value={po.payment?.ref || "—"} />
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })()}
+      </div>
+
       {viewGRNDetail && realGrn && <GRNDetailModal grn={realGrn} onClose={() => setViewGRNDetail(false)} />}
       </div>;
   }
-  if (status === "payment_pending" || (status === "paid" && isEditingPayment)) {
+  if (status === "payment_pending" || ((status === "paid" || status === "partial_paid") && isEditingPayment)) {
     return <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12">
         {
       /* Summary */
@@ -806,8 +1132,15 @@ const DetailPanel = /* @__PURE__ */ __name(({
                <InfoItem label="GRN no." value={po.grn?.number || "GRN-041-A"} />
             </div>
             <div className="pt-6 border-t dark:border-[#334155] mt-4">
-               <p className="text-[10px] font-black text-gray-400 dark:text-[#64748B] mb-1">Total payable amount</p>
-               <h2 className="text-3xl sm:text-4xl font-black text-gray-900 dark:text-[#F1F5F9] tabular-nums tracking-tight">{fmtCur(po.totalValue)}</h2>
+               <p className="text-[10px] font-black text-gray-400 dark:text-[#64748B] mb-1">
+                 {isRemainingPayment ? "Remaining payable amount" : "Total payable amount"}
+               </p>
+               <h2 className="text-3xl sm:text-4xl font-black text-gray-900 dark:text-[#F1F5F9] tabular-nums tracking-tight">{fmtCur(payableAmount)}</h2>
+               {isRemainingPayment && partialPaid > 0 && (
+                 <p className="text-[10px] font-bold text-amber-500 mt-1 tabular-nums">
+                   {fmtCur(poAmount)} total − {fmtCur(partialPaid)} already paid = {fmtCur(payableAmount)} remaining
+                 </p>
+               )}
                <div className="mt-4 p-3 bg-green-50/50 dark:bg-green-900/10 rounded-xl border border-green-100 dark:border-green-900/20">
                  <p className="text-[10px] text-green-600 dark:text-green-400 font-bold flex items-center gap-2">
                    <ShieldAlert className="w-4 h-4 shrink-0" /> Bill approved by {po.billApprovedBy || "Accounts Manager"}
@@ -817,6 +1150,23 @@ const DetailPanel = /* @__PURE__ */ __name(({
                  </p>
                </div>
             </div>
+
+            {/* Prior partial payment history */}
+            {isRemainingPayment && partialPaid > 0 && (
+              <div className="pt-4 border-t dark:border-[#334155]">
+                <p className="text-[10px] font-black text-amber-500 uppercase tracking-wide mb-3 flex items-center gap-1.5">
+                  <Clock className="w-3.5 h-3.5" /> Prior partial payment
+                </p>
+                <div className="grid grid-cols-2 gap-x-4 gap-y-3">
+                  <InfoItem label="Amount paid" value={fmtCur(partialPaid)} highlight />
+                  <InfoItem label="Payment date" value={formatDate(po.payment?.date)} />
+                  <InfoItem label="Mode" value={po.payment?.mode || "—"} />
+                  <InfoItem label="ERP ref" value={po.payment?.ref || "—"} />
+                  {po.payment?.utr && <InfoItem label="UTR" value={po.payment.utr} />}
+                  <InfoItem label="Paid by" value={po.payment?.paidBy || "—"} />
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
@@ -1046,90 +1396,171 @@ const DetailPanel = /* @__PURE__ */ __name(({
         </div>
       </div>;
   }
-  if (status === "paid" && !isEditingPayment) {
-    return <div className="space-y-8">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          <section className="bg-white dark:bg-[#1E293B] p-7 rounded-3xl border border-gray-100 dark:border-[#334155] shadow-sm space-y-6">
-             <h3 className="text-xs font-black text-[#10B981] flex items-center gap-2 border-b border-gray-50 dark:border-[#334155] pb-4"><CheckCircle className="w-4 h-4" /> Final payment details</h3>
-             <div className="grid grid-cols-2 gap-y-6 gap-x-6">
-                <InfoItem label="From company" value={po.payment?.fromCompany || "Our company"} />
-                <InfoItem label="Paid to vendor" value={po.payment?.toCompany || getSupplierName(po.supplier)} />
-                <InfoItem label="Amount Disbursed" value={fmtCur(po.payment?.amountPaid || po.totalValue)} highlight />
-                <InfoItem label="Transaction Mode" value={po.payment?.mode} />
-                <InfoItem label="Payment Date" value={formatDate(po.payment?.date)} />
-                <InfoItem label="Debit Bank" value={po.payment?.bank} />
-                <InfoItem label="ERP Voucher Ref" value={po.payment?.ref} />
-                <InfoItem label="Payment Status" value="SYNCED WITH TALLY" highlight />
-             </div>
-             
-             {po.payment?.vendorBankDetails && <div className="pt-4 mt-2 border-t dark:border-[#334155]">
-                 <p className="text-[10px] font-black text-gray-400 dark:text-[#64748B] mb-3 leading-none">Beneficiary bank details</p>
-                 <div className="grid grid-cols-2 gap-4">
-                   <InfoItem label="A/C Holder" value={po.payment.vendorBankDetails.accountHolder} />
-                   <InfoItem label="Bank Name" value={po.payment.vendorBankDetails.bankName} />
-                   <InfoItem label="Account No." value={po.payment.vendorBankDetails.accountNo} />
-                   <InfoItem label="IFSC / Branch" value={po.payment.vendorBankDetails.branchIFSC} />
-                 </div>
-               </div>}
-
-             {po.payment?.remarks && <div className="pt-4 mt-2 border-t dark:border-[#334155]">
-                 <InfoItem label="Accounting Remarks" value={po.payment.remarks} />
-               </div>}
-
-             {(po.payment?.utr || po.payment?.chequeNo) && <div className="pt-2 p-4 bg-gray-50 dark:bg-[#0F172A] rounded-xl border border-gray-100 dark:border-[#334155]">
-                 {po.payment?.utr && <InfoItem label="UTR / Transaction Reference" value={po.payment.utr} />}
-                 {po.payment?.chequeNo && <div className="grid grid-cols-2 gap-2 mt-2">
-                     <InfoItem label="Cheque No." value={po.payment.chequeNo} />
-                     <InfoItem label="Cheque Date" value={formatDate(po.payment.chequeDate)} />
-                   </div>}
-               </div>}
-
-             {po.payment?.screenshotUrl && <div className="pt-6 space-y-3">
-                 <p className="text-[10px] font-black text-gray-400 dark:text-[#64748B] leading-none">Payment proof attachment</p>
-                 <div className="group relative rounded-2xl overflow-hidden border border-gray-200 dark:border-[#334155] bg-gray-50 dark:bg-[#0F172A]/50 max-h-[300px]">
-                    <img
-      src={po.payment.screenshotUrl}
-      alt="Payment Screenshot"
-      referrerPolicy="no-referrer"
-      className="w-full h-full object-contain cursor-zoom-in hover:scale-[1.02] transition-transform duration-500"
-      onClick={() => window.open(po.payment.screenshotUrl, "_blank")}
-    />
-                    <div className="absolute inset-x-0 bottom-0 p-3 bg-white/90 dark:bg-[#0F172A]/90 backdrop-blur-sm border-t dark:border-[#334155] flex justify-between items-center opacity-0 group-hover:opacity-100 transition-opacity">
-                      <span className="text-[10px] font-bold text-gray-500 truncate pr-2">{po.payment.screenshotName || "payment_proof.png"}</span>
-                      <button
-      onClick={() => window.open(po.payment.screenshotUrl, "_blank")}
-      className="text-[10px] font-black text-blue-500 hover:underline"
-    >
-                        View Full Screen
-                      </button>
-                    </div>
-                 </div>
-               </div>}
-          </section>
-
-          <div className="flex flex-col gap-6">
-            <section className="bg-white dark:bg-[#1E293B] p-8 rounded-3xl border border-gray-100 dark:border-[#334155] shadow-sm flex-1 flex flex-col justify-center items-center text-center space-y-4">
-              <div className="w-20 h-20 bg-green-100 dark:bg-green-900/20 text-green-600 rounded-[2rem] flex items-center justify-center shadow-xl shadow-green-500/10">
-                 <Check className="w-10 h-10 font-black" />
-              </div>
-              <div className="space-y-1">
-                <h2 className="text-2xl font-black text-gray-900 dark:text-[#F1F5F9]">Verified & paid</h2>
-                <p className="text-[13px] text-gray-400 dark:text-[#64748B] font-bold">Digital audit completed</p>
-              </div>
-              <div className="w-full h-px bg-gray-50 dark:bg-[#334155]" />
-              <button
-      onClick={() => window.print()}
-      className="group flex items-center gap-3 text-[11px] font-black text-[#3B82F6] hover:scale-105 transition-transform"
-    >
-                <div className="p-2 bg-blue-50 dark:bg-blue-900/10 rounded-lg group-hover:bg-blue-100 transition-colors">
-                  <Download className="w-4 h-4" /> 
-                </div>
-                Download Payment Advice
-              </button>
-            </section>
+  if (status === "partial_paid" && !isEditingPayment) {
+    const partialAmt = po.payment?.partialAmount || po.payment?.amountPaid || 0;
+    const totalVal = po.totalValue || 0;
+    const remaining = Math.max(0, totalVal - partialAmt);
+    return <div className="space-y-6">
+        <div className="flex items-center gap-4 p-5 bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20 rounded-2xl">
+          <div className="w-12 h-12 bg-amber-100 dark:bg-amber-500/20 rounded-2xl flex items-center justify-center shrink-0">
+            <IndianRupee className="w-6 h-6 text-amber-600 dark:text-amber-400" />
+          </div>
+          <div className="flex-1">
+            <h3 className="text-[14px] font-black text-amber-800 dark:text-amber-300">Partial Payment Recorded</h3>
+            <p className="text-[12px] text-amber-600 dark:text-amber-400 mt-0.5">Remaining balance will activate for payment once all GRN items are received.</p>
           </div>
         </div>
-        
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <section className="bg-white dark:bg-[#1E293B] p-6 rounded-2xl border border-gray-100 dark:border-[#334155] shadow-sm space-y-4">
+            <h4 className="text-[11px] font-black text-amber-500 uppercase tracking-widest pb-3 border-b border-gray-100 dark:border-[#334155]">Partial Payment Details</h4>
+            <div className="grid grid-cols-2 gap-4">
+              <InfoItem label="Amount Paid" value={fmtCur(partialAmt)} highlight />
+              <InfoItem label="Remaining Balance" value={fmtCur(remaining)} />
+              <InfoItem label="Payment Date" value={formatDate(po.payment?.date)} />
+              <InfoItem label="Mode" value={po.payment?.mode} />
+              <InfoItem label="ERP Voucher Ref" value={po.payment?.ref} />
+              <InfoItem label="Debit Bank" value={po.payment?.bank} />
+              {po.payment?.utr && <InfoItem label="UTR" value={po.payment.utr} />}
+              <InfoItem label="Paid By" value={po.payment?.paidBy} />
+            </div>
+          </section>
+          <section className="bg-white dark:bg-[#1E293B] p-6 rounded-2xl border border-gray-100 dark:border-[#334155] shadow-sm space-y-4">
+            <h4 className="text-[11px] font-black text-gray-400 uppercase tracking-widest pb-3 border-b border-gray-100 dark:border-[#334155]">PO Summary</h4>
+            <div className="grid grid-cols-2 gap-4">
+              <InfoItem label="PO Total Value" value={fmtCur(totalVal)} />
+              <InfoItem label="GRN Status" value={po.status} />
+              <InfoItem label="Vendor" value={getSupplierName(po.supplier)} />
+              <InfoItem label="Project" value={po.project || po.location || "—"} />
+            </div>
+            <div className="mt-4 p-4 bg-gray-50 dark:bg-[#0F172A] rounded-xl border border-dashed border-gray-200 dark:border-[#334155] text-center">
+              <p className="text-[11px] text-gray-500 dark:text-gray-400 font-bold">Remaining items pending GRN delivery</p>
+              <p className="text-[11px] text-gray-400 dark:text-[#64748B] mt-1">Once remaining GRN is received, remaining balance payment will be enabled automatically.</p>
+            </div>
+          </section>
+        </div>
+        <AuditTrail log={po.auditTrail} />
+      </div>;
+  }
+  if (status === "paid" && !isEditingPayment) {
+    const paidAmt = po.payment?.amountPaid || po.totalValue || 0;
+    const vbd = po.payment?.vendorBankDetails;
+    return <div className="space-y-0">
+        {/* Payment History */}
+        {po.payment?.partialPayment && (
+          <div className="pb-6 mb-6 border-b border-gray-100 dark:border-[#334155]">
+            <h4 className="text-sm font-black text-gray-800 dark:text-white mb-5">Payment History</h4>
+            <div className="space-y-4">
+              <div className="p-4 bg-amber-50 dark:bg-amber-900/10 rounded-xl border border-amber-100 dark:border-amber-900/20">
+                <h5 className="text-[11px] font-black text-amber-600 dark:text-amber-400 mb-3 uppercase tracking-wider">First Installment (Partial Payment)</h5>
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                  <InfoItem label="Amount" value={fmtCur(po.payment.partialPayment.amount)} highlight />
+                  <InfoItem label="Date" value={formatDate(po.payment.partialPayment.date)} />
+                  <InfoItem label="Mode" value={po.payment.partialPayment.mode} />
+                  <InfoItem label="Reference" value={po.payment.partialPayment.ref || "—"} />
+                </div>
+              </div>
+              <div className="p-4 bg-green-50 dark:bg-green-900/10 rounded-xl border border-green-100 dark:border-green-900/20">
+                <h5 className="text-[11px] font-black text-green-700 dark:text-green-400 mb-3 uppercase tracking-wider">Final Installment (Remaining Balance)</h5>
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                  <InfoItem label="Amount" value={fmtCur(po.payment.amountPaid - po.payment.partialPayment.amount)} highlight />
+                  <InfoItem label="Date" value={formatDate(po.payment.date)} />
+                  <InfoItem label="Mode" value={po.payment.mode} />
+                  <InfoItem label="Reference" value={po.payment.ref || "—"} />
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Payment details */}
+        <div className="pb-6 mb-6 border-b border-gray-100 dark:border-[#334155]">
+          <h4 className="text-sm font-black text-gray-800 dark:text-white mb-5">Payment details</h4>
+          <div className="grid grid-cols-2 gap-x-8 gap-y-5">
+            <InfoItem label="From company" value={po.payment?.fromCompany || "Our company"} />
+            <InfoItem label="Paid to vendor" value={po.payment?.toCompany || getSupplierName(po.supplier)} />
+            <InfoItem label="Amount disbursed" value={fmtCur(paidAmt)} highlight />
+            <InfoItem label="Transaction mode" value={po.payment?.mode} />
+            <InfoItem label="Payment date" value={formatDate(po.payment?.date)} />
+            <InfoItem label="Debit bank" value={po.payment?.bank} />
+            <InfoItem label="ERP voucher ref" value={po.payment?.ref} />
+            <div>
+              <p className="text-[10px] font-black text-gray-400 dark:text-[#64748B] mb-1">Payment status</p>
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-green-100 dark:bg-green-500/20 text-green-700 dark:text-green-400 rounded-full text-[10px] font-black">
+                <span className="w-1.5 h-1.5 rounded-full bg-green-500 inline-block" /> Synced with Tally
+              </span>
+            </div>
+            {po.payment?.remarks && <div className="col-span-2"><InfoItem label="Accounting remarks" value={po.payment.remarks} /></div>}
+          </div>
+        </div>
+
+        {/* Beneficiary bank details */}
+        <div className="pb-6 mb-6 border-b border-gray-100 dark:border-[#334155]">
+          <h4 className="text-sm font-black text-gray-800 dark:text-white mb-5">Beneficiary bank details</h4>
+          {vbd ? (
+            <div className="grid grid-cols-2 gap-x-8 gap-y-5">
+              <InfoItem label="Account holder" value={vbd.accountHolder} />
+              <InfoItem label="Bank name" value={vbd.bankName} />
+              <InfoItem label="Account number" value={vbd.accountNo} />
+              <InfoItem label="IFSC code" value={vbd.branchIFSC} />
+              {vbd.branch && <InfoItem label="Branch" value={vbd.branch} />}
+            </div>
+          ) : (
+            <p className="text-[11px] text-gray-400 dark:text-[#64748B] italic">Bank details not recorded</p>
+          )}
+        </div>
+
+        {/* Transaction reference */}
+        {(po.payment?.utr || po.payment?.chequeNo) && (
+          <div className="pb-6 mb-6 border-b border-gray-100 dark:border-[#334155]">
+            <h4 className="text-sm font-black text-gray-800 dark:text-white mb-5">Transaction reference</h4>
+            <div className="grid grid-cols-2 gap-x-8 gap-y-5">
+              {po.payment?.utr && <div className="col-span-2">
+                <InfoItem label="UTR / Transaction reference" value={po.payment.utr} />
+              </div>}
+              {po.payment?.chequeNo && <>
+                <InfoItem label="Cheque no." value={po.payment.chequeNo} />
+                <InfoItem label="Cheque date" value={formatDate(po.payment.chequeDate)} />
+              </>}
+            </div>
+          </div>
+        )}
+
+        {/* Payment proof attachment */}
+        {po.payment?.screenshotUrl && (
+          <div className="pb-6 mb-6 border-b border-gray-100 dark:border-[#334155]">
+            <h4 className="text-sm font-black text-gray-800 dark:text-white mb-5">Payment proof attachment</h4>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="group relative rounded-xl overflow-hidden border border-gray-200 dark:border-[#334155] bg-gray-50 dark:bg-[#0F172A]/50 cursor-zoom-in"
+                onClick={() => window.open(po.payment.screenshotUrl, "_blank")}>
+                <img src={po.payment.screenshotUrl} alt="Payment proof" referrerPolicy="no-referrer"
+                  className="w-full object-contain max-h-[160px] hover:scale-[1.02] transition-transform duration-500" />
+                <div className="absolute inset-x-0 bottom-0 p-2 bg-white/90 dark:bg-[#0F172A]/90 backdrop-blur-sm border-t dark:border-[#334155] flex justify-between items-center opacity-0 group-hover:opacity-100 transition-opacity">
+                  <span className="text-[10px] font-bold text-gray-500 truncate pr-2">{po.payment.screenshotName || "payment_proof.png"}</span>
+                  <span className="text-[10px] font-black text-blue-500">View Full</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Internal tracking */}
+        <div className="pb-6 mb-6 border-b border-gray-100 dark:border-[#334155]">
+          <h4 className="text-sm font-black text-gray-800 dark:text-white mb-5">Internal tracking</h4>
+          <div className="grid grid-cols-2 gap-x-8 gap-y-5">
+            <InfoItem label="Bill approved by" value={po.billApprovedBy || po.auditTrail?.find(a => a.action?.includes("approve"))?.done_by || "Accounts Manager"} />
+            <div>
+              <p className="text-[10px] font-black text-gray-400 dark:text-[#64748B] mb-1">Status</p>
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-green-100 dark:bg-green-500/20 text-green-700 dark:text-green-400 rounded-full text-[10px] font-black">
+                <span className="w-1.5 h-1.5 rounded-full bg-green-500 inline-block" /> Paid
+              </span>
+            </div>
+          </div>
+          <button onClick={() => window.print()}
+            className="mt-4 flex items-center gap-2 text-[11px] font-black text-blue-500 hover:underline">
+            <Download className="w-3.5 h-3.5" /> Download Payment Advice
+          </button>
+        </div>
+
         <AuditTrail log={po.auditTrail} />
       </div>;
   }

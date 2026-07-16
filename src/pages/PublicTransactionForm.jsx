@@ -11,6 +11,7 @@ const PublicTransactionForm = /* @__PURE__ */ __name(({ type }) => {
     fetchPublicInventory,
     fetchPublicCatalogue,
     fetchPublicGatePasses,
+    fetchPublicSuppliers,
     submitPublicInward,
     submitPublicOutward,
     submitPublicInwardReturn,
@@ -26,6 +27,7 @@ const PublicTransactionForm = /* @__PURE__ */ __name(({ type }) => {
   const { projects: PROJECTS, categories: CATEGORIES, units: UNITS, sites: SITES } = settings;
   const COMBINED_STORES = (SITES || []).map(s => s.siteName);
   const [inventory, setInventory] = useState([]);
+  const [localSuppliers, setLocalSuppliers] = useState([]);
   const [availableGatePasses, setAvailableGatePasses] = useState([]);
   const [loadingField, setLoadingField] = useState(null);
   const [form, setForm] = useState({
@@ -122,6 +124,9 @@ const PublicTransactionForm = /* @__PURE__ */ __name(({ type }) => {
     }
   }, [type, fetchPublicGatePasses]);
   useEffect(() => {
+    fetchPublicSuppliers().then((s) => setLocalSuppliers(s || [])).catch(() => {});
+  }, [fetchPublicSuppliers]);
+  useEffect(() => {
     if (Object.keys(errors).length > 0) {
       scrollToError();
     }
@@ -163,6 +168,7 @@ const PublicTransactionForm = /* @__PURE__ */ __name(({ type }) => {
       if (!form.challanPhotos || form.challanPhotos.length === 0) newErrors.challanPhotos = "Challan Photo is required";
     } else if (type.includes("Outward Return")) {
       if (!form.personName) newErrors.personName = "Person Name is required";
+      if (!form.location) newErrors.location = "Location / Site is required";
     } else if (type.includes("Transfer")) {
       if (!form.destinationProject) newErrors.destinationProject = "Destination Project is required";
       if (form.destinationProject === "Other" && !form.otherDestProjectName) newErrors.otherDestProjectName = "Destination Project Name is required";
@@ -177,6 +183,7 @@ const PublicTransactionForm = /* @__PURE__ */ __name(({ type }) => {
         if (item.isMiscellaneous && !item.itemName) newErrors[`item_${idx}_itemName`] = `Item ${idx + 1}: Name is required`;
         if (!item.isMiscellaneous && !item.sku) newErrors[`item_${idx}_sku`] = `Item ${idx + 1}: SKU is required`;
         if (!item.qty || item.qty <= 0) newErrors[`item_${idx}_qty`] = `Item ${idx + 1}: Quantity is required`;
+        if (!item.images || item.images.length === 0) newErrors[`item_${idx}_photos`] = `Item ${idx + 1}: At least one photo is required`;
       });
     }
     setErrors(newErrors);
@@ -199,9 +206,12 @@ const PublicTransactionForm = /* @__PURE__ */ __name(({ type }) => {
       mrNo: form.items?.[0]?.mrNo || "",
       materialPhotoUrl: form.items?.[0]?.images?.[0] || "",
       challanPhotoUrl: form.challanPhotos?.[0] || "",
+      sourceSite: isOutwardReturn ? (form.location || form.project || form.store || "") : form.store || "",
       items: form.items?.map((item) => ({
         ...item,
         qty: Number(item.qty),
+        unit: item.unit || "Nos",
+        itemName: item.itemName || item.materialName || "",
         condition: (item.condition || form.condition || "New").toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase()),
         materialPhotoUrl: item.images?.[0] || ""
       }))
@@ -301,12 +311,18 @@ const PublicTransactionForm = /* @__PURE__ */ __name(({ type }) => {
     required
     error={errors.store}
   />}
-                {isInwardReturn && <Field
-    label="Supplier Name *"
-    value={form.supplier}
-    onChange={(e) => setForm((prev) => ({ ...prev, supplier: e.target.value }))}
-    required
+                {isInwardReturn && <SearchSelect
+    label="Supplier *"
+    value={form.supplier || ""}
+    onChange={(val) => setForm((prev) => ({ ...prev, supplier: val }))}
+    options={localSuppliers.map((v) => ({
+      value: v.id || v._id || v.companyName || v.name,
+      label: v.companyName || v.name,
+      subLabel: `${v.ownerName || v.contact || "N/A"} | ${v.mobile || v.phone || "N/A"}`
+    }))}
+    placeholder="Search supplier..."
     error={errors.supplier}
+    required
   />}
                 {isOutwardReturn && <Field
     label="Person Name *"
@@ -366,10 +382,10 @@ const PublicTransactionForm = /* @__PURE__ */ __name(({ type }) => {
     label="Condition *"
     value={form.condition}
     onChange={(e) => setForm((prev) => ({ ...prev, condition: e.target.value }))}
-    options={["New", "Good", "Needs Repair", "Damaged"]}
+    options={["New", "Good", "Needs Repair", "Damaged", "Old"]}
     required
   />}
-                {isTransfer && <Field
+                {(isTransfer || isOutwardReturn) && <Field
     label="Specific Location / Site *"
     value={form.location}
     onChange={(e) => setForm((prev) => ({ ...prev, location: e.target.value }))}
@@ -496,7 +512,7 @@ const PublicTransactionForm = /* @__PURE__ */ __name(({ type }) => {
   />
                             <MultipleImageUpload
     id={`item-photos-mob-${idx}`}
-    label="Material Photos"
+    label="Material Photos *"
     onUpload={(urls) => updateItem(idx, { images: [...item.images || [], ...urls] })}
     values={item.images || []}
     onRemove={(imgIdx) => {
@@ -505,6 +521,7 @@ const PublicTransactionForm = /* @__PURE__ */ __name(({ type }) => {
     }}
     small
     onUploadingChange={setIsUploading}
+    error={errors[`item_${idx}_photos`]}
   />
                           </div>
                         </Card>)}
@@ -618,6 +635,7 @@ const PublicTransactionForm = /* @__PURE__ */ __name(({ type }) => {
     }}
     small
     onUploadingChange={setIsUploading}
+    error={errors[`item_${idx}_photos`]}
   />
                                 </td>
                                 <td className="px-6 py-5 text-center align-top">

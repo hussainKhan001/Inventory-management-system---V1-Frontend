@@ -781,7 +781,7 @@ const GRNPage = /* @__PURE__ */ __name(() => {
                     disabled={isEditing}
                   />
                 )}
-                {(targetGRNId || (editingReceiptIdx !== null && !isEditing)) ? (
+                {(editingReceiptIdx !== null && !isEditing) ? (
                   <div className="flex items-center gap-3 p-3 bg-white/40 dark:bg-[#0F172A]/30 rounded-xl border border-gray-200/50 dark:border-gray-800/80 shadow-xs">
                     <div className="w-9 h-9 rounded-lg bg-orange-50 dark:bg-orange-950/30 flex items-center justify-center text-orange-600 dark:text-orange-400 shrink-0">
                       <Building2 className="w-5 h-5" />

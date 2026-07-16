@@ -19,6 +19,18 @@ import {
   X
 } from "lucide-react";
 import { fmtCur, genId, scrollToError } from "../utils";
+const CONDITION_OPTIONS = ["New", "Good", "Needs Repair", "Damaged", "Old"];
+const GST_TYPE_OPTIONS = ["Exclusive", "Inclusive"];
+function calcChargeTotal(amount, gstPct, gstType) {
+  if (!amount) return 0;
+  return gstType === "Exclusive" ? amount * (1 + gstPct / 100) : amount;
+}
+function calcItemTotal(item) {
+  const qty = Number(item.qty) || 0;
+  const rate = Number(item.rate) || 0;
+  const gstPct = Number(item.gstPct) || 0;
+  return (item.gstType || "Exclusive") === "Inclusive" ? qty * rate : qty * rate * (1 + gstPct / 100);
+}
 import { cn } from "../lib/utils";
 import { api } from "../services/api";
 import { Search } from "lucide-react";
@@ -65,11 +77,11 @@ const PublicPO = /* @__PURE__ */ __name(() => {
     requirementBy: "",
     location: "",
     date: (/* @__PURE__ */ new Date()).toISOString(),
-    priceComparison: {
-      vendors: [],
-      items: [],
-      remarks: ""
-    }
+    priceComparison: { vendors: [], items: [], remarks: "" },
+    freightAmount: 0, freightGstPct: 18, freightGstType: "Exclusive",
+    loadingAmount: 0, loadingGstPct: 18, loadingGstType: "Exclusive",
+    unloadingAmount: 0, unloadingGstPct: 18, unloadingGstType: "Exclusive",
+    gstNo: "", panNo: "", vendorAddress: "", vendorContact: ""
   };
   const formatPrettyDate = /* @__PURE__ */ __name((dateString) => {
     if (!dateString) return "";
@@ -148,7 +160,10 @@ const PublicPO = /* @__PURE__ */ __name(() => {
       return;
     }
     try {
-      const totalValue = form.items.reduce((sum, item) => sum + (item.totalWithGST || 0), 0);
+      const totalValue = form.items.reduce((sum, item) => sum + calcItemTotal(item), 0) +
+        calcChargeTotal(form.freightAmount || 0, form.freightGstPct ?? 18, form.freightGstType || "Exclusive") +
+        calcChargeTotal(form.loadingAmount || 0, form.loadingGstPct ?? 18, form.loadingGstType || "Exclusive") +
+        calcChargeTotal(form.unloadingAmount || 0, form.unloadingGstPct ?? 18, form.unloadingGstType || "Exclusive");
       const payload = {
         ...form,
         id: genId("PUB-PO", Date.now() % 1e4),
@@ -172,6 +187,7 @@ const PublicPO = /* @__PURE__ */ __name(() => {
       unit: invItem.unit || "Nos",
       rate: 0,
       gstPct: 18,
+      gstType: "Exclusive",
       total: 0,
       totalWithGST: 0,
       currentStock: invItem.liveStock || 0,
@@ -242,12 +258,13 @@ const PublicPO = /* @__PURE__ */ __name(() => {
   const updateItem = /* @__PURE__ */ __name((index, field, value) => {
     const items = [...form.items];
     const item = { ...items[index], [field]: value };
-    if (field === "qty" || field === "rate" || field === "gstPct") {
-      const qty = field === "qty" ? Number(value) : item.qty;
-      const rate = field === "rate" ? Number(value) : item.rate;
-      const gstPct = field === "gstPct" ? Number(value) : item.gstPct;
+    if (field === "qty" || field === "rate" || field === "gstPct" || field === "gstType") {
+      const qty = field === "qty" ? Number(value) : Number(item.qty) || 0;
+      const rate = field === "rate" ? Number(value) : Number(item.rate) || 0;
+      const gstPct = field === "gstPct" ? Number(value) : Number(item.gstPct) || 0;
+      const gstType = field === "gstType" ? value : (item.gstType || "Exclusive");
       item.total = qty * rate;
-      item.totalWithGST = item.total * (1 + gstPct / 100);
+      item.totalWithGST = gstType === "Inclusive" ? item.total : item.total * (1 + gstPct / 100);
     }
     items[index] = item;
     setForm((prev) => ({ ...prev, items }));
@@ -454,7 +471,17 @@ const PublicPO = /* @__PURE__ */ __name(() => {
   /> : <SearchSelect
     label="Supplier *"
     value={form.supplier || ""}
-    onChange={(val) => setForm((prev) => ({ ...prev, supplier: val }))}
+    onChange={(val) => {
+      const s = localSuppliers.find((v) => (v.id || v._id || v.companyName || v.name) === val);
+      setForm((prev) => ({
+        ...prev,
+        supplier: val,
+        gstNo: s?.gstNumber || s?.gst || prev.gstNo || "",
+        panNo: s?.panNumber || prev.panNo || "",
+        vendorAddress: s?.address || prev.vendorAddress || "",
+        vendorContact: s?.mobile || s?.phone || prev.vendorContact || ""
+      }));
+    }}
     options={localSuppliers.map((v) => ({
       value: v.id || v._id || v.companyName || v.name,
       label: v.companyName || v.name,
@@ -462,6 +489,24 @@ const PublicPO = /* @__PURE__ */ __name(() => {
     }))}
     error={errors.supplier}
     required
+  />}
+              {form.gstNo && <Field
+    label="Vendor GST No."
+    value={form.gstNo}
+    onChange={(e) => setForm((prev) => ({ ...prev, gstNo: e.target.value }))}
+    placeholder="Vendor GSTIN"
+  />}
+              {form.panNo && <Field
+    label="Vendor PAN No."
+    value={form.panNo}
+    onChange={(e) => setForm((prev) => ({ ...prev, panNo: e.target.value }))}
+    placeholder="Vendor PAN"
+  />}
+              {form.vendorContact && <Field
+    label="Vendor Contact"
+    value={form.vendorContact}
+    onChange={(e) => setForm((prev) => ({ ...prev, vendorContact: e.target.value }))}
+    placeholder="Contact number"
   />}
               <Field
     label="Location"
@@ -633,8 +678,7 @@ const PublicPO = /* @__PURE__ */ __name(() => {
     onChange={(e) => updateItem(idx, "condition", e.target.value)}
     className="w-full px-2 py-1.5 border border-gray-200 dark:border-gray-800 rounded-lg text-[13px] bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white"
   >
-                            <option value="New">New</option>
-                            <option value="Old">Old</option>
+                            {CONDITION_OPTIONS.map((c) => <option key={c} value={c}>{c}</option>)}
                           </select>
                         </div>
                         <div>
@@ -648,7 +692,7 @@ const PublicPO = /* @__PURE__ */ __name(() => {
                         </div>
                       </div>
 
-                      <div className="grid grid-cols-2 gap-3 mb-3">
+                      <div className="grid grid-cols-3 gap-3 mb-3">
                         <div>
                           <label className="block text-[10px] text-gray-400 font-bold mb-1">Rate</label>
                           <input
@@ -670,11 +714,21 @@ const PublicPO = /* @__PURE__ */ __name(() => {
                             {gstOptions.map((opt) => <option key={opt.key} value={opt.value}>{opt.label}</option>)}
                           </select>
                         </div>
+                        <div>
+                          <label className="block text-[10px] text-gray-400 font-bold mb-1">GST Type</label>
+                          <select
+    value={item.gstType || "Exclusive"}
+    onChange={(e) => updateItem(idx, "gstType", e.target.value)}
+    className="w-full px-2 py-1.5 border border-gray-200 dark:border-gray-800 rounded-lg text-[13px] bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white"
+  >
+                            {GST_TYPE_OPTIONS.map((t) => <option key={t} value={t}>{t}</option>)}
+                          </select>
+                        </div>
                       </div>
 
                       <div className="flex justify-between items-center pt-3 border-t border-gray-100 dark:border-gray-800">
                         <span className="text-[12px] font-bold text-gray-900 dark:text-white">Total with GST</span>
-                        <span className="text-[14px] font-black text-orange-600 dark:text-orange-400">{fmtCur(item.totalWithGST || 0)}</span>
+                        <span className="text-[14px] font-black text-orange-600 dark:text-orange-400">{fmtCur(calcItemTotal(item))}</span>
                       </div>
 
                       {linkingIndex === idx && <div className="absolute inset-0 z-30 bg-white dark:bg-gray-900 p-4 animate-in slide-in-from-bottom-full duration-300">
@@ -718,13 +772,14 @@ const PublicPO = /* @__PURE__ */ __name(() => {
                     <thead className="sticky top-0 z-10">
                       <tr className="bg-gray-50 dark:bg-gray-800/50 border-b border-gray-100 dark:border-gray-800 shadow-sm">
                         <th className="px-3 py-3 text-[10px] font-bold text-gray-500 dark:text-gray-400 tracking-wider min-w-[150px]">Item</th>
-                        <th className="px-3 py-3 text-[10px] font-bold text-gray-500 dark:text-gray-400 tracking-wider w-20">Stock</th>
-                        <th className="px-3 py-3 text-[10px] font-bold text-gray-500 dark:text-gray-400 tracking-wider w-20 text-center">Unit</th>
-                        <th className="px-3 py-3 text-[10px] font-bold text-gray-500 dark:text-gray-400 tracking-wider w-16">Req qty</th>
-                        <th className="px-3 py-3 text-[10px] font-bold text-gray-500 dark:text-gray-400 tracking-wider w-24">Condition</th>
-                        <th className="px-3 py-3 text-[10px] font-bold text-gray-500 dark:text-gray-400 tracking-wider w-20">Order qty</th>
-                        <th className="px-3 py-3 text-[10px] font-bold text-gray-500 dark:text-gray-400 tracking-wider w-28">Rate (₹)</th>
-                        <th className="px-3 py-3 text-[10px] font-bold text-gray-500 dark:text-gray-400 tracking-wider w-24">Gst %</th>
+                        <th className="px-3 py-3 text-[10px] font-bold text-gray-500 dark:text-gray-400 tracking-wider w-16">Stock</th>
+                        <th className="px-3 py-3 text-[10px] font-bold text-gray-500 dark:text-gray-400 tracking-wider w-16 text-center">Unit</th>
+                        <th className="px-3 py-3 text-[10px] font-bold text-gray-500 dark:text-gray-400 tracking-wider w-14">Req qty</th>
+                        <th className="px-3 py-3 text-[10px] font-bold text-gray-500 dark:text-gray-400 tracking-wider w-28">Condition</th>
+                        <th className="px-3 py-3 text-[10px] font-bold text-gray-500 dark:text-gray-400 tracking-wider w-16">Qty</th>
+                        <th className="px-3 py-3 text-[10px] font-bold text-gray-500 dark:text-gray-400 tracking-wider w-24">Rate (₹)</th>
+                        <th className="px-3 py-3 text-[10px] font-bold text-gray-500 dark:text-gray-400 tracking-wider w-20">GST %</th>
+                        <th className="px-3 py-3 text-[10px] font-bold text-gray-500 dark:text-gray-400 tracking-wider w-24">GST Type</th>
                         <th className="px-3 py-3 text-[10px] font-bold text-gray-500 dark:text-gray-400 tracking-wider text-right">Total</th>
                         <th className="px-3 py-3 text-[10px] font-bold text-gray-500 dark:text-gray-400 tracking-wider w-10" />
                       </tr>
@@ -844,8 +899,7 @@ const PublicPO = /* @__PURE__ */ __name(() => {
     onChange={(e) => updateItem(idx, "condition", e.target.value)}
     className="w-full px-2 py-1.5 border border-gray-200 dark:border-gray-800 rounded-lg text-[13px] bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500 outline-none"
   >
-                               <option value="New">New</option>
-                               <option value="Old">Old</option>
+                               {CONDITION_OPTIONS.map((c) => <option key={c} value={c}>{c}</option>)}
                              </select>
                           </td>
                           <td className="px-3 py-3">
@@ -875,8 +929,17 @@ const PublicPO = /* @__PURE__ */ __name(() => {
                               {gstOptions.map((opt) => <option key={opt.key} value={opt.value}>{opt.label}</option>)}
                             </select>
                           </td>
+                          <td className="px-3 py-3">
+                            <select
+    value={item.gstType || "Exclusive"}
+    onChange={(e) => updateItem(idx, "gstType", e.target.value)}
+    className="w-full px-2 py-1.5 border border-gray-200 dark:border-gray-800 rounded-lg text-[13px] bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500 outline-none"
+  >
+                              {GST_TYPE_OPTIONS.map((t) => <option key={t} value={t}>{t}</option>)}
+                            </select>
+                          </td>
                           <td className="px-3 py-3 text-[13px] font-black text-right text-gray-900 dark:text-white">
-                            {fmtCur(item.totalWithGST || 0)}
+                            {fmtCur(calcItemTotal(item))}
                           </td>
                           <td className="px-3 py-3 text-right">
                             <button
@@ -903,12 +966,79 @@ const PublicPO = /* @__PURE__ */ __name(() => {
             </div>
           </div>
 
+          <div className="space-y-6 pt-4 border-t border-gray-100 dark:border-gray-800">
+            <label className="text-[11px] font-bold text-gray-500 tracking-widest block border-b border-gray-100 dark:border-gray-800 pb-2">3. Additional charges</label>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {[
+                { label: "Freight", amtKey: "freightAmount", gstKey: "freightGstPct", typeKey: "freightGstType" },
+                { label: "Loading", amtKey: "loadingAmount", gstKey: "loadingGstPct", typeKey: "loadingGstType" },
+                { label: "Unloading", amtKey: "unloadingAmount", gstKey: "unloadingGstPct", typeKey: "unloadingGstType" }
+              ].map(({ label, amtKey, gstKey, typeKey }) => (
+                <div key={label} className="p-4 bg-gray-50 dark:bg-gray-800/30 rounded-xl border border-gray-100 dark:border-gray-800 space-y-3">
+                  <p className="text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wide">{label}</p>
+                  <Field
+                    label="Amount (₹)"
+                    type="number"
+                    value={form[amtKey] || ""}
+                    onChange={(e) => setForm((prev) => ({ ...prev, [amtKey]: Number(e.target.value) || 0 }))}
+                    placeholder="0"
+                  />
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="block text-[11px] font-bold text-gray-500 mb-1">GST %</label>
+                      <select
+                        value={form[gstKey] ?? 18}
+                        onChange={(e) => setForm((prev) => ({ ...prev, [gstKey]: Number(e.target.value) }))}
+                        className="w-full px-2 py-1.5 border border-gray-200 dark:border-gray-700 rounded-lg text-[13px] bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
+                      >
+                        {gstOptions.map((opt) => <option key={opt.key} value={opt.value}>{opt.label}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-bold text-gray-500 mb-1">GST Type</label>
+                      <select
+                        value={form[typeKey] || "Exclusive"}
+                        onChange={(e) => setForm((prev) => ({ ...prev, [typeKey]: e.target.value }))}
+                        className="w-full px-2 py-1.5 border border-gray-200 dark:border-gray-700 rounded-lg text-[13px] bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
+                      >
+                        {GST_TYPE_OPTIONS.map((t) => <option key={t} value={t}>{t}</option>)}
+                      </select>
+                    </div>
+                  </div>
+                  {form[amtKey] > 0 && (
+                    <p className="text-[11px] font-bold text-orange-600 dark:text-orange-400 tabular-nums">
+                      Total: {fmtCur(calcChargeTotal(form[amtKey], form[gstKey] ?? 18, form[typeKey] || "Exclusive"))}
+                    </p>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+
           <div className="flex flex-col md:flex-row items-center justify-between gap-8 pt-8 border-t border-gray-100 dark:border-gray-800">
-            <div className="text-center md:text-left">
-              <p className="text-xs font-bold text-gray-400 tracking-widest mb-1">Total purchase value</p>
-              <p className="text-2xl font-bold text-gray-900 dark:text-white tracking-tight">
-                {fmtCur(form.items.reduce((sum, item) => sum + (item.totalWithGST || 0), 0))}
-              </p>
+            <div className="text-center md:text-left space-y-1">
+              {[
+                { label: "Items subtotal", val: form.items.reduce((s, it) => s + calcItemTotal(it), 0) },
+                { label: "Freight", val: calcChargeTotal(form.freightAmount || 0, form.freightGstPct ?? 18, form.freightGstType || "Exclusive"), hide: !form.freightAmount },
+                { label: "Loading", val: calcChargeTotal(form.loadingAmount || 0, form.loadingGstPct ?? 18, form.loadingGstType || "Exclusive"), hide: !form.loadingAmount },
+                { label: "Unloading", val: calcChargeTotal(form.unloadingAmount || 0, form.unloadingGstPct ?? 18, form.unloadingGstType || "Exclusive"), hide: !form.unloadingAmount }
+              ].filter((r) => !r.hide).map((r) => (
+                <div key={r.label} className="flex items-center gap-4">
+                  <span className="text-xs font-bold text-gray-400 tracking-widest min-w-[100px]">{r.label}</span>
+                  <span className="text-sm font-bold text-gray-700 dark:text-gray-300 tabular-nums">{fmtCur(r.val)}</span>
+                </div>
+              ))}
+              <div className="flex items-center gap-4 pt-1 border-t border-gray-200 dark:border-gray-700">
+                <span className="text-xs font-black text-gray-500 tracking-widest min-w-[100px]">Grand total</span>
+                <span className="text-2xl font-bold text-gray-900 dark:text-white tracking-tight tabular-nums">
+                  {fmtCur(
+                    form.items.reduce((s, it) => s + calcItemTotal(it), 0) +
+                    calcChargeTotal(form.freightAmount || 0, form.freightGstPct ?? 18, form.freightGstType || "Exclusive") +
+                    calcChargeTotal(form.loadingAmount || 0, form.loadingGstPct ?? 18, form.loadingGstType || "Exclusive") +
+                    calcChargeTotal(form.unloadingAmount || 0, form.unloadingGstPct ?? 18, form.unloadingGstType || "Exclusive")
+                  )}
+                </span>
+              </div>
             </div>
             <div className="flex gap-4 w-full md:w-auto">
               <Btn

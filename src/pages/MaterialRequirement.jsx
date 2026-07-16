@@ -122,7 +122,7 @@ export function MaterialRequirementPage() {
   // { "mrId:sku": true } — per-item allocation in progress
   const [allocLoading, setAllocLoading] = useState({});
   // GRN Allocation Modal
-  const [grnAllocModal, setGrnAllocModal] = useState(null); // { mr, receivedQtyBySku }
+  const [grnAllocModal, setGrnAllocModal] = useState(null); // { mr, receivedQtyBySku, receivedQtyByName }
   const [grnAllocStore, setGrnAllocStore] = useState("");
 
   const getStoreStock = (inv, store) => {
@@ -803,15 +803,22 @@ export function MaterialRequirementPage() {
                 ["GRN Pending", "GRN Fulfilled", "GRN Variance", "Ready for Payment", "PO Closed", "Closed"].includes(p.status)
               );
               const mrPoIds = new Set(linkedPos.map(p => p.id));
-              // Sum received qty per SKU from all confirmed GRNs for this MR
+              // Sum received qty — keyed by SKU and by item name as fallback
               const receivedQtyBySku = {};
+              const receivedQtyByName = {};
               grns
-                .filter(g => mrPoIds.has(g.poId) && ["Confirmed", "Over-Received", "Partial"].includes(g.status))
+                .filter(g => mrPoIds.has(g.poId))
                 .forEach(g => {
                   (g.items || []).forEach(gi => {
+                    const rcv = gi.received ?? gi.qty ?? 0;
+                    if (rcv <= 0) return;
                     const sku = (gi.sku || "").trim();
                     if (sku && sku.toUpperCase() !== "N/A") {
-                      receivedQtyBySku[sku] = (receivedQtyBySku[sku] || 0) + (gi.received ?? gi.qty ?? 0);
+                      receivedQtyBySku[sku] = (receivedQtyBySku[sku] || 0) + rcv;
+                    }
+                    const name = (gi.itemName || "").trim().toLowerCase();
+                    if (name) {
+                      receivedQtyByName[name] = (receivedQtyByName[name] || 0) + rcv;
                     }
                   });
                 });
@@ -842,7 +849,7 @@ export function MaterialRequirementPage() {
                       {(hasPermission("ALLOCATE_MR") || hasPermission("MANAGE_INVENTORY")) && (
                         <button
                           className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg text-[11px] font-bold transition-all shadow-sm shadow-emerald-500/20"
-                          onClick={e => { e.stopPropagation(); setGrnAllocModal({ mr, receivedQtyBySku }); setGrnAllocStore(""); }}
+                          onClick={e => { e.stopPropagation(); setGrnAllocModal({ mr, receivedQtyBySku, receivedQtyByName }); setGrnAllocStore(""); }}
                         >
                           <Check className="w-3.5 h-3.5" />
                           <span>Allocate</span>
@@ -855,7 +862,8 @@ export function MaterialRequirementPage() {
                       {mr.items.map((item, idx) => {
                         const isAllocated = ["Allocated", "Issued"].includes(item.status || "");
                         const noSku = !item.sku || item.sku.toUpperCase() === "N/A";
-                        const received = receivedQtyBySku[(item.sku || "").trim()] || 0;
+                        const received = receivedQtyBySku[(item.sku || "").trim()] ||
+                          receivedQtyByName[(item.materialName || "").trim().toLowerCase()] || 0;
                         const maxQty = Math.max(0, received - (item.allocatedQty || 0));
                         const statusChip = isAllocated
                           ? { label: "ALLOCATED", cls: "bg-emerald-100 dark:bg-emerald-900/40 text-emerald-600 dark:text-emerald-400" }
@@ -1176,7 +1184,8 @@ export function MaterialRequirementPage() {
 
       {/* GRN Allocation Modal */}
       {grnAllocModal && (() => {
-        const { mr, receivedQtyBySku: rqbs } = grnAllocModal;
+        const { mr, receivedQtyBySku: rqbs, receivedQtyByName: rqbn = {} } = grnAllocModal;
+        const getRcv = (sku, name) => rqbs[(sku || "").trim()] || rqbn[(name || "").trim().toLowerCase()] || 0;
         const SITES = (settings?.sites || []).map(s => s.siteName).filter(Boolean);
         return (
           <Modal
@@ -1200,11 +1209,11 @@ export function MaterialRequirementPage() {
                           const sku = (i.sku || "").trim();
                           if (!sku || sku.toUpperCase() === "N/A") return false;
                           if (["Allocated", "Issued"].includes(i.status || "")) return false;
-                          return Math.max(0, (rqbs[sku] || 0) - (i.allocatedQty || 0)) > 0;
+                          return Math.max(0, getRcv(sku, i.materialName) - (i.allocatedQty || 0)) > 0;
                         })
                         .map(i => {
                           const sku = i.sku.trim();
-                          const maxQ = Math.max(0, (rqbs[sku] || 0) - (i.allocatedQty || 0));
+                          const maxQ = Math.max(0, getRcv(sku, i.materialName) - (i.allocatedQty || 0));
                           const qty = Math.min(allocQtys[mr.id]?.[sku] ?? maxQ, maxQ);
                           return { sku, qty, store: grnAllocStore };
                         })
@@ -1246,7 +1255,7 @@ export function MaterialRequirementPage() {
                         if (!sku || sku.toUpperCase() === "N/A") return;
                         const invItem = inventory.find(i => i.sku === sku);
                         const storeStock = getStoreStock(invItem, site);
-                        const received = rqbs[sku] || 0;
+                        const received = getRcv(sku, item.materialName);
                         const maxQ = Math.max(0, received - (item.allocatedQty || 0));
                         setItemAllocQty(mr.id, sku, Math.min(maxQ, storeStock));
                       });
@@ -1276,7 +1285,7 @@ export function MaterialRequirementPage() {
                 const sku = (item.sku || "").trim();
                 const isAllocated = ["Allocated", "Issued"].includes(item.status || "");
                 const noSku = !sku || sku.toUpperCase() === "N/A";
-                const received = rqbs[sku] || 0;
+                const received = getRcv(sku, item.materialName);
                 const alreadyAllocated = item.allocatedQty || 0;
                 const maxQty = Math.max(0, received - alreadyAllocated);
                 const invItem = inventory.find(i => i.sku === sku);

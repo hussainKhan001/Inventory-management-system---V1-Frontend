@@ -163,7 +163,9 @@ const PublicOutward = /* @__PURE__ */ __name(() => {
       newErrors.items = "Please add at least one item";
     } else {
       form.items.forEach((item, idx) => {
+        if (!item.sku) newErrors[`item_${idx}_sku`] = `Item ${idx + 1}: Please select a material`;
         if (!item.qty || item.qty <= 0) newErrors[`item_${idx}_qty`] = `Item ${idx + 1}: Quantity is required`;
+        if (!item.images || item.images.length === 0) newErrors[`item_${idx}_images`] = `Item ${idx + 1}: At least one photo is required`;
         const inv = inventory.find((i) => i.sku === item.sku);
         if (inv) {
           const available = getStoreStock(inv, form.store);
@@ -192,6 +194,8 @@ const PublicOutward = /* @__PURE__ */ __name(() => {
       items: form.items?.map((item) => ({
         ...item,
         qty: Number(item.qty),
+        unit: item.unit || "Nos",
+        itemName: item.itemName || "",
         condition: (item.condition || "Good").toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase()),
         materialPhotoUrl: item.images?.[0] || ""
       }))
@@ -378,6 +382,7 @@ const PublicOutward = /* @__PURE__ */ __name(() => {
     type="number"
     placeholder="0"
     error={errors[`item_${idx}_qty`]}
+    helperText={item.allocatedQty ? `Allocated: ${item.allocatedQty}` : undefined}
   />
                               <div className="space-y-1">
                                 <p className="text-[11px] font-bold text-gray-500 tracking-wider mb-1">Unit</p>
@@ -386,6 +391,12 @@ const PublicOutward = /* @__PURE__ */ __name(() => {
                                 </div>
                               </div>
                             </div>
+                            <Field
+    label="MR No."
+    value={item.mrNo || ""}
+    onChange={(e) => updateItem(idx, { mrNo: e.target.value })}
+    placeholder="MR-XXXX"
+  />
                             <MultipleImageUpload
     id={`item-photos-mob-${idx}`}
     label="Material Photos *"
@@ -408,10 +419,12 @@ const PublicOutward = /* @__PURE__ */ __name(() => {
                         <table className="w-full border-collapse">
                           <thead>
                             <tr className="bg-gray-50 dark:bg-gray-800/50 border-b border-gray-200 dark:border-gray-800 [&>th:first-child]:rounded-tl-[11px] [&>th:last-child]:rounded-tr-[11px]">
-                              <th className="px-4 py-3 text-[11px] font-bold text-gray-500 dark:text-gray-400 text-left w-[30%]">Material Description *</th>
-                              <th className="px-4 py-3 text-[11px] font-bold text-gray-500 dark:text-gray-400 text-right w-[12%]">Issue Qty *</th>
-                              <th className="px-4 py-3 text-[11px] font-bold text-gray-500 dark:text-gray-400 text-center w-[10%]">Unit</th>
-                              <th className="px-4 py-3 text-[11px] font-bold text-gray-500 dark:text-gray-400 w-[30%]">Photos *</th>
+                              <th className="px-4 py-3 text-[11px] font-bold text-gray-500 dark:text-gray-400 text-left w-[25%]">Material Description *</th>
+                              {form.mrId && <th className="px-4 py-3 text-[11px] font-bold text-gray-500 dark:text-gray-400 text-right w-[10%]">Allocated</th>}
+                              <th className="px-4 py-3 text-[11px] font-bold text-gray-500 dark:text-gray-400 text-right w-[10%]">Issue Qty *</th>
+                              <th className="px-4 py-3 text-[11px] font-bold text-gray-500 dark:text-gray-400 text-center w-[8%]">Unit</th>
+                              <th className="px-4 py-3 text-[11px] font-bold text-gray-500 dark:text-gray-400 w-[12%]">MR No.</th>
+                              <th className="px-4 py-3 text-[11px] font-bold text-gray-500 dark:text-gray-400 w-[25%]">Photos *</th>
                               <th className="px-4 py-3 text-[11px] font-bold text-gray-500 dark:text-gray-400 w-10 text-center" />
                             </tr>
                           </thead>
@@ -431,19 +444,38 @@ const PublicOutward = /* @__PURE__ */ __name(() => {
                                       {item.itemName}
                                     </div>}
                                 </td>
+                                {form.mrId && <td className="px-4 py-5 align-top text-right">
+                                    <div className="flex flex-col items-end">
+                                      <span className="text-[14px] font-black text-blue-500 font-mono">{item.allocatedQty || 0}</span>
+                                      <span className="text-[9px] text-gray-400 font-black tracking-widest leading-none mt-1">Alloc.</span>
+                                    </div>
+                                  </td>}
                                 <td className="px-4 py-5 align-top">
-                                  <input
+                                  <div className="relative">
+                                    <input
     type="number"
     value={item.qty || 0}
     onChange={(e) => updateItem(idx, { qty: Number(e.target.value) })}
     placeholder="0"
     className="w-full px-2 py-2 bg-white dark:bg-gray-900 border-2 border-gray-100 dark:border-gray-800 rounded-xl text-[14px] font-black text-center sm:text-right focus:outline-none focus:border-orange-500 transition-all shadow-sm [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
   />
+                                    {item.allocatedQty > 0 && (item.qty || 0) > item.allocatedQty && <div className="absolute -top-2 -right-1 px-1.5 py-0.5 bg-red-500 text-white text-[8px] font-black rounded">
+                                        Exceeds!
+                                      </div>}
+                                  </div>
                                 </td>
                                 <td className="px-6 py-5 align-top">
                                   <div className="px-3 py-2 bg-gray-100 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-xl text-[11px] font-bold text-gray-500 text-center mt-0.5">
                                     {item.unit}
                                   </div>
+                                </td>
+                                <td className="px-6 py-5 align-top">
+                                  <input
+    value={item.mrNo || ""}
+    onChange={(e) => updateItem(idx, { mrNo: e.target.value })}
+    placeholder="MR-XXXX"
+    className="w-full px-3 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-[13px] font-bold text-orange-600 focus:outline-none focus:ring-2 focus:ring-[#F97316]/20"
+  />
                                 </td>
                                 <td className="px-4 py-5 align-top">
                                   <MultipleImageUpload

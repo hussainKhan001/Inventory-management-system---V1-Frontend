@@ -10,6 +10,7 @@ const PublicInward = /* @__PURE__ */ __name(() => {
   const {
     fetchPublicInventory,
     fetchPublicCatalogue,
+    fetchPublicSuppliers,
     submitPublicInward,
     uploadPublicImage,
     actionLoading,
@@ -34,6 +35,7 @@ const PublicInward = /* @__PURE__ */ __name(() => {
     condition: "New"
   };
   const [inventory, setInventory] = useState([]);
+  const [localSuppliers, setLocalSuppliers] = useState([]);
   const [loadingField, setLoadingField] = useState(null);
   const [form, setForm] = useState(INITIAL_FORM);
   const [errors, setErrors] = useState({});
@@ -80,8 +82,12 @@ const PublicInward = /* @__PURE__ */ __name(() => {
   useEffect(() => {
     const loadData = /* @__PURE__ */ __name(async () => {
       try {
-        const inv = await fetchPublicInventory();
+        const [inv, spps] = await Promise.all([
+          fetchPublicInventory(),
+          fetchPublicSuppliers()
+        ]);
         setInventory(inv);
+        setLocalSuppliers(spps || []);
       } catch (error) {
         toast.error("Failed to load inventory data");
       } finally {
@@ -126,7 +132,9 @@ const PublicInward = /* @__PURE__ */ __name(() => {
       newErrors.items = "Please add at least one item";
     } else {
       form.items.forEach((item, idx) => {
+        if (!item.sku) newErrors[`item_${idx}_sku`] = `Item ${idx + 1}: Please select a material`;
         if (!item.qty || item.qty <= 0) newErrors[`item_${idx}_qty`] = `Item ${idx + 1}: Quantity is required`;
+        if (!item.images || item.images.length === 0) newErrors[`item_${idx}_photos`] = `Item ${idx + 1}: At least one photo is required`;
       });
     }
     setErrors(newErrors);
@@ -150,6 +158,8 @@ const PublicInward = /* @__PURE__ */ __name(() => {
         ...item,
         received: Number(item.qty),
         qty: Number(item.qty),
+        unit: item.unit || "Nos",
+        itemName: item.itemName || "",
         condition: (item.condition || form.condition || "New").toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase()),
         materialPhotoUrl: item.images?.[0] || ""
       }))
@@ -223,10 +233,16 @@ const PublicInward = /* @__PURE__ */ __name(() => {
     required
     error={errors.store}
   />
-                <Field
+                <SearchSelect
     label="Supplier"
-    value={form.supplier}
-    onChange={(e) => setForm((prev) => ({ ...prev, supplier: e.target.value }))}
+    value={form.supplier || ""}
+    onChange={(val) => setForm((prev) => ({ ...prev, supplier: val }))}
+    options={localSuppliers.map((v) => ({
+      value: v.id || v._id || v.companyName || v.name,
+      label: v.companyName || v.name,
+      subLabel: `${v.ownerName || v.contact || "N/A"} | ${v.mobile || v.phone || "N/A"}`
+    }))}
+    placeholder="Search supplier..."
   />
                 <Field
     label="Challan / Invoice No. *"
@@ -321,7 +337,7 @@ const PublicInward = /* @__PURE__ */ __name(() => {
   />
                             <MultipleImageUpload
     id={`item-photos-mob-${idx}`}
-    label="Material Photos"
+    label="Material Photos *"
     onUpload={(urls) => updateItem(idx, { images: [...item.images || [], ...urls] })}
     values={item.images || []}
     onRemove={(imgIdx) => {
@@ -330,6 +346,7 @@ const PublicInward = /* @__PURE__ */ __name(() => {
     }}
     small
     onUploadingChange={setIsUploading}
+    error={errors[`item_${idx}_photos`]}
   />
                           </div>
                         </Card>)}
@@ -398,6 +415,7 @@ const PublicInward = /* @__PURE__ */ __name(() => {
     }}
     small
     onUploadingChange={setIsUploading}
+    error={errors[`item_${idx}_photos`]}
   />
                                 </td>
                                 <td className="px-6 py-5 text-center align-top">
