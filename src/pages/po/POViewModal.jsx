@@ -7,6 +7,7 @@ import { useAppStore } from "../../store";
 import { fmtCur, formatDateTime, safeStr } from "../../utils";
 import { cn } from "../../lib/utils";
 import toast from "react-hot-toast";
+import { generatePOPDF } from "../../utils/pdfGenerator";
 import {
   calcChargeTotal, normalizeTimelineType,
   computeTimelineDates, formatPrettyDate,
@@ -159,7 +160,7 @@ export function POViewModal({ po, onClose, onApproveL1, onApproveL2, onApproveL3
       {po.status === "PO Closed" && hasPermission("CLOSE_PURCHASE_ORDER") && (
         <Btn label="Reopen PO" color="green" icon={RotateCcw} onClick={handleReopenPO} loading={actionLoading} />
       )}
-      <Btn label="Download PO PDF" icon={Download} onClick={() => onDownloadPDF(po)} className="bg-orange-500 hover:bg-orange-600 text-white border-none shadow-lg shadow-orange-500/20 font-bold" />
+      <Btn label="Download PO PDF" icon={Download} onClick={() => { if (onDownloadPDF) { onDownloadPDF(po); } else { const s = suppliers.find(x => x.id === po.supplier || x._id === po.supplier); generatePOPDF(po, s, settings); } }} className="bg-orange-500 hover:bg-orange-600 text-white border-none shadow-lg shadow-orange-500/20 font-bold" />
       <Btn label="Close" outline onClick={onClose} className="px-8 border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800" />
     </div>
   );

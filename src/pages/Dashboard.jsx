@@ -203,7 +203,7 @@ const SiteEngineerDashboard = /* @__PURE__ */ __name(({ user, plans, materialReq
         </Card>}
     </div>;
 }, "SiteEngineerDashboard");
-const AGMDashboard = /* @__PURE__ */ __name(({ user, plans, materialRequirements, mrAllocations, planRevisions, pos, quotations, role }) => {
+const AGMDashboard = /* @__PURE__ */ __name(({ user, plans, materialRequirements, mrAllocations, planRevisions, pos, quotations, stats, role }) => {
   const myName = user?.name || "";
   const myPlans = useMemo(
     () => role === "AGM" ? plans.filter((p) =>
@@ -226,14 +226,9 @@ const AGMDashboard = /* @__PURE__ */ __name(({ user, plans, materialRequirements
     () => (pos || []).filter((po) => po.status === "Pending L1"),
     [pos]
   );
-  const pendingAllPOs = useMemo(
-    () => (pos || []).filter((po) => ["Pending", "Pending L1", "Pending L2", "Pending L3"].includes(po.status)),
-    [pos]
-  );
-  const pendingQuotations = useMemo(
-    () => (quotations || []).filter((q) => !["Approved", "Rejected", "PO Created", "Cancelled"].includes(q.status)),
-    [quotations]
-  );
+  // Use accurate backend counts (not limited by frontend fetch size)
+  const pendingAllPOsCount = stats?.allPendingPOCount ?? (pos || []).filter((po) => ["Pending", "Pending L1", "Pending L2", "Pending L3"].includes(po.status)).length;
+  const pendingQuotationsCount = stats?.pendingQuotationCount ?? (quotations || []).filter((q) => q.status === "Pending").length;
   const projectStats = useMemo(
     () => myProjects.map((proj) => {
       const projPlans = myPlans.filter((p) => p.project === proj);
@@ -257,8 +252,8 @@ const AGMDashboard = /* @__PURE__ */ __name(({ user, plans, materialRequirements
         <KPICard label="Active Plans" value={myPlans.length} icon={Layers} color="orange" sub="Material plans" />
         <KPICard label="Pending L1 POs" value={pendingL1POs.length} icon={FileText} color={pendingL1POs.length > 0 ? "red" : "green"} sub="Awaiting L1 approval" />
         <KPICard label="Pending MRs" value={pendingMRs.length} icon={ClipboardList} color={pendingMRs.length > 0 ? "orange" : "green"} sub="Awaiting store action" />
-        <KPICard label="Pending Quotations" value={pendingQuotations.length} icon={FileText} color={pendingQuotations.length > 0 ? "orange" : "green"} sub="Under review" />
-        <KPICard label="PO Pending" value={pendingAllPOs.length} icon={ShoppingCart} color={pendingAllPOs.length > 0 ? "red" : "green"} sub="All approval stages" />
+        <KPICard label="Pending Quotations" value={pendingQuotationsCount} icon={FileText} color={pendingQuotationsCount > 0 ? "orange" : "green"} sub="Under review" />
+        <KPICard label="PO Pending" value={pendingAllPOsCount} icon={ShoppingCart} color={pendingAllPOsCount > 0 ? "red" : "green"} sub="All approval stages" />
       </div>
 
       {
@@ -367,8 +362,11 @@ const StoreInchargeDashboard = /* @__PURE__ */ __name(({ stats, materialRequirem
   const storePending = materialRequirements.filter((mr) => mr.status === "Store Pending");
   const approvedByStore = materialRequirements.filter((mr) => mr.status === "Approved by Store");
   const recentAllocations = [...mrAllocations].sort((a, b) => new Date(b.allocationDate).getTime() - new Date(a.allocationDate).getTime()).slice(0, 6);
-  const grnPending = useMemo(() => (pos || []).filter((p) => p.status === "GRN Pending").length, [pos]);
-  const outwardPending = useMemo(() => mrAllocations.filter((a) => (a.issuedQty || 0) < (a.allocatedQty || 0)).length, [mrAllocations]);
+  // Use backend stats for accurate counts (not limited by frontend fetch size)
+  const mrPendingCount = stats?.mrStatusCounts?.["Store Pending"] ?? storePending.length;
+  const allocationPendingCount = stats?.mrStatusCounts?.["Approved by Store"] ?? approvedByStore.length;
+  const grnPendingCount = stats?.grnPendingPOCount ?? (pos || []).filter((p) => ["GRN Pending", "GRN Variance"].includes(p.status)).length;
+  const outwardPendingCount = stats?.outwardPendingCount ?? mrAllocations.filter((a) => (a.issuedQty || 0) < (a.allocatedQty || 0)).length;
   return <div className="space-y-6 pb-12">
       <div className="flex items-end justify-between">
         <PageHeader title="Store Dashboard" sub="Pending allocations, stock alerts and recent activity" />
@@ -382,10 +380,10 @@ const StoreInchargeDashboard = /* @__PURE__ */ __name(({ stats, materialRequirem
     /* KPIs */
   }
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <KPICard label="MR Pending" value={storePending.length} icon={Clock} color={storePending.length > 0 ? "red" : "green"} sub="Awaiting store review" />
-        <KPICard label="Allocation Pending" value={approvedByStore.length} icon={CircleCheck} color={approvedByStore.length > 0 ? "orange" : "green"} sub="Approved, not allocated" />
-        <KPICard label="GRN Pending" value={grnPending} icon={PackageCheck} color={grnPending > 0 ? "orange" : "green"} sub="POs awaiting GRN" />
-        <KPICard label="Outward Pending" value={outwardPending} icon={ArrowUpRight} color={outwardPending > 0 ? "orange" : "green"} sub="Allocated, not issued" />
+        <KPICard label="MR Pending" value={mrPendingCount} icon={Clock} color={mrPendingCount > 0 ? "red" : "green"} sub="Awaiting store review" />
+        <KPICard label="Allocation Pending" value={allocationPendingCount} icon={CircleCheck} color={allocationPendingCount > 0 ? "orange" : "green"} sub="Approved, not allocated" />
+        <KPICard label="GRN Pending" value={grnPendingCount} icon={PackageCheck} color={grnPendingCount > 0 ? "orange" : "green"} sub="POs awaiting GRN" />
+        <KPICard label="Outward Pending" value={outwardPendingCount} icon={ArrowUpRight} color={outwardPendingCount > 0 ? "orange" : "green"} sub="Allocated, not issued" />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -788,17 +786,21 @@ const Dashboard = /* @__PURE__ */ __name(() => {
   const showAGM = hasPermission("VIEW_AGM_DASHBOARD") || ["AGM", "Project Manager", "Head"].includes(role || "");
   const showStore = hasPermission("VIEW_STORE_DASHBOARD") || role === "Store Incharge";
   const showAdmin = hasPermission("VIEW_ADMIN_DASHBOARD") || ["Super Admin", "Director", "admin"].includes(role || "");
+  const showProcurement = role === "Purchase coordinator" || role === "Inventory Manager" || role === "Accountant" || role === "manager";
   if (showAdmin) {
     return <AdminDashboard stats={stats} pos={pos} loading={loading} plans={plans} materialRequirements={materialRequirements} planRevisions={planRevisions} settings={settings} />;
   }
   if (showAGM) {
-    return <AGMDashboard user={user} plans={plans} materialRequirements={materialRequirements} mrAllocations={mrAllocations} planRevisions={planRevisions} pos={pos} quotations={quotations} role={role} />;
+    return <AGMDashboard user={user} plans={plans} materialRequirements={materialRequirements} mrAllocations={mrAllocations} planRevisions={planRevisions} pos={pos} quotations={quotations} stats={stats} role={role} />;
   }
   if (showStore) {
     return <StoreInchargeDashboard stats={stats} materialRequirements={materialRequirements} mrAllocations={mrAllocations} pos={pos} loading={loading} />;
   }
   if (showEngineer) {
     return <SiteEngineerDashboard user={user} plans={plans} materialRequirements={materialRequirements} mrAllocations={mrAllocations} />;
+  }
+  if (showProcurement) {
+    return <AGMDashboard user={user} plans={plans} materialRequirements={materialRequirements} mrAllocations={mrAllocations} planRevisions={planRevisions} pos={pos} quotations={quotations} stats={stats} role={role} />;
   }
   return <AdminDashboard stats={stats} pos={pos} loading={loading} plans={plans} materialRequirements={materialRequirements} planRevisions={planRevisions} settings={settings} />;
 }, "Dashboard");

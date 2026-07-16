@@ -22,6 +22,8 @@ import { genId, scrollToError, formatDateTime, safeStr } from "../utils";
 import { cn } from "../lib/utils";
 import { toast } from "react-hot-toast";
 import { api } from "../services/api";
+import { POViewModal } from "./po/POViewModal";
+import { GRNDetailModal } from "../components/GRNDetailModal";
 const GRNPage = /* @__PURE__ */ __name(() => {
   const {
     grns,
@@ -115,6 +117,7 @@ const GRNPage = /* @__PURE__ */ __name(() => {
   const [modal, setModal] = useState(false);
   const [viewModal, setViewModal] = useState(false);
   const [selectedGRN, setSelectedGRN] = useState(null);
+  const [previewPO, setPreviewPO] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
   const [targetGRNId, setTargetGRNId] = useState(null);
   const [errors, setErrors] = useState({});
@@ -426,7 +429,7 @@ const GRNPage = /* @__PURE__ */ __name(() => {
           <SearchFilter
     value={search}
     onChange={setSearch}
-    placeholder="Search by GRN ID, PO No, Supplier or Project..."
+    placeholder="Search by GRN ID, PO No, MR No, Supplier or Project..."
     className="flex-1 min-w-[240px]"
   />
           <DateRangePicker
@@ -538,7 +541,7 @@ const GRNPage = /* @__PURE__ */ __name(() => {
                     {safeStr(grn.store)}
                   </span>}
                   <span className="block truncate text-[11px] text-gray-500" title={safeStr(grn.vendor || grn.supplier)}>
-                    {safeStr(grn.vendor || grn.supplier)}
+                    {(() => { const s = suppliers.find(x => x.id === (grn.vendor || grn.supplier)); return s ? (s.companyName || s.name) : safeStr(grn.vendor || grn.supplier); })()}
                   </span>
                 </div>
               </Td>
@@ -668,334 +671,23 @@ const GRNPage = /* @__PURE__ */ __name(() => {
       </div>
 
 
-      {viewModal && selectedGRN && <Modal
-    title={`GRN Details: ${selectedGRN.id}`}
-    extraWide
+      {viewModal && selectedGRN && <GRNDetailModal
+    grn={selectedGRN}
     onClose={() => setViewModal(false)}
-    footer={<div className="flex justify-end gap-3 w-full">
-              <Btn
-      label="Download PDF"
-      icon={Download}
-      className="rounded-xl h-10 text-[13px] bg-[#F97316] text-white border-none shadow-lg shadow-orange-500/20"
-      onClick={() => toast.success("Preparing PDF...")}
-    />
-              <Btn
-      label="Close"
-      outline
-      className="rounded-xl h-10 w-28 text-[13px]"
-      onClick={() => setViewModal(false)}
-    />
-            </div>}
-  >
-          <div className="space-y-8 pb-4">
-            {
-    /* Modal Header & Header Information */
-  }
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-0 border border-gray-100 dark:border-gray-800 rounded-2xl overflow-hidden shadow-sm">
-              {
-    /* Left Side: Receipt Information */
-  }
-              <div className="divide-y divide-gray-100 dark:divide-gray-800 bg-white dark:bg-gray-900">
-                <div className="bg-gray-50/50 dark:bg-gray-800/30 p-2.5 font-black text-[10px] text-gray-500 flex items-center gap-2">
-                   <div className="w-1.5 h-3.5 bg-orange-500 rounded-full" />
-                   Receipt information
-                </div>
-                <div className="grid grid-cols-12 items-center">
-                  <div className="col-span-4 p-3 text-[11px] font-bold text-gray-400 border-r border-gray-100 dark:border-gray-800">Grn no.</div>
-                  <div className="col-span-8 px-4 py-2.5 text-[14px] font-black text-gray-900 dark:text-white tracking-tight">{selectedGRN.id}</div>
-                </div>
-                <div className="grid grid-cols-12 items-center">
-                  <div className="col-span-4 p-3 text-[11px] font-bold text-gray-400 border-r border-gray-100 dark:border-gray-800">Po reference</div>
-                  <div className="col-span-8 px-4 py-2 text-[13px] font-bold text-orange-600 dark:text-orange-400">{selectedGRN.poId}</div>
-                </div>
-                <div className="grid grid-cols-12 items-center">
-                  <div className="col-span-4 p-3 text-[11px] font-bold text-gray-400 border-r border-gray-100 dark:border-gray-800">Mr reference</div>
-                  <div className="col-span-8 px-4 py-2 text-[13px] font-medium text-gray-700 dark:text-gray-300">
-                    <span className="bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded text-[11px] font-bold text-gray-600 dark:text-gray-400">
-                      {selectedGRN.mrNo || "N/a"}
-                    </span>
-                  </div>
-                </div>
-                <div className="grid grid-cols-12 items-center">
-                  <div className="col-span-4 p-3 text-[11px] font-bold text-gray-400 border-r border-gray-100 dark:border-gray-800">Project/site</div>
-                  <div className="col-span-8 px-4 py-2.5 text-[13px] font-bold text-gray-900 dark:text-white">{selectedGRN.project}</div>
-                </div>
-                {selectedGRN.store && <div className="grid grid-cols-12 items-center">
-                  <div className="col-span-4 p-3 text-[11px] font-bold text-gray-400 border-r border-gray-100 dark:border-gray-800">Store / Godown</div>
-                  <div className="col-span-8 px-4 py-2.5 text-[13px] font-bold text-orange-600 dark:text-orange-400">{selectedGRN.store}</div>
-                </div>}
-              </div>
-
-              {
-    /* Right Side: Supplier & Delivery Details */
-  }
-              <div className="divide-y divide-gray-100 dark:divide-gray-800 border-l border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-900">
-                <div className="bg-gray-50/50 dark:bg-gray-800/30 p-2.5 font-black text-[10px] text-gray-500 flex items-center gap-2">
-                   <div className="w-1.5 h-3.5 bg-orange-500 rounded-full" />
-                   Supplier & source
-                </div>
-                <div className="grid grid-cols-12 items-center">
-                  <div className="col-span-4 p-3 text-[11px] font-bold text-gray-400 border-r border-gray-100 dark:border-gray-800">Vendor name</div>
-                  <div className="col-span-8 px-4 py-2.5 flex flex-col">
-                    <span className="text-[14px] font-black text-gray-900 dark:text-white tracking-tight">
-                      {(() => {
-    const supplierId = selectedGRN.vendor || selectedGRN.supplier;
-    const supplier = suppliers.find((s) => s.id === supplierId);
-    return supplier ? supplier.companyName || supplier.name : supplierId;
-  })()}
-                    </span>
-                    {(() => {
-    const supplierId = selectedGRN.vendor || selectedGRN.supplier;
-    const supplier = suppliers.find((s) => s.id === supplierId);
-    return supplier && (supplier.gstNumber || supplier.gst) ? <span className="text-[11px] text-gray-400 font-medium italic">
-                            GST: {supplier.gstNumber || supplier.gst}
-                          </span> : null;
-  })()}
-                  </div>
-                </div>
-                <div className="grid grid-cols-12 items-center">
-                  <div className="col-span-4 p-3 text-[11px] font-bold text-gray-400 border-r border-gray-100 dark:border-gray-800">Receipt date</div>
-                  <div className="col-span-8 px-4 py-2.5 text-[13px] font-bold text-gray-700 dark:text-gray-300">
-                    {formatDateTime(selectedGRN.date)}
-                  </div>
-                </div>
-                <div className="grid grid-cols-12 items-center">
-                  <div className="col-span-4 p-3 text-[11px] font-bold text-gray-400 border-r border-gray-100 dark:border-gray-800">Challan/inv</div>
-                  <div className="col-span-8 px-4 py-2.5 text-[13px] font-black text-blue-500 dark:text-blue-400">
-                    {selectedGRN.challan}
-                  </div>
-                </div>
-                <div className="grid grid-cols-12 items-center">
-                  <div className="col-span-4 p-3 text-[11px] font-bold text-gray-400 border-r border-gray-100 dark:border-gray-800">Received by</div>
-                  <div className="col-span-8 px-4 py-2.5 text-[13px] font-bold text-gray-900 dark:text-white">
-                    {selectedGRN.personName || "System auto"}
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {
-    /* Items Table */
-  }
-            <div className="space-y-4">
-              <div className="flex items-center gap-2">
-                <div className="h-0.5 w-4 bg-[#F97316]" />
-                <h3 className="text-[12px] font-bold text-gray-900 dark:text-white">Received materials</h3>
-              </div>
-              
-              <div className="overflow-hidden rounded-xl border border-gray-100 dark:border-gray-800">
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left border-collapse">
-                    <thead>
-                      <tr className="bg-gray-50/90 dark:bg-gray-800/90 backdrop-blur-md border-b border-[#E8ECF0] dark:border-gray-800">
-                        <th className="px-5 py-3 text-[11px] font-bold text-[#6B7280] dark:text-gray-400 tracking-wider">Material description</th>
-                        <th className="px-5 py-3 text-[11px] font-bold text-[#6B7280] dark:text-gray-400 tracking-wider text-center">Ordered</th>
-                        <th className="px-5 py-3 text-[11px] font-bold text-[#6B7280] dark:text-gray-400 tracking-wider text-center">Received</th>
-                        <th className="px-5 py-3 text-[11px] font-bold text-[#6B7280] dark:text-gray-400 tracking-wider text-center">Variance</th>
-                        <th className="px-5 py-3 text-[11px] font-bold text-[#6B7280] dark:text-gray-400 tracking-wider text-center">Unit</th>
-                        <th className="px-5 py-3 text-[11px] font-bold text-[#6B7280] dark:text-gray-400 tracking-wider">Photos</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-50 dark:divide-gray-800">
-                      {(selectedGRN.items || []).map((item, idx) => {
-    const ordered = item.ordered || 0;
-    const received = item.received || 0;
-    const variance = received - ordered;
-    return <tr key={idx} className="hover:bg-gray-50/30 dark:hover:bg-gray-800/10 transition-colors">
-                            <td className="px-5 py-4">
-                              <div className="flex flex-col">
-                                <span className="text-[13px] font-semibold text-gray-900 dark:text-white">
-                                  {item.itemName || item.name || item.material || "Unknown Item"}
-                                </span>
-                                <span className="text-[11px] text-gray-500">
-                                  {item.sku}
-                                </span>
-                              </div>
-                            </td>
-                            <td className="px-5 py-4 text-center text-[13px] text-gray-500">
-                              {ordered}
-                            </td>
-                            <td className="px-5 py-4 text-center">
-                              <span className="text-[14px] font-bold text-gray-900 dark:text-white">
-                                {received}
-                              </span>
-                            </td>
-                            <td className="px-5 py-4 text-center">
-                               <span className={cn(
-      "text-[12px] font-bold",
-      variance === 0 ? "text-gray-400" : variance > 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-500 dark:text-red-400"
-    )}>
-                                 {variance > 0 ? `+${variance}` : variance}
-                               </span>
-                            </td>
-                            <td className="px-5 py-4 text-center">
-                               <span className="text-[11px] font-medium text-gray-500 bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded">
-                                 {item.unit}
-                               </span>
-                            </td>
-                            <td className="px-5 py-4">
-                              <div className="flex -space-x-2 overflow-hidden">
-                                {(item.images || []).map((img, i) => <img
-      key={i}
-      src={img}
-      className="w-8 h-8 rounded-lg border-2 border-white dark:border-gray-900 shadow-sm object-cover cursor-pointer hover:z-10 hover:scale-110 transition-transform"
-      onClick={() => setPreviewImage(img)}
-      referrerPolicy="no-referrer"
-    />)}
-                              </div>
-                            </td>
-                          </tr>;
-  })}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </div>
-
-            {/* Delivery History */}
-            {(selectedGRN.receipts?.length > 0) && (
-              <div className="space-y-3">
-                <div className="flex items-center gap-2">
-                  <div className="h-0.5 w-4 bg-[#F97316]" />
-                  <h3 className="text-[12px] font-bold text-gray-900 dark:text-white">
-                    Delivery history ({(selectedGRN.receipts?.length || 0) + 1} shipments)
-                  </h3>
-                </div>
-                <div className="relative pl-1">
-                  <div className="absolute left-3.5 top-5 bottom-5 w-0.5 bg-gray-200 dark:bg-gray-700" />
-                  <div className="space-y-3">
-                    {/* Initial delivery */}
-                    <div className="flex gap-3 items-start">
-                      <div className="w-7 h-7 rounded-full bg-orange-500 border-2 border-white dark:border-gray-900 flex items-center justify-center shrink-0 shadow-sm">
-                        <span className="text-[9px] font-bold text-white">1</span>
-                      </div>
-                      <div className="flex-1 bg-gray-50 dark:bg-gray-800/50 rounded-xl p-3 border border-gray-100 dark:border-gray-800">
-                        <div className="flex items-center justify-between mb-1.5">
-                          <span className="text-[12px] font-bold text-gray-900 dark:text-white">Shipment 1 (Initial)</span>
-                          <div className="flex items-center gap-2">
-                            {selectedGRN.challan && <span className="text-[10px] font-medium text-blue-500 bg-blue-50 dark:bg-blue-900/20 px-2 py-0.5 rounded">{selectedGRN.challan}</span>}
-                            <span className="text-[10px] text-gray-400">{formatDateTime(selectedGRN.date)}</span>
-                          </div>
-                        </div>
-                        <div className="space-y-1">
-                          {(selectedGRN.items || []).map((item, i) => {
-                            const laterReceipts = (selectedGRN.receipts || []).reduce((sum, r) => {
-                              const ri = (r.items || []).find((ri) => ri.sku === item.sku);
-                              return sum + (ri?.received || 0);
-                            }, 0);
-                            const initialReceived = (item.received || 0) - laterReceipts;
-                            if (initialReceived <= 0) return null;
-                            return (
-                              <div key={i} className="flex items-center justify-between text-[12px]">
-                                <span className="text-gray-600 dark:text-gray-400">{item.itemName}</span>
-                                <span className="font-bold text-gray-900 dark:text-white">+{initialReceived} <span className="text-gray-400 font-normal">{item.unit}</span></span>
-                              </div>
-                            );
-                          })}
-                        </div>
-                        {selectedGRN.personName && <p className="mt-1.5 text-[10px] text-gray-400">By: <span className="font-medium text-gray-600 dark:text-gray-300">{selectedGRN.personName}</span></p>}
-                      </div>
-                    </div>
-                    {/* Additional receipts */}
-                    {(selectedGRN.receipts || []).map((receipt, idx) => (
-                      <div key={idx} className="flex gap-3 items-start">
-                        <div className="w-7 h-7 rounded-full bg-emerald-500 border-2 border-white dark:border-gray-900 flex items-center justify-center shrink-0 shadow-sm">
-                          <span className="text-[9px] font-bold text-white">{idx + 2}</span>
-                        </div>
-                        <div className="flex-1 bg-gray-50 dark:bg-gray-800/50 rounded-xl p-3 border border-gray-100 dark:border-gray-800">
-                          <div className="flex items-center justify-between mb-1.5">
-                            <span className="text-[12px] font-bold text-gray-900 dark:text-white">Shipment {idx + 2}</span>
-                            <div className="flex items-center gap-2">
-                              {receipt.challan && <span className="text-[10px] font-medium text-blue-500 bg-blue-50 dark:bg-blue-900/20 px-2 py-0.5 rounded">{receipt.challan}</span>}
-                              <span className="text-[10px] text-gray-400">{formatDateTime(receipt.date)}</span>
-                              {hasPermission("EDIT_GRN_RECEIPT") && (
-                                <button
-                                  onClick={() => {
-                                    const receiptToEdit = receipt;
-                                    const receiptItems = (receiptToEdit.items || []).map(ri => {
-                                      const grnItem = selectedGRN.items.find(gi => gi.sku === ri.sku);
-                                      const totalReceived = grnItem?.received ?? ri.received ?? 0;
-                                      const ordered = grnItem?.ordered ?? 0;
-                                      const otherTotal = totalReceived - (ri.received ?? 0);
-                                      const maxQty = Math.max(0, ordered - otherTotal);
-                                      return {
-                                        sku: ri.sku,
-                                        itemName: ri.itemName || grnItem?.itemName || ri.sku,
-                                        ordered: maxQty,
-                                        poOrdered: ordered,
-                                        alreadyReceived: otherTotal,
-                                        received: ri.received ?? 0,
-                                        variance: (ri.received ?? 0) - maxQty,
-                                        unit: grnItem?.unit || ri.unit || "NOS",
-                                        images: ri.images || []
-                                      };
-                                    });
-                                    setEditingReceiptIdx(idx);
-                                    setNewGRN({
-                                      poId: selectedGRN.poId,
-                                      store: selectedGRN.store || "",
-                                      challan: receiptToEdit.challan || "",
-                                      mrNo: receiptToEdit.mrNo || "",
-                                      docType: receiptToEdit.docType || "Challan",
-                                      personName: receiptToEdit.personName || "",
-                                      challanPhotos: receiptToEdit.challanPhotos || [],
-                                      personPhotos: receiptToEdit.personPhotos || [],
-                                      items: receiptItems,
-                                      vendor: selectedGRN.supplier,
-                                      supplier: selectedGRN.supplier,
-                                    });
-                                    setModal(true);
-                                  }}
-                                  className="p-1 rounded text-orange-500 hover:bg-orange-50 dark:hover:bg-orange-900/20 transition-colors"
-                                  title="Edit shipment"
-                                >
-                                  <Pencil className="w-3 h-3" />
-                                </button>
-                              )}
-                            </div>
-                          </div>
-
-                          <div className="space-y-1">
-                            {(receipt.items || []).map((item, i) => (
-                              <div key={i} className="flex items-center justify-between text-[12px]">
-                                <span className="text-gray-600 dark:text-gray-400">{item.itemName}</span>
-                                <span className="font-bold text-gray-900 dark:text-white">
-                                  +{item.received} <span className="text-gray-400 font-normal">{selectedGRN.items.find((gi) => gi.sku === item.sku)?.unit || ""}</span>
-                                </span>
-                              </div>
-                            ))}
-                          </div>
-                          {receipt.personName && <p className="mt-1.5 text-[10px] text-gray-400">By: <span className="font-medium text-gray-600 dark:text-gray-300">{receipt.personName}</span></p>}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {
-    /* Floating Documents Section */
-  }
-            <div className="flex flex-col md:flex-row items-center justify-between gap-6 pt-4">
-              <div className="flex items-center gap-4">
-                {selectedGRN.challanPhotos && selectedGRN.challanPhotos.length > 0 && <div className="flex gap-2">
-                    {selectedGRN.challanPhotos.map((img, i) => <div
-    key={i}
-    className="p-1 rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 cursor-pointer hover:shadow-lg transition-shadow"
-    onClick={() => setPreviewImage(img)}
-  >
-                        <img
-    src={img}
-    className="w-16 h-16 rounded-lg object-cover"
-    referrerPolicy="no-referrer"
+    onEditReceipt={(idx, receipt) => {
+      const receiptItems = (receipt.items || []).map(ri => {
+        const grnItem = selectedGRN.items.find(gi => gi.sku === ri.sku);
+        const totalReceived = grnItem?.received ?? ri.received ?? 0;
+        const ordered = grnItem?.ordered ?? 0;
+        const otherTotal = totalReceived - (ri.received ?? 0);
+        const maxQty = Math.max(0, ordered - otherTotal);
+        return { sku: ri.sku, itemName: ri.itemName || grnItem?.itemName || ri.sku, ordered: maxQty, poOrdered: ordered, alreadyReceived: otherTotal, received: ri.received ?? 0, variance: (ri.received ?? 0) - maxQty, unit: grnItem?.unit || ri.unit || "NOS", images: ri.images || [] };
+      });
+      setEditingReceiptIdx(idx);
+      setNewGRN({ poId: selectedGRN.poId, store: selectedGRN.store || "", challan: receipt.challan || "", mrNo: receipt.mrNo || "", docType: receipt.docType || "Challan", personName: receipt.personName || "", challanPhotos: receipt.challanPhotos || [], personPhotos: receipt.personPhotos || [], items: receiptItems, vendor: selectedGRN.supplier, supplier: selectedGRN.supplier });
+      setModal(true);
+    }}
   />
-                      </div>)}
-                  </div>}
-              </div>
-            </div>
-          </div>
-        </Modal>}
 
       {modal && <Modal
     title={
@@ -1529,6 +1221,7 @@ const GRNPage = /* @__PURE__ */ __name(() => {
           </div>
         </>
       )}
+    {previewPO && <POViewModal po={previewPO} onClose={() => setPreviewPO(null)} />}
     </div>;
 }, "GRNPage");
 export {

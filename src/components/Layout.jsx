@@ -158,10 +158,9 @@ const Layout = /* @__PURE__ */ __name(({ children }) => {
     }
   }, "handleLogout");
   const visibleNav = ROUTES.filter((item) => {
-    if (item.permission) {
-      return hasPermission(item.permission);
-    }
-    return item.roles.includes(role || "");
+    const byPermission = item.permission ? hasPermission(item.permission) : false;
+    const byRole = item.roles.includes(role || "");
+    return byPermission || byRole;
   });
   const getCount = /* @__PURE__ */ __name((id) => {
     switch (id) {

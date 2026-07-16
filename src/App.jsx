@@ -193,7 +193,7 @@ const AppContent = /* @__PURE__ */ __name(() => {
         if (!visitedRoutes.has(id)) return null;
         const route = ROUTES.find(r => r.id === id);
         if (route) {
-          const isAllowed = route.permission ? hasPermission(route.permission) : route.roles.includes(role || "");
+          const isAllowed = (route.permission ? hasPermission(route.permission) : false) || route.roles.includes(role || "");
           if (!isAllowed) return null;
         }
         return (

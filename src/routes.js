@@ -39,7 +39,7 @@ const ROUTES = [
     id: "dashboard",
     label: "Dashboard",
     icon: LayoutDashboard,
-    roles: ["Super Admin", "Director", "AGM"],
+    roles: ["Super Admin", "Director", "AGM", "Head", "Project Manager", "Store Incharge", "Site Engineer", "Purchase coordinator", "Inventory Manager", "Accountant", "admin", "manager"],
     permission: "VIEW_DASHBOARD"
   },
   {

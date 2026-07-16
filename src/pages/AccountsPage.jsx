@@ -10,7 +10,6 @@ import {
   ShieldAlert,
   XSquare,
   Info,
-  ArrowRight,
   Upload,
   Download,
   Search,
@@ -24,14 +23,17 @@ import {
   Package,
   IndianRupee,
   Check,
-  X,
-  RefreshCw
+  RefreshCw,
+  Pencil,
+  Trash2
 } from "lucide-react";
 import { fmtCur, formatDate, calculatePriceComparison } from "../utils";
 import { cn } from "../lib/utils";
 import { generatePOPDF } from "../utils/pdfGenerator";
-import { StatusBadge, PageHeader, Card } from "../components/ui";
-import { POPreviewModal } from "../components/POPreviewModal";
+import { StatusBadge, PageHeader, Card, ConfirmModal, Modal, Btn } from "../components/ui";
+import { SearchFilter, DateRangePicker, SelectFilter, FilterRow } from "../components/ui/Filters";
+import { POViewModal } from "./po/POViewModal";
+import { GRNDetailModal } from "../components/GRNDetailModal";
 import { api } from "../services/api";
 import { toast } from "react-hot-toast";
 import emailjs from "@emailjs/browser";
@@ -68,6 +70,14 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
   });
   const fileInputRef = useRef(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [search, setSearch] = useState("");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+  const [filterVendor, setFilterVendor] = useState("");
+  const [filterProject, setFilterProject] = useState("");
+  const [deleteConfirmPO, setDeleteConfirmPO] = useState(null);
+  const [isDeletingPayment, setIsDeletingPayment] = useState(false);
+  const [isEditingPayment, setIsEditingPayment] = useState(false);
   useEffect(() => {
     if (!paymentForm.toCompany) return;
     const supplierName = paymentForm.toCompany.toLowerCase();
@@ -119,7 +129,7 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
     const pendingVerify = all.filter((p) => {
       const accStatus = (p.accountStatus || "").toLowerCase();
       const poStatus = (p.status || "").toLowerCase();
-      return accStatus === "bill_verify" || !accStatus && ["approved", "fulfilled", "grn pending", "grn fulfilled", "grn variance"].includes(poStatus);
+      return accStatus === "bill_verify" || !accStatus && ["grn fulfilled", "grn variance", "ready for payment"].includes(poStatus);
     }).length;
     const paidThisMonth = all.filter((p) => {
       const accStatus = (p.accountStatus || "").toLowerCase();
@@ -137,6 +147,14 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
       rejectedCount: all.filter((p) => (p.accountStatus || "").toLowerCase() === "rejected").length
     };
   }, [pos]);
+  const vendorOptions = useMemo(
+    () => suppliers.map((s) => ({ label: s.companyName || s.name || s.id, value: s.id || s._id })),
+    [suppliers]
+  );
+  const projectOptions = useMemo(
+    () => [...new Set((pos || []).map((p) => p.project || p.location).filter(Boolean))].map((v) => ({ label: v, value: v })),
+    [pos]
+  );
   const filteredPOs = useMemo(() => {
     const all = pos || [];
     return all.filter((p) => {
@@ -144,20 +162,36 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
       const poStatus = (p.status || "").toLowerCase();
       let status = accStatus;
       if (!status) {
-        if (["approved", "fulfilled", "grn pending", "grn fulfilled", "grn variance"].includes(poStatus)) {
+        if (["grn fulfilled", "grn variance", "ready for payment"].includes(poStatus)) {
           status = "bill_verify";
         } else {
           status = "other";
         }
       }
-      if (filter === "All") return ["bill_verify", "payment_pending", "paid", "rejected"].includes(status);
-      if (filter === "Verify Bills") return status === "bill_verify";
-      if (filter === "Pending Payment") return status === "payment_pending";
-      if (filter === "Paid") return status === "paid";
-      if (filter === "Rejected") return status === "rejected";
+      if (filter === "All" && !["bill_verify", "payment_pending", "paid", "rejected"].includes(status)) return false;
+      if (filter === "Verify Bills" && status !== "bill_verify") return false;
+      if (filter === "Pending Payment" && status !== "payment_pending") return false;
+      if (filter === "Paid" && status !== "paid") return false;
+      if (filter === "Rejected" && status !== "rejected") return false;
+      if (search) {
+        const q = search.toLowerCase();
+        const vendorName = getSupplierName(p.supplier).toLowerCase();
+        if (!p.id?.toLowerCase().includes(q) && !vendorName.includes(q)) return false;
+      }
+      if (startDate || endDate) {
+        const d = p.createdAt ? new Date(p.createdAt) : null;
+        if (!d) return false;
+        if (startDate && d < new Date(startDate)) return false;
+        if (endDate && d > new Date(endDate + "T23:59:59")) return false;
+      }
+      if (filterVendor) {
+        const sup = suppliers.find((s) => s.id === p.supplier || s._id === p.supplier);
+        if ((sup?.id || sup?._id) !== filterVendor && p.supplier !== filterVendor) return false;
+      }
+      if (filterProject && (p.project || p.location) !== filterProject) return false;
       return true;
     });
-  }, [pos, filter]);
+  }, [pos, filter, search, startDate, endDate, filterVendor, filterProject, suppliers]);
   const handleBillApprove = /* @__PURE__ */ __name(async (poId) => {
     if (!hasPermission("VERIFY_BILL")) {
       toast.error("Unauthorized: Access to verify bills is restricted.");
@@ -280,6 +314,7 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
       });
       toast.success("Payment confirmed! ERP Synced.");
       setSelectedPO(null);
+      setIsEditingPayment(false);
     } catch (err) {
       console.error("Payment submission error", err);
       toast.error("Failed to process payment. Please check your connection.");
@@ -287,6 +322,53 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
       setIsSubmitting(false);
     }
   }, "handlePaymentSubmit");
+  const handleEditPayment = /* @__PURE__ */ __name(async (e, po) => {
+    e.stopPropagation();
+    const sup = suppliers.find((s) => s.id === po.supplier || s._id === po.supplier);
+    setPaymentForm({
+      date: po.payment?.date || (/* @__PURE__ */ new Date()).toISOString().split("T")[0],
+      mode: po.payment?.mode || "NEFT",
+      ref: po.payment?.ref || "",
+      amountPaid: po.payment?.amountPaid ?? po.totalValue,
+      bank: po.payment?.bank || "",
+      utr: po.payment?.utr || "",
+      chequeNo: po.payment?.chequeNo || "",
+      chequeDate: po.payment?.chequeDate || "",
+      screenshot: null,
+      previewUrl: po.payment?.screenshotUrl || "",
+      remarks: po.payment?.remarks || "",
+      fromCompany: po.payment?.fromCompany || po.companyName || "Our Company",
+      toCompany: po.payment?.toCompany || sup?.companyName || po.supplier || "Unknown Vendor",
+      vendorBankDetails: po.vendorBankDetails || (sup ? {
+        accountHolder: sup.accountHolderName || sup.ownerName || "",
+        bankName: sup.bankName || "",
+        accountNo: sup.accountNumber || "",
+        branchIFSC: `${sup.branch || ""}, ${sup.ifscCode || ""}`.trim().replace(/^,/, "").trim() || ""
+      } : null)
+    });
+    setShowRejectForm(false);
+    setIsEditingPayment(true);
+    setRealGRN(null);
+    setSelectedPO(po);
+    try {
+      const grnRes = await api.get("grn", { filter: JSON.stringify({ poId: po.id }), limit: 1 });
+      if (grnRes.success && grnRes.data?.length > 0) setRealGRN(grnRes.data[0]);
+    } catch {}
+  }, "handleEditPayment");
+  const handleDeletePayment = /* @__PURE__ */ __name(async () => {
+    if (!deleteConfirmPO) return;
+    setIsDeletingPayment(true);
+    try {
+      await updatePO(deleteConfirmPO.id, { accountStatus: "payment_pending", payment: null });
+      toast.success("Payment entry deleted. Reverted to pending payment.");
+      setDeleteConfirmPO(null);
+      if (selectedPO?.id === deleteConfirmPO.id) setSelectedPO(null);
+    } catch {
+      toast.error("Failed to delete payment entry.");
+    } finally {
+      setIsDeletingPayment(false);
+    }
+  }, "handleDeletePayment");
   const handleFileChange = /* @__PURE__ */ __name((e) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -294,101 +376,89 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
       setPaymentForm({ ...paymentForm, screenshot: file, previewUrl: url });
     }
   }, "handleFileChange");
-  const SummaryCard = /* @__PURE__ */ __name(({ label, value, icon: Icon, color, active, onClick }) => <div
-    onClick={onClick}
-    className={cn(
-      "bg-white dark:bg-gray-900 p-4 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm flex items-center gap-4 transition-all duration-200",
-      onClick && "cursor-pointer hover:border-primary/20 hover:-translate-y-0.5",
-      active && "ring-2 ring-primary/40 border-primary/30 bg-primary/5 dark:bg-primary/10"
-    )}
-  >
-      <div className={cn("w-12 h-12 rounded-xl flex items-center justify-center shrink-0", color)}>
-        <Icon className="w-6 h-6 text-white" />
-      </div>
-      <div className="min-w-0 flex-1">
-        <p className="text-[10px] font-bold text-gray-400 dark:text-gray-500 tracking-widest leading-none mb-1">{label}</p>
-        <p className="text-xl font-black text-gray-900 dark:text-white tabular-nums leading-none truncate">{value}</p>
-      </div>
-    </div>, "SummaryCard");
-  const StatusTab = /* @__PURE__ */ __name(({ label, count }) => {
-    const active = filter === label;
-    return <button
-      onClick={() => setFilter(label)}
-      className={cn(
-        "px-5 py-2 text-[12px] font-black rounded-xl transition-all flex items-center gap-2 shrink-0 cursor-pointer",
-        active ? "bg-primary text-white shadow-lg shadow-primary/20" : "text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800"
-      )}
-    >
-        {label}
-        {count !== void 0 && <span className={cn(
-          "text-[10px] px-1.5 py-0.5 rounded-lg font-black",
-          active ? "bg-white/20 text-white" : "bg-gray-100 dark:bg-gray-800"
-        )}>
-            {count}
-          </span>}
-      </button>;
-  }, "StatusTab");
   return <div className="space-y-6">
       <PageHeader
     title="Account Payment"
     sub="Verify bills and process vendor payments"
-    actions={<div className="flex gap-2">
-            <button
-      onClick={refresh}
-      disabled={isRefreshing}
-      className="p-2.5 bg-white dark:bg-[#1E293B] border border-gray-100 dark:border-[#334155] rounded-xl shadow-sm hover:bg-gray-50 transition-all flex items-center gap-2"
-    >
-              <RefreshCw className={cn("w-5 h-5 text-gray-600 dark:text-gray-400", isRefreshing && "animate-spin")} />
-              <span className="text-[12px] font-bold hidden sm:inline">Refresh</span>
-            </button>
-            <button className="p-2.5 bg-white dark:bg-[#1E293B] border border-gray-100 dark:border-[#334155] rounded-xl shadow-sm hover:bg-gray-50 transition-all">
-              <History className="w-5 h-5 text-gray-600 dark:text-gray-400" />
-            </button>
-          </div>}
+    actions={null}
   />
 
-      {
-    /* Summary Cards */
-  }
-      <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-        <SummaryCard
-    label="Pending Pay"
-    value={metrics.pendingPayment}
-    icon={Clock}
-    color="bg-amber-500"
-    active={filter === "Pending Payment"}
-    onClick={() => setFilter("Pending Payment")}
-  />
-        <SummaryCard
-    label="To Verify"
-    value={metrics.pendingVerify}
-    icon={ShieldAlert}
-    color="bg-purple-500"
-    active={filter === "Verify Bills"}
-    onClick={() => setFilter("Verify Bills")}
-  />
-        <SummaryCard
-    label="Paid (Month)"
-    value={metrics.paidCount}
-    icon={CheckCircle}
-    color="bg-green-500"
-    active={filter === "Paid"}
-    onClick={() => setFilter("Paid")}
-  />
-        <SummaryCard label="Total Paid" value={fmtCur(metrics.totalPaidAmount)} icon={IndianRupee} color="bg-blue-500" />
+      {/* KPI Stats */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        {[
+          { label: "To Verify", value: metrics.pendingVerify, sub: "Bills awaiting verification", icon: ShieldAlert, iconCls: "bg-blue-50 dark:bg-blue-500/10 text-blue-500 dark:text-blue-400" },
+          { label: "Payment Pending", value: metrics.pendingPayment, sub: "Approved, awaiting payment", icon: Clock, iconCls: "bg-orange-50 dark:bg-orange-500/10 text-orange-500 dark:text-orange-400" },
+          { label: "Paid This Month", value: metrics.paidCount, sub: fmtCur(metrics.totalPaidAmount), icon: CheckCircle, iconCls: "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-500 dark:text-emerald-400" },
+          { label: "Rejected", value: metrics.rejectedCount, sub: "Bills rejected", icon: XSquare, iconCls: "bg-red-50 dark:bg-red-500/10 text-red-500 dark:text-red-400" },
+        ].map(({ label, value, sub, icon: Icon, iconCls }) => (
+          <div key={label} className="bg-white dark:bg-gray-800/80 rounded-xl border border-gray-100 dark:border-gray-700/50 shadow-sm p-3.5 flex items-center gap-3">
+            <div className={cn("w-9 h-9 rounded-lg flex items-center justify-center shrink-0", iconCls)}>
+              <Icon className="w-4 h-4" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-[10px] font-medium text-gray-400 dark:text-gray-500 truncate">{label}</p>
+              <p className="text-lg font-bold text-gray-900 dark:text-white tabular-nums leading-tight">{value}</p>
+              <p className="text-[10px] text-gray-400 dark:text-gray-500 truncate">{sub}</p>
+            </div>
+          </div>
+        ))}
       </div>
 
-      {
-    /* Filter Tabs */
-  }
-      <div className="bg-white dark:bg-gray-900 p-2 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm flex items-center gap-1 overflow-x-auto no-scrollbar">
-        <div className="flex items-center gap-1 min-w-max">
-          <StatusTab label="All" />
-          <StatusTab label="Verify Bills" count={metrics.pendingVerify} />
-          <StatusTab label="Pending Payment" count={metrics.pendingPayment} />
-          <StatusTab label="Paid" count={metrics.paidCount} />
-          <StatusTab label="Rejected" count={metrics.rejectedCount} />
+      {/* Tab Bar + Filters */}
+      <div className="flex flex-col gap-3">
+        <div className="flex items-center gap-1 p-1 bg-gray-100 dark:bg-gray-800 rounded-xl w-fit overflow-x-auto no-scrollbar">
+          {[
+            ["All", "All", 0],
+            ["Verify Bills", "To Verify", metrics.pendingVerify],
+            ["Pending Payment", "Pending Payment", metrics.pendingPayment],
+            ["Paid", "Paid", metrics.paidCount],
+            ["Rejected", "Rejected", metrics.rejectedCount],
+          ].map(([tab, label, count]) => (
+            <button
+              key={tab}
+              onClick={() => setFilter(tab)}
+              className={`px-4 py-2 text-[13px] font-medium rounded-lg transition-all flex items-center gap-1.5 shrink-0 ${
+                filter === tab
+                  ? "bg-white dark:bg-gray-700 text-primary shadow-sm"
+                  : "text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
+              }`}
+            >
+              {label}
+              {count > 0 && (
+                <span className="px-1.5 py-0.5 bg-emerald-500 text-white rounded-full text-[10px] font-black leading-none">{count}</span>
+              )}
+            </button>
+          ))}
         </div>
+        <FilterRow
+          showClear={!!(search || startDate || endDate || filterVendor || filterProject)}
+          onClearAll={() => { setSearch(""); setStartDate(""); setEndDate(""); setFilterVendor(""); setFilterProject(""); }}
+        >
+          <SearchFilter
+            value={search}
+            onChange={setSearch}
+            placeholder="Search by PO ID, vendor name..."
+            className="flex-1 min-w-[200px]"
+          />
+          <DateRangePicker
+            value={{ start: startDate, end: endDate }}
+            onChange={(v) => { setStartDate(v.start); setEndDate(v.end); }}
+          />
+          <SelectFilter
+            value={filterProject}
+            onChange={setFilterProject}
+            options={projectOptions}
+            placeholder="All Projects"
+            searchable
+          />
+          <SelectFilter
+            value={filterVendor}
+            onChange={setFilterVendor}
+            options={vendorOptions}
+            placeholder="All Vendors"
+            searchable
+          />
+        </FilterRow>
       </div>
 
       {
@@ -397,13 +467,14 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
       <Card className="p-0 overflow-hidden border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900">
         <div className="overflow-x-auto overflow-y-hidden">
           <div className="min-w-[900px]">
-            <div className="grid grid-cols-[1.5fr_2fr_1.5fr_1fr_1fr_1fr] gap-4 px-4 py-3.5 border-b border-gray-100 dark:border-gray-800 bg-gray-50/90 dark:bg-gray-800/90 backdrop-blur-md text-[10px] font-black text-gray-400 dark:text-gray-500 whitespace-nowrap tracking-wider">
+            <div className="grid grid-cols-[1.5fr_2fr_1.5fr_1fr_1fr_1fr_80px] gap-4 px-4 py-3.5 border-b border-gray-100 dark:border-gray-800 bg-gray-50/90 dark:bg-gray-800/90 backdrop-blur-md text-[10px] font-black text-gray-400 dark:text-gray-500 whitespace-nowrap tracking-wider">
               <div className="pl-2 sm:pl-4">PO records</div>
               <div className="hidden lg:block">Vendor name</div>
               <div className="hidden sm:block text-right">Amount (₹)</div>
               <div className="hidden lg:block text-center">GRN</div>
               <div className="hidden sm:block text-center">Status</div>
-              <div className="hidden md:block text-right pr-2 sm:pr-4">Date</div>
+              <div className="hidden md:block text-right">Date</div>
+              <div className="hidden md:block text-right pr-2 sm:pr-4">Actions</div>
             </div>
             
             {filteredPOs.length === 0 ? <div className="py-24 text-center">
@@ -455,38 +526,12 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
           screenshot: null
         }));
       }}
-      className="grid grid-cols-[1.5fr_2fr_1.5fr_1fr_1fr_1fr] gap-4 px-4 py-3 border-b border-gray-50 dark:border-gray-800/80 hover:bg-gray-50/50 dark:hover:bg-gray-800/20 transition-colors cursor-pointer items-center group"
+      className="grid grid-cols-[1.5fr_2fr_1.5fr_1fr_1fr_1fr_80px] gap-4 px-4 py-3 border-b border-gray-50 dark:border-gray-800/80 hover:bg-gray-50/50 dark:hover:bg-gray-800/20 transition-colors cursor-pointer items-center group"
     >
                     <div className="pl-2 sm:pl-4 flex flex-col justify-center">
                       <div className="flex items-center gap-3">
                         <span className="text-gray-900 dark:text-white font-black text-[13px] sm:text-[14px] tracking-tight whitespace-nowrap truncate max-w-[120px] sm:max-w-[160px]">{po.id}</span>
-                        <button
-      onClick={async (e) => {
-        e.stopPropagation();
-        setLoadingQuotes(true);
-        try {
-          let updatedPO = { ...po };
-          if (po.mrId) {
-            const qRes = await api.get("quotations", { filter: JSON.stringify({ mrId: po.mrId }), limit: 100 });
-            const mrQuotes = qRes.data || [];
-            if (mrQuotes.length > 0) {
-              const newPC = calculatePriceComparison(mrQuotes, po.items);
-              if (newPC) updatedPO.priceComparison = newPC;
-            }
-          }
-          setPreviewPO(updatedPO);
-        } catch (err) {
-          setPreviewPO(po);
-        } finally {
-          setLoadingQuotes(false);
-        }
-      }}
-      className="p-1.5 bg-blue-50 dark:bg-blue-500/10 text-blue-500 rounded-lg transition-colors group/view sm:opacity-0 group-hover:opacity-100 shrink-0"
-      title="View PO Document"
-      disabled={loadingQuotes}
-    >
-                          <Eye className={cn("w-4 h-4 transition-transform group-hover/view:scale-110", loadingQuotes && "animate-spin")} />
-                        </button>
+
                       </div>
                       <div className="sm:hidden mt-2 flex items-center gap-2">
                         <StatusBadge status={po.status} accountStatus={po.accountStatus || (po.status === "Approved" ? "bill_verify" : void 0)} />
@@ -506,17 +551,40 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
                     </div>
                     
                     <div className="hidden lg:flex items-center justify-center">
-                      {["Fulfilled", "Partially Fulfilled"].includes(po.status) ? <span className="bg-green-50 text-green-600 dark:bg-[#064E3B] dark:text-[#34D399] px-2 py-0.5 rounded text-[9px] font-bold border border-green-100 dark:border-[#065F46] whitespace-nowrap">Full receive</span> : po.status === "GRN Pending" || po.status === "Approved" ? <span className="bg-amber-50 text-orange-500 dark:bg-amber-900/10 dark:text-amber-400 px-2 py-0.5 rounded text-[9px] font-bold border border-amber-100 dark:border-amber-900/20 whitespace-nowrap">Awaiting grn</span> : <span className="bg-gray-50 text-gray-400 dark:bg-gray-800 dark:text-gray-500 px-2 py-0.5 rounded text-[9px] font-bold border border-gray-100 dark:border-gray-700 whitespace-nowrap">{po.status}</span>}
+                      <StatusBadge status={po.status} />
                     </div>
-                    
+
                     <div className="hidden sm:flex items-center justify-center">
-                      <StatusBadge status={po.status} accountStatus={po.accountStatus || (po.status === "Approved" ? "bill_verify" : void 0)} />
+                      <StatusBadge status={
+                        po.accountStatus === "payment_pending" ? "Payment Pending"
+                        : po.accountStatus === "paid" ? "Paid"
+                        : po.accountStatus === "rejected" ? "Rejected"
+                        : "To Verify"
+                      } />
                     </div>
                     
-                    <div className="hidden md:flex items-center justify-end pr-2 sm:pr-4">
+                    <div className="hidden md:flex items-center justify-end">
                       <p className="text-[10px] sm:text-[11px] font-bold text-gray-400 dark:text-[#64748B] whitespace-nowrap font-mono truncate">
                         {formatDate(po.date)}
                       </p>
+                    </div>
+                    <div className="hidden md:flex items-center justify-end gap-1 pr-2 sm:pr-4">
+                      {po.accountStatus === "paid" && <>
+                        <button
+                          onClick={(e) => handleEditPayment(e, po)}
+                          className="p-1.5 rounded-lg bg-blue-50 dark:bg-blue-500/10 text-blue-500 hover:opacity-80 transition-opacity"
+                          title="Edit payment"
+                        >
+                          <Pencil className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setDeleteConfirmPO(po); }}
+                          className="p-1.5 rounded-lg bg-red-50 dark:bg-red-500/10 text-red-500 hover:opacity-80 transition-opacity"
+                          title="Delete payment"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </>}
                     </div>
                   </div>}
   />}
@@ -524,69 +592,90 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
         </div>
       </Card>
 
-      {
-    /* Detail Modal */
-  }
-      <AnimatePresence>
-        {selectedPO && <div className="fixed inset-0 z-[80] flex items-center justify-center sm:p-4 overflow-y-auto">
-            <motion.div
-    initial={{ opacity: 0 }}
-    animate={{ opacity: 1 }}
-    exit={{ opacity: 0 }}
-    onClick={() => setSelectedPO(null)}
-    className="fixed inset-0 bg-[#0F172A]/40 backdrop-blur-sm"
-  />
-            <motion.div
-    initial={{ scale: 0.95, opacity: 0, y: 20 }}
-    animate={{ scale: 1, opacity: 1, y: 0 }}
-    exit={{ scale: 0.95, opacity: 0, y: 20 }}
-    className="bg-white dark:bg-[#0B1222] w-full max-w-5xl sm:w-[92%] sm:h-[90vh] shadow-2xl relative z-10 p-0 overflow-hidden flex flex-col h-full sm:rounded-[2rem] border border-gray-100 dark:border-white/5"
-  >
-              <div className="p-4 sm:p-8 overflow-y-auto flex-1 no-scrollbar lg:custom-scrollbar">
-                <div className="flex flex-col sm:flex-row justify-between items-start gap-4 mb-6 sm:mb-8">
-                  <div>
-                    <h2 className="text-xl sm:text-2xl font-black text-gray-900 dark:text-white">Transaction detail view</h2>
-                    <div className="flex flex-wrap items-center gap-2 mt-1.5 sm:mt-1">
-                      <span className="px-2 py-0.5 bg-blue-100 dark:bg-blue-500/20 text-blue-500 dark:text-blue-400 rounded text-[9px] font-black leading-normal">Purchase order</span>
-                      <p className="text-gray-400 dark:text-gray-500 text-[11px] font-bold font-mono">{selectedPO.id}</p>
-                    </div>
-                  </div>
-                  <button
-    onClick={() => setSelectedPO(null)}
-    className="p-2 sm:p-2.5 hover:bg-gray-100 dark:hover:bg-white/5 rounded-2xl transition-colors group absolute top-4 right-4 sm:relative sm:top-0 sm:right-0"
-  >
-                    <X className="w-5 h-5 sm:w-6 sm:h-6 text-gray-400 group-hover:text-gray-900 dark:group-hover:text-white transition-colors" />
-                  </button>
-                </div>
-                <div className="border-t border-gray-50 dark:border-white/5 pt-6 pb-4">
-                  <DetailPanel
-    po={selectedPO}
-    grn={realGRN}
-    onApprove={handleBillApprove}
-    onReject={handleBillReject}
-    onPaymentDone={handlePaymentSubmit}
-    paymentForm={paymentForm}
-    setPaymentForm={setPaymentForm}
-    isSubmitting={isSubmitting}
-    rejectionReason={rejectionReason}
-    setRejectionReason={setRejectionReason}
-    showRejectForm={showRejectForm}
-    setShowRejectForm={setShowRejectForm}
-    fileInputRef={fileInputRef}
-    handleFileChange={handleFileChange}
-    suppliers={suppliers}
-  />
-                </div>
+      {/* Detail Drawer */}
+      {selectedPO && (() => {
+        const accStatus = (selectedPO.accountStatus || "").toLowerCase();
+        const poSt = (selectedPO.status || "").toLowerCase();
+        const resolvedStatus = accStatus || (["grn fulfilled", "grn variance", "ready for payment"].includes(poSt) ? "bill_verify" : "other");
+        const drawerFooter = resolvedStatus === "bill_verify" ? (
+          showRejectForm ? (
+            <div className="flex flex-col sm:flex-row gap-3 items-end w-full">
+              <div className="flex-1">
+                <label className="text-[10px] font-black text-red-500 dark:text-red-400 mb-1 block">Rejection reason *</label>
+                <input
+                  type="text"
+                  value={rejectionReason}
+                  onChange={(e) => setRejectionReason(e.target.value)}
+                  placeholder="e.g. Price mismatch, quantity error..."
+                  className="w-full bg-white dark:bg-[#0F172A] border border-red-200 dark:border-red-900/40 p-3 rounded-xl text-sm outline-none focus:ring-4 ring-red-500/10 font-bold text-gray-900 dark:text-[#F1F5F9] transition-all"
+                />
               </div>
-            </motion.div>
-          </div>}
-      </AnimatePresence>
+              <div className="flex gap-2 shrink-0">
+                <Btn label="Cancel" outline onClick={() => { setShowRejectForm(false); setRejectionReason(""); }} />
+                <Btn label="Confirm reject" color="red" onClick={() => handleBillReject(selectedPO.id)} loading={isSubmitting} disabled={!rejectionReason.trim() || isSubmitting} />
+              </div>
+            </div>
+          ) : (
+            <div className="flex justify-end gap-3 w-full">
+              <Btn label="Reject bill" color="red" onClick={() => setShowRejectForm(true)} />
+              <Btn label="Approve bill" color="green" onClick={() => handleBillApprove(selectedPO.id)} loading={isSubmitting} disabled={isSubmitting} />
+            </div>
+          )
+        ) : (resolvedStatus === "payment_pending" || (resolvedStatus === "paid" && isEditingPayment)) ? (
+          <div className="flex justify-end w-full">
+            <button
+              onClick={() => handlePaymentSubmit(selectedPO.id)}
+              disabled={isSubmitting}
+              className="bg-[#F97316] hover:bg-[#EA580C] disabled:opacity-50 text-white py-2.5 px-8 rounded-xl text-[13px] font-black shadow-lg shadow-orange-500/20 flex items-center justify-center gap-2 transition-all active:scale-[0.98]"
+            >
+              {isSubmitting ? "Syncing with ERP..." : isEditingPayment ? "Update Payment ✓" : "Mark Payment as Complete ✓"}
+            </button>
+          </div>
+        ) : null;
 
-      {previewPO && <POPreviewModal
-    po={previewPO}
-    supplier={suppliers.find((s) => s.id === previewPO.supplier || s._id === previewPO.supplier)}
-    onClose={() => setPreviewPO(null)}
-  />}
+        return <Modal
+          title={isEditingPayment ? `Edit Payment — ${selectedPO.id}` : `Transaction detail view`}
+          onClose={() => { setSelectedPO(null); setIsEditingPayment(false); }}
+          extraWide
+          footer={drawerFooter}
+        >
+          <div className="flex items-center gap-2 mb-5">
+            <span className="px-2 py-0.5 bg-blue-100 dark:bg-blue-500/20 text-blue-500 dark:text-blue-400 rounded text-[9px] font-black leading-normal">Purchase order</span>
+            <p className="text-gray-400 dark:text-gray-500 text-[11px] font-bold font-mono">{selectedPO.id}</p>
+          </div>
+          <DetailPanel
+            po={selectedPO}
+            grn={realGRN}
+            onApprove={handleBillApprove}
+            onReject={handleBillReject}
+            onPaymentDone={handlePaymentSubmit}
+            paymentForm={paymentForm}
+            setPaymentForm={setPaymentForm}
+            isSubmitting={isSubmitting}
+            rejectionReason={rejectionReason}
+            setRejectionReason={setRejectionReason}
+            showRejectForm={showRejectForm}
+            setShowRejectForm={setShowRejectForm}
+            fileInputRef={fileInputRef}
+            handleFileChange={handleFileChange}
+            suppliers={suppliers}
+            onViewPO={() => setPreviewPO(selectedPO)}
+            isEditingPayment={isEditingPayment}
+          />
+        </Modal>;
+      })()}
+
+      {previewPO && <POViewModal po={previewPO} onClose={() => setPreviewPO(null)} />}
+
+      {deleteConfirmPO && <ConfirmModal
+        title="Delete Payment Entry"
+        message={`Delete payment entry for ${deleteConfirmPO.id}? This will revert the status back to "Payment Pending".`}
+        confirmLabel="Delete"
+        confirmColor="red"
+        loading={isDeletingPayment}
+        onConfirm={handleDeletePayment}
+        onCancel={() => setDeleteConfirmPO(null)}
+      />}
     </div>;
 }, "AccountsPage");
 const DetailPanel = /* @__PURE__ */ __name(({
@@ -604,9 +693,12 @@ const DetailPanel = /* @__PURE__ */ __name(({
   setShowRejectForm,
   fileInputRef,
   handleFileChange,
-  suppliers
+  suppliers,
+  onViewPO,
+  isEditingPayment
 }) => {
   const [isDraggingPayment, setIsDraggingPayment] = useState(false);
+  const [viewGRNDetail, setViewGRNDetail] = useState(false);
   const poStatus = (po.status || "").toLowerCase();
   const status = po.accountStatus || (["approved", "fulfilled", "grn pending", "grn fulfilled", "grn variance"].includes(poStatus) ? "bill_verify" : "other");
   const getSupplierName = /* @__PURE__ */ __name((id) => {
@@ -645,125 +737,61 @@ const DetailPanel = /* @__PURE__ */ __name(({
           {
       /* PO Details */
     }
-          <section className="bg-white dark:bg-[#1E293B] p-4 sm:p-5 rounded-xl border border-gray-100 dark:border-[#334155] shadow-sm space-y-4">
-            <h3 className="text-xs font-black text-[#3B82F6] flex items-center gap-2 leading-none border-b border-gray-50 dark:border-[#334155] pb-3 mb-2"><CreditCard className="w-4 h-4" /> PO details</h3>
-            <div className="space-y-4 sm:space-y-3">
+          <section className="bg-white dark:bg-[#1E293B] p-4 sm:p-5 rounded-xl border border-gray-100 dark:border-[#334155] shadow-sm flex flex-col">
+            <h3 className="text-xs font-black text-[#3B82F6] flex items-center gap-2 leading-none border-b border-gray-50 dark:border-[#334155] pb-3 mb-3"><CreditCard className="w-4 h-4" /> PO details</h3>
+            <div className="space-y-3 flex-1">
               <InfoItem label="PO no." value={po.id} />
               <InfoItem label="Vendor" value={getSupplierName(po.supplier)} />
               <InfoItem label="PO amount" value={fmtCur(poAmount)} highlight />
               <InfoItem label="PO date" value={formatDate(po.date)} />
               <InfoItem label="Approved by" value={po.auditTrail?.find((a) => a.action?.includes("approve"))?.done_by || po.createdBy || "System admin"} />
             </div>
+            <div className="mt-4 pt-3 border-t border-gray-50 dark:border-[#334155]">
+              <button onClick={() => onViewPO && onViewPO()} className="w-full flex items-center justify-center gap-2 py-2.5 bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 rounded-xl text-[11px] font-black hover:opacity-80 hover:shadow-sm transition-all border border-blue-100 dark:border-blue-500/20"><Eye className="w-3.5 h-3.5" /> View PO</button>
+            </div>
           </section>
 
-          {
-      /* GRN Details */
-    }
-          <section className="bg-white dark:bg-[#1E293B] p-4 sm:p-5 rounded-xl border border-gray-100 dark:border-[#334155] shadow-sm space-y-4">
-            <h3 className="text-xs font-black text-[#F59E0B] flex items-center gap-2 leading-none border-b border-gray-50 dark:border-[#334155] pb-3 mb-2"><Package className="w-4 h-4" /> GRN details</h3>
-            <div className="space-y-4 sm:space-y-3">
+          {/* GRN Details */}
+          <section className="bg-white dark:bg-[#1E293B] p-4 sm:p-5 rounded-xl border border-gray-100 dark:border-[#334155] shadow-sm flex flex-col">
+            <h3 className="text-xs font-black text-[#F59E0B] flex items-center gap-2 leading-none border-b border-gray-50 dark:border-[#334155] pb-3 mb-3"><Package className="w-4 h-4" /> GRN details</h3>
+            <div className="space-y-3 flex-1">
               <InfoItem label="GRN no." value={grnNo} />
               <InfoItem label="Items received" value={itemsReceived} />
               <InfoItem label="Received by" value={receivedBy} />
               <InfoItem label="GRN date" value={formatDate(grnDate)} />
               <InfoItem label="GRN remark" value={grnRemark} />
             </div>
+            <div className="mt-4 pt-3 border-t border-gray-50 dark:border-[#334155]">
+              {realGrn
+                ? <button onClick={() => setViewGRNDetail(true)} className="w-full flex items-center justify-center gap-2 py-2.5 bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400 rounded-xl text-[11px] font-black hover:opacity-80 hover:shadow-sm transition-all border border-amber-100 dark:border-amber-500/20"><Eye className="w-3.5 h-3.5" /> View GRN</button>
+                : <p className="text-center text-[11px] text-gray-400 italic py-1">GRN not yet received</p>}
+            </div>
           </section>
 
-          {
-      /* Vendor Invoice */
-    }
-          <section className="bg-white dark:bg-[#1E293B] p-4 sm:p-5 rounded-xl border border-gray-100 dark:border-[#334155] shadow-sm space-y-4 lg:col-span-1 md:col-span-2">
-            <div className="flex justify-between items-start border-b border-gray-50 dark:border-[#334155] pb-3 mb-2">
+          {/* Vendor Invoice */}
+          <section className="bg-white dark:bg-[#1E293B] p-4 sm:p-5 rounded-xl border border-gray-100 dark:border-[#334155] shadow-sm flex flex-col lg:col-span-1 md:col-span-2">
+            <div className="flex justify-between items-start border-b border-gray-50 dark:border-[#334155] pb-3 mb-3">
               <h3 className="text-xs font-black text-[#EF4444] flex items-center gap-2 leading-none mt-1"><FileText className="w-4 h-4" /> Vendor bill</h3>
               {realGrn || po.payment?.ref ? <span className="flex items-center gap-1 text-[9px] font-black text-green-600 bg-green-50 dark:bg-green-900/10 px-1.5 py-0.5 rounded border border-green-100 dark:border-green-900/20">Matched ✓</span> : <span className="flex items-center gap-1 text-[9px] font-black text-orange-500 bg-amber-50 dark:bg-amber-900/10 px-1.5 py-0.5 rounded border border-amber-100 dark:border-amber-900/20">Awaiting grn</span>}
             </div>
-            <div className="space-y-4 sm:space-y-3">
+            <div className="space-y-3 flex-1">
               <InfoItem label="Invoice no." value={invoiceNo} highlight />
               <InfoItem label="Invoice amount" value={fmtCur(invoiceAmount)} highlight />
               <InfoItem label="GST amount" value={fmtCur(gstAmount)} />
               <InfoItem label="Invoice date" value={formatDate(po.payment?.date || realGrn?.date || po.date)} />
-              <div className="pt-2">
-                <p className="text-[10px] font-bold text-gray-400 dark:text-[#64748B] mb-1">Attached document</p>
-                <div className="flex flex-col gap-2">
-                  {po.payment?.screenshotUrl || realGrn?.challanPhotos?.[0] ? <a
-      href={po.payment?.screenshotUrl || realGrn?.challanPhotos?.[0]}
-      target="_blank"
-      rel="noreferrer"
-      className="flex items-center gap-2 text-[13px] font-bold text-[#3B82F6] hover:underline underline-offset-4 decoration-2 truncate w-full"
-    >
-                      <Download className="w-4 h-4 shrink-0" /> <span className="truncate">{po.payment?.screenshotName || "view_invoice_proof.jpg"}</span>
-                    </a> : <p className="text-[11px] text-gray-400 italic">No document attached yet</p>}
-                </div>
-              </div>
-              <div className="pt-4 border-t dark:border-[#334155] grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-2">
-                <button
-      onClick={() => {
-        const supplier = suppliers.find((s) => s.id === po.supplier || s.name === po.supplier);
-        generatePOPDF(po, supplier, settings);
-      }}
-      className="flex items-center justify-center gap-2 py-3 bg-orange-50 dark:bg-orange-500/10 text-orange-600 dark:text-orange-400 rounded-xl text-[11px] font-black hover:bg-orange-100 transition-all border border-orange-100 dark:border-orange-500/20"
-    >
-                  <Download className="w-4 h-4" /> Download PO PDF
-                </button>
-                <button
-      onClick={() => window.open(`/public-po?id=${po.id}`, "_blank")}
-      className="flex items-center justify-center gap-2 py-3 bg-gray-50 dark:bg-white/5 text-gray-600 dark:text-gray-400 rounded-xl text-[11px] font-black hover:bg-gray-100 transition-all border border-gray-100 dark:border-white/10"
-    >
-                  <Eye className="w-4 h-4" /> View original PO
-                </button>
-              </div>
+            </div>
+            <div className="mt-4 pt-3 border-t border-gray-50 dark:border-[#334155]">
+              {(po.payment?.screenshotUrl || realGrn?.challanPhotos?.[0])
+                ? <a href={po.payment?.screenshotUrl || realGrn?.challanPhotos?.[0]} target="_blank" rel="noreferrer" className="w-full flex items-center justify-center gap-2 py-2.5 bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 rounded-xl text-[11px] font-black hover:opacity-80 hover:shadow-sm transition-all border border-red-100 dark:border-red-500/20"><Eye className="w-3.5 h-3.5" /> View Bill</a>
+                : <p className="text-center text-[11px] text-gray-400 italic py-1">No bill attached yet</p>}
             </div>
           </section>
         </div>
 
-        {
-      /* Buttons */
-    }
-        <div className="flex flex-col sm:flex-row justify-end items-center gap-4 border-t dark:border-[#334155] pt-6 sm:pt-8">
-          {showRejectForm ? <div className="w-full flex flex-col sm:flex-row gap-4 items-stretch sm:items-end bg-red-50/50 dark:bg-red-900/5 p-4 rounded-xl border border-red-100 dark:border-red-900/20">
-              <div className="flex-1">
-                <label className="text-[10px] font-black text-red-600 dark:text-red-400 ml-1">Rejection reason *</label>
-                <input
-      type="text"
-      value={rejectionReason}
-      onChange={(e) => setRejectionReason(e.target.value)}
-      placeholder="e.g. Price mismatch, quantity error..."
-      className="w-full bg-white dark:bg-[#0F172A] border border-red-200 dark:border-red-900/40 p-4 rounded-xl text-sm outline-none focus:ring-4 ring-red-500/10 transition-all font-bold text-gray-900 dark:text-[#F1F5F9]"
-    />
-              </div>
-              <div className="flex gap-3">
-                <button
-      onClick={() => onReject(po.id)}
-      disabled={isSubmitting || !rejectionReason.trim()}
-      className="flex-1 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white px-6 py-4 rounded-xl text-[12px] font-black shadow-xl shadow-red-600/20 flex items-center justify-center gap-2 transition-all active:scale-95"
-    >
-                  Confirm reject
-                </button>
-                <button onClick={() => {
-      setShowRejectForm(false);
-      setRejectionReason("");
-    }} className="text-gray-400 font-black text-[11px] px-4 hover:text-gray-600 dark:hover:text-gray-300">Cancel</button>
-              </div>
-            </div> : <div className="w-full flex flex-col sm:flex-row justify-end items-center gap-3">
-              <button
-      onClick={() => setShowRejectForm(true)}
-      className="w-full sm:w-auto px-6 py-4 text-gray-400 hover:text-[#EF4444] font-black text-[13px] transition-colors"
-    >
-                Reject bill
-              </button>
-              <button
-      onClick={() => onApprove(po.id)}
-      disabled={isSubmitting}
-      className="w-full sm:w-auto bg-[#1E293B] dark:bg-[#F1F5F9] dark:text-[#0F172A] text-white px-10 py-5 rounded-2xl text-[13px] font-black shadow-2xl shadow-black/10 flex items-center justify-center gap-2 hover:scale-[1.02] active:scale-[0.98] transition-all"
-    >
-                {isSubmitting ? "Processing..." : "Approve bill"} <ArrowRight className="w-4 h-4" />
-              </button>
-            </div>}
-        </div>
+      {viewGRNDetail && realGrn && <GRNDetailModal grn={realGrn} onClose={() => setViewGRNDetail(false)} />}
       </div>;
   }
-  if (status === "payment_pending") {
+  if (status === "payment_pending" || (status === "paid" && isEditingPayment)) {
     return <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12">
         {
       /* Summary */
@@ -1014,20 +1042,11 @@ const DetailPanel = /* @__PURE__ */ __name(({
     />
               </FormGroup>
 
-              <div className="flex gap-4 pt-4 border-t dark:border-[#334155]">
-                <button
-      onClick={() => onPaymentDone(po.id)}
-      disabled={isSubmitting}
-      className="flex-1 bg-[#F97316] hover:bg-[#EA580C] text-white py-4 rounded-2xl text-[13px] font-black shadow-2xl shadow-orange-500/30 flex items-center justify-center gap-3 transition-all active:scale-[0.98]"
-    >
-                  {isSubmitting ? "Syncing with ERP..." : "Mark Payment as Complete \u2713"}
-                </button>
-              </div>
            </div>
         </div>
       </div>;
   }
-  if (status === "paid") {
+  if (status === "paid" && !isEditingPayment) {
     return <div className="space-y-8">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           <section className="bg-white dark:bg-[#1E293B] p-7 rounded-3xl border border-gray-100 dark:border-[#334155] shadow-sm space-y-6">

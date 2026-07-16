@@ -176,7 +176,7 @@ export function MaterialRequirementPage() {
     }
     fetchResource("pos", 1, 2000, false);
     fetchResource("quotations", 1, 2000, false);
-    fetchResource("grns", 1, 2000, false);
+    fetchResource("grn", 1, 2000, false);
     if (inventory.length < 500) fetchResource("inventory", 1, 2000, true);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [debouncedSearch, activeTab, startDate, endDate, filterProject, filterRequester, filterStatus]);
@@ -230,7 +230,7 @@ export function MaterialRequirementPage() {
     const result = [];
     (materialRequirements || [])
       .filter(mr => {
-        if (!["Approved by Store", "Quotation Phase", "PO Created"].includes(mr.status)) return false;
+        if (!["Approved by Store", "Quotation Phase"].includes(mr.status)) return false;
         if (filterProject && mr.project !== filterProject) return false;
         if (filterRequester && mr.requesterName !== filterRequester) return false;
         if (filterStatus && mr.status !== filterStatus) return false;
