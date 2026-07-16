@@ -687,7 +687,7 @@ const GRNPage = /* @__PURE__ */ __name(() => {
       setNewGRN({ poId: selectedGRN.poId, store: selectedGRN.store || "", challan: receipt.challan || "", mrNo: receipt.mrNo || "", docType: receipt.docType || "Challan", personName: receipt.personName || "", challanPhotos: receipt.challanPhotos || [], personPhotos: receipt.personPhotos || [], items: receiptItems, vendor: selectedGRN.supplier, supplier: selectedGRN.supplier });
       setModal(true);
     }}
-  />
+  />}
 
       {modal && <Modal
     title={
