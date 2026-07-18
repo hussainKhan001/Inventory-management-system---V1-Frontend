@@ -1029,12 +1029,11 @@ const TransactionsPage = /* @__PURE__ */ __name(({ type }) => {
                           <div className="flex justify-between items-start mb-3">
                              <div>
                                <p className="text-[10px] font-bold text-gray-400">{formatDateTime(trx.date)}</p>
-                               <h4 className="text-[14px] font-bold text-gray-900 dark:text-white mt-0.5">
-                                 {trx.items && trx.items.length > 1
-                                   ? trx.items.map(i => i.itemName || inventory.find(inv => inv.sku === i.sku)?.itemName || i.sku).join(", ")
-                                   : trx.itemName || trx.items?.[0]?.itemName || inventory.find(i => i.sku === (trx.sku || trx.items?.[0]?.sku))?.itemName || "Outward Item"}
+                               <h4 className="text-[14px] font-bold text-gray-900 dark:text-white mt-0.5 flex items-center gap-1.5">
+                                 <span className="truncate">{trx.itemName || trx.items?.[0]?.itemName || inventory.find(i => i.sku === (trx.sku || trx.items?.[0]?.sku))?.itemName || "Outward Item"}</span>
+                                 {trx.items?.length > 1 && <span className="shrink-0 text-[10px] font-black text-orange-600 bg-orange-50 dark:bg-orange-500/10 border border-orange-200 dark:border-orange-500/20 px-1.5 py-0.5 rounded-full">+{trx.items.length - 1}</span>}
                                </h4>
-                               <p className="text-[11px] font-mono text-gray-500">{trx.items && trx.items.length > 1 ? `${trx.items.length} items` : (trx.sku || trx.items?.[0]?.sku)}</p>
+                               <p className="text-[11px] font-mono text-gray-500">{trx.sku || trx.items?.[0]?.sku}{trx.items?.length > 1 ? ` & ${trx.items.length - 1} more` : ""}</p>
                              </div>
                              <div className="text-right">
                                 <span className="text-lg font-black text-red-500">-{trx.qty || trx.items?.[0]?.qty}</span>
@@ -1073,23 +1072,19 @@ const TransactionsPage = /* @__PURE__ */ __name(({ type }) => {
                     <td className="hidden md:table-cell px-3 py-2.5 overflow-hidden"><span className="block truncate text-[13px] text-gray-600 dark:text-gray-400">{currentInventory.find((i) => i.sku === (trx.sku || trx.items?.[0]?.sku))?.category || "Hardware"}</span></td>
                     <td className="hidden md:table-cell px-3 py-2.5 overflow-hidden">
                       <div className="flex flex-col min-w-0 max-w-[250px]">
-                        {trx.items && trx.items.length > 1 ? (
-                          <div className="flex flex-col gap-0.5">
-                            {trx.items.map((it, idx) => (
-                              <span key={idx} className="text-[12px] font-semibold text-gray-900 dark:text-white truncate block" title={it.itemName || currentInventory.find(i => i.sku === it.sku)?.itemName || it.sku}>
-                                {it.itemName || currentInventory.find(i => i.sku === it.sku)?.itemName || it.sku}
-                                <span className="text-[10px] font-normal text-gray-400 ml-1">×{it.qty}</span>
-                              </span>
-                            ))}
-                          </div>
-                        ) : (
-                          <>
-                            <span className="text-[13px] font-bold text-gray-900 dark:text-white truncate block" title={trx.itemName || trx.items?.[0]?.itemName || currentInventory.find((i) => i.sku === (trx.sku || trx.items?.[0]?.sku))?.itemName || catalogue.find((c) => c.sku === (trx.sku || trx.items?.[0]?.sku))?.itemName || trx.sku || "N/A"}>
-                              {trx.itemName || trx.items?.[0]?.itemName || currentInventory.find((i) => i.sku === (trx.sku || trx.items?.[0]?.sku))?.itemName || catalogue.find((c) => c.sku === (trx.sku || trx.items?.[0]?.sku))?.itemName || trx.sku || "N/A"}
-                            </span>
-                            <span className="text-[11px] text-gray-500 font-mono truncate block">{trx.sku || trx.items?.[0]?.sku}</span>
-                          </>
-                        )}
+                        {(() => {
+                          const firstItem = trx.items?.[0];
+                          const firstName = trx.itemName || firstItem?.itemName || currentInventory.find((i) => i.sku === (trx.sku || firstItem?.sku))?.itemName || catalogue.find((c) => c.sku === (trx.sku || firstItem?.sku))?.itemName || trx.sku || "N/A";
+                          const firstSku = trx.sku || firstItem?.sku;
+                          const extra = (trx.items?.length || 1) - 1;
+                          return <>
+                            <div className="flex items-center gap-1.5 min-w-0">
+                              <span className="text-[13px] font-bold text-gray-900 dark:text-white truncate block" title={firstName}>{firstName}</span>
+                              {extra > 0 && <span className="shrink-0 text-[10px] font-black text-orange-600 bg-orange-50 dark:bg-orange-500/10 border border-orange-200 dark:border-orange-500/20 px-1.5 py-0.5 rounded-full">+{extra}</span>}
+                            </div>
+                            <span className="text-[11px] text-gray-500 font-mono truncate block">{firstSku}{extra > 0 ? ` & ${extra} more` : ""}</span>
+                          </>;
+                        })()}
                       </div>
                     </td>
                     <td className="hidden md:table-cell px-3 py-2.5 text-right">
@@ -1268,7 +1263,7 @@ const TransactionsPage = /* @__PURE__ */ __name(({ type }) => {
       if (alc.remainingQty <= 0) return false;
       if (allocFilterRequester && alc.engineerName !== allocFilterRequester) return false;
       if (allocSearch) {
-        const q = allocSearch.toLowerCase();
+        const q = allocSearch.trim().toLowerCase();
         return (alc.mrNumber || alc.mrId || "").toLowerCase().includes(q)
           || (alc.engineerName || "").toLowerCase().includes(q)
           || (alc.itemName || "").toLowerCase().includes(q)

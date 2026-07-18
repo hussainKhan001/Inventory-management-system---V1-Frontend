@@ -282,7 +282,7 @@ const Catalogue = /* @__PURE__ */ __name(() => {
                     </tr>
                   ))
                 ) : catalogue
-                  .filter(cat => !tableFilter || [cat.sku, cat.itemName, cat.category, cat.brand].some(f => f?.toLowerCase().includes(tableFilter.toLowerCase())))
+                  .filter(cat => !tableFilter.trim() || [cat.sku, cat.itemName, cat.category, cat.brand].some(f => f?.toLowerCase().includes(tableFilter.trim().toLowerCase())))
                   .map((cat) => {
                   const inv = inventory.find((i) => i.sku === cat.sku);
                   return (

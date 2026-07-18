@@ -216,7 +216,7 @@ export function MaterialRequirementPage() {
     if (startDate && mr.date < startDate) return false;
     if (endDate && mr.date > endDate) return false;
     if (debouncedSearch) {
-      const s = debouncedSearch.toLowerCase();
+      const s = debouncedSearch.trim().toLowerCase();
       const inHeader = [mr.mrNumber, mr.id, mr.requesterName, mr.project, mr.location, mr.status]
         .some(f => f?.toLowerCase().includes(s));
       const inItems = (mr.items || []).some(i => i.materialName?.toLowerCase().includes(s) || i.sku?.toLowerCase().includes(s));
@@ -237,7 +237,7 @@ export function MaterialRequirementPage() {
         if (startDate && mr.date < startDate) return false;
         if (endDate && mr.date > endDate) return false;
         if (debouncedSearch) {
-          const s = debouncedSearch.toLowerCase();
+          const s = debouncedSearch.trim().toLowerCase();
           const inHeader = [mr.mrNumber, mr.id, mr.requesterName, mr.project, mr.location, mr.status]
             .some(f => f?.toLowerCase().includes(s));
           const inItems = (mr.items || []).some(i => i.materialName?.toLowerCase().includes(s) || i.sku?.toLowerCase().includes(s));
@@ -862,8 +862,14 @@ export function MaterialRequirementPage() {
                       {mr.items.map((item, idx) => {
                         const isAllocated = ["Allocated", "Issued"].includes(item.status || "");
                         const noSku = !item.sku || item.sku.toUpperCase() === "N/A";
-                        const received = receivedQtyBySku[(item.sku || "").trim()] ||
+                        const grnReceived = receivedQtyBySku[(item.sku || "").trim()] ||
                           receivedQtyByName[(item.materialName || "").trim().toLowerCase()] || 0;
+                        // Fallback: SKU already received via a GRN on a different PO (stock sitting in inventory)
+                        const invItem = inventory.find(i => i.sku === (item.sku || "").trim());
+                        const invStock = invItem?.sites?.length
+                          ? invItem.sites.reduce((s, site) => s + Math.max(0, Number(site.liveStock) || 0), 0)
+                          : Math.max(0, Number(invItem?.liveStock || 0));
+                        const received = grnReceived > 0 ? grnReceived : invStock;
                         const maxQty = Math.max(0, received - (item.allocatedQty || 0));
                         const statusChip = isAllocated
                           ? { label: "ALLOCATED", cls: "bg-emerald-100 dark:bg-emerald-900/40 text-emerald-600 dark:text-emerald-400" }

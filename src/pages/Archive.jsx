@@ -8,7 +8,7 @@ const Archive = /* @__PURE__ */ __name(() => {
   const { inventory } = useAppStore();
   const [search, setSearch] = useState("");
   const filtered = inventory.filter(
-    (i) => (i.itemName?.toLowerCase() || "").includes(search.toLowerCase()) || (i.sku?.toLowerCase() || "").includes(search.toLowerCase())
+    (i) => (i.itemName?.toLowerCase() || "").includes(search.trim().toLowerCase()) || (i.sku?.toLowerCase() || "").includes(search.trim().toLowerCase())
   );
   return <div className="space-y-6">
       <PageHeader

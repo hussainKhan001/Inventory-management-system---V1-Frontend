@@ -78,7 +78,7 @@ const POReport = /* @__PURE__ */ __name(() => {
       if (filterSupplier && po.supplier !== filterSupplier) return false;
       if (filterStatus && po.status !== filterStatus) return false;
       if (debouncedSearch) {
-        const term = debouncedSearch.toLowerCase();
+        const term = debouncedSearch.trim().toLowerCase();
         const sName = suppliers.find((s) => s.id === po.supplier || s._id === po.supplier);
         const supplierName = sName ? sName.companyName || sName.name || sName.supplierName || "" : po.supplierName || po.vendorName || po.vendorBankDetails?.accountHolder || po.vendor || po.supplier || "";
         const match = (po.id || "").toLowerCase().includes(term) || (po.project || "").toLowerCase().includes(term) || supplierName.toLowerCase().includes(term);

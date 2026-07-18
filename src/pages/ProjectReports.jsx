@@ -111,7 +111,7 @@ const ProjectReports = /* @__PURE__ */ __name(() => {
     })).sort((a, b) => b.requested - a.requested);
     if (!searchQuery) return filtered;
     return filtered.filter(
-      (item) => item.engineer.toLowerCase().includes(searchQuery.toLowerCase()) || item.project.toLowerCase().includes(searchQuery.toLowerCase())
+      (item) => item.engineer.toLowerCase().includes(searchQuery.trim().toLowerCase()) || item.project.toLowerCase().includes(searchQuery.trim().toLowerCase())
     );
   }, [filteredMRs, searchQuery]);
   const toggleEngineer = /* @__PURE__ */ __name((name) => {
@@ -318,7 +318,7 @@ const ProjectReports = /* @__PURE__ */ __name(() => {
                         </thead>
                         <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
                             {transactions.filter((t) => t.date && t.date.substring(0, 7) === selectedMonth).filter(
-          (t) => !searchQuery || t.itemName.toLowerCase().includes(searchQuery.toLowerCase()) || (t.project || "").toLowerCase().includes(searchQuery.toLowerCase())
+          (t) => !searchQuery.trim() || t.itemName.toLowerCase().includes(searchQuery.trim().toLowerCase()) || (t.project || "").toLowerCase().includes(searchQuery.trim().toLowerCase())
         ).slice(0, 100).map((t) => <tr key={t.id} className="hover:bg-gray-50/50 dark:hover:bg-gray-800/20">
                                     <td className="px-6 py-4">
                                         <div className="flex flex-col">

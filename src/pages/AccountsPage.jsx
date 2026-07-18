@@ -25,7 +25,8 @@ import {
   Check,
   RefreshCw,
   Pencil,
-  Trash2
+  Trash2,
+  X
 } from "lucide-react";
 import { fmtCur, formatDate, calculatePriceComparison } from "../utils";
 import { cn } from "../lib/utils";
@@ -78,6 +79,8 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
   const [filterProject, setFilterProject] = useState("");
   const [deleteConfirmPO, setDeleteConfirmPO] = useState(null);
   const [isDeletingPayment, setIsDeletingPayment] = useState(false);
+  const [removeConfirmPO, setRemoveConfirmPO] = useState(null);
+  const [isRemovingFromAccounts, setIsRemovingFromAccounts] = useState(false);
   const [isEditingPayment, setIsEditingPayment] = useState(false);
   useEffect(() => {
     if (!paymentForm.toCompany) return;
@@ -112,11 +115,9 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
       const [_, __, grnRes] = await Promise.all([
         fetchResource("pos", 1, 500, false, "", accountsFilter),
         fetchResource("suppliers", 1, 5000, true),
-        api.get("grn", { limit: 1000 }).catch(() => ({ success: false }))
+        api.get("grn", { limit: 1000 }).catch(() => ({ success: false })),
       ]);
-      if (grnRes && grnRes.success && grnRes.data) {
-        setAllGrns(grnRes.data);
-      }
+      if (grnRes?.success && grnRes.data) setAllGrns(grnRes.data);
     } catch (err) {
       console.error(err);
     }
@@ -126,31 +127,25 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
     refresh();
   }, [fetchResource]);
 
+  // Returns the latest GRN that has not yet been linked to a payment installment.
+  // Needed because a PO can have multiple GRN batches (multiple shipments).
+  const getCurrentGRN = /* @__PURE__ */ __name((po, grns) => {
+    const poGRNs = (grns || []).filter(g => g.poId === po.id);
+    if (!poGRNs.length) return null;
+    if (poGRNs.length === 1) return poGRNs[0];
+    const sorted = [...poGRNs].sort((a, b) =>
+      new Date(b.createdAt || b.date || 0) - new Date(a.createdAt || a.date || 0)
+    );
+    const paidGRNIds = new Set((po.paymentHistory || []).map(ph => ph.grnId).filter(Boolean));
+    return sorted.find(g => !paidGRNIds.has(g.id)) || sorted[0];
+  }, "getCurrentGRN");
+
+  // List view: always show PO Grand Total so user sees the full contract amount.
+  // Cycle-specific payable (per GRN batch) is shown inside the drawer.
   const getPayableAmount = /* @__PURE__ */ __name((po) => {
-    if (po.payment && po.payment.amountPaid && (po.accountStatus === 'paid' || po.accountStatus === 'partial_paid')) return po.payment.amountPaid;
-    const poAmount = po.totalValue || 0;
-    const poStatus = (po.status || "").toLowerCase();
-    const accStatus = (po.accountStatus || "").toLowerCase();
-    const isRemainingPayment = (accStatus === "partial_paid" || (accStatus === "payment_pending" && po.payment?.isPartial)) && poStatus === "grn fulfilled";
-    const partialPaid = po.payment?.partialAmount || po.payment?.amountPaid || 0;
-
-    const rGrn = allGrns.find(g => g.poId === po.id);
-    const grnReceivedValue = rGrn
-      ? rGrn.items.reduce((sum, gi) => {
-          const rcv = gi.received ?? gi.qty ?? 0;
-          const rate = gi.rate || po.items?.find(pi =>
-            (pi.sku && pi.sku === gi.sku) ||
-            (pi.materialName || "").toLowerCase() === (gi.itemName || "").toLowerCase()
-          )?.rate || 0;
-          return sum + rcv * rate;
-        }, 0)
-      : 0;
-
-    return isRemainingPayment
-      ? Math.max(0, poAmount - partialPaid)
-      : poStatus === "grn variance" && grnReceivedValue > 0
-        ? grnReceivedValue
-        : poAmount;
+    if ((po.accountStatus || "").toLowerCase() === "paid")
+      return po.totalPaid || po.totalValue || 0;
+    return po.totalValue || 0;
   }, "getPayableAmount");
   const getSupplierName = /* @__PURE__ */ __name((supplierIdOption) => {
     if (!supplierIdOption) return "Unknown Vendor";
@@ -166,14 +161,14 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
       const accStatus = (p.accountStatus || "").toLowerCase();
       const poStatus = (p.status || "").toLowerCase();
       if (accStatus === "bill_verify") return true;
-      if (accStatus === "partial_paid" && poStatus === "grn fulfilled") return true;
+      if (accStatus === "partial_paid" && ["grn fulfilled", "grn variance"].includes(poStatus)) return true;
       return !accStatus && ["grn fulfilled", "grn variance", "ready for payment"].includes(poStatus);
     }).length;
     const paidThisMonth = all.filter((p) => {
       const accStatus = (p.accountStatus || "").toLowerCase();
       if (accStatus !== "paid" || !p.payment?.date) return false;
       const d = new Date(p.payment.date);
-      const now = /* @__PURE__ */ new Date();
+      const now = new Date();
       return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
     });
     const totalPaidAmount = paidThisMonth.reduce((sum, p) => sum + (p.payment?.amountPaid || 0), 0);
@@ -206,15 +201,22 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
       const poStatus = (p.status || "").toLowerCase();
       let status = accStatus;
       if (!status) {
-        if (["grn fulfilled", "grn variance", "ready for payment"].includes(poStatus)) {
-          status = "bill_verify";
-        } else {
-          status = "other";
-        }
+        if (["grn fulfilled", "grn variance", "ready for payment"].includes(poStatus)) status = "bill_verify";
+        else status = "other";
       }
-      // partial_paid + GRN Fulfilled → treat as bill_verify (remaining payment)
-      if (accStatus === "partial_paid" && poStatus === "grn fulfilled") status = "bill_verify";
-      else if (accStatus === "partial_paid") status = "partial_paid";
+      if (accStatus === "partial_paid") {
+        const totalPd = p.totalPaid || p.payment?.amountPaid || 0;
+        // Sum value across ALL GRN batches for this PO
+        const poGRNs = allGrns.filter(g => g.poId === p.id);
+        const gv = poGRNs.reduce((total, grn) =>
+          total + grn.items.reduce((s, gi) => {
+            const rcv = gi.received ?? gi.qty ?? 0;
+            const rate = p.items?.find(pi => (pi.sku && pi.sku === gi.sku) || (pi.materialName || "").toLowerCase() === (gi.itemName || "").toLowerCase())?.rate || gi.rate || 0;
+            return s + rcv * rate;
+          }, 0)
+        , 0);
+        status = (gv > totalPd + 1 || poStatus === "grn fulfilled") ? "bill_verify" : "partial_paid";
+      }
       if (filter === "All" && !["bill_verify", "payment_pending", "paid", "partial_paid", "rejected"].includes(status)) return false;
       if (filter === "Verify Bills" && status !== "bill_verify") return false;
       if (filter === "Pending Payment" && status !== "payment_pending") return false;
@@ -222,9 +224,8 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
       if (filter === "Partial Paid" && status !== "partial_paid") return false;
       if (filter === "Rejected" && status !== "rejected") return false;
       if (search) {
-        const q = search.toLowerCase();
-        const vendorName = getSupplierName(p.supplier).toLowerCase();
-        if (!p.id?.toLowerCase().includes(q) && !vendorName.includes(q)) return false;
+        const q = search.trim().toLowerCase();
+        if (!p.id?.toLowerCase().includes(q) && !getSupplierName(p.supplier).toLowerCase().includes(q)) return false;
       }
       if (startDate || endDate) {
         const d = p.createdAt ? new Date(p.createdAt) : null;
@@ -239,7 +240,7 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
       if (filterProject && (p.project || p.location) !== filterProject) return false;
       return true;
     });
-  }, [pos, filter, search, startDate, endDate, filterVendor, filterProject, suppliers]);
+  }, [pos, allGrns, filter, search, startDate, endDate, filterVendor, filterProject, suppliers]);
   const handleBillApprove = /* @__PURE__ */ __name(async (poId) => {
     if (!hasPermission("VERIFY_BILL")) {
       toast.error("Unauthorized: Access to verify bills is restricted.");
@@ -354,9 +355,10 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
       toast.error("Tally payment screenshot is mandatory.");
       return;
     }
+    const fieldLabels = { date: "Payment Date", mode: "Payment Mode", ref: "Voucher Ref (ERP/Tally PV)", amountPaid: "Amount Paid", bank: "Debit Bank Account", utr: "UTR / Reference ID", chequeNo: "Cheque No.", chequeDate: "Cheque Date" };
     const missing = required.filter((f) => !paymentForm[f]);
     if (missing.length > 0) {
-      toast.error(`Please fill in required fields: ${missing.join(", ")}`);
+      toast.error(`Please fill in: ${missing.map(f => fieldLabels[f] || f).join(", ")}`);
       return;
     }
     setIsSubmitting(true);
@@ -384,41 +386,60 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
         screenshotUrl,
         screenshotName: screenshot?.name || "payment_proof.png"
       };
-      // Determine if this is a partial payment (GRN Variance) or final payment
-      const isPartialPayment = (po?.status || "").toLowerCase() === "grn variance" &&
-        (po?.accountStatus || "").toLowerCase() !== "partial_paid";
-      const isFinalPayment = (po?.accountStatus || "").toLowerCase() === "partial_paid" || po?.payment?.isPartial;
-      const newAccountStatus = isPartialPayment ? "partial_paid" : "paid";
-      // For final payment of a previously partial_paid PO, preserve partial payment history
-      const finalPaymentData = isFinalPayment ? {
-        ...paymentData,
-        partialPayment: {
-          amount: po?.payment?.amountPaid || 0,
-          date: po?.payment?.date || "",
-          mode: po?.payment?.mode || "",
-          ref: po?.payment?.ref || "",
-          paidBy: po?.payment?.paidBy || "",
-        },
-        amountPaid: (po?.payment?.amountPaid || 0) + paymentData.amountPaid,
-      } : isPartialPayment ? {
-        ...paymentData,
-        isPartial: true,
-        partialAmount: paymentData.amountPaid,
-      } : paymentData;
+      // Compute cumulative paid and determine if this closes the PO
+      const prevTotalPaid = po?.totalPaid || po?.payment?.amountPaid || 0;
+      const poGrandTotal = po?.totalValue || 0;
+      const remainingPayable = Math.max(0, poGrandTotal - prevTotalPaid);
+      // Hard cap: total paid must never exceed PO grand total
+      if (paymentData.amountPaid > remainingPayable + 0.01) {
+        toast.error(`Amount ₹${paymentData.amountPaid.toLocaleString("en-IN")} exceeds remaining payable ₹${remainingPayable.toLocaleString("en-IN", { minimumFractionDigits: 2 })}. Please correct the amount.`);
+        setIsSubmitting(false);
+        return;
+      }
+      const newTotalPaid = prevTotalPaid + paymentData.amountPaid;
+      const isFullyPaid = newTotalPaid >= poGrandTotal - 0.01;
+      const newAccountStatus = isFullyPaid ? "paid" : "partial_paid";
+      // Build history entry for this installment (link to current unpaid GRN batch)
+      const rGrnForPayment = getCurrentGRN(po, allGrns);
+      const grnValForPayment = rGrnForPayment ? rGrnForPayment.items.reduce((s, gi) => {
+        const rcv = gi.received ?? gi.qty ?? 0;
+        const rate = gi.rate || po?.items?.find(pi => (pi.sku && pi.sku === gi.sku) || (pi.materialName || "").toLowerCase() === (gi.itemName || "").toLowerCase())?.rate || 0;
+        return s + rcv * rate;
+      }, 0) : 0;
+      const newEntry = {
+        installmentNo: (po?.paymentHistory?.length || 0) + 1,
+        grnId: rGrnForPayment?.id || null,
+        grnReceivedValue: Math.round(grnValForPayment * 100) / 100,
+        amountPaid: paymentData.amountPaid,
+        date: paymentData.date,
+        timestamp,
+        mode: paymentData.mode,
+        ref: paymentData.ref || "",
+        bank: paymentData.bank || "",
+        utr: paymentData.utr || "",
+        chequeNo: paymentData.chequeNo || "",
+        paidBy: paymentData.paidBy,
+        screenshotUrl: paymentData.screenshotUrl || "",
+        remarks: paymentData.remarks || "",
+      };
       const audit = {
         timestamp,
-        action: isPartialPayment ? "partial_payment_submitted" : "payment_submitted",
+        action: isFullyPaid ? "payment_submitted" : "partial_payment_submitted",
         po_number: poId,
         done_by: user?.name || "System",
         amount: paymentForm.amountPaid,
-        details: { mode: paymentForm.mode, ref: paymentForm.ref }
+        details: { mode: paymentForm.mode, ref: paymentForm.ref, installmentNo: newEntry.installmentNo }
       };
       await updatePO(poId, {
         accountStatus: newAccountStatus,
-        payment: finalPaymentData,
-        auditTrail: [...po?.auditTrail || [], audit]
+        paymentHistory: [...(po?.paymentHistory || []), newEntry],
+        totalPaid: newTotalPaid,
+        payment: { ...paymentData, amountPaid: newTotalPaid, isPartial: !isFullyPaid, partialAmount: prevTotalPaid || paymentData.amountPaid },
+        auditTrail: [...(po?.auditTrail || []), audit]
       });
-      toast.success(isPartialPayment ? "Partial payment recorded! Remaining will activate after full GRN." : "Payment confirmed! ERP Synced.");
+      toast.success(isFullyPaid
+        ? "Payment confirmed! PO fully settled."
+        : `Installment #${newEntry.installmentNo} recorded. ₹${(po?.totalValue - newTotalPaid).toLocaleString("en-IN", { maximumFractionDigits: 2 })} remaining — will activate on next GRN batch.`);
       setSelectedPO(null);
       setIsEditingPayment(false);
     } catch (err) {
@@ -431,20 +452,27 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
   const handleEditPayment = /* @__PURE__ */ __name(async (e, po) => {
     e.stopPropagation();
     const sup = suppliers.find((s) => s.id === po.supplier || s._id === po.supplier);
+    // Use last paymentHistory installment if available, else fall back to legacy po.payment
+    const lastInstallment = po.paymentHistory?.length > 0
+      ? po.paymentHistory[po.paymentHistory.length - 1]
+      : null;
+    const src = lastInstallment || po.payment || {};
+    const prevTotalPaid = po.totalPaid || po.payment?.amountPaid || 0;
+    const remainingBalance = Math.max(0, (po.totalValue || 0) - prevTotalPaid);
     setPaymentForm({
-      date: po.payment?.date || (/* @__PURE__ */ new Date()).toISOString().split("T")[0],
-      mode: po.payment?.mode || "NEFT",
-      ref: po.payment?.ref || "",
-      amountPaid: po.payment?.amountPaid ?? po.totalValue,
-      bank: po.payment?.bank || "",
-      utr: po.payment?.utr || "",
-      chequeNo: po.payment?.chequeNo || "",
-      chequeDate: po.payment?.chequeDate || "",
+      date: (/* @__PURE__ */ new Date()).toISOString().split("T")[0],
+      mode: src.mode || "NEFT",
+      ref: "",
+      amountPaid: remainingBalance > 0 ? remainingBalance : po.totalValue,
+      bank: src.bank || "",
+      utr: src.utr || "",
+      chequeNo: src.chequeNo || "",
+      chequeDate: src.chequeDate || "",
       screenshot: null,
-      previewUrl: po.payment?.screenshotUrl || "",
-      remarks: po.payment?.remarks || "",
-      fromCompany: po.payment?.fromCompany || po.companyName || "Our Company",
-      toCompany: po.payment?.toCompany || sup?.companyName || po.supplier || "Unknown Vendor",
+      previewUrl: src.screenshotUrl || "",
+      remarks: src.remarks || "",
+      fromCompany: src.fromCompany || po.companyName || "Our Company",
+      toCompany: src.toCompany || sup?.companyName || po.supplier || "Unknown Vendor",
       vendorBankDetails: po.vendorBankDetails || (sup ? {
         accountHolder: sup.accountHolderName || sup.ownerName || "",
         bankName: sup.bankName || "",
@@ -457,16 +485,22 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
     setRealGRN(null);
     setSelectedPO(po);
     try {
-      const grnRes = await api.get("grn", { filter: JSON.stringify({ poId: po.id }), limit: 1 });
-      if (grnRes.success && grnRes.data?.length > 0) setRealGRN(grnRes.data[0]);
+      const grnRes = await api.get("grn", { filter: JSON.stringify({ poId: po.id }), limit: 100 });
+      if (grnRes.success && grnRes.data?.length > 0) {
+        const sorted = [...grnRes.data].sort((a, b) =>
+          new Date(b.createdAt || b.date || 0) - new Date(a.createdAt || a.date || 0)
+        );
+        const paidGRNIds = new Set((po.paymentHistory || []).map(ph => ph.grnId).filter(Boolean));
+        setRealGRN(sorted.find(g => !paidGRNIds.has(g.id)) || sorted[0]);
+      }
     } catch {}
   }, "handleEditPayment");
   const handleDeletePayment = /* @__PURE__ */ __name(async () => {
     if (!deleteConfirmPO) return;
     setIsDeletingPayment(true);
     try {
-      await updatePO(deleteConfirmPO.id, { accountStatus: "payment_pending", payment: null });
-      toast.success("Payment entry deleted. Reverted to pending payment.");
+      await updatePO(deleteConfirmPO.id, { accountStatus: null, payment: null, totalPaid: 0, paymentHistory: [] });
+      toast.success("Payment entry deleted. PO reverted to bill verification.");
       setDeleteConfirmPO(null);
       if (selectedPO?.id === deleteConfirmPO.id) setSelectedPO(null);
     } catch {
@@ -475,6 +509,185 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
       setIsDeletingPayment(false);
     }
   }, "handleDeletePayment");
+  const handleRemoveFromAccounts = /* @__PURE__ */ __name(async () => {
+    if (!removeConfirmPO) return;
+    setIsRemovingFromAccounts(true);
+    try {
+      await updatePO(removeConfirmPO.id, { accountStatus: null, payment: null, totalPaid: 0, paymentHistory: [] });
+      toast.success(`${removeConfirmPO.id} removed from Accounts.`);
+      setRemoveConfirmPO(null);
+      if (selectedPO?.id === removeConfirmPO.id) setSelectedPO(null);
+    } catch (err) {
+      toast.error("Failed to remove from accounts.");
+    } finally {
+      setIsRemovingFromAccounts(false);
+    }
+  }, "handleRemoveFromAccounts");
+
+  const handlePrintPaymentAdvice = /* @__PURE__ */ __name((po) => {
+    const supplierName = getSupplierName(po.supplier);
+    const fmtD = (d) => d ? new Date(d).toLocaleDateString("en-IN", { day: "2-digit", month: "long", year: "numeric" }) : "—";
+    const fmtA = (n) => n != null ? "₹" + Number(n).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "—";
+    const vbd = po.payment?.vendorBankDetails;
+    const installments = po.paymentHistory?.length > 0 ? po.paymentHistory : (po.payment ? [{
+      installmentNo: 1, amountPaid: po.payment.amountPaid, date: po.payment.date,
+      mode: po.payment.mode, ref: po.payment.ref, bank: po.payment.bank,
+      utr: po.payment.utr, paidBy: po.payment.paidBy, grnReceivedValue: po.payment.grnReceivedValue
+    }] : []);
+
+    const installmentsHTML = installments.map((ph, i) => `
+      <tr style="background:${i % 2 === 0 ? "#F8FAFC" : "#FFFFFF"}">
+        <td style="padding:10px 14px;border-bottom:1px solid #E2E8F0;color:#374151;font-size:12px">#${ph.installmentNo || i+1}</td>
+        <td style="padding:10px 14px;border-bottom:1px solid #E2E8F0;color:#374151;font-size:12px">${fmtD(ph.date)}</td>
+        <td style="padding:10px 14px;border-bottom:1px solid #E2E8F0;color:#374151;font-size:12px">${ph.mode || "—"}</td>
+        <td style="padding:10px 14px;border-bottom:1px solid #E2E8F0;color:#374151;font-size:12px">${ph.ref || "—"}</td>
+        <td style="padding:10px 14px;border-bottom:1px solid #E2E8F0;color:#374151;font-size:12px">${ph.utr || ph.bank || "—"}</td>
+        <td style="padding:10px 14px;border-bottom:1px solid #E2E8F0;text-align:right;font-weight:700;color:#1E3A5F;font-size:12px;font-variant-numeric:tabular-nums">${fmtA(ph.amountPaid)}</td>
+      </tr>`).join("");
+
+    const html = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"/>
+      <title>Payment Advice — ${po.id}</title>
+      <style>
+        *{margin:0;padding:0;box-sizing:border-box}
+        body{font-family:"Segoe UI",Arial,sans-serif;font-size:13px;color:#1F2937;background:#fff;padding:0}
+        .page{max-width:900px;margin:0 auto;padding:48px 56px}
+        /* Header */
+        .hdr{display:flex;justify-content:space-between;align-items:flex-start;padding-bottom:24px;border-bottom:3px solid #1E3A5F;margin-bottom:32px}
+        .company-name{font-size:22px;font-weight:800;color:#1E3A5F;letter-spacing:-0.5px}
+        .company-sub{font-size:11px;color:#6B7280;margin-top:3px}
+        .doc-badge{text-align:right}
+        .doc-title{font-size:20px;font-weight:900;color:#1E3A5F;letter-spacing:1px;text-transform:uppercase}
+        .doc-ref{font-size:11px;color:#6B7280;margin-top:4px}
+        /* Status strip */
+        .status-strip{background:#EFF6FF;border:1px solid #BFDBFE;border-radius:8px;padding:10px 16px;display:flex;align-items:center;gap:10px;margin-bottom:28px}
+        .status-dot{width:10px;height:10px;border-radius:50%;background:#16A34A;flex-shrink:0}
+        .status-text{font-size:12px;font-weight:700;color:#1E3A5F}
+        /* Section */
+        .section{margin-bottom:28px}
+        .section-title{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:1.2px;color:#6B7280;border-bottom:1px solid #E5E7EB;padding-bottom:6px;margin-bottom:14px}
+        /* Grid fields */
+        .grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px 32px}
+        .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px 24px}
+        .field-label{font-size:10px;font-weight:700;color:#9CA3AF;text-transform:uppercase;letter-spacing:0.8px;margin-bottom:3px}
+        .field-value{font-size:13px;font-weight:600;color:#111827}
+        .field-value.accent{color:#1E3A5F;font-weight:800}
+        .field-value.big{font-size:18px;font-weight:900;color:#1E3A5F;letter-spacing:-0.5px}
+        /* Table */
+        table{width:100%;border-collapse:collapse;font-size:12px}
+        thead tr{background:#1E3A5F}
+        thead th{padding:10px 14px;text-align:left;color:#fff;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:0.8px}
+        thead th:last-child{text-align:right}
+        tfoot tr{background:#1E3A5F}
+        tfoot td{padding:10px 14px;color:#fff;font-weight:800;font-size:13px}
+        tfoot td:last-child{text-align:right;font-size:14px}
+        /* Divider */
+        .divider{border:none;border-top:1px solid #E5E7EB;margin:24px 0}
+        /* Footer */
+        .footer{margin-top:40px;padding-top:20px;border-top:2px solid #1E3A5F;display:flex;justify-content:space-between;align-items:flex-end}
+        .sig-block{text-align:center;min-width:160px}
+        .sig-line{border-top:1px solid #374151;padding-top:6px;font-size:10px;font-weight:700;color:#6B7280;text-transform:uppercase;letter-spacing:0.8px;margin-top:40px}
+        .watermark-paid{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%) rotate(-35deg);font-size:100px;font-weight:900;color:rgba(22,163,74,0.07);pointer-events:none;z-index:0;white-space:nowrap}
+        .content{position:relative;z-index:1}
+        @media print{body{padding:0}@page{margin:20mm 18mm;size:A4}}
+      </style></head><body>
+      <div class="watermark-paid">PAID</div>
+      <div class="page content">
+        <!-- Header -->
+        <div class="hdr">
+          <div>
+            <div class="company-name">${po.payment?.fromCompany || "Neoteric Group"}</div>
+            <div class="company-sub">Accounts & Finance Department</div>
+          </div>
+          <div class="doc-badge">
+            <div class="doc-title">Payment Advice</div>
+            <div class="doc-ref">Ref: ${po.id} &nbsp;|&nbsp; ${fmtD(new Date().toISOString())}</div>
+          </div>
+        </div>
+
+        <div class="status-strip">
+          <div class="status-dot"></div>
+          <div class="status-text">PAYMENT CONFIRMED &nbsp;·&nbsp; Synced with Tally ERP &nbsp;·&nbsp; Total Disbursed: ${fmtA(po.totalPaid || po.payment?.amountPaid || po.totalValue)}</div>
+        </div>
+
+        <!-- PO & Invoice Info -->
+        <div class="section">
+          <div class="section-title">Purchase Order &amp; Invoice Details</div>
+          <div class="grid3">
+            <div><div class="field-label">PO Number</div><div class="field-value accent">${po.id}</div></div>
+            <div><div class="field-label">Invoice No.</div><div class="field-value">${po.invoice?.number || "—"}</div></div>
+            <div><div class="field-label">Invoice Date</div><div class="field-value">${fmtD(po.invoice?.date)}</div></div>
+            <div><div class="field-label">Vendor / Supplier</div><div class="field-value">${supplierName}</div></div>
+            <div><div class="field-label">PO Date</div><div class="field-value">${fmtD(po.date)}</div></div>
+            <div><div class="field-label">GRN Reference</div><div class="field-value">${po.grn?.number || (po.paymentHistory?.[0]?.grnId) || "—"}</div></div>
+          </div>
+        </div>
+
+        <!-- Amount Summary -->
+        <div class="section">
+          <div class="section-title">Payment Summary</div>
+          <div class="grid3">
+            <div><div class="field-label">PO Grand Total</div><div class="field-value big">${fmtA(po.totalValue)}</div></div>
+            <div><div class="field-label">Total Disbursed</div><div class="field-value big" style="color:#16A34A">${fmtA(po.totalPaid || po.payment?.amountPaid)}</div></div>
+            <div><div class="field-label">Balance Outstanding</div><div class="field-value big" style="color:${Math.max(0,(po.totalValue||0)-(po.totalPaid||po.payment?.amountPaid||0)) > 0.01 ? "#DC2626" : "#16A34A"}">${fmtA(Math.max(0,(po.totalValue||0)-(po.totalPaid||po.payment?.amountPaid||0)))}</div></div>
+          </div>
+        </div>
+
+        <!-- Installments Table -->
+        ${installments.length > 0 ? `<div class="section">
+          <div class="section-title">Payment Installments</div>
+          <table>
+            <thead><tr>
+              <th>#</th><th>Date</th><th>Mode</th><th>Voucher Ref</th><th>UTR / Bank</th><th style="text-align:right">Amount Paid</th>
+            </tr></thead>
+            <tbody>${installmentsHTML}</tbody>
+            <tfoot><tr>
+              <td colspan="5" style="font-size:11px;letter-spacing:0.5px">TOTAL DISBURSED</td>
+              <td>${fmtA(po.totalPaid || po.payment?.amountPaid)}</td>
+            </tr></tfoot>
+          </table>
+        </div>` : ""}
+
+        <!-- Beneficiary bank -->
+        ${vbd ? `<div class="section">
+          <div class="section-title">Beneficiary Bank Details</div>
+          <div class="grid2">
+            <div><div class="field-label">Account Holder</div><div class="field-value">${vbd.accountHolder || "—"}</div></div>
+            <div><div class="field-label">Bank Name</div><div class="field-value">${vbd.bankName || "—"}</div></div>
+            <div><div class="field-label">Account Number</div><div class="field-value">${vbd.accountNo || "—"}</div></div>
+            <div><div class="field-label">IFSC / Branch</div><div class="field-value">${vbd.branchIFSC || "—"}</div></div>
+          </div>
+        </div>` : ""}
+
+        <!-- Internal Tracking -->
+        <div class="section">
+          <div class="section-title">Internal Authorisation</div>
+          <div class="grid3">
+            <div><div class="field-label">Bill Approved By</div><div class="field-value">${po.billApprovedBy || "Accounts Manager"}</div></div>
+            <div><div class="field-label">Approved On</div><div class="field-value">${fmtD(po.billApprovedAt || po.billApprovedDate)}</div></div>
+            <div><div class="field-label">Paid By</div><div class="field-value">${po.payment?.paidBy || "—"}</div></div>
+          </div>
+        </div>
+
+        <hr class="divider"/>
+
+        <!-- Footer -->
+        <div class="footer">
+          <div style="font-size:10px;color:#9CA3AF;max-width:320px">
+            This is a system-generated Payment Advice from the IMS Portal. No signature is required for digital records.
+            Retain this document for your accounting and audit records.
+          </div>
+          <div class="sig-block">
+            <div class="sig-line">Authorised Signatory</div>
+          </div>
+        </div>
+      </div>
+      <script>window.onload=function(){window.print()}<\/script>
+    </body></html>`;
+
+    const w = window.open("", "_blank", "width=1000,height=750");
+    if (w) { w.document.write(html); w.document.close(); }
+  }, "handlePrintPaymentAdvice");
+
   const handleFileChange = /* @__PURE__ */ __name((e) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -599,9 +812,14 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
         setShowRejectForm(false);
         setRealGRN(null);
         try {
-          const grnRes = await api.get("grn", { filter: JSON.stringify({ poId: po.id }), limit: 1 });
-          if (grnRes.success && grnRes.data && grnRes.data.length > 0) {
-            setRealGRN(grnRes.data[0]);
+          // Fetch ALL GRNs for this PO (multiple shipments possible)
+          const grnRes = await api.get("grn", { filter: JSON.stringify({ poId: po.id }), limit: 100 });
+          if (grnRes.success && grnRes.data?.length > 0) {
+            const sorted = [...grnRes.data].sort((a, b) =>
+              new Date(b.createdAt || b.date || 0) - new Date(a.createdAt || a.date || 0)
+            );
+            const paidGRNIds = new Set((po.paymentHistory || []).map(ph => ph.grnId).filter(Boolean));
+            setRealGRN(sorted.find(g => !paidGRNIds.has(g.id)) || sorted[0]);
           }
         } catch (err) {
           console.error("Failed to fetch GRN for PO", err);
@@ -671,6 +889,7 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
                       <StatusBadge status={
                         po.accountStatus === "payment_pending" ? "Payment Pending"
                         : po.accountStatus === "paid" ? "Paid"
+                        : po.accountStatus === "partial_paid" && (po.status || "").toLowerCase() === "grn fulfilled" ? "To Verify"
                         : po.accountStatus === "partial_paid" ? "Partial Paid"
                         : po.accountStatus === "rejected" ? "Rejected"
                         : "To Verify"
@@ -683,7 +902,7 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
                       </p>
                     </div>
                     <div className="hidden md:flex items-center justify-end gap-1 pr-2 sm:pr-4">
-                      {["paid", "partial_paid"].includes(po.accountStatus) && <>
+                      {["paid", "partial_paid"].includes(po.accountStatus) && (
                         <button
                           onClick={(e) => handleEditPayment(e, po)}
                           className="p-1.5 rounded-lg bg-blue-50 dark:bg-blue-500/10 text-blue-500 hover:opacity-80 transition-opacity"
@@ -691,14 +910,16 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
                         >
                           <Pencil className="w-3.5 h-3.5" />
                         </button>
+                      )}
+                      {["paid", "partial_paid"].includes(po.accountStatus) && (
                         <button
                           onClick={(e) => { e.stopPropagation(); setDeleteConfirmPO(po); }}
                           className="p-1.5 rounded-lg bg-red-50 dark:bg-red-500/10 text-red-500 hover:opacity-80 transition-opacity"
-                          title="Delete payment"
+                          title="Delete payment entry"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
-                      </>}
+                      )}
                     </div>
                   </div>}
   />}
@@ -711,14 +932,45 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
         const accStatus = (selectedPO.accountStatus || "").toLowerCase();
         const poSt = (selectedPO.status || "").toLowerCase();
         const resolvedStatus = (() => {
-          if (accStatus === "partial_paid" && poSt === "grn fulfilled") return "bill_verify"; // remaining payment due
+          // When user explicitly clicks Edit (pencil), always use actual accountStatus — skip computed overrides
+          if (isEditingPayment) return accStatus || "paid";
+          if (accStatus === "partial_paid") {
+            const tpd = selectedPO.totalPaid || selectedPO.payment?.amountPaid || 0;
+            const poTotal = selectedPO.totalValue || 0;
+            // If everything is already paid, treat as paid (edge case: accountStatus not updated)
+            if (poTotal > 0 && tpd >= poTotal - 0.01) return "paid";
+            // New GRN batch arrived — activate bill_verify for remaining amount
+            if (poSt === "grn fulfilled") return "bill_verify";
+            // Sum across ALL GRN batches to check if new goods arrived
+            const allPOGRNs = allGrns.filter(g => g.poId === selectedPO.id);
+            const gv = allPOGRNs.reduce((total, grn) =>
+              total + grn.items.reduce((s, gi) => {
+                const rcv = gi.received ?? gi.qty ?? 0;
+                const rate = selectedPO.items?.find(pi => (pi.sku && gi.sku && pi.sku === gi.sku) || (pi.materialName || "").toLowerCase() === (gi.itemName || "").toLowerCase())?.rate || gi.rate || 0;
+                return s + rcv * rate;
+              }, 0)
+            , 0);
+            if (gv > tpd + 1) return "bill_verify";
+            return "partial_paid";
+          }
           if (accStatus) return accStatus;
           if (["grn fulfilled", "grn variance", "ready for payment"].includes(poSt)) return "bill_verify";
           return "other";
         })();
-        const isRemainingPayment = (accStatus === "partial_paid" || (accStatus === "payment_pending" && selectedPO.payment?.isPartial)) && poSt === "grn fulfilled";
+        const isRemainingPayment = accStatus === "partial_paid" || (accStatus === "payment_pending" && (selectedPO.paymentHistory?.length > 0 || selectedPO.payment?.isPartial));
+        const drawerPayableAmount = (() => {
+          const tpd = selectedPO.totalPaid || selectedPO.payment?.partialAmount || selectedPO.payment?.amountPaid || 0;
+          const poTotal = selectedPO.totalValue || 0;
+          // Always: remaining balance = PO total − already paid
+          return Math.max(0, poTotal - tpd);
+        })();
         const drawerFooter = resolvedStatus === "bill_verify" ? (
-          showRejectForm ? (
+          drawerPayableAmount <= 0 ? (
+            <div className="flex items-center gap-2 px-4 py-2.5 bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20 rounded-xl">
+              <Clock className="w-4 h-4 text-amber-500 shrink-0" />
+              <p className="text-[12px] font-bold text-amber-700 dark:text-amber-400">Waiting for next GRN batch</p>
+            </div>
+          ) : showRejectForm ? (
             <div className="flex flex-col sm:flex-row gap-3 items-end w-full">
               <div className="flex-1">
                 <label className="text-[10px] font-black text-red-500 dark:text-red-400 mb-1 block">Rejection reason *</label>
@@ -748,7 +1000,7 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
             </div>
           )
         ) : (resolvedStatus === "payment_pending" || ((resolvedStatus === "paid" || resolvedStatus === "partial_paid") && isEditingPayment)) ? (
-          <div className="flex justify-end gap-3 w-full">
+          <div className="flex justify-end gap-3 w-full items-center">
             {resolvedStatus === "payment_pending" && (
               <button
                 onClick={() => handleRevokeApproval(selectedPO.id)}
@@ -758,13 +1010,20 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
                 Revise Approval
               </button>
             )}
-            <button
-              onClick={() => handlePaymentSubmit(selectedPO.id)}
-              disabled={isSubmitting}
-              className="bg-[#F97316] hover:bg-[#EA580C] disabled:opacity-50 text-white py-2.5 px-8 rounded-xl text-[13px] font-black shadow-lg shadow-orange-500/20 flex items-center justify-center gap-2 transition-all active:scale-[0.98]"
-            >
-              {isSubmitting ? "Syncing with ERP..." : isEditingPayment ? "Update Payment ✓" : isRemainingPayment ? "Pay Remaining Balance ✓" : (selectedPO.status || "").toLowerCase() === "grn variance" ? "Mark Partial Payment ✓" : "Mark Payment as Complete ✓"}
-            </button>
+            {drawerPayableAmount <= 0 && !isEditingPayment ? (
+              <div className="flex items-center gap-2 px-4 py-2.5 bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20 rounded-xl">
+                <Clock className="w-4 h-4 text-amber-500 shrink-0" />
+                <p className="text-[12px] font-bold text-amber-700 dark:text-amber-400">Waiting for next GRN batch</p>
+              </div>
+            ) : (
+              <button
+                onClick={() => handlePaymentSubmit(selectedPO.id)}
+                disabled={isSubmitting || drawerPayableAmount <= 0}
+                className="bg-[#F97316] hover:bg-[#EA580C] disabled:opacity-50 disabled:cursor-not-allowed text-white py-2.5 px-8 rounded-xl text-[13px] font-black shadow-lg shadow-orange-500/20 flex items-center justify-center gap-2 transition-all active:scale-[0.98]"
+              >
+                {isSubmitting ? "Syncing with ERP..." : isEditingPayment ? "Update Payment ✓" : isRemainingPayment ? "Pay Remaining Balance ✓" : "Mark Payment as Complete ✓"}
+              </button>
+            )}
           </div>
         ) : resolvedStatus === "partial_paid" ? (
           <div className="flex items-center gap-3 w-full">
@@ -776,7 +1035,13 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
             </div>
           </div>
         ) : resolvedStatus === "paid" && !isEditingPayment ? (
-          <div className="flex justify-end w-full">
+          <div className="flex justify-between items-center w-full">
+            <button
+              onClick={() => handlePrintPaymentAdvice(selectedPO)}
+              className="px-6 py-2.5 bg-orange-500 hover:bg-orange-600 text-white rounded-xl text-[13px] font-black shadow-lg shadow-orange-500/20 flex items-center gap-2 transition-all active:scale-95 tracking-widest"
+            >
+              <Download className="w-4 h-4" /> Download Payment Advice
+            </button>
             <button
               onClick={() => { setSelectedPO(null); setIsEditingPayment(false); }}
               className="px-7 py-2.5 bg-white text-gray-900 text-[13px] font-bold rounded-xl hover:bg-gray-100 transition-colors shadow-sm"
@@ -815,6 +1080,8 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
             onViewPO={() => setPreviewPO(selectedPO)}
             isEditingPayment={isEditingPayment}
             isRemainingPayment={isRemainingPayment}
+            allGrns={allGrns}
+            onPrintPaymentAdvice={handlePrintPaymentAdvice}
             onClose={() => { setSelectedPO(null); setIsEditingPayment(false); }}
           />
         </Modal>;
@@ -831,8 +1098,27 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
         onConfirm={handleDeletePayment}
         onCancel={() => setDeleteConfirmPO(null)}
       />}
+
+      {removeConfirmPO && <ConfirmModal
+        title="Remove from Accounts"
+        message={`Remove ${removeConfirmPO.id} (${getSupplierName(removeConfirmPO.supplier)}) from the Accounts module? This will clear its account status and delete the account entry. The PO itself will not be deleted.`}
+        confirmLabel="Remove"
+        confirmColor="red"
+        loading={isRemovingFromAccounts}
+        onConfirm={handleRemoveFromAccounts}
+        onCancel={() => setRemoveConfirmPO(null)}
+      />}
     </div>;
 }, "AccountsPage");
+const GRNInfoRow = /* @__PURE__ */ __name(({ label, value, orange, mono }) => (
+  <div className="grid grid-cols-12 items-center divide-x divide-gray-100 dark:divide-gray-800">
+    <div className="col-span-4 p-3 text-[11px] font-bold text-gray-400 dark:text-gray-500">{label}</div>
+    <div className={`col-span-8 px-4 py-2.5 text-[13px] font-bold truncate ${orange ? "text-orange-500 dark:text-orange-400" : mono ? "font-mono text-blue-500 dark:text-blue-400" : "text-gray-900 dark:text-white"}`}>
+      {value || "—"}
+    </div>
+  </div>
+), "GRNInfoRow");
+
 const DetailPanel = /* @__PURE__ */ __name(({
   po,
   grn: realGrn,
@@ -852,6 +1138,8 @@ const DetailPanel = /* @__PURE__ */ __name(({
   onViewPO,
   isEditingPayment,
   isRemainingPayment,
+  allGrns,
+  onPrintPaymentAdvice,
   onClose
 }) => {
   const [isDraggingPayment, setIsDraggingPayment] = useState(false);
@@ -859,9 +1147,11 @@ const DetailPanel = /* @__PURE__ */ __name(({
   const poStatus = (po.status || "").toLowerCase();
   // Only force bill_verify when accountStatus is "partial_paid" (awaiting approval for remaining)
   // When accountStatus is "payment_pending" (already approved), show the payment form
-  const status = (isRemainingPayment && (po.accountStatus || "").toLowerCase() === "partial_paid")
-    ? "bill_verify"
-    : (po.accountStatus || (["approved", "fulfilled", "grn pending", "grn fulfilled", "grn variance"].includes(poStatus) ? "bill_verify" : "other"));
+  const status = isEditingPayment
+    ? (po.accountStatus || "").toLowerCase() || "paid"
+    : (isRemainingPayment && (po.accountStatus || "").toLowerCase() === "partial_paid")
+      ? "bill_verify"
+      : (po.accountStatus || (["approved", "fulfilled", "grn pending", "grn fulfilled", "grn variance"].includes(poStatus) ? "bill_verify" : "other"));
   const getSupplierName = /* @__PURE__ */ __name((id) => {
     if (!id) return "Unknown Vendor";
     const s = suppliers?.find(
@@ -873,7 +1163,7 @@ const DetailPanel = /* @__PURE__ */ __name(({
   const poAmount = po.totalValue || 0;
   const isMismatch = Math.abs(invoiceAmount - poAmount) > 0.01;
 
-  const partialPaid = po.payment?.partialAmount || po.payment?.amountPaid || 0;
+  const totalPaid = po.totalPaid || po.payment?.partialAmount || po.payment?.amountPaid || 0;
   const grnReceivedValue = realGrn
     ? realGrn.items.reduce((sum, gi) => {
         const rcv = gi.received ?? gi.qty ?? 0;
@@ -884,712 +1174,611 @@ const DetailPanel = /* @__PURE__ */ __name(({
         return sum + rcv * rate;
       }, 0)
     : 0;
-  const payableAmount = isRemainingPayment
-    ? Math.max(0, poAmount - partialPaid)
-    : poStatus === "grn variance" && grnReceivedValue > 0
-      ? grnReceivedValue
-      : poAmount;
-  const payableLabel = isRemainingPayment
-    ? "Remaining payable amount"
-    : poStatus === "grn variance"
-      ? "Payable amount (received goods)"
-      : "Payable amount";
+  // For GRN Variance: pay only for received goods + proportional GST (capped at PO total)
+  const grnReceivedWithGST = realGrn
+    ? realGrn.items.reduce((sum, gi) => {
+        const rcv = gi.received ?? gi.qty ?? 0;
+        const poItem = po.items?.find(pi =>
+          (pi.sku && gi.sku && pi.sku === gi.sku) ||
+          (pi.materialName || "").toLowerCase() === (gi.itemName || "").toLowerCase()
+        );
+        const rate = gi.rate || poItem?.rate || 0;
+        const gstPct = poItem?.gstPct || 0;
+        const gstType = poItem?.gstType || "Exclusive";
+        const base = rcv * rate;
+        const gst = gstType === "Inclusive" ? 0 : base * gstPct / 100;
+        return sum + base + gst;
+      }, 0)
+    : 0;
+  // Always: remaining balance = PO total − already paid
+  const payableAmount = Math.max(0, poAmount - totalPaid);
+  const payableLabel = totalPaid > 0 ? "Remaining payable" : "Payable amount";
 
   useEffect(() => {
-    if (status === "payment_pending" || (status === "paid" && isEditingPayment)) {
+    // Only auto-fill amount for fresh payment_pending flows, not when editing an existing payment
+    if (!isEditingPayment && status === "payment_pending") {
       if (paymentForm.amountPaid === poAmount && payableAmount !== poAmount) {
         setPaymentForm(prev => ({ ...prev, amountPaid: payableAmount }));
       }
     }
   }, [payableAmount, poAmount, paymentForm.amountPaid, setPaymentForm, status, isEditingPayment]);
 
-  if (status === "bill_verify") {
-    const grnNo = realGrn?.id || po.grn?.number || "WAITING";
-    const itemsReceived = realGrn ? `${realGrn.items.reduce((sum, i) => sum + (i.received || 0), 0)} Items` : po.grn?.qty || "As per PO";
-    const receivedBy = realGrn ? realGrn.personName || "Warehouse Team" : po.grn?.receivedBy || "Suresh (WH)";
-    const grnDate = realGrn?.date || po.grn?.date || po.date;
-    const grnRemark = realGrn?.remarks || realGrn?.remark || po.grn?.remark || "Goods matched PO items";
-    const invoiceNo = po.payment?.ref || po.invoice?.number || realGrn?.challan || "PENDING";
-    const gstPct = po.items?.[0]?.gstPct || 18;
-    const gstAmount = po.invoice?.gst || poAmount - poAmount / (1 + gstPct / 100);
-    return <div className="space-y-6 sm:space-y-8">
-        {status === "payment_pending" && <div className="bg-blue-50 dark:bg-blue-500/10 border border-blue-100 dark:border-blue-500/20 p-4 sm:p-5 rounded-2xl mb-8 flex items-start gap-4">
-            <div className="p-2.5 bg-white dark:bg-[#0F172A] rounded-2xl shadow-sm">
-              <Info className="w-5 h-5 text-blue-500" />
-            </div>
-            <div>
-              <p className="text-sm sm:text-base font-black text-gray-900 dark:text-white">Payment form auto-populated</p>
-              <p className="text-[11px] sm:text-xs font-bold text-gray-500 dark:text-gray-400 mt-1 leading-relaxed max-w-2xl">
-                We've fetched the vendor's bank details from their master record for your convenience. Please double-check the accuracy before choosing your debit account and confirming the settlement.
-              </p>
-            </div>
-          </div>}
+  const grnNo = realGrn?.id || "—";
+  const grnDate = realGrn?.date || po.grn?.date || po.date;
+  const receivedBy = realGrn?.personName || "—";
+  const invoiceNo = po.payment?.ref || po.invoice?.number || realGrn?.challan || "—";
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8">
-          {
-      /* PO Details */
-    }
-          <section className="bg-white dark:bg-[#1E293B] p-4 sm:p-5 rounded-xl border border-gray-100 dark:border-[#334155] shadow-sm flex flex-col">
-            <h3 className="text-xs font-black text-[#3B82F6] flex items-center gap-2 leading-none border-b border-gray-50 dark:border-[#334155] pb-3 mb-3"><CreditCard className="w-4 h-4" /> PO details</h3>
-            <div className="space-y-3 flex-1">
-              <InfoItem label="PO no." value={po.id} />
-              <InfoItem label="Vendor" value={getSupplierName(po.supplier)} />
-              <InfoItem label="PO amount" value={fmtCur(poAmount)} highlight />
-              <InfoItem label="PO date" value={formatDate(po.date)} />
-              <InfoItem label="Approved by" value={po.auditTrail?.find((a) => a.action?.includes("approve"))?.done_by || po.createdBy || "System admin"} />
-            </div>
-            <div className="mt-4 pt-3 border-t border-gray-50 dark:border-[#334155]">
-              <button onClick={() => onViewPO && onViewPO()} className="w-full flex items-center justify-center gap-2 py-2.5 bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 rounded-xl text-[11px] font-black hover:opacity-80 hover:shadow-sm transition-all border border-blue-100 dark:border-blue-500/20"><Eye className="w-3.5 h-3.5" /> View PO</button>
-            </div>
-          </section>
-
-          {/* GRN Details */}
-          <section className="bg-white dark:bg-[#1E293B] p-4 sm:p-5 rounded-xl border border-gray-100 dark:border-[#334155] shadow-sm flex flex-col">
-            <h3 className="text-xs font-black text-[#F59E0B] flex items-center gap-2 leading-none border-b border-gray-50 dark:border-[#334155] pb-3 mb-3"><Package className="w-4 h-4" /> GRN details</h3>
-            <div className="space-y-3 flex-1">
-              <InfoItem label="GRN no." value={grnNo} />
-              <InfoItem label="Items received" value={itemsReceived} />
-              <InfoItem label="Received by" value={receivedBy} />
-              <InfoItem label="GRN date" value={formatDate(grnDate)} />
-              <InfoItem label="GRN remark" value={grnRemark} />
-            </div>
-            <div className="mt-4 pt-3 border-t border-gray-50 dark:border-[#334155]">
-              {realGrn
-                ? <button onClick={() => setViewGRNDetail(true)} className="w-full flex items-center justify-center gap-2 py-2.5 bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400 rounded-xl text-[11px] font-black hover:opacity-80 hover:shadow-sm transition-all border border-amber-100 dark:border-amber-500/20"><Eye className="w-3.5 h-3.5" /> View GRN</button>
-                : <p className="text-center text-[11px] text-gray-400 italic py-1">GRN not yet received</p>}
-            </div>
-          </section>
-
-          {/* Vendor Invoice */}
-          <section className="bg-white dark:bg-[#1E293B] p-4 sm:p-5 rounded-xl border border-gray-100 dark:border-[#334155] shadow-sm flex flex-col lg:col-span-1 md:col-span-2">
-            <div className="flex justify-between items-start border-b border-gray-50 dark:border-[#334155] pb-3 mb-3">
-              <h3 className="text-xs font-black text-[#EF4444] flex items-center gap-2 leading-none mt-1"><FileText className="w-4 h-4" /> Vendor bill</h3>
-              {realGrn || po.payment?.ref ? <span className="flex items-center gap-1 text-[9px] font-black text-green-600 bg-green-50 dark:bg-green-900/10 px-1.5 py-0.5 rounded border border-green-100 dark:border-green-900/20">Matched ✓</span> : <span className="flex items-center gap-1 text-[9px] font-black text-orange-500 bg-amber-50 dark:bg-amber-900/10 px-1.5 py-0.5 rounded border border-amber-100 dark:border-amber-900/20">Awaiting grn</span>}
-            </div>
-            <div className="space-y-3 flex-1">
-              <InfoItem label="Invoice no." value={invoiceNo} highlight />
-              <InfoItem label="Invoice amount" value={fmtCur(invoiceAmount)} highlight />
-              <InfoItem label="GST amount" value={fmtCur(gstAmount)} />
-              <InfoItem label="Invoice date" value={formatDate(po.payment?.date || realGrn?.date || po.date)} />
-            </div>
-            <div className="mt-4 pt-3 border-t border-gray-50 dark:border-[#334155]">
-              {(po.payment?.screenshotUrl || realGrn?.challanPhotos?.[0])
-                ? <a href={po.payment?.screenshotUrl || realGrn?.challanPhotos?.[0]} target="_blank" rel="noreferrer" className="w-full flex items-center justify-center gap-2 py-2.5 bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 rounded-xl text-[11px] font-black hover:opacity-80 hover:shadow-sm transition-all border border-red-100 dark:border-red-500/20"><Eye className="w-3.5 h-3.5" /> View Bill</a>
-                : <p className="text-center text-[11px] text-gray-400 italic py-1">No bill attached yet</p>}
-            </div>
-          </section>
+  // Top info grid — shared across all statuses (GRN modal style)
+  const topGrid = (
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-0 border border-gray-100 dark:border-gray-800 rounded-2xl overflow-hidden shadow-sm">
+      <div className="divide-y divide-gray-100 dark:divide-gray-800 bg-white dark:bg-gray-900">
+        <div className="bg-gray-50/50 dark:bg-gray-800/30 p-2.5 font-black text-[10px] text-gray-500 flex items-center gap-2">
+          <div className="w-1.5 h-3.5 bg-orange-500 rounded-full" /> Purchase order
         </div>
-
-      {/* Payable Amount Summary */}
-      <div className="px-5 py-4 bg-green-50 dark:bg-green-500/10 rounded-2xl border border-green-200 dark:border-green-500/20 space-y-3">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-white dark:bg-[#0F172A] rounded-xl shadow-sm">
-              <IndianRupee className="w-4 h-4 text-green-600 dark:text-green-400" />
-            </div>
-            <p className="text-[10px] font-black text-gray-400 dark:text-[#64748B] uppercase tracking-wide">{payableLabel}</p>
+        <GRNInfoRow label="PO No." value={po.id} orange />
+        <GRNInfoRow label="Vendor" value={getSupplierName(po.supplier)} />
+        <GRNInfoRow label="PO amount" value={fmtCur(poAmount)} />
+        <GRNInfoRow label="PO date" value={formatDate(po.date)} />
+        <GRNInfoRow label="Project" value={po.project || po.location || "—"} />
+        <div className="grid grid-cols-12 items-center divide-x divide-gray-100 dark:divide-gray-800">
+          <div className="col-span-4 p-3" />
+          <div className="col-span-8 px-4 py-2.5">
+            <button onClick={onViewPO} className="flex items-center gap-1.5 text-[10px] font-black text-blue-600 bg-blue-50 dark:bg-blue-500/10 px-2.5 py-1 rounded border border-blue-100 dark:border-blue-500/20 hover:bg-blue-100 dark:hover:bg-blue-500/20 transition-colors">
+              <Eye className="w-3 h-3" /> View PO
+            </button>
           </div>
-          <p className="text-xl font-black text-green-700 dark:text-green-400 tabular-nums">{fmtCur(payableAmount)}</p>
         </div>
+      </div>
+      <div className="divide-y divide-gray-100 dark:divide-gray-800 border-l border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-900">
+        <div className="bg-gray-50/50 dark:bg-gray-800/30 p-2.5 font-black text-[10px] text-gray-500 flex items-center gap-2">
+          <div className="w-1.5 h-3.5 bg-orange-500 rounded-full" /> GRN & delivery
+        </div>
+        <GRNInfoRow label="GRN No." value={grnNo} orange />
+        <GRNInfoRow label="Receipt date" value={formatDate(grnDate)} />
+        <GRNInfoRow label="Received by" value={receivedBy} />
+        <GRNInfoRow label="GRN status" value={po.status} />
+        <GRNInfoRow label="Invoice / challan" value={invoiceNo} mono />
+        {realGrn && (
+          <div className="grid grid-cols-12 items-center divide-x divide-gray-100 dark:divide-gray-800">
+            <div className="col-span-4 p-3" />
+            <div className="col-span-8 px-4 py-2.5">
+              <button onClick={() => setViewGRNDetail(true)} className="flex items-center gap-1.5 text-[10px] font-black text-amber-600 bg-amber-50 dark:bg-amber-500/10 px-2.5 py-1 rounded border border-amber-100 dark:border-amber-500/20 hover:bg-amber-100 dark:hover:bg-amber-500/20 transition-colors">
+                <Eye className="w-3 h-3" /> View GRN
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
 
-        {/* Item-wise bill breakdown */}
-        {realGrn && (poStatus === "grn variance" || isRemainingPayment) && (() => {
-          // Received items — primary source is GRN (correct names & qty)
-          const receivedRows = realGrn.items
-            .map(gi => {
-              const rcv = gi.received ?? gi.qty ?? 0;
-              const rate = gi.rate ||
-                po.items?.find(pi =>
-                  (pi.sku && gi.sku && pi.sku === gi.sku) ||
-                  (pi.materialName || "").toLowerCase() === (gi.itemName || "").toLowerCase()
-                )?.rate || 0;
-              return { name: gi.itemName || gi.name || "Item", qty: rcv, rate, amt: rcv * rate };
-            })
-            .filter(r => r.qty > 0);
-
-          // Pending items — PO items with undelivered qty
-          const pendingRows = (po.items || []).map(pi => {
-            const grnItem = realGrn.items.find(gi =>
-              (pi.sku && gi.sku && pi.sku === gi.sku) ||
-              (pi.materialName || "").toLowerCase() === (gi.itemName || "").toLowerCase()
-            );
-            const ordered = pi.qty || pi.quantity || 0;
-            const received = grnItem ? (grnItem.received ?? grnItem.qty ?? 0) : 0;
-            const pending = Math.max(0, ordered - received);
-            const rate = pi.rate || grnItem?.rate || 0;
-            return { name: pi.materialName || pi.name || "Item", ordered, pending, rate, amt: pending * rate };
-          }).filter(r => r.pending > 0);
-
-          if (receivedRows.length === 0) return null;
-
-          return (
-            <div className="pt-3 border-t border-green-200 dark:border-green-500/20 overflow-x-auto space-y-2">
-              {/* Received (payable) */}
-              <p className="text-[9px] font-black text-green-600 dark:text-green-400 uppercase tracking-widest px-1">Received — Payable</p>
-              <table className="w-full text-[10px] border-collapse">
+  if (status === "bill_verify") {
+    return <div className="space-y-5 pb-4">
+        {topGrid}
+        {totalPaid > 0 && (
+          <div className="flex items-center gap-3 px-4 py-3 bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20 rounded-xl">
+            <IndianRupee className="w-4 h-4 text-amber-500 shrink-0" />
+            <p className="text-[12px] font-bold text-amber-700 dark:text-amber-400">
+              {fmtCur(totalPaid)} already paid — remaining payable: <span className="font-black">{fmtCur(payableAmount)}</span>
+            </p>
+          </div>
+        )}
+        {realGrn && realGrn.items?.length > 0 && (
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <div className="h-0.5 w-4 bg-[#F97316]" />
+              <h3 className="text-[12px] font-bold text-gray-900 dark:text-white">Received materials</h3>
+            </div>
+            <div className="overflow-hidden rounded-xl border border-gray-100 dark:border-gray-800">
+              <table className="w-full text-left border-collapse">
                 <thead>
-                  <tr className="bg-green-100/50 dark:bg-green-500/10">
-                    <th className="text-left font-black py-1.5 px-2 text-gray-500 dark:text-gray-400 rounded-l">Item</th>
-                    <th className="text-right font-black py-1.5 px-2 text-gray-500 dark:text-gray-400">Qty</th>
-                    <th className="text-right font-black py-1.5 px-2 text-gray-500 dark:text-gray-400">Rate</th>
-                    <th className="text-right font-black py-1.5 px-2 text-green-700 dark:text-green-400 rounded-r">Amount</th>
+                  <tr className="bg-gray-50/90 dark:bg-gray-800/90 border-b border-gray-100 dark:border-gray-800">
+                    <th className="px-4 py-3 text-[10px] font-black text-gray-400 tracking-wider">Material</th>
+                    <th className="px-4 py-3 text-[10px] font-black text-gray-400 tracking-wider text-center">Ordered</th>
+                    <th className="px-4 py-3 text-[10px] font-black text-gray-400 tracking-wider text-center">Received</th>
+                    <th className="px-4 py-3 text-[10px] font-black text-gray-400 tracking-wider text-right">Rate</th>
+                    <th className="px-4 py-3 text-[10px] font-black text-gray-400 tracking-wider text-right">Amount</th>
                   </tr>
                 </thead>
-                <tbody>
-                  {receivedRows.map((r, i) => (
-                    <tr key={i} className="border-b border-green-100 dark:border-green-500/10 last:border-0">
-                      <td className="py-1.5 px-2 font-bold text-gray-800 dark:text-gray-100">{r.name}</td>
-                      <td className="py-1.5 px-2 text-right text-gray-600 dark:text-gray-300 tabular-nums">{r.qty}</td>
-                      <td className="py-1.5 px-2 text-right text-gray-500 dark:text-gray-400 tabular-nums">{fmtCur(r.rate)}</td>
-                      <td className="py-1.5 px-2 text-right font-black text-green-700 dark:text-green-300 tabular-nums">{fmtCur(r.amt)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-                <tfoot>
-                  {isRemainingPayment && partialPaid > 0 && (
-                    <tr className="border-t border-green-300 dark:border-green-500/30">
-                      <td colSpan={3} className="pt-1.5 px-2 text-gray-400 dark:text-gray-500 text-[9px] font-bold">
-                        Received total
-                      </td>
-                      <td className="pt-1.5 px-2 text-right text-gray-400 dark:text-gray-400 tabular-nums text-[10px]">
-                        {fmtCur(receivedRows.reduce((s, r) => s + r.amt, 0))}
-                      </td>
-                    </tr>
-                  )}
-                  {isRemainingPayment && partialPaid > 0 && (
-                    <tr>
-                      <td colSpan={3} className="py-0.5 px-2 text-amber-500 text-[9px] font-bold">
-                        − Partial already paid
-                      </td>
-                      <td className="py-0.5 px-2 text-right text-amber-500 tabular-nums text-[10px] font-bold">
-                        − {fmtCur(partialPaid)}
-                      </td>
-                    </tr>
-                  )}
-                  <tr className="border-t-2 border-green-400 dark:border-green-500/40">
-                    <td colSpan={3} className="pt-1.5 px-2 font-black text-green-700 dark:text-green-400 text-[9px] uppercase tracking-wide">
-                      {isRemainingPayment ? "Remaining payable" : "Total payable"}
-                    </td>
-                    <td className="pt-1.5 px-2 text-right font-black text-green-700 dark:text-green-300 tabular-nums">{fmtCur(payableAmount)}</td>
-                  </tr>
-                </tfoot>
-              </table>
-
-              {/* Pending (not payable) */}
-              {pendingRows.length > 0 && <>
-                <p className="text-[9px] font-black text-red-400 uppercase tracking-widest px-1 pt-1">Pending Delivery — Not Payable</p>
-                <table className="w-full text-[10px] border-collapse opacity-60">
-                  <tbody>
-                    {pendingRows.map((r, i) => (
-                      <tr key={i} className="border-b border-red-100 dark:border-red-500/10 last:border-0">
-                        <td className="py-1.5 px-2 text-gray-500 dark:text-gray-400 line-through">{r.name}</td>
-                        <td className="py-1.5 px-2 text-right text-gray-400 tabular-nums">{r.pending}</td>
-                        <td className="py-1.5 px-2 text-right text-gray-400 tabular-nums">{fmtCur(r.rate)}</td>
-                        <td className="py-1.5 px-2 text-right text-red-400 tabular-nums line-through">{fmtCur(r.amt)}</td>
+                <tbody className="divide-y divide-gray-50 dark:divide-gray-800">
+                  {realGrn.items.map((gi, idx) => {
+                    const rcv = gi.received ?? gi.qty ?? 0;
+                    const poItem = po.items?.find(pi =>
+                      (pi.sku && gi.sku && pi.sku === gi.sku) ||
+                      (pi.materialName || "").toLowerCase() === (gi.itemName || "").toLowerCase()
+                    );
+                    const ordered = poItem?.qty || poItem?.quantity || 0;
+                    const rate = gi.rate || poItem?.rate || 0;
+                    return (
+                      <tr key={idx} className="hover:bg-gray-50/30 dark:hover:bg-gray-800/10">
+                        <td className="px-4 py-3">
+                          <span className="text-[13px] font-semibold text-gray-900 dark:text-white">{gi.itemName || gi.name || "Item"}</span>
+                          {gi.sku && <p className="text-[10px] text-gray-400">{gi.sku}</p>}
+                        </td>
+                        <td className="px-4 py-3 text-center text-[12px] text-gray-400">{ordered || "—"}</td>
+                        <td className="px-4 py-3 text-center"><span className="text-[14px] font-black text-gray-900 dark:text-white">{rcv}</span></td>
+                        <td className="px-4 py-3 text-right text-[12px] text-gray-500 tabular-nums">{fmtCur(rate)}</td>
+                        <td className="px-4 py-3 text-right font-black text-[13px] text-gray-900 dark:text-white tabular-nums">{fmtCur(rcv * rate)}</td>
                       </tr>
-                    ))}
-                  </tbody>
-                  <tfoot>
-                    <tr className="border-t border-red-200 dark:border-red-500/20">
-                      <td colSpan={3} className="pt-1.5 px-2 text-red-400 text-[9px] font-black uppercase tracking-wide">Not payable (variance)</td>
-                      <td className="pt-1.5 px-2 text-right text-red-400 font-black tabular-nums">{fmtCur(Math.max(0, poAmount - payableAmount))}</td>
-                    </tr>
-                  </tfoot>
-                </table>
-              </>}
-
-              {isRemainingPayment && partialPaid > 0 && (
-                <div className="pt-2 border-t border-green-100 dark:border-green-500/10 space-y-1">
-                  <p className="text-[9px] font-black text-amber-500 uppercase tracking-widest px-1">Prior partial payment history</p>
-                  <div className="grid grid-cols-2 gap-x-6 gap-y-1 px-1">
-                    <InfoItem label="Amount paid" value={fmtCur(partialPaid)} highlight />
-                    <InfoItem label="Date" value={formatDate(po.payment?.date)} />
-                    <InfoItem label="Mode" value={po.payment?.mode || "—"} />
-                    <InfoItem label="ERP ref" value={po.payment?.ref || "—"} />
-                  </div>
-                </div>
-              )}
+                    );
+                  })}
+                </tbody>
+              </table>
             </div>
-          );
-        })()}
-      </div>
+          </div>
+        )}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-0 border border-gray-100 dark:border-gray-800 rounded-2xl overflow-hidden shadow-sm">
+          <div className="divide-y divide-gray-100 dark:divide-gray-800 bg-white dark:bg-gray-900">
+            <div className="bg-gray-50/50 dark:bg-gray-800/30 p-2.5 font-black text-[10px] text-gray-500 flex items-center gap-2">
+              <div className="w-1.5 h-3.5 bg-emerald-500 rounded-full" /> Payment summary
+            </div>
+            <GRNInfoRow label="PO Grand Total" value={fmtCur(poAmount)} />
+            {totalPaid > 0 && <GRNInfoRow label="Already paid" value={fmtCur(totalPaid)} />}
+            <GRNInfoRow label={payableLabel} value={fmtCur(payableAmount)} orange />
+          </div>
+          <div className="divide-y divide-gray-100 dark:divide-gray-800 border-l border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-900">
+            <div className="bg-gray-50/50 dark:bg-gray-800/30 p-2.5 font-black text-[10px] text-gray-500 flex items-center gap-2">
+              <div className="w-1.5 h-3.5 bg-emerald-500 rounded-full" /> Approval
+            </div>
+            <GRNInfoRow label="Bill approved by" value={po.billApprovedBy || "—"} />
+            <GRNInfoRow label="Approved on" value={formatDate(po.billApprovedDate || po.billApprovedAt)} />
+            <GRNInfoRow label="GRN remark" value={realGrn?.remarks || realGrn?.remark || "—"} />
+          </div>
+        </div>
 
-      {viewGRNDetail && realGrn && <GRNDetailModal grn={realGrn} onClose={() => setViewGRNDetail(false)} />}
+        {viewGRNDetail && realGrn && <GRNDetailModal grn={realGrn} onClose={() => setViewGRNDetail(false)} />}
       </div>;
   }
   if (status === "payment_pending" || ((status === "paid" || status === "partial_paid") && isEditingPayment)) {
-    return <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12">
-        {
-      /* Summary */
-    }
-        <div className="space-y-6">
-          <h3 className="text-xs font-black text-gray-400 dark:text-[#94A3B8] flex items-center gap-2"><CheckCircle className="w-4 h-4 text-green-500" /> Verified summary</h3>
-          <div className="bg-white dark:bg-[#1E293B] p-5 sm:p-6 rounded-2xl border border-gray-100 dark:border-[#334155] shadow-sm space-y-5">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-6 gap-x-4 sm:gap-x-8">
-               <InfoItem label="PO no." value={po.id} />
-               <InfoItem label="Invoice no." value={po.invoice?.number || "INV-7821"} />
-               <InfoItem label="Vendor" value={getSupplierName(po.supplier)} />
-               <InfoItem label="GRN no." value={po.grn?.number || "GRN-041-A"} />
-            </div>
-            <div className="pt-6 border-t dark:border-[#334155] mt-4">
-               <p className="text-[10px] font-black text-gray-400 dark:text-[#64748B] mb-1">
-                 {isRemainingPayment ? "Remaining payable amount" : "Total payable amount"}
-               </p>
-               <h2 className="text-3xl sm:text-4xl font-black text-gray-900 dark:text-[#F1F5F9] tabular-nums tracking-tight">{fmtCur(payableAmount)}</h2>
-               {isRemainingPayment && partialPaid > 0 && (
-                 <p className="text-[10px] font-bold text-amber-500 mt-1 tabular-nums">
-                   {fmtCur(poAmount)} total − {fmtCur(partialPaid)} already paid = {fmtCur(payableAmount)} remaining
-                 </p>
-               )}
-               <div className="mt-4 p-3 bg-green-50/50 dark:bg-green-900/10 rounded-xl border border-green-100 dark:border-green-900/20">
-                 <p className="text-[10px] text-green-600 dark:text-green-400 font-bold flex items-center gap-2">
-                   <ShieldAlert className="w-4 h-4 shrink-0" /> Bill approved by {po.billApprovedBy || "Accounts Manager"}
-                 </p>
-                 <p className="text-[10px] text-gray-400 dark:text-gray-500 font-medium mt-1 ml-6">
-                   Approved on {formatDate(po.billApprovedDate)}
-                 </p>
-               </div>
-            </div>
+    return <div className="space-y-5 pb-4">
+      {topGrid}
 
-            {/* Prior partial payment history */}
-            {isRemainingPayment && partialPaid > 0 && (
-              <div className="pt-4 border-t dark:border-[#334155]">
-                <p className="text-[10px] font-black text-amber-500 uppercase tracking-wide mb-3 flex items-center gap-1.5">
-                  <Clock className="w-3.5 h-3.5" /> Prior partial payment
-                </p>
-                <div className="grid grid-cols-2 gap-x-4 gap-y-3">
-                  <InfoItem label="Amount paid" value={fmtCur(partialPaid)} highlight />
-                  <InfoItem label="Payment date" value={formatDate(po.payment?.date)} />
-                  <InfoItem label="Mode" value={po.payment?.mode || "—"} />
-                  <InfoItem label="ERP ref" value={po.payment?.ref || "—"} />
-                  {po.payment?.utr && <InfoItem label="UTR" value={po.payment.utr} />}
-                  <InfoItem label="Paid by" value={po.payment?.paidBy || "—"} />
+      {totalPaid > 0 && (
+        <div className="space-y-3">
+          <div className="flex items-center gap-2">
+            <div className="h-0.5 w-4 bg-[#F97316]" />
+            <h3 className="text-[12px] font-bold text-gray-900 dark:text-white">Previous payments</h3>
+          </div>
+          {po.paymentHistory?.length > 0 ? (
+            <div className="overflow-hidden rounded-xl border border-gray-100 dark:border-gray-800">
+              {po.paymentHistory.map((ph, i) => (
+                <div key={i} className="grid grid-cols-12 items-center divide-x divide-gray-100 dark:divide-gray-800 border-b border-gray-100 dark:border-gray-800 last:border-0">
+                  <div className="col-span-1 p-3 flex justify-center">
+                    <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-black text-white ${i === 0 ? "bg-orange-500" : "bg-emerald-500"}`}>{ph.installmentNo || i + 1}</div>
+                  </div>
+                  <div className="col-span-3 px-3 py-2.5">
+                    <p className="text-[10px] font-black text-gray-400">Installment #{ph.installmentNo}</p>
+                    <p className="text-[11px] font-bold text-gray-500 dark:text-gray-400">{formatDate(ph.date)}</p>
+                  </div>
+                  <div className="col-span-3 px-3 py-2.5">
+                    <p className="text-[10px] text-gray-400">Mode</p>
+                    <p className="text-[11px] font-bold text-gray-700 dark:text-gray-300">{ph.mode || "—"}</p>
+                  </div>
+                  <div className="col-span-3 px-3 py-2.5">
+                    <p className="text-[10px] text-gray-400">ERP Ref</p>
+                    <p className="text-[11px] font-bold font-mono text-gray-700 dark:text-gray-300">{ph.ref || "—"}</p>
+                  </div>
+                  <div className="col-span-2 px-3 py-2.5 text-right">
+                    <p className="text-[13px] font-black text-emerald-600 dark:text-emerald-400 tabular-nums">{fmtCur(ph.amountPaid)}</p>
+                  </div>
+                </div>
+              ))}
+              <div className="grid grid-cols-12 divide-x divide-gray-100 dark:divide-gray-800 bg-gray-50/50 dark:bg-gray-800/30">
+                <div className="col-span-10 px-3 py-2.5">
+                  <p className="text-[10px] font-black text-gray-500 uppercase tracking-wide">Total paid so far</p>
+                </div>
+                <div className="col-span-2 px-3 py-2.5 text-right">
+                  <p className="text-[13px] font-black text-amber-500 tabular-nums">{fmtCur(totalPaid)}</p>
                 </div>
               </div>
-            )}
-          </div>
-        </div>
-
-        {
-      /* Tally Form */
-    }
-        <div className="space-y-6">
-           <h3 className="text-xs font-black text-gray-400 dark:text-[#94A3B8] flex items-center gap-2"><CreditCard className="w-4 h-4 text-blue-500" /> Payment confirmation (ERPSync)</h3>
-            
-            {
-      /* Editable auto-fetched details */
-    }
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <FormGroup label="From Company" hint="Auto-fetched">
-                <input
-      type="text"
-      value={paymentForm.fromCompany}
-      onChange={(e) => setPaymentForm({ ...paymentForm, fromCompany: e.target.value })}
-      className="w-full bg-gray-50 dark:bg-[#0F172A] border border-gray-200 dark:border-[#334155] p-3 rounded-xl text-sm outline-none focus:ring-4 ring-blue-500/10 font-bold text-gray-900 dark:text-[#F1F5F9] transition-all"
-    />
-              </FormGroup>
-              <FormGroup label="Paying To (Supplier)" hint="Auto-fetched">
-                <input
-      type="text"
-      value={paymentForm.toCompany}
-      onChange={(e) => setPaymentForm({ ...paymentForm, toCompany: e.target.value })}
-      className="w-full bg-gray-50 dark:bg-[#0F172A] border border-gray-200 dark:border-[#334155] p-3 rounded-xl text-sm outline-none focus:ring-4 ring-blue-500/10 font-bold text-gray-900 dark:text-[#F1F5F9] transition-all"
-    />
-              </FormGroup>
-            </div>
-
-            {
-      /* Vendor Bank Details (Editable) */
-    }
-            <div className="bg-gray-50 dark:bg-[#1E293B] p-4 rounded-2xl border border-gray-200 dark:border-[#334155] space-y-4">
-              <div className="flex items-center justify-between border-b dark:border-[#334155] pb-2">
-                <div className="flex items-center gap-2">
-                  <span className="p-1.5 bg-gray-100 dark:bg-[#0F172A] rounded-lg">
-                    <CreditCard className="w-4 h-4 text-gray-500" />
-                  </span>
-                  <p className="text-[10px] font-black text-gray-500 tracking-widest">Supplier bank account details</p>
-                </div>
-                <span className="text-[9px] font-bold text-blue-500 bg-blue-50 dark:bg-blue-500/10 px-2 py-0.5 rounded border border-blue-100 dark:border-blue-500/20">Auto-fetched from Master</span>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <FormGroup label="A/C Holder">
-                  <input
-      type="text"
-      value={paymentForm.vendorBankDetails?.accountHolder || ""}
-      onChange={(e) => setPaymentForm({
-        ...paymentForm,
-        vendorBankDetails: { ...paymentForm.vendorBankDetails || { bankName: "", accountNo: "", branchIFSC: "" }, accountHolder: e.target.value }
-      })}
-      className="w-full bg-white dark:bg-[#0F172A] border border-gray-200 dark:border-[#334155] p-2.5 rounded-xl text-xs outline-none focus:ring-4 ring-blue-500/10 font-black text-gray-900 dark:text-white"
-    />
-                </FormGroup>
-                <FormGroup label="Bank Name">
-                  <input
-      type="text"
-      value={paymentForm.vendorBankDetails?.bankName || ""}
-      onChange={(e) => setPaymentForm({
-        ...paymentForm,
-        vendorBankDetails: { ...paymentForm.vendorBankDetails || { accountHolder: "", accountNo: "", branchIFSC: "" }, bankName: e.target.value }
-      })}
-      className="w-full bg-white dark:bg-[#0F172A] border border-gray-200 dark:border-[#334155] p-2.5 rounded-xl text-xs outline-none focus:ring-4 ring-blue-500/10 font-black text-gray-900 dark:text-white"
-    />
-                </FormGroup>
-                <FormGroup label="Account No.">
-                  <input
-      type="text"
-      value={paymentForm.vendorBankDetails?.accountNo || ""}
-      onChange={(e) => setPaymentForm({
-        ...paymentForm,
-        vendorBankDetails: { ...paymentForm.vendorBankDetails || { accountHolder: "", bankName: "", branchIFSC: "" }, accountNo: e.target.value }
-      })}
-      className="w-full bg-white dark:bg-[#0F172A] border border-gray-200 dark:border-[#334155] p-2.5 rounded-xl text-xs outline-none focus:ring-4 ring-blue-500/10 font-black text-gray-900 dark:text-white tabular-nums"
-    />
-                </FormGroup>
-                <FormGroup label="IFSC Code / Branch">
-                  <input
-      type="text"
-      value={paymentForm.vendorBankDetails?.branchIFSC || ""}
-      onChange={(e) => setPaymentForm({
-        ...paymentForm,
-        vendorBankDetails: { ...paymentForm.vendorBankDetails || { accountHolder: "", bankName: "", accountNo: "" }, branchIFSC: e.target.value }
-      })}
-      className="w-full bg-white dark:bg-[#0F172A] border border-gray-200 dark:border-[#334155] p-2.5 rounded-xl text-xs outline-none focus:ring-4 ring-blue-500/10 font-black text-gray-900 dark:text-white"
-    />
-                </FormGroup>
-              </div>
-            </div>
-
-            <div className="bg-white dark:bg-[#1E293B] p-4 sm:p-6 rounded-2xl border border-gray-100 dark:border-[#334155] shadow-sm space-y-6">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <FormGroup label="Payment Date *" hint="ERP Tally Date">
-                  <DatePicker
-      value={paymentForm.date}
-      onChange={(e) => setPaymentForm({ ...paymentForm, date: e.target.value })}
-    />
-                </FormGroup>
-                <FormGroup label="Payment Mode *">
-                  <select
-      value={paymentForm.mode}
-      onChange={(e) => setPaymentForm({ ...paymentForm, mode: e.target.value })}
-      className="w-full bg-gray-50 dark:bg-[#0F172A] border border-gray-200 dark:border-[#334155] p-3 rounded-xl text-sm outline-none focus:ring-4 ring-blue-500/10 font-bold text-gray-900 dark:text-[#F1F5F9] transition-all"
-    >
-                    <option>NEFT</option>
-                    <option>RTGS</option>
-                    <option>Cheque</option>
-                    <option>Cash</option>
-                    <option>UPI</option>
-                  </select>
-                </FormGroup>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <FormGroup label="Voucher Ref *" hint="Tally PV ref">
-                  <input
-      type="text"
-      value={paymentForm.ref}
-      onChange={(e) => setPaymentForm({ ...paymentForm, ref: e.target.value })}
-      className="w-full bg-gray-50 dark:bg-[#0F172A] border border-gray-200 dark:border-[#334155] p-3 rounded-xl text-sm outline-none focus:ring-4 ring-blue-500/10 font-bold text-gray-900 dark:text-[#F1F5F9] transition-all"
-      placeholder="e.g. PV-26-0045"
-    />
-                </FormGroup>
-                <FormGroup label="Amount Paid *" hint="Full/Partial">
-                  <input
-      type="number"
-      value={paymentForm.amountPaid}
-      onChange={(e) => setPaymentForm({ ...paymentForm, amountPaid: Number(e.target.value) })}
-      className="w-full bg-gray-50 dark:bg-[#0F172A] border border-gray-200 dark:border-[#334155] p-3 rounded-xl text-sm font-black outline-none focus:ring-4 ring-blue-500/10 text-gray-900 dark:text-[#F1F5F9] transition-all"
-    />
-                </FormGroup>
-              </div>
-
-              <FormGroup label="Debit Bank Account *" hint="Your company account we are paying from">
-                <select
-      value={paymentForm.bank}
-      onChange={(e) => setPaymentForm({ ...paymentForm, bank: e.target.value })}
-      className="w-full bg-gray-50 dark:bg-[#0F172A] border border-gray-200 dark:border-[#334155] p-3 rounded-xl text-sm outline-none focus:ring-4 ring-blue-500/10 font-bold text-gray-900 dark:text-[#F1F5F9] transition-all"
-    >
-                  <option value="">-- Select Your Bank --</option>
-                  <option>SBI Main Corporate A/C</option>
-                  <option>HDFC Business OD A/C</option>
-                  <option>ICICI Project Fund</option>
-                </select>
-              </FormGroup>
-
-              {(paymentForm.mode === "NEFT" || paymentForm.mode === "RTGS" || paymentForm.mode === "UPI") && <FormGroup label="UTR / Reference ID *" hint="Transaction ID">
-                  <input
-      type="text"
-      value={paymentForm.utr}
-      onChange={(e) => setPaymentForm({ ...paymentForm, utr: e.target.value })}
-      className="w-full bg-gray-50 dark:bg-[#0F172A] border border-gray-200 dark:border-[#334155] p-3 rounded-xl text-sm outline-none focus:ring-4 ring-blue-500/10 font-bold text-gray-900 dark:text-[#F1F5F9] transition-all"
-      placeholder="ENTER TRANSACTION ID"
-    />
-                </FormGroup>}
-
-              {paymentForm.mode === "Cheque" && <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <FormGroup label="Cheque No. *">
-                    <input
-      type="text"
-      value={paymentForm.chequeNo}
-      onChange={(e) => setPaymentForm({ ...paymentForm, chequeNo: e.target.value })}
-      className="w-full bg-gray-50 dark:bg-[#0F172A] border border-gray-200 dark:border-[#334155] p-3 rounded-xl text-sm outline-none focus:ring-4 ring-blue-500/10 font-bold text-gray-900 dark:text-[#F1F5F9] transition-all"
-    />
-                  </FormGroup>
-                  <FormGroup label="Cheque Date *">
-                    <DatePicker
-      value={paymentForm.chequeDate}
-      onChange={(e) => setPaymentForm({ ...paymentForm, chequeDate: e.target.value })}
-    />
-                  </FormGroup>
-                </div>}
-
-              {
-      /* File Upload */
-    }
-              <FormGroup label="Payment Proof Screenshot *" hint="Mandatory for internal audit">
-                <div
-      onClick={() => fileInputRef.current?.click()}
-      onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); setIsDraggingPayment(true); }}
-      onDragEnter={(e) => { e.preventDefault(); e.stopPropagation(); setIsDraggingPayment(true); }}
-      onDragLeave={(e) => { e.preventDefault(); e.stopPropagation(); if (!e.currentTarget.contains(e.relatedTarget)) setIsDraggingPayment(false); }}
-      onDrop={(e) => {
-        e.preventDefault(); e.stopPropagation(); setIsDraggingPayment(false);
-        const file = e.dataTransfer.files?.[0];
-        if (file) { const url = URL.createObjectURL(file); setPaymentForm(prev => ({ ...prev, screenshot: file, previewUrl: url })); }
-      }}
-      className={`border-2 border-dashed rounded-2xl p-8 flex flex-col items-center justify-center gap-3 cursor-pointer transition-all font-medium group ${isDraggingPayment ? "border-blue-400 bg-blue-50 dark:bg-blue-900/20 scale-[1.01]" : "border-gray-200 dark:border-[#334155] hover:bg-gray-50 dark:hover:bg-[#0F172A]/50"}`}
-    >
-                  <input type="file" ref={fileInputRef} className="hidden" onChange={handleFileChange} accept="image/*,.pdf" />
-                  {isDraggingPayment ? <>
-                      <div className="p-4 bg-blue-100 dark:bg-blue-900/20 text-blue-500 rounded-full">
-                        <Upload className="w-8 h-8" />
-                      </div>
-                      <p className="text-[11px] font-black text-blue-500">Drop file here</p>
-                    </> : paymentForm.previewUrl ? <div className="relative group">
-                       <img src={paymentForm.previewUrl} className="h-24 rounded-xl shadow-lg border border-white dark:border-[#334155]" alt="Preview" />
-                       <div className="absolute inset-0 bg-black/40 rounded-xl flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                         <Upload className="text-white w-6 h-6 animate-bounce" />
-                       </div>
-                       <p className="text-[10px] font-black text-center mt-2 text-gray-500 dark:text-[#64748B] truncate w-40">{paymentForm.screenshot?.name}</p>
-                    </div> : <>
-                      <div className="p-4 bg-blue-50 dark:bg-blue-900/10 text-[#3B82F6] rounded-full group-hover:scale-110 transition-transform">
-                        <Upload className="w-8 h-8" />
-                      </div>
-                      <div className="text-center">
-                        <p className="text-[11px] font-black text-[#3B82F6] mb-1">Click or drag & drop</p>
-                        <p className="text-[10px] font-bold text-gray-400 dark:text-[#64748B] italic">Tally Snapshot or Bank Receipt</p>
-                      </div>
-                    </>}
-                </div>
-              </FormGroup>
-
-              <FormGroup label="Remarks (Optional)">
-                <textarea
-      rows={2}
-      value={paymentForm.remarks}
-      onChange={(e) => setPaymentForm({ ...paymentForm, remarks: e.target.value })}
-      className="w-full bg-gray-50 dark:bg-[#0F172A] border border-gray-100 dark:border-[#334155] p-3 rounded-xl text-sm outline-none focus:ring-4 ring-blue-500/10 resize-none font-bold text-gray-900 dark:text-[#F1F5F9]"
-      placeholder="Reference notes, discount details..."
-    />
-              </FormGroup>
-
-           </div>
-        </div>
-      </div>;
-  }
-  if (status === "partial_paid" && !isEditingPayment) {
-    const partialAmt = po.payment?.partialAmount || po.payment?.amountPaid || 0;
-    const totalVal = po.totalValue || 0;
-    const remaining = Math.max(0, totalVal - partialAmt);
-    return <div className="space-y-6">
-        <div className="flex items-center gap-4 p-5 bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20 rounded-2xl">
-          <div className="w-12 h-12 bg-amber-100 dark:bg-amber-500/20 rounded-2xl flex items-center justify-center shrink-0">
-            <IndianRupee className="w-6 h-6 text-amber-600 dark:text-amber-400" />
-          </div>
-          <div className="flex-1">
-            <h3 className="text-[14px] font-black text-amber-800 dark:text-amber-300">Partial Payment Recorded</h3>
-            <p className="text-[12px] text-amber-600 dark:text-amber-400 mt-0.5">Remaining balance will activate for payment once all GRN items are received.</p>
-          </div>
-        </div>
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <section className="bg-white dark:bg-[#1E293B] p-6 rounded-2xl border border-gray-100 dark:border-[#334155] shadow-sm space-y-4">
-            <h4 className="text-[11px] font-black text-amber-500 uppercase tracking-widest pb-3 border-b border-gray-100 dark:border-[#334155]">Partial Payment Details</h4>
-            <div className="grid grid-cols-2 gap-4">
-              <InfoItem label="Amount Paid" value={fmtCur(partialAmt)} highlight />
-              <InfoItem label="Remaining Balance" value={fmtCur(remaining)} />
-              <InfoItem label="Payment Date" value={formatDate(po.payment?.date)} />
-              <InfoItem label="Mode" value={po.payment?.mode} />
-              <InfoItem label="ERP Voucher Ref" value={po.payment?.ref} />
-              <InfoItem label="Debit Bank" value={po.payment?.bank} />
-              {po.payment?.utr && <InfoItem label="UTR" value={po.payment.utr} />}
-              <InfoItem label="Paid By" value={po.payment?.paidBy} />
-            </div>
-          </section>
-          <section className="bg-white dark:bg-[#1E293B] p-6 rounded-2xl border border-gray-100 dark:border-[#334155] shadow-sm space-y-4">
-            <h4 className="text-[11px] font-black text-gray-400 uppercase tracking-widest pb-3 border-b border-gray-100 dark:border-[#334155]">PO Summary</h4>
-            <div className="grid grid-cols-2 gap-4">
-              <InfoItem label="PO Total Value" value={fmtCur(totalVal)} />
-              <InfoItem label="GRN Status" value={po.status} />
-              <InfoItem label="Vendor" value={getSupplierName(po.supplier)} />
-              <InfoItem label="Project" value={po.project || po.location || "—"} />
-            </div>
-            <div className="mt-4 p-4 bg-gray-50 dark:bg-[#0F172A] rounded-xl border border-dashed border-gray-200 dark:border-[#334155] text-center">
-              <p className="text-[11px] text-gray-500 dark:text-gray-400 font-bold">Remaining items pending GRN delivery</p>
-              <p className="text-[11px] text-gray-400 dark:text-[#64748B] mt-1">Once remaining GRN is received, remaining balance payment will be enabled automatically.</p>
-            </div>
-          </section>
-        </div>
-        <AuditTrail log={po.auditTrail} />
-      </div>;
-  }
-  if (status === "paid" && !isEditingPayment) {
-    const paidAmt = po.payment?.amountPaid || po.totalValue || 0;
-    const vbd = po.payment?.vendorBankDetails;
-    return <div className="space-y-0">
-        {/* Payment History */}
-        {po.payment?.partialPayment && (
-          <div className="pb-6 mb-6 border-b border-gray-100 dark:border-[#334155]">
-            <h4 className="text-sm font-black text-gray-800 dark:text-white mb-5">Payment History</h4>
-            <div className="space-y-4">
-              <div className="p-4 bg-amber-50 dark:bg-amber-900/10 rounded-xl border border-amber-100 dark:border-amber-900/20">
-                <h5 className="text-[11px] font-black text-amber-600 dark:text-amber-400 mb-3 uppercase tracking-wider">First Installment (Partial Payment)</h5>
-                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                  <InfoItem label="Amount" value={fmtCur(po.payment.partialPayment.amount)} highlight />
-                  <InfoItem label="Date" value={formatDate(po.payment.partialPayment.date)} />
-                  <InfoItem label="Mode" value={po.payment.partialPayment.mode} />
-                  <InfoItem label="Reference" value={po.payment.partialPayment.ref || "—"} />
-                </div>
-              </div>
-              <div className="p-4 bg-green-50 dark:bg-green-900/10 rounded-xl border border-green-100 dark:border-green-900/20">
-                <h5 className="text-[11px] font-black text-green-700 dark:text-green-400 mb-3 uppercase tracking-wider">Final Installment (Remaining Balance)</h5>
-                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                  <InfoItem label="Amount" value={fmtCur(po.payment.amountPaid - po.payment.partialPayment.amount)} highlight />
-                  <InfoItem label="Date" value={formatDate(po.payment.date)} />
-                  <InfoItem label="Mode" value={po.payment.mode} />
-                  <InfoItem label="Reference" value={po.payment.ref || "—"} />
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Payment details */}
-        <div className="pb-6 mb-6 border-b border-gray-100 dark:border-[#334155]">
-          <h4 className="text-sm font-black text-gray-800 dark:text-white mb-5">Payment details</h4>
-          <div className="grid grid-cols-2 gap-x-8 gap-y-5">
-            <InfoItem label="From company" value={po.payment?.fromCompany || "Our company"} />
-            <InfoItem label="Paid to vendor" value={po.payment?.toCompany || getSupplierName(po.supplier)} />
-            <InfoItem label="Amount disbursed" value={fmtCur(paidAmt)} highlight />
-            <InfoItem label="Transaction mode" value={po.payment?.mode} />
-            <InfoItem label="Payment date" value={formatDate(po.payment?.date)} />
-            <InfoItem label="Debit bank" value={po.payment?.bank} />
-            <InfoItem label="ERP voucher ref" value={po.payment?.ref} />
-            <div>
-              <p className="text-[10px] font-black text-gray-400 dark:text-[#64748B] mb-1">Payment status</p>
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-green-100 dark:bg-green-500/20 text-green-700 dark:text-green-400 rounded-full text-[10px] font-black">
-                <span className="w-1.5 h-1.5 rounded-full bg-green-500 inline-block" /> Synced with Tally
-              </span>
-            </div>
-            {po.payment?.remarks && <div className="col-span-2"><InfoItem label="Accounting remarks" value={po.payment.remarks} /></div>}
-          </div>
-        </div>
-
-        {/* Beneficiary bank details */}
-        <div className="pb-6 mb-6 border-b border-gray-100 dark:border-[#334155]">
-          <h4 className="text-sm font-black text-gray-800 dark:text-white mb-5">Beneficiary bank details</h4>
-          {vbd ? (
-            <div className="grid grid-cols-2 gap-x-8 gap-y-5">
-              <InfoItem label="Account holder" value={vbd.accountHolder} />
-              <InfoItem label="Bank name" value={vbd.bankName} />
-              <InfoItem label="Account number" value={vbd.accountNo} />
-              <InfoItem label="IFSC code" value={vbd.branchIFSC} />
-              {vbd.branch && <InfoItem label="Branch" value={vbd.branch} />}
             </div>
           ) : (
-            <p className="text-[11px] text-gray-400 dark:text-[#64748B] italic">Bank details not recorded</p>
+            <div className="px-4 py-3 bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20 rounded-xl">
+              <p className="text-[12px] font-bold text-amber-700 dark:text-amber-400">Already paid: {fmtCur(totalPaid)}</p>
+            </div>
           )}
         </div>
+      )}
 
-        {/* Transaction reference */}
-        {(po.payment?.utr || po.payment?.chequeNo) && (
-          <div className="pb-6 mb-6 border-b border-gray-100 dark:border-[#334155]">
-            <h4 className="text-sm font-black text-gray-800 dark:text-white mb-5">Transaction reference</h4>
-            <div className="grid grid-cols-2 gap-x-8 gap-y-5">
-              {po.payment?.utr && <div className="col-span-2">
-                <InfoItem label="UTR / Transaction reference" value={po.payment.utr} />
-              </div>}
-              {po.payment?.chequeNo && <>
-                <InfoItem label="Cheque no." value={po.payment.chequeNo} />
-                <InfoItem label="Cheque date" value={formatDate(po.payment.chequeDate)} />
-              </>}
-            </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-0 border border-gray-100 dark:border-gray-800 rounded-2xl overflow-hidden shadow-sm">
+        <div className="divide-y divide-gray-100 dark:divide-gray-800 bg-white dark:bg-gray-900">
+          <div className="bg-gray-50/50 dark:bg-gray-800/30 p-2.5 font-black text-[10px] text-gray-500 flex items-center gap-2">
+            <div className="w-1.5 h-3.5 bg-emerald-500 rounded-full" /> Payable now
           </div>
-        )}
+          <GRNInfoRow label="PO Grand Total" value={fmtCur(poAmount)} />
+          {totalPaid > 0 && <GRNInfoRow label="Already paid" value={fmtCur(totalPaid)} />}
+          <GRNInfoRow label={payableLabel} value={fmtCur(payableAmount)} orange />
+          <GRNInfoRow label="Bill approved by" value={po.billApprovedBy || "—"} />
+        </div>
+        <div className="divide-y divide-gray-100 dark:divide-gray-800 border-l border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-900">
+          <div className="bg-gray-50/50 dark:bg-gray-800/30 p-2.5 font-black text-[10px] text-gray-500 flex items-center gap-2">
+            <div className="w-1.5 h-3.5 bg-emerald-500 rounded-full" /> Supplier bank
+          </div>
+          <GRNInfoRow label="Account holder" value={paymentForm.vendorBankDetails?.accountHolder || "—"} />
+          <GRNInfoRow label="Bank name" value={paymentForm.vendorBankDetails?.bankName || "—"} />
+          <GRNInfoRow label="Account No." value={paymentForm.vendorBankDetails?.accountNo || "—"} mono />
+          <GRNInfoRow label="IFSC / Branch" value={paymentForm.vendorBankDetails?.branchIFSC || "—"} mono />
+        </div>
+      </div>
 
-        {/* Payment proof attachment */}
-        {po.payment?.screenshotUrl && (
-          <div className="pb-6 mb-6 border-b border-gray-100 dark:border-[#334155]">
-            <h4 className="text-sm font-black text-gray-800 dark:text-white mb-5">Payment proof attachment</h4>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="group relative rounded-xl overflow-hidden border border-gray-200 dark:border-[#334155] bg-gray-50 dark:bg-[#0F172A]/50 cursor-zoom-in"
-                onClick={() => window.open(po.payment.screenshotUrl, "_blank")}>
-                <img src={po.payment.screenshotUrl} alt="Payment proof" referrerPolicy="no-referrer"
-                  className="w-full object-contain max-h-[160px] hover:scale-[1.02] transition-transform duration-500" />
-                <div className="absolute inset-x-0 bottom-0 p-2 bg-white/90 dark:bg-[#0F172A]/90 backdrop-blur-sm border-t dark:border-[#334155] flex justify-between items-center opacity-0 group-hover:opacity-100 transition-opacity">
-                  <span className="text-[10px] font-bold text-gray-500 truncate pr-2">{po.payment.screenshotName || "payment_proof.png"}</span>
-                  <span className="text-[10px] font-black text-blue-500">View Full</span>
+      {payableAmount <= 0 && !isEditingPayment ? (
+        <div className="flex flex-col items-center justify-center gap-4 py-12 px-6 bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20 rounded-2xl text-center">
+          <Clock className="w-8 h-8 text-amber-400" />
+          <div>
+            <p className="text-[14px] font-black text-gray-800 dark:text-white">Waiting for next GRN batch</p>
+            <p className="text-[12px] text-gray-500 dark:text-gray-400 mt-1">All received material has been paid. Payment will activate once the next GRN batch is received.</p>
+          </div>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          <div className="flex items-center gap-2">
+            <div className="h-0.5 w-4 bg-[#F97316]" />
+            <h3 className="text-[12px] font-bold text-gray-900 dark:text-white">Payment confirmation (ERP Sync)</h3>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <FormGroup label="From Company" hint="Auto-fetched">
+              <input type="text" value={paymentForm.fromCompany} onChange={(e) => setPaymentForm({ ...paymentForm, fromCompany: e.target.value })} className="w-full bg-gray-50 dark:bg-[#0F172A] border border-gray-200 dark:border-[#334155] p-3 rounded-xl text-sm outline-none focus:ring-4 ring-blue-500/10 font-bold text-gray-900 dark:text-[#F1F5F9] transition-all" />
+            </FormGroup>
+            <FormGroup label="Paying To (Supplier)" hint="Auto-fetched">
+              <input type="text" value={paymentForm.toCompany} onChange={(e) => setPaymentForm({ ...paymentForm, toCompany: e.target.value })} className="w-full bg-gray-50 dark:bg-[#0F172A] border border-gray-200 dark:border-[#334155] p-3 rounded-xl text-sm outline-none focus:ring-4 ring-blue-500/10 font-bold text-gray-900 dark:text-[#F1F5F9] transition-all" />
+            </FormGroup>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <FormGroup label="Payment Date *" hint="ERP Tally Date">
+              <DatePicker value={paymentForm.date} onChange={(e) => setPaymentForm({ ...paymentForm, date: e.target.value })} />
+            </FormGroup>
+            <FormGroup label="Payment Mode *">
+              <select value={paymentForm.mode} onChange={(e) => setPaymentForm({ ...paymentForm, mode: e.target.value })} className="w-full bg-gray-50 dark:bg-[#0F172A] border border-gray-200 dark:border-[#334155] p-3 rounded-xl text-sm outline-none focus:ring-4 ring-blue-500/10 font-bold text-gray-900 dark:text-[#F1F5F9] transition-all">
+                <option>NEFT</option><option>RTGS</option><option>Cheque</option><option>Cash</option><option>UPI</option>
+              </select>
+            </FormGroup>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <FormGroup label="Voucher Ref *" hint="Tally PV ref">
+              <input type="text" value={paymentForm.ref} onChange={(e) => setPaymentForm({ ...paymentForm, ref: e.target.value })} className="w-full bg-gray-50 dark:bg-[#0F172A] border border-gray-200 dark:border-[#334155] p-3 rounded-xl text-sm outline-none focus:ring-4 ring-blue-500/10 font-bold text-gray-900 dark:text-[#F1F5F9] transition-all" placeholder="e.g. PV-26-0045" />
+            </FormGroup>
+            <FormGroup label="Amount Paid *" hint={`Max: ${fmtCur(payableAmount)}`}>
+              <input type="number" value={paymentForm.amountPaid} max={payableAmount} onChange={(e) => setPaymentForm({ ...paymentForm, amountPaid: Number(e.target.value) })} className={`w-full bg-gray-50 dark:bg-[#0F172A] border p-3 rounded-xl text-sm font-black outline-none focus:ring-4 ring-blue-500/10 text-gray-900 dark:text-[#F1F5F9] transition-all ${Number(paymentForm.amountPaid) > payableAmount ? "border-red-400 dark:border-red-500 ring-2 ring-red-500/20" : "border-gray-200 dark:border-[#334155]"}`} />
+            </FormGroup>
+          </div>
+
+          <FormGroup label="Debit Bank Account *" hint="Your company account">
+            <select value={paymentForm.bank} onChange={(e) => setPaymentForm({ ...paymentForm, bank: e.target.value })} className="w-full bg-gray-50 dark:bg-[#0F172A] border border-gray-200 dark:border-[#334155] p-3 rounded-xl text-sm outline-none focus:ring-4 ring-blue-500/10 font-bold text-gray-900 dark:text-[#F1F5F9] transition-all">
+              <option value="">-- Select Your Bank --</option>
+              <option>SBI Main Corporate A/C</option>
+              <option>HDFC Business OD A/C</option>
+              <option>ICICI Project Fund</option>
+            </select>
+          </FormGroup>
+
+          {(paymentForm.mode === "NEFT" || paymentForm.mode === "RTGS" || paymentForm.mode === "UPI") && (
+            <FormGroup label="UTR / Reference ID *" hint="Transaction ID">
+              <input type="text" value={paymentForm.utr} onChange={(e) => setPaymentForm({ ...paymentForm, utr: e.target.value })} className="w-full bg-gray-50 dark:bg-[#0F172A] border border-gray-200 dark:border-[#334155] p-3 rounded-xl text-sm outline-none focus:ring-4 ring-blue-500/10 font-bold text-gray-900 dark:text-[#F1F5F9] transition-all" placeholder="ENTER TRANSACTION ID" />
+            </FormGroup>
+          )}
+
+          {paymentForm.mode === "Cheque" && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <FormGroup label="Cheque No. *">
+                <input type="text" value={paymentForm.chequeNo} onChange={(e) => setPaymentForm({ ...paymentForm, chequeNo: e.target.value })} className="w-full bg-gray-50 dark:bg-[#0F172A] border border-gray-200 dark:border-[#334155] p-3 rounded-xl text-sm outline-none focus:ring-4 ring-blue-500/10 font-bold text-gray-900 dark:text-[#F1F5F9] transition-all" />
+              </FormGroup>
+              <FormGroup label="Cheque Date *">
+                <DatePicker value={paymentForm.chequeDate} onChange={(e) => setPaymentForm({ ...paymentForm, chequeDate: e.target.value })} />
+              </FormGroup>
+            </div>
+          )}
+
+          <FormGroup label="Payment Proof Screenshot *" hint="Mandatory for internal audit">
+            <div
+              onClick={() => fileInputRef.current?.click()}
+              onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); setIsDraggingPayment(true); }}
+              onDragEnter={(e) => { e.preventDefault(); e.stopPropagation(); setIsDraggingPayment(true); }}
+              onDragLeave={(e) => { e.preventDefault(); e.stopPropagation(); if (!e.currentTarget.contains(e.relatedTarget)) setIsDraggingPayment(false); }}
+              onDrop={(e) => {
+                e.preventDefault(); e.stopPropagation(); setIsDraggingPayment(false);
+                const file = e.dataTransfer.files?.[0];
+                if (file) { const url = URL.createObjectURL(file); setPaymentForm(prev => ({ ...prev, screenshot: file, previewUrl: url })); }
+              }}
+              className={`border-2 border-dashed rounded-2xl p-8 flex flex-col items-center justify-center gap-3 cursor-pointer transition-all font-medium group ${isDraggingPayment ? "border-blue-400 bg-blue-50 dark:bg-blue-900/20 scale-[1.01]" : "border-gray-200 dark:border-[#334155] hover:bg-gray-50 dark:hover:bg-[#0F172A]/50"}`}
+            >
+              <input type="file" ref={fileInputRef} className="hidden" onChange={handleFileChange} accept="image/*,.pdf" />
+              {isDraggingPayment ? (
+                <><div className="p-4 bg-blue-100 dark:bg-blue-900/20 text-blue-500 rounded-full"><Upload className="w-8 h-8" /></div><p className="text-[11px] font-black text-blue-500">Drop file here</p></>
+              ) : paymentForm.previewUrl ? (
+                <div className="relative group">
+                  <img src={paymentForm.previewUrl} className="h-24 rounded-xl shadow-lg border border-white dark:border-[#334155]" alt="Preview" />
+                  <div className="absolute inset-0 bg-black/40 rounded-xl flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"><Upload className="text-white w-6 h-6 animate-bounce" /></div>
+                  <p className="text-[10px] font-black text-center mt-2 text-gray-500 dark:text-[#64748B] truncate w-40">{paymentForm.screenshot?.name}</p>
                 </div>
-              </div>
+              ) : (
+                <><div className="p-4 bg-blue-50 dark:bg-blue-900/10 text-[#3B82F6] rounded-full group-hover:scale-110 transition-transform"><Upload className="w-8 h-8" /></div><div className="text-center"><p className="text-[11px] font-black text-[#3B82F6] mb-1">Click or drag &amp; drop</p><p className="text-[10px] font-bold text-gray-400 dark:text-[#64748B] italic">Tally Snapshot or Bank Receipt</p></div></>
+              )}
             </div>
-          </div>
-        )}
+          </FormGroup>
 
-        {/* Internal tracking */}
-        <div className="pb-6 mb-6 border-b border-gray-100 dark:border-[#334155]">
-          <h4 className="text-sm font-black text-gray-800 dark:text-white mb-5">Internal tracking</h4>
-          <div className="grid grid-cols-2 gap-x-8 gap-y-5">
-            <InfoItem label="Bill approved by" value={po.billApprovedBy || po.auditTrail?.find(a => a.action?.includes("approve"))?.done_by || "Accounts Manager"} />
-            <div>
-              <p className="text-[10px] font-black text-gray-400 dark:text-[#64748B] mb-1">Status</p>
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-green-100 dark:bg-green-500/20 text-green-700 dark:text-green-400 rounded-full text-[10px] font-black">
-                <span className="w-1.5 h-1.5 rounded-full bg-green-500 inline-block" /> Paid
+          <FormGroup label="Remarks (Optional)">
+            <textarea rows={2} value={paymentForm.remarks} onChange={(e) => setPaymentForm({ ...paymentForm, remarks: e.target.value })} className="w-full bg-gray-50 dark:bg-[#0F172A] border border-gray-100 dark:border-[#334155] p-3 rounded-xl text-sm outline-none focus:ring-4 ring-blue-500/10 resize-none font-bold text-gray-900 dark:text-[#F1F5F9]" placeholder="Reference notes, discount details..." />
+          </FormGroup>
+        </div>
+      )}
+      {viewGRNDetail && realGrn && <GRNDetailModal grn={realGrn} onClose={() => setViewGRNDetail(false)} />}
+    </div>;
+  }
+  if (status === "partial_paid" && !isEditingPayment) {
+    const paidSoFar = po.totalPaid || po.payment?.amountPaid || 0;
+    const totalVal = po.totalValue || 0;
+    const remaining = Math.max(0, totalVal - paidSoFar);
+    const installments = po.paymentHistory?.length > 0 ? po.paymentHistory : null;
+    return <div className="space-y-5 pb-4">
+      {topGrid}
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-0 border border-gray-100 dark:border-gray-800 rounded-2xl overflow-hidden shadow-sm">
+        <div className="divide-y divide-gray-100 dark:divide-gray-800 bg-white dark:bg-gray-900">
+          <div className="bg-gray-50/50 dark:bg-gray-800/30 p-2.5 font-black text-[10px] text-gray-500 flex items-center gap-2">
+            <div className="w-1.5 h-3.5 bg-amber-500 rounded-full" /> Payment progress
+          </div>
+          <GRNInfoRow label="PO Total" value={fmtCur(totalVal)} />
+          <GRNInfoRow label="Paid so far" value={fmtCur(paidSoFar)} orange />
+          <GRNInfoRow label="Remaining" value={fmtCur(remaining)} />
+          <GRNInfoRow label="Installments" value={installments ? `${installments.length} payment${installments.length > 1 ? "s" : ""}` : "1 payment"} />
+        </div>
+        <div className="divide-y divide-gray-100 dark:divide-gray-800 border-l border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-900">
+          <div className="bg-gray-50/50 dark:bg-gray-800/30 p-2.5 font-black text-[10px] text-gray-500 flex items-center gap-2">
+            <div className="w-1.5 h-3.5 bg-amber-500 rounded-full" /> Status
+          </div>
+          <GRNInfoRow label="GRN status" value={po.status} />
+          <GRNInfoRow label="Vendor" value={getSupplierName(po.supplier)} />
+          <GRNInfoRow label="Project" value={po.project || po.location || "—"} />
+          <div className="grid grid-cols-12 items-center divide-x divide-gray-100 dark:divide-gray-800">
+            <div className="col-span-4 p-3" />
+            <div className="col-span-8 px-4 py-2.5">
+              <span className="inline-flex items-center gap-1.5 text-[10px] font-black text-amber-600 bg-amber-50 dark:bg-amber-500/10 px-2.5 py-1 rounded border border-amber-100 dark:border-amber-500/20">
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-500 inline-block" /> Awaiting next GRN
               </span>
             </div>
           </div>
-          <button onClick={() => window.print()}
-            className="mt-4 flex items-center gap-2 text-[11px] font-black text-blue-500 hover:underline">
-            <Download className="w-3.5 h-3.5" /> Download Payment Advice
-          </button>
         </div>
+      </div>
 
-        <AuditTrail log={po.auditTrail} />
-      </div>;
+      <div className="space-y-3">
+        <div className="flex items-center gap-2">
+          <div className="h-0.5 w-4 bg-[#F97316]" />
+          <h3 className="text-[12px] font-bold text-gray-900 dark:text-white">Payment history</h3>
+        </div>
+        <div className="relative pl-4">
+          <div className="absolute left-7 top-3.5 bottom-3.5 w-0.5 bg-gray-100 dark:bg-gray-800" />
+          {installments ? installments.map((ph, i) => (
+            <div key={i} className="flex gap-4 mb-4 last:mb-0">
+              <div className={`relative z-10 w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-black text-white shrink-0 border-2 border-white dark:border-gray-900 shadow-sm ${i === 0 ? "bg-orange-500" : "bg-emerald-500"}`}>{ph.installmentNo || i + 1}</div>
+              <div className="flex-1 pb-4 border-b border-gray-100 dark:border-gray-800 last:border-0 last:pb-0">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-[11px] font-black text-gray-700 dark:text-gray-200">Installment #{ph.installmentNo}{ph.grnId ? ` · ${ph.grnId}` : ""}</span>
+                  <span className="text-[13px] font-black text-emerald-600 dark:text-emerald-400 tabular-nums">{fmtCur(ph.amountPaid)}</span>
+                </div>
+                <div className="flex flex-wrap gap-x-4 gap-y-0.5">
+                  <span className="text-[10px] text-gray-400">{formatDate(ph.date)}</span>
+                  <span className="text-[10px] text-gray-400">{ph.mode || "—"}</span>
+                  {ph.ref && <span className="text-[10px] font-mono text-gray-400">{ph.ref}</span>}
+                  {ph.bank && <span className="text-[10px] text-gray-400">{ph.bank}</span>}
+                </div>
+              </div>
+            </div>
+          )) : (
+            <div className="flex gap-4">
+              <div className="relative z-10 w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-black text-white shrink-0 border-2 border-white dark:border-gray-900 shadow-sm bg-orange-500">1</div>
+              <div className="flex-1">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-[11px] font-black text-gray-700 dark:text-gray-200">Installment #1</span>
+                  <span className="text-[13px] font-black text-emerald-600 dark:text-emerald-400 tabular-nums">{fmtCur(paidSoFar)}</span>
+                </div>
+                <div className="flex flex-wrap gap-x-4 gap-y-0.5">
+                  <span className="text-[10px] text-gray-400">{formatDate(po.payment?.date)}</span>
+                  <span className="text-[10px] text-gray-400">{po.payment?.mode || "—"}</span>
+                  {po.payment?.ref && <span className="text-[10px] font-mono text-gray-400">{po.payment.ref}</span>}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      <AuditTrail log={po.auditTrail} />
+      {viewGRNDetail && realGrn && <GRNDetailModal grn={realGrn} onClose={() => setViewGRNDetail(false)} />}
+    </div>;
+  }
+  if (status === "paid" && !isEditingPayment) {
+    const paidAmt = po.totalPaid || po.payment?.amountPaid || po.totalValue || 0;
+    const vbd = po.payment?.vendorBankDetails;
+    const installments = po.paymentHistory?.length > 0 ? po.paymentHistory : null;
+    const grnPayments = installments
+      ? installments.map(ph => ({
+          ph,
+          grn: allGrns?.find(g => g.id === ph.grnId || g._id === ph.grnId) || (installments.length === 1 ? realGrn : null)
+        }))
+      : (realGrn && po.payment) ? [{ ph: po.payment, grn: realGrn }] : [];
+    return <div className="space-y-5 pb-4">
+      {topGrid}
+
+      {grnPayments.length > 0 && (
+        <div className="space-y-3">
+          <div className="flex items-center gap-2">
+            <div className="h-0.5 w-4 bg-[#F97316]" />
+            <h3 className="text-[12px] font-bold text-gray-900 dark:text-white">Payment installments · {grnPayments.length}</h3>
+          </div>
+          {grnPayments.map(({ ph, grn }, idx) => {
+            const isFinal = idx === grnPayments.length - 1;
+            return (
+              <div key={idx} className="overflow-hidden rounded-xl border border-gray-100 dark:border-gray-800">
+                {/* Installment header */}
+                <div className={`flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-gray-800 ${isFinal ? "bg-emerald-50/60 dark:bg-emerald-500/5" : "bg-orange-50/60 dark:bg-orange-500/5"}`}>
+                  <div className="flex items-center gap-3">
+                    <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-black text-white shrink-0 ${isFinal ? "bg-emerald-500" : "bg-orange-500"}`}>{ph.installmentNo || idx + 1}</div>
+                    <div>
+                      <p className="text-[12px] font-black text-gray-800 dark:text-gray-100">
+                        Installment #{ph.installmentNo || idx + 1} · {isFinal ? "Final" : "Partial"}{ph.grnId ? ` · ${ph.grnId}` : ""}
+                      </p>
+                      <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-0.5">
+                        <span className="text-[10px] text-gray-400">{formatDate(ph.date)}</span>
+                        {ph.mode && <span className="text-[10px] font-bold text-gray-500">{ph.mode}</span>}
+                        {ph.ref && <span className="text-[10px] font-mono text-gray-400">Ref: {ph.ref}</span>}
+                        {ph.utr && <span className="text-[10px] font-mono text-gray-400">UTR: {ph.utr}</span>}
+                        {ph.bank && <span className="text-[10px] text-gray-400">{ph.bank}</span>}
+                        {ph.toCompany && <span className="text-[10px] font-bold text-gray-500">→ {ph.toCompany}</span>}
+                      </div>
+                    </div>
+                  </div>
+                  <span className={`text-[15px] font-black tabular-nums ${isFinal ? "text-emerald-600 dark:text-emerald-400" : "text-orange-600 dark:text-orange-400"}`}>{fmtCur(ph.amountPaid)}</span>
+                </div>
+                {/* Items table if GRN found */}
+                {grn?.items?.length > 0 ? (
+                  <table className="w-full text-left border-collapse">
+                    <thead>
+                      <tr className="bg-gray-50/50 dark:bg-gray-800/30 border-b border-gray-100 dark:border-gray-800">
+                        <th className="px-4 py-2 text-[10px] font-black text-gray-400 tracking-wider">Material</th>
+                        <th className="px-4 py-2 text-[10px] font-black text-gray-400 tracking-wider text-center">Rcv qty</th>
+                        <th className="px-4 py-2 text-[10px] font-black text-gray-400 tracking-wider text-right">Rate</th>
+                        <th className="px-4 py-2 text-[10px] font-black text-gray-400 tracking-wider text-right">Amount</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-50 dark:divide-gray-800">
+                      {grn.items.map((gi, i) => {
+                        const rcv = gi.received ?? gi.qty ?? 0;
+                        const poItem = po.items?.find(pi =>
+                          (pi.sku && gi.sku && pi.sku === gi.sku) ||
+                          (pi.materialName || "").toLowerCase() === (gi.itemName || "").toLowerCase()
+                        );
+                        const rate = gi.rate || poItem?.rate || 0;
+                        return (
+                          <tr key={i} className="hover:bg-gray-50/30 dark:hover:bg-gray-800/10">
+                            <td className="px-4 py-2.5">
+                              <p className="text-[12px] font-semibold text-gray-900 dark:text-white">{gi.itemName || gi.name || "Item"}</p>
+                              {gi.sku && <p className="text-[10px] text-gray-400">{gi.sku}</p>}
+                            </td>
+                            <td className="px-4 py-2.5 text-center text-[13px] font-black text-gray-900 dark:text-white">{rcv}</td>
+                            <td className="px-4 py-2.5 text-right text-[12px] text-gray-500 tabular-nums">{fmtCur(rate)}</td>
+                            <td className="px-4 py-2.5 text-right font-black text-[13px] text-gray-900 dark:text-white tabular-nums">{fmtCur(rcv * rate)}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                ) : (
+                  <div className="px-4 py-3 text-[11px] text-gray-400 italic">GRN item details not linked to this installment</div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-0 border border-gray-100 dark:border-gray-800 rounded-2xl overflow-hidden shadow-sm">
+        <div className="divide-y divide-gray-100 dark:divide-gray-800 bg-white dark:bg-gray-900">
+          <div className="bg-gray-50/50 dark:bg-gray-800/30 p-2.5 font-black text-[10px] text-gray-500 flex items-center gap-2">
+            <div className="w-1.5 h-3.5 bg-emerald-500 rounded-full" /> Payment summary
+          </div>
+          <GRNInfoRow label="Total paid" value={fmtCur(paidAmt)} orange />
+          <GRNInfoRow label="Payment date" value={formatDate(po.payment?.date)} />
+          <GRNInfoRow label="Mode" value={po.payment?.mode || "—"} />
+          <GRNInfoRow label="ERP Voucher Ref" value={po.payment?.ref || "—"} mono />
+          {po.payment?.utr && <GRNInfoRow label="UTR" value={po.payment.utr} mono />}
+        </div>
+        <div className="divide-y divide-gray-100 dark:divide-gray-800 border-l border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-900">
+          <div className="bg-gray-50/50 dark:bg-gray-800/30 p-2.5 font-black text-[10px] text-gray-500 flex items-center gap-2">
+            <div className="w-1.5 h-3.5 bg-emerald-500 rounded-full" /> Beneficiary bank
+          </div>
+          <GRNInfoRow label="Account holder" value={vbd?.accountHolder || po.payment?.toCompany || "—"} />
+          <GRNInfoRow label="Bank name" value={vbd?.bankName || "—"} />
+          <GRNInfoRow label="Account No." value={vbd?.accountNo || "—"} mono />
+          <GRNInfoRow label="IFSC / Branch" value={vbd?.branchIFSC || "—"} mono />
+          <div className="grid grid-cols-12 items-center divide-x divide-gray-100 dark:divide-gray-800">
+            <div className="col-span-4 p-3" />
+            <div className="col-span-8 px-4 py-2.5">
+              <span className="inline-flex items-center gap-1.5 text-[10px] font-black text-emerald-600 bg-emerald-50 dark:bg-emerald-500/10 px-2.5 py-1 rounded border border-emerald-100 dark:border-emerald-500/20">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block" /> Synced with Tally
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {installments && (
+        <div className="space-y-3">
+          <div className="flex items-center gap-2">
+            <div className="h-0.5 w-4 bg-[#F97316]" />
+            <h3 className="text-[12px] font-bold text-gray-900 dark:text-white">Payment history · {installments.length} installment{installments.length > 1 ? "s" : ""}</h3>
+          </div>
+          <div className="relative pl-4">
+            <div className="absolute left-7 top-3.5 bottom-3.5 w-0.5 bg-gray-100 dark:bg-gray-800" />
+            {installments.map((ph, i) => (
+              <div key={i} className="flex gap-4 mb-4 last:mb-0">
+                <div className={`relative z-10 w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-black text-white shrink-0 border-2 border-white dark:border-gray-900 shadow-sm ${i === installments.length - 1 ? "bg-emerald-500" : "bg-orange-500"}`}>{ph.installmentNo || i + 1}</div>
+                <div className="flex-1 pb-4 border-b border-gray-100 dark:border-gray-800 last:border-0 last:pb-0">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-[11px] font-black text-gray-700 dark:text-gray-200">Installment #{ph.installmentNo}{i === installments.length - 1 ? " (Final)" : " (Partial)"}{ph.grnId ? ` · ${ph.grnId}` : ""}</span>
+                    <span className="text-[13px] font-black text-emerald-600 dark:text-emerald-400 tabular-nums">{fmtCur(ph.amountPaid)}</span>
+                  </div>
+                  <div className="flex flex-wrap gap-x-4 gap-y-0.5">
+                    <span className="text-[10px] text-gray-400">{formatDate(ph.date)}</span>
+                    <span className="text-[10px] text-gray-400">{ph.mode || "—"}</span>
+                    {ph.ref && <span className="text-[10px] font-mono text-gray-400">{ph.ref}</span>}
+                    {ph.bank && <span className="text-[10px] text-gray-400">{ph.bank}</span>}
+                    {ph.utr && <span className="text-[10px] font-mono text-gray-400">UTR: {ph.utr}</span>}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {po.payment?.screenshotUrl && (
+        <div className="space-y-3">
+          <div className="flex items-center gap-2">
+            <div className="h-0.5 w-4 bg-[#F97316]" />
+            <h3 className="text-[12px] font-bold text-gray-900 dark:text-white">Payment proof</h3>
+          </div>
+          <div className="group relative rounded-xl overflow-hidden border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/30 cursor-zoom-in w-48" onClick={() => window.open(po.payment.screenshotUrl, "_blank")}>
+            <img src={po.payment.screenshotUrl} alt="Payment proof" referrerPolicy="no-referrer" className="w-full object-contain max-h-[120px] hover:scale-[1.02] transition-transform duration-500" />
+          </div>
+        </div>
+      )}
+
+      <AuditTrail log={po.auditTrail} />
+      {viewGRNDetail && realGrn && <GRNDetailModal grn={realGrn} onClose={() => setViewGRNDetail(false)} />}
+    </div>;
   }
   if (status === "rejected") {
-    return <div className="space-y-8">
-        <div className="flex items-center gap-5 bg-red-50 dark:bg-red-900/10 border border-red-100 dark:border-red-900/20 p-6 rounded-3xl">
-           <div className="w-16 h-16 bg-red-600 rounded-3xl rotate-6 flex items-center justify-center text-white shadow-2xl shadow-red-600/30">
-             <XSquare className="w-10 h-10 font-black" />
-           </div>
-           <div className="flex-1">
-             <h4 className="text-lg font-black text-red-700 dark:text-red-400">Compliance rejection</h4>
-             <p className="text-[13px] font-bold text-red-600 dark:text-red-500 mt-1">The bill verification stage was failed by accounts.</p>
-           </div>
-           <button
-      onClick={() => onApprove(po.id)}
-      className="text-[11px] font-black bg-white dark:bg-[#0F172A] text-red-600 border border-red-200 dark:border-red-900/40 px-6 py-3 rounded-2xl shadow-xl shadow-red-600/5 hover:scale-105 transition-all"
-    >
-             Undo Rejection?
-           </button>
+    return <div className="space-y-5 pb-4">
+      {topGrid}
+      <div className="flex items-center gap-5 bg-red-50 dark:bg-red-900/10 border border-red-100 dark:border-red-900/20 p-5 rounded-2xl">
+        <div className="w-12 h-12 bg-red-600 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-red-600/30 shrink-0">
+          <XSquare className="w-7 h-7" />
         </div>
-        <div className="bg-white dark:bg-[#1E293B] p-8 rounded-3xl border border-gray-100 dark:border-[#334155] shadow-sm space-y-4">
-           <div className="flex items-center gap-2 text-[10px] font-black text-gray-400 dark:text-[#64748B]">
-             <AlertCircle className="w-4 h-4 text-red-500" /> Formal Reason for Rejection
-           </div>
-           <blockquote className="text-xl font-black text-gray-800 dark:text-[#F1F5F9] border-l-[6px] border-red-500 pl-6 italic leading-relaxed">
-             "{po.rejectionReason || "DOCUMENTATION DISCREPANCY OR PRICE DEVIATION FROM PO TERMS."}"
-           </blockquote>
+        <div className="flex-1">
+          <h4 className="text-[14px] font-black text-red-700 dark:text-red-400">Compliance rejection</h4>
+          <p className="text-[12px] font-bold text-red-600 dark:text-red-500 mt-0.5">The bill verification stage was failed by accounts.</p>
         </div>
-      </div>;
+        <button onClick={() => onApprove(po.id)} className="text-[11px] font-black bg-white dark:bg-[#0F172A] text-red-600 border border-red-200 dark:border-red-900/40 px-5 py-2.5 rounded-xl shadow hover:scale-105 transition-all">
+          Undo Rejection?
+        </button>
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-0 border border-gray-100 dark:border-gray-800 rounded-2xl overflow-hidden shadow-sm">
+        <div className="divide-y divide-gray-100 dark:divide-gray-800 bg-white dark:bg-gray-900 col-span-2">
+          <div className="bg-gray-50/50 dark:bg-gray-800/30 p-2.5 font-black text-[10px] text-gray-500 flex items-center gap-2">
+            <div className="w-1.5 h-3.5 bg-red-500 rounded-full" /> Rejection reason
+          </div>
+          <div className="p-5">
+            <blockquote className="text-[15px] font-black text-gray-800 dark:text-white border-l-4 border-red-500 pl-4 italic leading-relaxed">
+              "{po.rejectionReason || "DOCUMENTATION DISCREPANCY OR PRICE DEVIATION FROM PO TERMS."}"
+            </blockquote>
+          </div>
+        </div>
+      </div>
+      {viewGRNDetail && realGrn && <GRNDetailModal grn={realGrn} onClose={() => setViewGRNDetail(false)} />}
+    </div>;
   }
   return <div className="py-24 text-center space-y-8">
       <div className="w-24 h-24 bg-gray-50 dark:bg-[#1E293B] rounded-[2.5rem] flex items-center justify-center mx-auto mb-6 border border-gray-100 dark:border-[#334155] shadow-inner">
@@ -1597,13 +1786,8 @@ const DetailPanel = /* @__PURE__ */ __name(({
       </div>
       <div className="space-y-3">
         <h2 className="text-3xl font-black text-gray-900 dark:text-[#F1F5F9]">Stage restricted</h2>
-        <p className="text-gray-400 dark:text-[#64748B] font-bold text-sm">
-          Current state: {status.replace("_", " ")}
-        </p>
+        <p className="text-gray-400 dark:text-[#64748B] font-bold text-sm">Current state: {status.replace("_", " ")}</p>
       </div>
-      <p className="text-[11px] text-gray-400 dark:text-[#64748B] font-bold max-w-sm mx-auto leading-relaxed opacity-60">
-        This purchase order is currently in a different departmental workflow stage. Access to financial settlement is restricted.
-      </p>
     </div>;
 }, "DetailPanel");
 const InfoItem = /* @__PURE__ */ __name(({ label, value, highlight }) => <div className="group">

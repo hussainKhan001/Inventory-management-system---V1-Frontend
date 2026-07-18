@@ -333,7 +333,7 @@ const SuperAdmin = /* @__PURE__ */ __name(() => {
     (p) => ["Pending L1", "Pending L2", "Pending L3"].includes(p.status)
   );
   const filteredOverridePOs = pos.filter((po) => {
-    const matchesSearch = overrideSearch === "" || po.id.toLowerCase().includes(overrideSearch.toLowerCase()) || po.project.toLowerCase().includes(overrideSearch.toLowerCase()) || po.supplier.toLowerCase().includes(overrideSearch.toLowerCase());
+    const matchesSearch = !overrideSearch.trim() || po.id.toLowerCase().includes(overrideSearch.trim().toLowerCase()) || po.project.toLowerCase().includes(overrideSearch.trim().toLowerCase()) || po.supplier.toLowerCase().includes(overrideSearch.trim().toLowerCase());
     const poDate = new Date(po.date).getTime();
     const start = overrideStartDate ? new Date(overrideStartDate).getTime() : 0;
     const end = overrideEndDate ? new Date(overrideEndDate).getTime() : Infinity;
@@ -450,7 +450,7 @@ const SuperAdmin = /* @__PURE__ */ __name(() => {
     }
   }, "handleGroupSelectAll");
   const filteredUsers = users.filter((u) => {
-    const matchesSearch = userSearch === "" || u.name?.toLowerCase().includes(userSearch.toLowerCase()) || u.email?.toLowerCase().includes(userSearch.toLowerCase()) || u._id?.toLowerCase().includes(userSearch.toLowerCase());
+    const matchesSearch = !userSearch.trim() || u.name?.toLowerCase().includes(userSearch.trim().toLowerCase()) || u.email?.toLowerCase().includes(userSearch.trim().toLowerCase()) || u._id?.toLowerCase().includes(userSearch.trim().toLowerCase());
     const matchesRole = userRoleFilter === "" || u.role === userRoleFilter;
     return matchesSearch && matchesRole;
   });
@@ -501,7 +501,7 @@ const SuperAdmin = /* @__PURE__ */ __name(() => {
             <div className="p-6 space-y-4">
               {PERMISSION_GROUPS.map((group) => {
       const filteredPerms = group.perms.filter(
-        (p) => p.toLowerCase().includes(permSearch.toLowerCase()) || group.name.toLowerCase().includes(permSearch.toLowerCase())
+        (p) => p.toLowerCase().includes(permSearch.trim().toLowerCase()) || group.name.toLowerCase().includes(permSearch.trim().toLowerCase())
       );
       if (filteredPerms.length === 0) return null;
       const isExpanded = expandedGroups.includes(group.id);

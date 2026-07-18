@@ -605,7 +605,7 @@ const MaterialPlanning = /* @__PURE__ */ __name(() => {
             <SelectFilter value={tabSharedEngineerFilter} onChange={setTabSharedEngineerFilter} options={REQUESTERS || []} placeholder="All Engineers" />
           </FilterRow>
           <div className="space-y-3">
-            {engineerSummary.filter((e) => !engineerTabFilter || e.name.toLowerCase().includes(engineerTabFilter.toLowerCase())).map((eng) => {
+            {engineerSummary.filter((e) => !engineerTabFilter.trim() || e.name.toLowerCase().includes(engineerTabFilter.trim().toLowerCase())).map((eng) => {
     const isExpanded = expandedEngineers.has(eng.name);
     const toggleExpand = /* @__PURE__ */ __name(() => setExpandedEngineers((prev) => {
       const next = new Set(prev);
@@ -705,7 +705,7 @@ const MaterialPlanning = /* @__PURE__ */ __name(() => {
                     </div>}
                 </Card>;
   })}
-            {engineerSummary.filter((e) => !engineerTabFilter || e.name.toLowerCase().includes(engineerTabFilter.toLowerCase())).length === 0 && <div className="text-center py-12 text-gray-500 dark:text-gray-400 text-[13px]">No engineers found.</div>}
+            {engineerSummary.filter((e) => !engineerTabFilter.trim() || e.name.toLowerCase().includes(engineerTabFilter.trim().toLowerCase())).length === 0 && <div className="text-center py-12 text-gray-500 dark:text-gray-400 text-[13px]">No engineers found.</div>}
           </div>
         </div>}
 
@@ -720,7 +720,7 @@ const MaterialPlanning = /* @__PURE__ */ __name(() => {
             <SelectFilter value={tabSharedEngineerFilter} onChange={setTabSharedEngineerFilter} options={REQUESTERS || []} placeholder="All Engineers" />
           </FilterRow>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {projectSummary.filter((p) => !projectTabFilter || p.name.toLowerCase().includes(projectTabFilter.toLowerCase())).map((proj) => {
+            {projectSummary.filter((p) => !projectTabFilter.trim() || p.name.toLowerCase().includes(projectTabFilter.trim().toLowerCase())).map((proj) => {
     const gmAgms = [...new Set(proj.plans.map((p) => p.gmAgm).filter(Boolean))];
     return <div
       key={proj.name}
@@ -783,7 +783,7 @@ const MaterialPlanning = /* @__PURE__ */ __name(() => {
                     </div>
                   </div>;
   })}
-            {projectSummary.filter((p) => !projectTabFilter || p.name.toLowerCase().includes(projectTabFilter.toLowerCase())).length === 0 && <div className="col-span-3 text-center py-12 text-gray-500 dark:text-gray-400 text-[13px]">No projects found.</div>}
+            {projectSummary.filter((p) => !projectTabFilter.trim() || p.name.toLowerCase().includes(projectTabFilter.trim().toLowerCase())).length === 0 && <div className="col-span-3 text-center py-12 text-gray-500 dark:text-gray-400 text-[13px]">No projects found.</div>}
           </div>
         </div>}
 
@@ -989,7 +989,7 @@ const MaterialPlanning = /* @__PURE__ */ __name(() => {
             <SelectFilter value={tabSharedEngineerFilter} onChange={setTabSharedEngineerFilter} options={REQUESTERS || []} placeholder="All Engineers" />
           </FilterRow>
           <div className="space-y-3">
-            {gmAgmSummary.filter((g) => !gmAgmTabFilter || g.name.toLowerCase().includes(gmAgmTabFilter.toLowerCase())).map((gm) => <Card key={gm.name} className="p-0 overflow-hidden border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900">
+            {gmAgmSummary.filter((g) => !gmAgmTabFilter.trim() || g.name.toLowerCase().includes(gmAgmTabFilter.trim().toLowerCase())).map((gm) => <Card key={gm.name} className="p-0 overflow-hidden border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900">
                   <div className="p-4 border-b border-gray-100 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-800/40">
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-purple-700 flex items-center justify-center text-white font-black text-[14px] shrink-0">
@@ -1044,7 +1044,7 @@ const MaterialPlanning = /* @__PURE__ */ __name(() => {
                       </div>)}
                   </div>
                 </Card>)}
-            {gmAgmSummary.filter((g) => !gmAgmTabFilter || g.name.toLowerCase().includes(gmAgmTabFilter.toLowerCase())).length === 0 && <div className="text-center py-12 text-gray-500 dark:text-gray-400 text-[13px]">No GM / AGM data found.</div>}
+            {gmAgmSummary.filter((g) => !gmAgmTabFilter.trim() || g.name.toLowerCase().includes(gmAgmTabFilter.trim().toLowerCase())).length === 0 && <div className="text-center py-12 text-gray-500 dark:text-gray-400 text-[13px]">No GM / AGM data found.</div>}
           </div>
         </div>}
 

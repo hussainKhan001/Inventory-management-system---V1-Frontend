@@ -67,9 +67,9 @@ const GRNPage = /* @__PURE__ */ __name(() => {
   }, [suppliers, grns]);
   const statusOptions = React.useMemo(() => [
     { label: "Draft", value: "Draft" },
-    { label: "Partial", value: "Partial" },
     { label: "Confirmed", value: "Confirmed" },
-    { label: "Over-Received", value: "Over-Received" }
+    { label: "GRN Variance", value: "Partial" },
+    { label: "Over-Received", value: "Over-Received" },
   ], []);
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedSearch(search), 500);

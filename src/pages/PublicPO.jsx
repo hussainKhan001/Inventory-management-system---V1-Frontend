@@ -559,7 +559,7 @@ const PublicPO = /* @__PURE__ */ __name(() => {
   />
               {searchItem && <div className="absolute z-50 w-full mt-1 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl shadow-xl max-h-60 overflow-y-auto">
                   {localInventory.filter(
-    (i) => (i.itemName?.toLowerCase() || "").includes(searchItem.toLowerCase()) || (i.sku?.toLowerCase() || "").includes(searchItem.toLowerCase())
+    (i) => (i.itemName?.toLowerCase() || "").includes(searchItem.trim().toLowerCase()) || (i.sku?.toLowerCase() || "").includes(searchItem.trim().toLowerCase())
   ).map((i, idx) => <div
     key={`${i.sku}-${idx}`}
     onClick={() => addItem(i)}
@@ -864,7 +864,7 @@ const PublicPO = /* @__PURE__ */ __name(() => {
                                 </div>
                                 <div className="max-h-48 overflow-y-auto space-y-1 custom-scrollbar">
                                   {localInventory.filter(
-    (i) => (i.itemName?.toLowerCase() || "").includes(linkingSearch.toLowerCase()) || (i.sku?.toLowerCase() || "").includes(linkingSearch.toLowerCase())
+    (i) => (i.itemName?.toLowerCase() || "").includes(linkingSearch.trim().toLowerCase()) || (i.sku?.toLowerCase() || "").includes(linkingSearch.trim().toLowerCase())
   ).slice(0, 10).map((i, iidx) => <div
     key={iidx}
     onClick={() => linkToInventory(idx, i)}

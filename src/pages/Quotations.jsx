@@ -344,7 +344,7 @@ const Quotations = /* @__PURE__ */ __name(() => {
               </thead>
               <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
                 {flatQuotations
-                  .filter(q => !tableFilter || [q._mrId, q._mr?.project, q._category, q.supplierName, q.status].some(f => f?.toLowerCase().includes(tableFilter.toLowerCase())))
+                  .filter(q => !tableFilter.trim() || [q._mrId, q._mr?.project, q._category, q.supplierName, q.status].some(f => f?.toLowerCase().includes(tableFilter.trim().toLowerCase())))
                   .map((q) => (
                   <tr key={q.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
                     <td className="px-4 py-3 text-xs text-gray-600 dark:text-gray-400 whitespace-nowrap">{formatDate(q.createdAt || "")}</td>
