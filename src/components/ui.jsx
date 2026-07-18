@@ -260,14 +260,28 @@ const SField = React.memo(({
       const lbl = opt?.label !== void 0 ? opt.label : opt;
       return {
         value: val,
-        label: typeof lbl === "object" ? JSON.stringify(lbl) : String(lbl || "")
+        label: typeof lbl === "object" ? JSON.stringify(lbl) : String(lbl || ""),
+        subLabel: opt?.subLabel || "",
       };
     });
   }, [options]);
   const filteredOptions = React.useMemo(() => {
-    if (!search.trim()) return normalizedOptions;
-    const q = search.toLowerCase();
-    return normalizedOptions.filter(o => o.label.toLowerCase().includes(q));
+    const q = search.trim().toLowerCase();
+    if (!q) return normalizedOptions;
+    const scored = normalizedOptions.map((o) => {
+      const label = o.label.toLowerCase();
+      const val   = String(o.value).toLowerCase();
+      const sub   = o.subLabel.toLowerCase();
+      let score = 0;
+      if (label === q || val === q)                                          score = 4;
+      else if (label.startsWith(q) || val.startsWith(q))                    score = 3;
+      else if (label.split(/\s+/).some(w => w.startsWith(q)) ||
+               val.split(/\s+/).some(w => w.startsWith(q)))                 score = 2;
+      else if (label.includes(q) || val.includes(q) || sub.includes(q))     score = 1;
+      return { o, score };
+    }).filter(x => x.score > 0);
+    scored.sort((a, b) => b.score - a.score);
+    return scored.map(x => x.o);
   }, [normalizedOptions, search]);
   const selectedOption = normalizedOptions.find((o) => String(o.value) === String(value));
   return <div className={cn(small ? "mb-2" : "mb-4", isOpen ? "relative z-[100]" : "relative", className)} ref={containerRef}>
@@ -346,7 +360,10 @@ const SField = React.memo(({
       String(value) === String(opt.value) ? "bg-[#F97316]/10 text-[#F97316] font-semibold" : "text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-white/5"
     )}
   >
-                        <span className="truncate">{opt.label}</span>
+                        <div className="flex flex-col min-w-0">
+                          <span className="truncate">{opt.label}</span>
+                          {opt.subLabel && <span className="text-[10px] opacity-60 truncate mt-0.5">{opt.subLabel}</span>}
+                        </div>
                       </div>)}
                   </>}
               </div>
@@ -719,10 +736,8 @@ const SearchSelect = /* @__PURE__ */ __name(({
   const containerRef = React.useRef(null);
   React.useEffect(() => {
     if (onSearch) {
-      const delayDebounceFn = setTimeout(() => {
-        onSearch(search);
-      }, 400);
-      return () => clearTimeout(delayDebounceFn);
+      const t = setTimeout(() => onSearch(search), 150);
+      return () => clearTimeout(t);
     }
   }, [search, onSearch]);
   React.useEffect(() => {
@@ -735,10 +750,22 @@ const SearchSelect = /* @__PURE__ */ __name(({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
   const filteredOptions = React.useMemo(() => {
-    const s = search.toLowerCase();
-    return options.filter(
-      (opt) => (opt.label?.toLowerCase() || "").includes(s) || (opt.value?.toLowerCase() || "").includes(s) || (opt.subLabel?.toLowerCase() || "").includes(s)
-    );
+    const q = search.trim().toLowerCase();
+    if (!q) return options;
+    const scored = options.map((opt) => {
+      const label = (opt.label || "").toLowerCase();
+      const val   = (opt.value || "").toLowerCase();
+      const sub   = (opt.subLabel || "").toLowerCase();
+      let score = 0;
+      if (label === q || val === q)                                              score = 4;
+      else if (label.startsWith(q) || val.startsWith(q))                        score = 3;
+      else if (label.split(/\s+/).some(w => w.startsWith(q)) ||
+               val.split(/\s+/).some(w => w.startsWith(q)))                     score = 2;
+      else if (label.includes(q) || val.includes(q) || sub.includes(q))         score = 1;
+      return { opt, score };
+    }).filter(x => x.score > 0);
+    scored.sort((a, b) => b.score - a.score);
+    return scored.map(x => x.opt);
   }, [options, search]);
   const selectedOption = options.find((o) => o.value === value);
   return <div className={cn("relative", isOpen ? "z-[100]" : "", className)} ref={containerRef}>

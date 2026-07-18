@@ -200,7 +200,7 @@ const TransactionsPage = /* @__PURE__ */ __name(({ type }) => {
     const invOptions = (inventory || []).map((i) => ({
       value: i.sku,
       label: i.itemName,
-      subLabel: `${i.sku} | Category: ${i.category} | Stock: ${i.liveStock}`,
+      subLabel: `${i.sku} | Category: ${i.category} | Stock: ${i.liveStock ?? 0}`,
       stock: i.liveStock,
       unit: i.unit
     }));
@@ -215,20 +215,17 @@ const TransactionsPage = /* @__PURE__ */ __name(({ type }) => {
   }, [inventory, catalogue]);
   useEffect(() => {
     if (!modal) return;
-    const delayDebounceFn = setTimeout(() => {
-      if (searchItemVal) {
-        Promise.all([
-          fetchResource("inventory", 1, 1e3, true, searchItemVal, null, true),
-          fetchResource("catalogue", 1, 500, true, searchItemVal, null, true)
-        ]);
-      } else {
-        Promise.all([
-          fetchResource("inventory", 1, 2e3, true, "", null, true),
-          fetchResource("catalogue", 1, 1e3, true, "", null, true)
-        ]);
-      }
-    }, 400);
-    return () => clearTimeout(delayDebounceFn);
+    if (searchItemVal) {
+      Promise.all([
+        fetchResource("inventory", 1, 1e3, true, searchItemVal, null, true),
+        fetchResource("catalogue", 1, 500, true, searchItemVal, null, true)
+      ]);
+    } else {
+      Promise.all([
+        fetchResource("inventory", 1, 2e3, true, "", null, true),
+        fetchResource("catalogue", 1, 1e3, true, "", null, true)
+      ]);
+    }
   }, [modal, searchItemVal, fetchResource]);
   useEffect(() => {
     if (modal && (newTransaction.type === "Transfer Inward" || newTransaction.type === "Public Transfer Inward")) {

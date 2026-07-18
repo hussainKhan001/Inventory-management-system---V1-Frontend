@@ -21,7 +21,7 @@ import { SearchFilter, DateRangePicker, SelectFilter, FilterRow } from "../compo
 import { genId, scrollToError, formatDateTime, safeStr } from "../utils";
 import { cn } from "../lib/utils";
 import { toast } from "react-hot-toast";
-import { api } from "../services/api";
+import { api, bustCache } from "../services/api";
 import { POViewModal } from "./po/POViewModal";
 import { GRNDetailModal } from "../components/GRNDetailModal";
 const GRNPage = /* @__PURE__ */ __name(() => {
@@ -88,6 +88,7 @@ const GRNPage = /* @__PURE__ */ __name(() => {
     if (filterStatus) filterObj.status = filterStatus;
     const finalFilter = Object.keys(filterObj).length > 0 ? filterObj : null;
     fetchResource("grn", page, 50, !isInitialLoad || page > 1, debouncedSearch, finalFilter, page > 1, false, startDate, endDate);
+    bustCache("pos");
     fetchResource("pos", 1, 500, true);
     fetchResource("inventory", 1, 1e3, true);
     fetchResource("suppliers", 1, 5000, true);
@@ -204,6 +205,7 @@ const GRNPage = /* @__PURE__ */ __name(() => {
   const canEdit = ["Super Admin", "Director", "Store Incharge"].includes(role || "");
   const handlePOSelect = /* @__PURE__ */ __name((poId) => {
     if (!poId) {
+      setTargetGRNId(null);
       setNewGRN({
         ...newGRN,
         poId: "",
@@ -237,6 +239,10 @@ const GRNPage = /* @__PURE__ */ __name(() => {
       images: []
       };
     }).filter((item) => item.ordered > 0); // only items still outstanding
+    const existingPartialGRN = grns.find((g) => g.poId === poId && g.status === "Partial");
+    if (existingPartialGRN) {
+      setTargetGRNId(existingPartialGRN.id);
+    }
     setNewGRN({
       ...newGRN,
       poId,
@@ -774,7 +780,13 @@ const GRNPage = /* @__PURE__ */ __name(() => {
                     onChange={(e) => handlePOSelect(e.target.value)}
                     options={availablePOs.map((p) => {
                       const hasPartial = poIdsWithPartialGRN.has(p.id);
-                      return { value: p.id, label: `${p.project} (${p.id})${hasPartial ? " — Partial" : ""}` };
+                      const mrPart = p.mrId ? ` | MR: ${p.mrId}` : "";
+                      const reqPart = p.requirementBy ? ` | ${p.requirementBy}` : "";
+                      return {
+                        value: p.id,
+                        label: `${p.project} (${p.id})${hasPartial ? " — Partial" : ""}`,
+                        subLabel: `${p.id}${mrPart}${reqPart}`,
+                      };
                     })}
                     required
                     error={errors.poId}

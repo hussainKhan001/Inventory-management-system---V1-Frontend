@@ -2,7 +2,7 @@ var __defProp = Object.defineProperty;
 var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
 import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
 import { SEED_INVENTORY, SEED_SUPPLIERS, SEED_POS, SEED_CATALOGUE, PROJECTS, REQUESTERS, CATEGORIES, UNITS, WORK_TYPES, MY_COMPANIES } from "./data";
-import { api } from "./services/api";
+import { api, bustCache } from "./services/api";
 import { toast } from "react-hot-toast";
 const AppContext = createContext(void 0);
 const AppProvider = /* @__PURE__ */ __name(({ children }) => {
@@ -1062,6 +1062,7 @@ const AppProvider = /* @__PURE__ */ __name(({ children }) => {
     setActionLoading(true);
     try {
       const res = await api.post("grn", data);
+      bustCache("pos");
       setGrns((prev) => [res.data, ...prev]);
       return res.data;
     } finally {
@@ -1072,7 +1073,8 @@ const AppProvider = /* @__PURE__ */ __name(({ children }) => {
     setActionLoading(true);
     try {
       const res = await api.post(`grn/${grnId}/receipt`, receiptData);
-      setGrns((prev) => prev.map((g) => g.id === grnId ? { ...g, ...res.data } : g));
+      bustCache("pos");
+      setGrns((prev) => prev.map((g) => g.id === grnId ? { ...g, ...res.data.data || res.data } : g));
       return res.data;
     } finally {
       setActionLoading(false);
