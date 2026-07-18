@@ -143,7 +143,11 @@ export function POFormModal({
       return norm.gstPct !== itemGstPct || norm.gstType !== itemGstType;
     });
     if (needsSync) {
-      const pts = po.paymentTimelines.map((pt) => ({ ...pt, gstPct: itemGstPct, gstType: itemGstType }));
+      const pts = po.paymentTimelines.map((pt) => {
+        const base = parseFloat(pt.amount) || 0;
+        const ifPayable = itemGstType === "Exclusive" ? base * (1 + itemGstPct / 100) : base;
+        return { ...pt, gstPct: itemGstPct, gstType: itemGstType, ifPayable };
+      });
       onChange({ ...po, paymentTimelines: pts });
     }
   }, [po.items]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -163,7 +167,22 @@ export function POFormModal({
     calcChargeTotal(po.loadingAmount || 0, po.loadingGstPct || 0, po.loadingGstType || "Exclusive") +
     calcChargeTotal(po.unloadingAmount || 0, po.unloadingGstPct || 0, po.unloadingGstType || "Exclusive");
 
-
+  // Sync last timeline row's stored amount/ifPayable with remaining grand total balance
+  useEffect(() => {
+    onChange((prev) => {
+      if (!prev.paymentTimelines?.length) return prev;
+      const lastIdx = prev.paymentTimelines.length - 1;
+      const otherSum = prev.paymentTimelines
+        .slice(0, lastIdx)
+        .reduce((s, pt) => s + (parseFloat(pt.ifPayable || pt.amount) || 0), 0);
+      const remaining = Math.round(Math.max(0, grandTotal - otherSum) * 100) / 100;
+      const last = prev.paymentTimelines[lastIdx];
+      if (Math.abs((parseFloat(last.ifPayable) || 0) - remaining) <= 0.01) return prev;
+      const pts = [...prev.paymentTimelines];
+      pts[lastIdx] = { ...last, ifPayable: remaining, amount: String(remaining) };
+      return { ...prev, paymentTimelines: pts };
+    });
+  }, [grandTotal]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const updateTimeline = (idx, partial) => {
     const pts = [...(po.paymentTimelines || [])];
@@ -777,6 +796,14 @@ export function POFormModal({
               </thead>
               <tbody>
                 {(po.paymentTimelines || []).map((pt, idx) => {
+                  const timelines = po.paymentTimelines || [];
+                  const isLast = idx === timelines.length - 1;
+                  const otherSum = isLast
+                    ? timelines.slice(0, idx).reduce((s, p) => s + (parseFloat(p.ifPayable || p.amount) || 0), 0)
+                    : 0;
+                  const displayIfPayable = isLast
+                    ? Math.max(0, Math.round((grandTotal - otherSum) * 100) / 100)
+                    : parseFloat(pt.ifPayable || pt.amount) || 0;
                   return (
                     <tr key={idx} className="border-t border-[#1A365D]/20 hover:bg-[#1A365D]/5">
                       <td className="p-1.5 border-r border-[#1A365D]/20">
@@ -792,15 +819,17 @@ export function POFormModal({
                       </td>
                       <td className="p-1.5 border-r border-[#1A365D]/20">
                         <input type="text" className="w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded px-1.5 py-1 text-xs text-right"
-                          value={pt.amount ?? ""}
+                          value={isLast ? displayIfPayable : (pt.amount ?? "")}
                           onChange={(e) => {
                             const raw = e.target.value.replace(/[^0-9.]/g, "");
                             const val = parseFloat(raw) || 0;
-                            updateTimeline(idx, { amount: raw, ifPayable: val });
+                            const norm = normalizeTimelineGST(pt);
+                            const ifPayable = norm.gstType === "Exclusive" ? val * (1 + norm.gstPct / 100) : val;
+                            updateTimeline(idx, { amount: raw, ifPayable });
                           }} />
                       </td>
                       <td className="p-1.5 border-r border-[#1A365D]/20 text-right text-[12px] font-bold text-emerald-600 dark:text-emerald-400 min-w-[80px]">
-                        {fmtCur(parseFloat(pt.ifPayable || pt.amount) || 0)}
+                        {fmtCur(displayIfPayable)}
                       </td>
                       <td className="p-1.5 text-center">
                         <button type="button" onClick={() => set({ paymentTimelines: (po.paymentTimelines || []).filter((_, i) => i !== idx) })}

@@ -1,5 +1,5 @@
-import React, { useState, useMemo } from "react";
-import { X, Download, Ban, RotateCcw, AlertTriangle } from "lucide-react";
+import React, { useState, useMemo, useEffect } from "react";
+import { X, Download, Ban, RotateCcw, AlertTriangle, Lock, LockOpen } from "lucide-react";
 import { api } from "../../services/api";
 import { Modal, Btn, StatusBadge } from "../../components/ui";
 import { DatePicker } from "../../components/ui/DatePicker";
@@ -40,6 +40,41 @@ export function POViewModal({ po, onClose, onApproveL1, onApproveL2, onApproveL3
   const [draftTimelines, setDraftTimelines] = useState([]);
   const [showCloseConfirm, setShowCloseConfirm] = useState(false);
   const [closingItems, setClosingItems] = useState([]);
+  const [holdLoading, setHoldLoading] = useState(false);
+  const [localStatus, setLocalStatus] = useState(po.status || "");
+
+  useEffect(() => {
+    setLocalStatus(po.status || "");
+  }, [po.status]);
+
+  const handleHoldPO = async () => {
+    setHoldLoading(true);
+    try {
+      await api.post(`pos/${po.id}/hold`);
+      setLocalStatus("On Hold");
+      patchPoInStore(po.id, { status: "On Hold", previousStatus: po.status });
+      toast.success("PO placed on hold");
+    } catch (err) {
+      toast.error(err.response?.data?.message || "Failed to hold PO");
+    } finally {
+      setHoldLoading(false);
+    }
+  };
+
+  const handleUnholdPO = async () => {
+    setHoldLoading(true);
+    try {
+      const res = await api.post(`pos/${po.id}/unhold`);
+      const restored = res.data?.data?.status || po.previousStatus || "Pending L1";
+      setLocalStatus(restored);
+      patchPoInStore(po.id, { status: restored, previousStatus: undefined, holdReason: undefined });
+      toast.success("PO hold lifted");
+    } catch (err) {
+      toast.error(err.response?.data?.message || "Failed to lift hold");
+    } finally {
+      setHoldLoading(false);
+    }
+  };
 
   const displayItems = useMemo(() => {
     if (!po || po.status !== "PO Closed") return po?.items || [];
@@ -143,25 +178,43 @@ export function POViewModal({ po, onClose, onApproveL1, onApproveL2, onApproveL3
 
   const VENDOR_COLORS = ["text-orange-600 dark:text-orange-500", "text-blue-500 dark:text-blue-400", "text-emerald-600 dark:text-emerald-400", "text-purple-600", "text-pink-600"];
 
+  const isOnHold = localStatus === "On Hold";
+
   const footerButtons = (
-    <div className="flex justify-end gap-3 w-full flex-wrap">
-      {po.status === "Pending L1" && hasPermission("APPROVE_PURCHASE_ORDER_L1") && <Btn label="Approve L1" color="green" onClick={() => onApproveL1(po.id)} loading={processingId === `approve-${po.id}`} />}
-      {po.status === "Pending L2" && hasPermission("APPROVE_PURCHASE_ORDER_L2") && <Btn label="Approve L2" color="green" onClick={() => onApproveL2(po.id)} loading={processingId === `approve-${po.id}`} />}
-      {po.status === "Pending L3" && hasPermission("APPROVE_PURCHASE_ORDER_L3") && <Btn label="Approve L3 (Director)" color="green" onClick={() => onApproveL3(po.id)} loading={processingId === `approve-${po.id}`} />}
-      {["Pending L1", "Pending L2", "Pending L3"].includes(po.status || "") && hasPermission("REJECT_PURCHASE_ORDER") && (
-        <Btn label="Reject PO" color="red" onClick={() => onReject(po.id)} loading={processingId === `reject-${po.id}`} />
+    <div className="flex items-center gap-3 w-full flex-wrap">
+      {/* On Hold banner — pushes action buttons to the right */}
+      {isOnHold && (
+        <div className="flex items-center gap-2 flex-1 min-w-0 bg-amber-500/10 border border-amber-500/20 rounded-lg px-3 py-2">
+          <Lock className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+          <p className="text-[11px] font-bold text-amber-600 dark:text-amber-400 truncate">PO is on hold — all approvals are disabled</p>
+        </div>
       )}
-      {po.status === "Approved" && hasPermission("CANCEL_PURCHASE_ORDER") && (
-        <Btn label="Cancel PO" color="red" icon={X} onClick={() => onCancelApproved(po.id)} loading={processingId === `cancel-${po.id}`} />
-      )}
-      {po.status === "GRN Variance" && hasPermission("CLOSE_PURCHASE_ORDER") && (
-        <Btn label="Close PO" color="red" icon={Ban} onClick={handleClosePOClick} />
-      )}
-      {po.status === "PO Closed" && hasPermission("CLOSE_PURCHASE_ORDER") && (
-        <Btn label="Reopen PO" color="green" icon={RotateCcw} onClick={handleReopenPO} loading={actionLoading} />
-      )}
-      <Btn label="Download PO PDF" icon={Download} onClick={() => { if (onDownloadPDF) { onDownloadPDF(po); } else { const s = suppliers.find(x => x.id === po.supplier || x._id === po.supplier); generatePOPDF(po, s, settings); } }} className="bg-orange-500 hover:bg-orange-600 text-white border-none shadow-lg shadow-orange-500/20 font-bold" />
-      <Btn label="Close" outline onClick={onClose} className="px-8 border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800" />
+
+      <div className="flex items-center gap-3 flex-wrap ml-auto">
+        {po.status === "Pending L1" && hasPermission("APPROVE_PURCHASE_ORDER_L1") && <Btn label="Approve L1" color="green" disabled={isOnHold} onClick={() => onApproveL1(po.id)} loading={processingId === `approve-${po.id}`} />}
+        {po.status === "Pending L2" && hasPermission("APPROVE_PURCHASE_ORDER_L2") && <Btn label="Approve L2" color="green" disabled={isOnHold} onClick={() => onApproveL2(po.id)} loading={processingId === `approve-${po.id}`} />}
+        {po.status === "Pending L3" && hasPermission("APPROVE_PURCHASE_ORDER_L3") && <Btn label="Approve L3 (Director)" color="green" disabled={isOnHold} onClick={() => onApproveL3(po.id)} loading={processingId === `approve-${po.id}`} />}
+        {["Pending L1", "Pending L2", "Pending L3"].includes(po.status || "") && hasPermission("REJECT_PURCHASE_ORDER") && (
+          <Btn label="Reject PO" color="red" disabled={isOnHold} onClick={() => onReject(po.id)} loading={processingId === `reject-${po.id}`} />
+        )}
+        {po.status === "Approved" && hasPermission("CANCEL_PURCHASE_ORDER") && (
+          <Btn label="Cancel PO" color="red" icon={X} disabled={isOnHold} onClick={() => onCancelApproved(po.id)} loading={processingId === `cancel-${po.id}`} />
+        )}
+        {po.status === "GRN Variance" && hasPermission("CLOSE_PURCHASE_ORDER") && (
+          <Btn label="Close PO" color="red" icon={Ban} disabled={isOnHold} onClick={handleClosePOClick} />
+        )}
+        {po.status === "PO Closed" && hasPermission("CLOSE_PURCHASE_ORDER") && (
+          <Btn label="Reopen PO" color="green" icon={RotateCcw} onClick={handleReopenPO} loading={actionLoading} />
+        )}
+        {isOnHold && hasPermission("HOLD_PURCHASE_ORDER") && (
+          <Btn label="Lift Hold" color="green" icon={LockOpen} onClick={handleUnholdPO} loading={holdLoading} />
+        )}
+        {!isOnHold && !["Cancelled", "Blocked", "PO Closed", "Draft"].includes(localStatus) && hasPermission("HOLD_PURCHASE_ORDER") && (
+          <Btn label="Hold PO" icon={Lock} color="amber" onClick={handleHoldPO} loading={holdLoading} />
+        )}
+        <Btn label="Download PO PDF" icon={Download} onClick={() => { if (onDownloadPDF) { onDownloadPDF(po); } else { const s = suppliers.find(x => x.id === po.supplier || x._id === po.supplier); generatePOPDF(po, s, settings); } }} className="bg-orange-500 hover:bg-orange-600 text-white border-none shadow-lg shadow-orange-500/20 font-bold" />
+        <Btn label="Close" outline onClick={onClose} className="px-8 border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800" />
+      </div>
     </div>
   );
 
@@ -274,7 +327,7 @@ export function POViewModal({ po, onClose, onApproveL1, onApproveL2, onApproveL3
           <div className="p-3 bg-gray-50/50 dark:bg-gray-800/30 flex items-center justify-between gap-2">
             <div>
               <p className="text-[10px] text-gray-400 font-bold mb-1">Approval status</p>
-              <StatusBadge status={po.status} accountStatus={po.accountStatus} />
+              <StatusBadge status={localStatus} accountStatus={po.accountStatus} />
             </div>
             <p className="text-[14px] font-black text-[#1A365D] dark:text-blue-400 opacity-20 rotate-[-15deg] border-2 border-current px-2 rounded hidden sm:block">Verified</p>
           </div>

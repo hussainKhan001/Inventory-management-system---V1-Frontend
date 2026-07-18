@@ -35,6 +35,7 @@ import { StatusBadge, PageHeader, Card, ConfirmModal, Modal, Btn } from "../comp
 import { SearchFilter, DateRangePicker, SelectFilter, FilterRow } from "../components/ui/Filters";
 import { POViewModal } from "./po/POViewModal";
 import { GRNDetailModal } from "../components/GRNDetailModal";
+import { ImageViewer } from "../components/ImageViewer";
 import { api } from "../services/api";
 import { toast } from "react-hot-toast";
 import emailjs from "@emailjs/browser";
@@ -537,58 +538,58 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
 
     const installmentsHTML = installments.map((ph, i) => `
       <tr style="background:${i % 2 === 0 ? "#F8FAFC" : "#FFFFFF"}">
-        <td style="padding:10px 14px;border-bottom:1px solid #E2E8F0;color:#374151;font-size:12px">#${ph.installmentNo || i+1}</td>
-        <td style="padding:10px 14px;border-bottom:1px solid #E2E8F0;color:#374151;font-size:12px">${fmtD(ph.date)}</td>
-        <td style="padding:10px 14px;border-bottom:1px solid #E2E8F0;color:#374151;font-size:12px">${ph.mode || "—"}</td>
-        <td style="padding:10px 14px;border-bottom:1px solid #E2E8F0;color:#374151;font-size:12px">${ph.ref || "—"}</td>
-        <td style="padding:10px 14px;border-bottom:1px solid #E2E8F0;color:#374151;font-size:12px">${ph.utr || ph.bank || "—"}</td>
-        <td style="padding:10px 14px;border-bottom:1px solid #E2E8F0;text-align:right;font-weight:700;color:#1E3A5F;font-size:12px;font-variant-numeric:tabular-nums">${fmtA(ph.amountPaid)}</td>
+        <td style="padding:6px 10px;border-bottom:1px solid #E2E8F0;color:#374151;font-size:11px">#${ph.installmentNo || i+1}</td>
+        <td style="padding:6px 10px;border-bottom:1px solid #E2E8F0;color:#374151;font-size:11px">${fmtD(ph.date)}</td>
+        <td style="padding:6px 10px;border-bottom:1px solid #E2E8F0;color:#374151;font-size:11px">${ph.mode || "—"}</td>
+        <td style="padding:6px 10px;border-bottom:1px solid #E2E8F0;color:#374151;font-size:11px">${ph.ref || "—"}</td>
+        <td style="padding:6px 10px;border-bottom:1px solid #E2E8F0;color:#374151;font-size:11px">${ph.utr || ph.bank || "—"}</td>
+        <td style="padding:6px 10px;border-bottom:1px solid #E2E8F0;text-align:right;font-weight:700;color:#1E3A5F;font-size:11px;font-variant-numeric:tabular-nums">${fmtA(ph.amountPaid)}</td>
       </tr>`).join("");
 
     const html = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"/>
       <title>Payment Advice — ${po.id}</title>
       <style>
         *{margin:0;padding:0;box-sizing:border-box}
-        body{font-family:"Segoe UI",Arial,sans-serif;font-size:13px;color:#1F2937;background:#fff;padding:0}
-        .page{max-width:900px;margin:0 auto;padding:48px 56px}
+        body{font-family:"Segoe UI",Arial,sans-serif;font-size:12px;color:#1F2937;background:#fff;padding:0}
+        .page{max-width:900px;margin:0 auto;padding:30px 40px}
         /* Header */
-        .hdr{display:flex;justify-content:space-between;align-items:flex-start;padding-bottom:24px;border-bottom:3px solid #1E3A5F;margin-bottom:32px}
-        .company-name{font-size:22px;font-weight:800;color:#1E3A5F;letter-spacing:-0.5px}
-        .company-sub{font-size:11px;color:#6B7280;margin-top:3px}
+        .hdr{display:flex;justify-content:space-between;align-items:flex-start;padding-bottom:14px;border-bottom:3px solid #1E3A5F;margin-bottom:16px}
+        .company-name{font-size:19px;font-weight:800;color:#1E3A5F;letter-spacing:-0.5px}
+        .company-sub{font-size:10px;color:#6B7280;margin-top:2px}
         .doc-badge{text-align:right}
-        .doc-title{font-size:20px;font-weight:900;color:#1E3A5F;letter-spacing:1px;text-transform:uppercase}
-        .doc-ref{font-size:11px;color:#6B7280;margin-top:4px}
+        .doc-title{font-size:17px;font-weight:900;color:#1E3A5F;letter-spacing:1px;text-transform:uppercase}
+        .doc-ref{font-size:10px;color:#6B7280;margin-top:3px}
         /* Status strip */
-        .status-strip{background:#EFF6FF;border:1px solid #BFDBFE;border-radius:8px;padding:10px 16px;display:flex;align-items:center;gap:10px;margin-bottom:28px}
-        .status-dot{width:10px;height:10px;border-radius:50%;background:#16A34A;flex-shrink:0}
-        .status-text{font-size:12px;font-weight:700;color:#1E3A5F}
+        .status-strip{background:#EFF6FF;border:1px solid #BFDBFE;border-radius:6px;padding:7px 14px;display:flex;align-items:center;gap:8px;margin-bottom:14px}
+        .status-dot{width:8px;height:8px;border-radius:50%;background:#16A34A;flex-shrink:0}
+        .status-text{font-size:11px;font-weight:700;color:#1E3A5F}
         /* Section */
-        .section{margin-bottom:28px}
-        .section-title{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:1.2px;color:#6B7280;border-bottom:1px solid #E5E7EB;padding-bottom:6px;margin-bottom:14px}
+        .section{margin-bottom:14px}
+        .section-title{font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:1.2px;color:#6B7280;border-bottom:1px solid #E5E7EB;padding-bottom:4px;margin-bottom:8px}
         /* Grid fields */
-        .grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px 32px}
-        .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px 24px}
-        .field-label{font-size:10px;font-weight:700;color:#9CA3AF;text-transform:uppercase;letter-spacing:0.8px;margin-bottom:3px}
-        .field-value{font-size:13px;font-weight:600;color:#111827}
+        .grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px 28px}
+        .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px 20px}
+        .field-label{font-size:9px;font-weight:700;color:#9CA3AF;text-transform:uppercase;letter-spacing:0.8px;margin-bottom:1px}
+        .field-value{font-size:12px;font-weight:600;color:#111827}
         .field-value.accent{color:#1E3A5F;font-weight:800}
-        .field-value.big{font-size:18px;font-weight:900;color:#1E3A5F;letter-spacing:-0.5px}
+        .field-value.big{font-size:15px;font-weight:900;color:#1E3A5F;letter-spacing:-0.3px}
         /* Table */
-        table{width:100%;border-collapse:collapse;font-size:12px}
+        table{width:100%;border-collapse:collapse;font-size:11px}
         thead tr{background:#1E3A5F}
-        thead th{padding:10px 14px;text-align:left;color:#fff;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:0.8px}
+        thead th{padding:7px 10px;text-align:left;color:#fff;font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:0.8px}
         thead th:last-child{text-align:right}
         tfoot tr{background:#1E3A5F}
-        tfoot td{padding:10px 14px;color:#fff;font-weight:800;font-size:13px}
-        tfoot td:last-child{text-align:right;font-size:14px}
+        tfoot td{padding:7px 10px;color:#fff;font-weight:800;font-size:11px}
+        tfoot td:last-child{text-align:right;font-size:12px}
         /* Divider */
-        .divider{border:none;border-top:1px solid #E5E7EB;margin:24px 0}
+        .divider{border:none;border-top:1px solid #E5E7EB;margin:12px 0}
         /* Footer */
-        .footer{margin-top:40px;padding-top:20px;border-top:2px solid #1E3A5F;display:flex;justify-content:space-between;align-items:flex-end}
-        .sig-block{text-align:center;min-width:160px}
-        .sig-line{border-top:1px solid #374151;padding-top:6px;font-size:10px;font-weight:700;color:#6B7280;text-transform:uppercase;letter-spacing:0.8px;margin-top:40px}
+        .footer{margin-top:12px;padding-top:12px;border-top:2px solid #1E3A5F;display:flex;justify-content:space-between;align-items:flex-end}
+        .sig-block{text-align:center;min-width:140px}
+        .sig-line{border-top:1px solid #374151;padding-top:5px;font-size:9px;font-weight:700;color:#6B7280;text-transform:uppercase;letter-spacing:0.8px;margin-top:24px}
         .watermark-paid{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%) rotate(-35deg);font-size:100px;font-weight:900;color:rgba(22,163,74,0.07);pointer-events:none;z-index:0;white-space:nowrap}
         .content{position:relative;z-index:1}
-        @media print{body{padding:0}@page{margin:20mm 18mm;size:A4}}
+        @media print{body{padding:0}@page{margin:10mm 12mm;size:A4}}
       </style></head><body>
       <div class="watermark-paid">PAID</div>
       <div class="page content">
@@ -1035,19 +1036,19 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
             </div>
           </div>
         ) : resolvedStatus === "paid" && !isEditingPayment ? (
-          <div className="flex justify-between items-center w-full">
-            <button
+          <div className="flex justify-end gap-3 w-full flex-wrap">
+            <Btn
+              label="Download Payment Advice"
+              icon={Download}
               onClick={() => handlePrintPaymentAdvice(selectedPO)}
-              className="px-6 py-2.5 bg-orange-500 hover:bg-orange-600 text-white rounded-xl text-[13px] font-black shadow-lg shadow-orange-500/20 flex items-center gap-2 transition-all active:scale-95 tracking-widest"
-            >
-              <Download className="w-4 h-4" /> Download Payment Advice
-            </button>
-            <button
+              className="bg-orange-500 hover:bg-orange-600 text-white border-none shadow-lg shadow-orange-500/20 font-bold"
+            />
+            <Btn
+              label="Close"
+              outline
               onClick={() => { setSelectedPO(null); setIsEditingPayment(false); }}
-              className="px-7 py-2.5 bg-white text-gray-900 text-[13px] font-bold rounded-xl hover:bg-gray-100 transition-colors shadow-sm"
-            >
-              Close
-            </button>
+              className="px-8 border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800"
+            />
           </div>
         ) : null;
 
@@ -1144,6 +1145,7 @@ const DetailPanel = /* @__PURE__ */ __name(({
 }) => {
   const [isDraggingPayment, setIsDraggingPayment] = useState(false);
   const [viewGRNDetail, setViewGRNDetail] = useState(false);
+  const [viewerImages, setViewerImages] = useState(null); // { images: [], index: 0, title: "" }
   const poStatus = (po.status || "").toLowerCase();
   // Only force bill_verify when accountStatus is "partial_paid" (awaiting approval for remaining)
   // When accountStatus is "payment_pending" (already approved), show the payment form
@@ -1307,6 +1309,42 @@ const DetailPanel = /* @__PURE__ */ __name(({
             </div>
           </div>
         )}
+        {(() => {
+          const billImgs = [
+            po.invoice?.screenshotUrl,
+            realGrn?.challanImageUrl,
+            ...(Array.isArray(realGrn?.challanPhotos) ? realGrn.challanPhotos : [])
+          ].filter(Boolean);
+          if (!billImgs.length) return null;
+          return (
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <div className="h-0.5 w-4 bg-[#F97316]" />
+                <h3 className="text-[12px] font-bold text-gray-900 dark:text-white">Vendor bill</h3>
+                <span className="text-[10px] text-gray-400">{billImgs.length} photo{billImgs.length > 1 ? "s" : ""}</span>
+              </div>
+              <div className="flex gap-3 flex-wrap">
+                {billImgs.map((img, i) => (
+                  <div
+                    key={i}
+                    onClick={() => setViewerImages({ images: billImgs, index: i, title: "Vendor Bill" })}
+                    className="relative group cursor-zoom-in rounded-xl overflow-hidden border-2 border-gray-100 dark:border-gray-800 hover:border-orange-400 dark:hover:border-orange-500 transition-all shadow-sm"
+                    style={{ width: 90, height: 90 }}
+                  >
+                    <img src={img} alt={`Bill ${i + 1}`} referrerPolicy="no-referrer" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
+                      <span className="opacity-0 group-hover:opacity-100 text-white text-[10px] font-black bg-black/60 px-2 py-0.5 rounded-full transition-opacity">View</span>
+                    </div>
+                    {billImgs.length > 1 && i === 0 && (
+                      <span className="absolute bottom-1 right-1 text-[9px] font-black text-white bg-orange-500 px-1.5 py-0.5 rounded-full">{billImgs.length}</span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        })()}
+
         <div className="grid grid-cols-1 md:grid-cols-2 gap-0 border border-gray-100 dark:border-gray-800 rounded-2xl overflow-hidden shadow-sm">
           <div className="divide-y divide-gray-100 dark:divide-gray-800 bg-white dark:bg-gray-900">
             <div className="bg-gray-50/50 dark:bg-gray-800/30 p-2.5 font-black text-[10px] text-gray-500 flex items-center gap-2">
@@ -1327,6 +1365,7 @@ const DetailPanel = /* @__PURE__ */ __name(({
         </div>
 
         {viewGRNDetail && realGrn && <GRNDetailModal grn={realGrn} onClose={() => setViewGRNDetail(false)} />}
+        {viewerImages && <ImageViewer {...viewerImages} onClose={() => setViewerImages(null)} />}
       </div>;
   }
   if (status === "payment_pending" || ((status === "paid" || status === "partial_paid") && isEditingPayment)) {
@@ -1602,6 +1641,39 @@ const DetailPanel = /* @__PURE__ */ __name(({
     return <div className="space-y-5 pb-4">
       {topGrid}
 
+      {(() => {
+        const billImgs = [
+          po.invoice?.screenshotUrl,
+          realGrn?.challanImageUrl,
+          ...(Array.isArray(realGrn?.challanPhotos) ? realGrn.challanPhotos : [])
+        ].filter(Boolean);
+        if (!billImgs.length) return null;
+        return (
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <div className="h-0.5 w-4 bg-[#F97316]" />
+              <h3 className="text-[12px] font-bold text-gray-900 dark:text-white">Vendor bill</h3>
+              <span className="text-[10px] text-gray-400">{billImgs.length} photo{billImgs.length > 1 ? "s" : ""}</span>
+            </div>
+            <div className="flex gap-3 flex-wrap">
+              {billImgs.map((img, i) => (
+                <div key={i} onClick={() => setViewerImages({ images: billImgs, index: i, title: "Vendor Bill" })}
+                  className="relative group cursor-zoom-in rounded-xl overflow-hidden border-2 border-gray-100 dark:border-gray-800 hover:border-orange-400 dark:hover:border-orange-500 transition-all shadow-sm"
+                  style={{ width: 90, height: 90 }}>
+                  <img src={img} alt={`Bill ${i + 1}`} referrerPolicy="no-referrer" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
+                    <span className="opacity-0 group-hover:opacity-100 text-white text-[10px] font-black bg-black/60 px-2 py-0.5 rounded-full transition-opacity">View</span>
+                  </div>
+                  {billImgs.length > 1 && i === 0 && (
+                    <span className="absolute bottom-1 right-1 text-[9px] font-black text-white bg-orange-500 px-1.5 py-0.5 rounded-full">{billImgs.length}</span>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      })()}
+
       {grnPayments.length > 0 && (
         <div className="space-y-3">
           <div className="flex items-center gap-2">
@@ -1748,6 +1820,7 @@ const DetailPanel = /* @__PURE__ */ __name(({
 
       <AuditTrail log={po.auditTrail} />
       {viewGRNDetail && realGrn && <GRNDetailModal grn={realGrn} onClose={() => setViewGRNDetail(false)} />}
+      {viewerImages && <ImageViewer images={viewerImages.images} index={viewerImages.index} title={viewerImages.title} onClose={() => setViewerImages(null)} />}
     </div>;
   }
   if (status === "rejected") {

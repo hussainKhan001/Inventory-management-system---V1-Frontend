@@ -57,6 +57,8 @@ const StatusBadge = React.memo(({ status, accountStatus, small }) => {
   const normalizedStatus = statusStr.toUpperCase();
   if (["APPROVED", "ACTIVE", "CONFIRMED", "GOOD", "NEW", "FULFILLED", "GRN FULFILLED", "IN STOCK", "SUCCESS", "PAID", "ISSUED", "COMPLETED", "CLOSED", "VERIFIED"].includes(normalizedStatus) || normalizedStatus.includes("APPROVED BY"))
     color = "green";
+  else if (normalizedStatus === "ON HOLD")
+    color = "yellow";
   else if (normalizedStatus.includes("PENDING") || ["PARTIAL", "OPEN", "BILL_VERIFY_KARNA_HAI", "PAYMENT_PENDING", "AWAITING"].includes(normalizedStatus))
     color = "yellow";
   else if (["BILL_VERIFY", "VERIFY BILL", "AUDIT"].includes(normalizedStatus))
@@ -130,6 +132,8 @@ const Btn = React.memo(({
     colors = "bg-[#EF4444] text-white hover:bg-[#dc2626] shadow-md shadow-red-500/20 dark:shadow-none";
   } else if (color === "green") {
     colors = "bg-[#10B981] text-white hover:bg-[#059669] shadow-md shadow-green-500/20 dark:shadow-none";
+  } else if (color === "amber") {
+    colors = "bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 dark:border-amber-500/25 hover:bg-amber-500/20 dark:hover:bg-amber-500/15";
   } else {
     colors = "bg-gray-800 dark:bg-[#1E293B] border border-transparent dark:border-gray-700 text-white hover:bg-gray-900 dark:hover:bg-[#334155]";
   }

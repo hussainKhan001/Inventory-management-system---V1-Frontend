@@ -164,6 +164,7 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
       { label: "Ready for Payment", value: "Ready for Payment" },
       { label: "paid", value: "paid" },
       { label: "rejected", value: "rejected" },
+      { label: "On Hold", value: "On Hold" },
     ],
     [],
   );
@@ -758,65 +759,31 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
           ? approvedItems
           : approvedQuotation?.items || [];
 
-      const pItems = await Promise.all(
-        itemsToUse.map(async (qItem) => {
-          const searchName = (qItem.materialName || "").trim();
-
-          const gstPct = qItem?.gstPct || 18;
-
-          const gstType = qItem?.gstType || "Exclusive";
-
-          let invItem = inventory.find(
-            (i) =>
-              (i.itemName || "").trim().toLowerCase() ===
-              searchName.toLowerCase(),
-          );
-          if (!invItem)
-            invItem = inventory.find((i) =>
-              (i.itemName || "")
-                .toLowerCase()
-                .includes(searchName.toLowerCase()),
-            );
-          if (!invItem) {
-            try {
-              const r = await api.get("inventory", {
-                search: qItem.materialName,
-                limit: 5,
-              });
-              if (r.data?.length) invItem = r.data[0];
-            } catch {}
-          }
-          const rawTotal = (qItem.qty || 0) * qItem.rate;
-
-          const totalWithGST =
-            gstType === "Inclusive" ? rawTotal : rawTotal * (1 + gstPct / 100);
-
-          const total =
-            gstType === "Inclusive"
-              ? totalWithGST / (1 + gstPct / 100)
-              : rawTotal;
-
-          const mrItem = mr.items.find(
-            (mi) => mi.materialName === qItem.materialName,
-          );
-
-          return {
-            sku: invItem?.sku || "N/A",
-            itemName: invItem?.itemName || qItem.materialName || "",
-            qty: qItem.qty,
-            unit: qItem.unit || invItem?.unit || mrItem?.unit || "Nos",
-            rate: qItem.rate,
-            gstPct,
-            gstType,
-            total,
-            totalWithGST,
-            currentStock: invItem?.liveStock || 0,
-            category: invItem?.category || qItem.category || "General",
-            requirementQty: mrItem?.qty || qItem.qty,
-            condition: "New",
-          };
-        }),
-      );
+      const pItems = mr.items.map((mrItem) => {
+        const invItem = mrItem.sku ? inventory.find((i) => i.sku === mrItem.sku) : null;
+        const qItem = itemsToUse.find((qi) => qi.materialName === mrItem.materialName);
+        const rate = qItem?.rate || 0;
+        const gstPct = qItem?.gstPct || 18;
+        const gstType = qItem?.gstType || "Exclusive";
+        const rawTotal = (mrItem.qty || 0) * rate;
+        const totalWithGST = gstType === "Inclusive" ? rawTotal : rawTotal * (1 + gstPct / 100);
+        const total = gstType === "Inclusive" ? totalWithGST / (1 + gstPct / 100) : rawTotal;
+        return {
+          sku: invItem?.sku || mrItem.sku || "N/A",
+          itemName: invItem?.itemName || mrItem.materialName || "",
+          qty: mrItem.qty || 1,
+          unit: qItem?.unit || mrItem?.unit || invItem?.unit || "Nos",
+          rate,
+          gstPct,
+          gstType,
+          total,
+          totalWithGST,
+          currentStock: invItem?.liveStock || 0,
+          category: invItem?.category || mrItem.category || "General",
+          requirementQty: mrItem.qty || 1,
+          condition: "New",
+        };
+      });
 
       const priceItems = itemsToUse
         .map((qItem) => {
