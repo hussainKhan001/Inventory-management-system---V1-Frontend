@@ -66,7 +66,14 @@ const generatePOPDF = /* @__PURE__ */ __name((po, supplier, settings = {}, retur
     doc.text(safeStr(v2), c4 + 2, y + 4.8, { maxWidth: 44 });
     y += dynamicRowH;
   }, "drawRow");
-  drawRow("Company Name", po.companyName || "HEAVEN HEIGHTS PRIVATE LIMITED", "Vendor Name", supplier?.companyName || supplier?.name || po.supplier || "NA");
+  const _normGST = (s) => (s || "").replace(/\s/g, "").toUpperCase();
+  const _poGST = _normGST(po.gstNo);
+  const _supGST = _normGST(supplier?.gstNumber);
+  const _supGSTOK = !_poGST || _poGST === "NA" || !_supGST || _supGST === "NA" || _supGST === _poGST;
+  const _vendorName = (supplier && _supGSTOK)
+    ? (supplier.companyName || supplier.name)
+    : (po.vendorBankDetails?.accountHolder || po.supplier || "NA");
+  drawRow("Company Name", po.companyName || "HEAVEN HEIGHTS PRIVATE LIMITED", "Vendor Name", _vendorName);
   drawRow("Company GSTIN", po.companyGst || "23AABCH6973R1ZX", "Vendor Address", supplier?.address || po.vendorAddress || "NA");
   drawRow("Company Addr", po.companyAddress || "N.A., Gulmohar City, Near New Collectorate, New City Centre, Gwalior, MP, 474011", "Vendor Contact", String(po.vendorContact || supplier?.mobile || supplier?.phone || "NA"));
   drawRow("Internal MR No.", po.mrId || "NA", "Vendor Email ID", po.vendorEmail || supplier?.email || "NA");

@@ -368,9 +368,13 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
         if (lower.length >= 4 && (cN.startsWith(lower) || oN.startsWith(lower))) return true;
         return false;
       });
-      const resolvedName = sup
+      const normGST = (s) => (s || "").replace(/\s/g, "").toUpperCase();
+      const poGST = normGST(po.gstNo);
+      const supGST = normGST(sup?.gstNumber);
+      const gstOK = !poGST || poGST === "NA" || !supGST || supGST === "NA" || supGST === poGST;
+      const resolvedName = (sup && gstOK)
         ? (sup.companyName || sup.name || po.supplier)
-        : (po.supplierName || po.vendorName || po.vendor || po.supplier);
+        : (po.vendorBankDetails?.accountHolder || po.supplierName || po.vendorName || po.vendor || po.supplier);
       return { ...po, _supplierName: resolvedName };
     });
   }, [filteredPos, suppliers]);
@@ -857,13 +861,15 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
       const linkedSupplierId =
         approvedQuotation?.supplierId || mr.approvedSupplier;
 
-      const linkedSupplier = suppliers.find(
-        (s) =>
-          s.id === linkedSupplierId ||
-          s._id === linkedSupplierId ||
-          (s.companyName || s.name || "").toLowerCase() ===
-            (approvedQuotation?.supplierName || "").toLowerCase(),
-      );
+      const _linkedLower = (linkedSupplierId || "").trim().toLowerCase();
+      const linkedSupplier = suppliers.find((s) => {
+        if (!s) return false;
+        if (s.id === linkedSupplierId || s._id === linkedSupplierId) return true;
+        const cN = (s.companyName || s.name || "").trim().toLowerCase();
+        if (approvedQuotation?.supplierName && cN === (approvedQuotation.supplierName || "").trim().toLowerCase()) return true;
+        if (_linkedLower && cN === _linkedLower) return true;
+        return false;
+      });
 
       const poDate = todayStr();
 
@@ -984,7 +990,7 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
     () =>
       (suppliers || []).map((v) => ({
         label: v.companyName || v.name,
-        value: v.id,
+        value: v.id || v._id,
       })),
     [suppliers],
   );

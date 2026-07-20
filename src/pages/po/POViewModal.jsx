@@ -103,7 +103,27 @@ export function POViewModal({ po, onClose, onApproveL1, onApproveL2, onApproveL3
 
   if (!po) return null;
 
-  const supplier = suppliers.find((s) => s.id === po.supplier || s._id === po.supplier);
+  const _normId = (str) => (str || "").replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
+  const _poSupLower = (po.supplier || "").trim().toLowerCase();
+  const _poSupNorm  = _normId(po.supplier);
+  const supplier = (suppliers || []).find((s) => {
+    if (!s) return false;
+    if (s.id === po.supplier || s._id === po.supplier) return true;
+    if (_poSupNorm && _normId(s.id) === _poSupNorm) return true;
+    const cN = (s.companyName || s.name || "").trim().toLowerCase();
+    const oN = (s.ownerName || s.contact || "").trim().toLowerCase();
+    if (cN === _poSupLower || oN === _poSupLower) return true;
+    return false;
+  });
+  // Cross-check: if the found supplier's GST doesn't match what's stored on the PO,
+  // the wrong supplier was resolved — fall back to the bank account holder name.
+  const _normGST = (s) => (s || "").replace(/\s/g, "").toUpperCase();
+  const _poGST = _normGST(po.gstNo);
+  const _supGST = _normGST(supplier?.gstNumber);
+  const _supplierGSTMatches = !_poGST || _poGST === "NA" || !_supGST || _supGST === "NA" || _supGST === _poGST;
+  const resolvedVendorName = (supplier && _supplierGSTMatches)
+    ? (supplier.companyName || supplier.name)
+    : (po.vendorBankDetails?.accountHolder || po.supplier || "NA");
   const dates = computeTimelineDates(po);
 
   const filteredPCItems = (po.priceComparison?.items || []).filter((it) => {
@@ -212,7 +232,7 @@ export function POViewModal({ po, onClose, onApproveL1, onApproveL2, onApproveL3
         {!isOnHold && !["Cancelled", "Blocked", "PO Closed", "Draft"].includes(localStatus) && hasPermission("HOLD_PURCHASE_ORDER") && (
           <Btn label="Hold PO" icon={Lock} color="amber" onClick={handleHoldPO} loading={holdLoading} />
         )}
-        <Btn label="Download PO PDF" icon={Download} onClick={() => { if (onDownloadPDF) { onDownloadPDF(po); } else { const s = suppliers.find(x => x.id === po.supplier || x._id === po.supplier); generatePOPDF(po, s, settings); } }} className="bg-orange-500 hover:bg-orange-600 text-white border-none shadow-lg shadow-orange-500/20 font-bold" />
+        <Btn label="Download PO PDF" icon={Download} onClick={() => { if (onDownloadPDF) { onDownloadPDF(po); } else { generatePOPDF(po, supplier, settings); } }} className="bg-orange-500 hover:bg-orange-600 text-white border-none shadow-lg shadow-orange-500/20 font-bold" />
         <Btn label="Close" outline onClick={onClose} className="px-8 border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800" />
       </div>
     </div>
@@ -299,7 +319,7 @@ export function POViewModal({ po, onClose, onApproveL1, onApproveL2, onApproveL3
           </div>
           <div className="divide-y divide-gray-100 dark:divide-gray-800">
             {[
-              ["Vendor name", supplier ? (supplier.companyName || supplier.name) : (po.supplier || "NA")],
+              ["Vendor name", resolvedVendorName],
               ["Vendor address", po.vendorAddress || supplier?.address || "NA", "leading-tight"],
               ["Vendor contact", po.vendorContact || supplier?.mobile || "NA"],
               ["Vendor email id", po.vendorEmail || supplier?.email || "NA", "text-blue-500 lowercase"],
