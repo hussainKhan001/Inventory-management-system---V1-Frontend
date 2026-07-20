@@ -31,7 +31,11 @@ import {
   Bell,
   ChevronRight,
   PackageCheck,
-  ShoppingCart
+  ShoppingCart,
+  CreditCard,
+  CheckCircle2,
+  Truck,
+  Receipt
 } from "lucide-react";
 import { fmtCur, formatDateTime } from "../utils";
 import {
@@ -203,7 +207,7 @@ const SiteEngineerDashboard = /* @__PURE__ */ __name(({ user, plans, materialReq
         </Card>}
     </div>;
 }, "SiteEngineerDashboard");
-const AGMDashboard = /* @__PURE__ */ __name(({ user, plans, materialRequirements, mrAllocations, planRevisions, pos, quotations, stats, role }) => {
+const AGMDashboard = /* @__PURE__ */ __name(({ user, plans, materialRequirements, mrAllocations, planRevisions, pos, quotations, stats, role, hasPermission }) => {
   const myName = user?.name || "";
   const myPlans = useMemo(
     () => role === "AGM" ? plans.filter((p) =>
@@ -226,7 +230,6 @@ const AGMDashboard = /* @__PURE__ */ __name(({ user, plans, materialRequirements
     () => (pos || []).filter((po) => po.status === "Pending L1"),
     [pos]
   );
-  // Use accurate backend counts (not limited by frontend fetch size)
   const pendingAllPOsCount = stats?.allPendingPOCount ?? (pos || []).filter((po) => ["Pending", "Pending L1", "Pending L2", "Pending L3"].includes(po.status)).length;
   const pendingQuotationsCount = stats?.pendingQuotationCount ?? (quotations || []).filter((q) => q.status === "Pending").length;
   const projectStats = useMemo(
@@ -240,8 +243,8 @@ const AGMDashboard = /* @__PURE__ */ __name(({ user, plans, materialRequirements
   );
   return <div className="space-y-6 pb-12">
       <PageHeader
-    title={`${role} Overview \u2014 ${myName || role}`}
-    sub="Projects, material plans and approval pipeline"
+    title={`AGM Overview \u2014 ${myName || "AGM"}`}
+    sub="Projects, material plans and L1 approval pipeline"
   />
 
       {
@@ -357,6 +360,139 @@ const AGMDashboard = /* @__PURE__ */ __name(({ user, plans, materialRequirements
       </div>
     </div>;
 }, "AGMDashboard");
+const HeadDashboard = /* @__PURE__ */ __name(({ user, plans, materialRequirements, mrAllocations, planRevisions, pos, quotations, stats }) => {
+  const myName = user?.name || "";
+  const myPlans = useMemo(
+    () => plans.filter((p) =>
+      p.gmAgm?.trim().toLowerCase() === myName.trim().toLowerCase() ||
+      p.submittedBy?.trim().toLowerCase() === myName.trim().toLowerCase()
+    ),
+    [plans, myName]
+  );
+  const myProjects = useMemo(
+    () => [...new Set(myPlans.map((p) => p.project).filter(Boolean))],
+    [myPlans]
+  );
+  const pendingRevisions = planRevisions.filter((r) => r.status === "pending");
+  const myMRs = useMemo(
+    () => materialRequirements.filter((mr) => myProjects.includes(mr.project)),
+    [materialRequirements, myProjects]
+  );
+  const pendingMRs = myMRs.filter((mr) => mr.status === "Store Pending");
+  const pendingL2POs = useMemo(
+    () => (pos || []).filter((po) => po.status === "Pending L2"),
+    [pos]
+  );
+  const pendingAllPOsCount = stats?.allPendingPOCount ?? (pos || []).filter((po) => ["Pending", "Pending L1", "Pending L2", "Pending L3"].includes(po.status)).length;
+  const pendingQuotationsCount = stats?.pendingQuotationCount ?? (quotations || []).filter((q) => q.status === "Pending").length;
+  const projectStats = useMemo(
+    () => myProjects.map((proj) => {
+      const projPlans = myPlans.filter((p) => p.project === proj);
+      const totalRequired = projPlans.reduce((s, p) => s + (p.items || []).reduce((ss, i) => ss + (Number(i.required) || 0), 0), 0);
+      const totalAllotted = mrAllocations.filter((a) => a.projectName?.trim().toLowerCase() === proj.trim().toLowerCase()).reduce((s, a) => s + (a.allocatedQty || 0), 0);
+      return { project: proj, plans: projPlans.length, totalRequired, totalAllotted, pending: Math.max(0, totalRequired - totalAllotted) };
+    }),
+    [myProjects, myPlans, mrAllocations]
+  );
+  return <div className="space-y-6 pb-12">
+      <PageHeader
+        title={`Head Overview — ${myName || "Head"}`}
+        sub="Department oversight and L2 approval pipeline"
+      />
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+        <KPICard label="My Projects" value={myProjects.length} icon={Boxes} color="blue" sub="Under oversight" />
+        <KPICard label="Active Plans" value={myPlans.length} icon={Layers} color="orange" sub="Material plans" />
+        <KPICard label="Pending L2 POs" value={pendingL2POs.length} icon={FileText} color={pendingL2POs.length > 0 ? "red" : "green"} sub="Awaiting L2 approval" />
+        <KPICard label="Pending MRs" value={pendingMRs.length} icon={ClipboardList} color={pendingMRs.length > 0 ? "orange" : "green"} sub="Awaiting store action" />
+        <KPICard label="Pending Quotations" value={pendingQuotationsCount} icon={FileText} color={pendingQuotationsCount > 0 ? "orange" : "green"} sub="Under review" />
+        <KPICard label="PO Pending" value={pendingAllPOsCount} icon={ShoppingCart} color={pendingAllPOsCount > 0 ? "red" : "green"} sub="All approval stages" />
+      </div>
+      {pendingL2POs.length > 0 && <Card className="p-5 border-red-200/60 dark:border-red-700/30 bg-white dark:bg-gray-900">
+          <SectionHeader title={`Pending L2 Purchase Orders (${pendingL2POs.length})`} action={() => window.location.hash = "purchase-orders"} />
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse min-w-[500px]">
+              <thead className="bg-gray-50 dark:bg-gray-800/40">
+                <tr>
+                  <th className="px-4 py-2.5 text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">PO No.</th>
+                  <th className="px-4 py-2.5 text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Supplier</th>
+                  <th className="px-4 py-2.5 text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Project</th>
+                  <th className="px-4 py-2.5 text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider text-right">Value</th>
+                  <th className="px-4 py-2.5 text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Date</th>
+                  <th className="px-4 py-2.5 text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider text-center">Action</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100 dark:divide-gray-700/40">
+                {pendingL2POs.slice(0, 8).map((po) => <tr key={po.id} className="hover:bg-red-50/30 dark:hover:bg-red-900/10 transition-colors">
+                    <td className="px-4 py-2.5 text-[13px] font-bold text-gray-900 dark:text-white">{po.id}</td>
+                    <td className="px-4 py-2.5 text-[12px] text-gray-600 dark:text-gray-300 max-w-[140px] truncate">{po.supplier || "—"}</td>
+                    <td className="px-4 py-2.5 text-[12px] text-gray-600 dark:text-gray-300 max-w-[140px] truncate">{po.project || "—"}</td>
+                    <td className="px-4 py-2.5 text-[13px] font-bold text-right text-gray-900 dark:text-white">
+                      {po.totalValue != null ? `₹${Number(po.totalValue).toLocaleString("en-IN")}` : "—"}
+                    </td>
+                    <td className="px-4 py-2.5 text-[11px] text-gray-400">{formatDateTime(po.date)}</td>
+                    <td className="px-4 py-2.5 text-center">
+                      <button onClick={() => window.location.hash = "purchase-orders"} className="text-[11px] font-bold text-primary bg-primary/10 px-3 py-1 rounded-full hover:bg-primary hover:text-white transition-all">
+                        Review
+                      </button>
+                    </td>
+                  </tr>)}
+              </tbody>
+            </table>
+          </div>
+        </Card>}
+      {pendingRevisions.length > 0 && <Card className="p-5 border-amber-200/60 dark:border-amber-700/30 bg-white dark:bg-gray-900">
+          <SectionHeader title={`Pending Material Revision Requests (${pendingRevisions.length})`} action={() => window.location.hash = "planning"} />
+          <div className="space-y-2">
+            {pendingRevisions.slice(0, 5).map((rev) => <div key={rev.id} className="flex items-start justify-between p-3 rounded-xl bg-amber-50/60 dark:bg-amber-900/10 border border-amber-100 dark:border-amber-800/30">
+                <div>
+                  <p className="text-[13px] font-bold text-gray-900 dark:text-white">{rev.itemName}</p>
+                  <p className="text-[11px] text-gray-500 dark:text-gray-400">{rev.engineerName} · {rev.project}</p>
+                  <p className="text-[11px] text-amber-600 dark:text-amber-400 mt-0.5">Requesting <span className="font-bold">+{rev.requestedExtraQty} {rev.unit}</span> — "{rev.reason}"</p>
+                </div>
+                <button onClick={() => window.location.hash = "planning"} className="text-[11px] font-bold text-primary bg-primary/10 px-3 py-1 rounded-full hover:bg-primary hover:text-white transition-all">Review</button>
+              </div>)}
+          </div>
+        </Card>}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <Card className="p-5 border-gray-100 dark:border-gray-700/50 bg-white dark:bg-gray-800/80">
+          <SectionHeader title="Project-wise Material Status" action={() => window.location.hash = "planning"} />
+          {projectStats.length === 0 ? <EmptyState text="No projects found." /> : <div className="space-y-3">
+              {projectStats.map((ps) => {
+                const pct = ps.totalRequired > 0 ? Math.min(100, Math.round(ps.totalAllotted / ps.totalRequired * 100)) : 0;
+                return <div key={ps.project} className="p-3 rounded-xl bg-gray-50 dark:bg-gray-800/40">
+                    <div className="flex items-center justify-between mb-1.5">
+                      <p className="text-[13px] font-bold text-gray-900 dark:text-white truncate max-w-[60%]">{ps.project}</p>
+                      <div className="flex items-center gap-3 text-[11px]">
+                        <span className="text-emerald-600 dark:text-emerald-400 font-bold">{ps.totalAllotted} allotted</span>
+                        {ps.pending > 0 && <span className="text-red-500 dark:text-red-400 font-bold">{ps.pending} pending</span>}
+                      </div>
+                    </div>
+                    <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-1.5">
+                      <div className={`h-1.5 rounded-full transition-all ${pct >= 100 ? "bg-emerald-500" : pct > 60 ? "bg-primary" : "bg-amber-500"}`} style={{ width: `${pct}%` }} />
+                    </div>
+                    <p className="text-[10px] text-gray-400 mt-1">{ps.plans} plans · {pct}% allotted</p>
+                  </div>;
+              })}
+            </div>}
+        </Card>
+        <Card className="p-5 border-gray-100 dark:border-gray-700/50 bg-white dark:bg-gray-800/80">
+          <SectionHeader title="Recent MRs — My Projects" action={() => window.location.hash = "material-requirements"} />
+          {myMRs.length === 0 ? <EmptyState text="No MRs found for your projects." /> : <div className="space-y-2">
+              {myMRs.slice(0, 6).map((mr) => <div key={mr.id} className="flex items-center justify-between p-3 rounded-xl bg-gray-50 dark:bg-gray-800/40 hover:bg-primary/5 dark:hover:bg-primary/10 transition-colors cursor-pointer" onClick={() => window.location.hash = "material-requirements"}>
+                  <div>
+                    <p className="text-[13px] font-bold text-gray-900 dark:text-white">{mr.id}</p>
+                    <p className="text-[11px] text-gray-500 dark:text-gray-400">{mr.requesterName} · {mr.project}</p>
+                  </div>
+                  <div className="text-right">
+                    <StatusBadge status={mr.status} />
+                    <p className="text-[10px] text-gray-400 mt-1">{formatDateTime(mr.date)}</p>
+                  </div>
+                </div>)}
+            </div>}
+        </Card>
+      </div>
+    </div>;
+}, "HeadDashboard");
 const StoreInchargeDashboard = /* @__PURE__ */ __name(({ stats, materialRequirements, mrAllocations, pos, loading }) => {
   const { lowStockCount = 0, outOfStock = 0, totalSKUs = 0 } = stats;
   const storePending = materialRequirements.filter((mr) => mr.status === "Store Pending");
@@ -570,34 +706,17 @@ const AdminDashboard = /* @__PURE__ */ __name(({ stats, pos, loading, plans, mat
       {
     /* KPIs */
   }
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 sm:gap-6">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 sm:gap-6">
         <KPICard label="Pending MR Count" value={mrCounts["Store Pending"] || 0} icon={ClipboardList} color="blue" sub="Awaiting store approval" />
         {(() => {
           const l1 = (pos || []).filter(p => p.status === "Pending L1").length;
           const l2 = (pos || []).filter(p => p.status === "Pending L2").length;
           const l3 = (pos || []).filter(p => p.status === "Pending L3").length;
-          const other = (pos || []).filter(p => p.status === "Pending").length;
-          const total = l1 + l2 + l3 + other;
-          return (
-            <div className="bg-white dark:bg-gray-800/80 rounded-xl border border-gray-100 dark:border-gray-700/50 shadow-sm hover:shadow-md transition-all duration-300 p-5 flex flex-col justify-between min-h-[130px]">
-              <div>
-                <p className="text-sm font-medium text-gray-500 dark:text-gray-400 leading-tight">Pending PO Count</p>
-                <p className="text-2xl font-bold text-gray-900 dark:text-white mt-1.5">{total}</p>
-              </div>
-              <div className="flex items-end justify-between mt-2">
-                <div className="flex flex-wrap gap-1.5">
-                  {l1 > 0 && <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400">L1: {l1}</span>}
-                  {l2 > 0 && <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400">L2: {l2}</span>}
-                  {l3 > 0 && <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400">L3: {l3}</span>}
-                  {other > 0 && <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400">Pending: {other}</span>}
-                  {total === 0 && <span className="text-[11px] text-gray-400 font-medium">All approved</span>}
-                </div>
-                <div className="p-2.5 rounded-lg shrink-0 bg-orange-50 text-orange-500 dark:bg-orange-500/10 dark:text-orange-400">
-                  <FileText className="w-5 h-5 sm:w-6 sm:h-6" />
-                </div>
-              </div>
-            </div>
-          );
+          return (<>
+            <KPICard label="Pending L1" value={l1} icon={FileText} color={l1 > 0 ? "yellow" : "green"} sub="AGM approval" />
+            <KPICard label="Pending L2" value={l2} icon={FileText} color={l2 > 0 ? "orange" : "green"} sub="Head approval" />
+            <KPICard label="Pending L3" value={l3} icon={FileText} color={l3 > 0 ? "red" : "green"} sub="Director approval" />
+          </>);
         })()}
         <KPICard label="Pending GRN Count" value={(pos || []).filter(p => ["GRN Pending", "GRN Variance"].includes(p.status)).length} icon={Package} color="purple" sub="POs awaiting GRN" />
         <KPICard label="Out of Stock" value={outOfStock} icon={AlertTriangle} color="red" sub={outOfStock > 0 ? "Immediate attention" : "All SKUs available"} />
@@ -719,7 +838,7 @@ const AdminDashboard = /* @__PURE__ */ __name(({ stats, pos, loading, plans, mat
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100 dark:divide-gray-700/40">
-                  {pos?.slice(-5).reverse().map((po) => <tr key={po.id} className="hover:bg-gray-50/70 dark:hover:bg-gray-700/30 transition-colors">
+                  {pos?.slice(0, 5).map((po) => <tr key={po.id} className="hover:bg-gray-50/70 dark:hover:bg-gray-700/30 transition-colors">
                       <td className="px-4 py-3 text-[13px] font-medium text-gray-900 dark:text-white">{po.id}</td>
                       <td className="px-4 py-3 text-[13px] text-gray-500 dark:text-gray-400">{po.project}</td>
                       <td className="px-4 py-3 text-[13px] font-medium text-gray-900 dark:text-white">{fmtCur(po.totalValue)}</td>
@@ -757,6 +876,475 @@ const AdminDashboard = /* @__PURE__ */ __name(({ stats, pos, loading, plans, mat
       </div>
     </div>;
 }, "AdminDashboard");
+const InventoryManagerDashboard = /* @__PURE__ */ __name(({ stats }) => {
+  const {
+    totalSKUs = 0,
+    lowStockCount = 0,
+    outOfStock = 0,
+    pendingWriteOffs = 0,
+    todayInward = 0,
+    todayOutward = 0,
+    stockByCategory = [],
+    allocatedStock = 0
+  } = stats;
+  const COLORS = ["#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899", "#06b6d4", "#4b5563"];
+  const chartData = stockByCategory.map((c) => ({ name: c._id || "Unmatched", stock: c.totalStock, outOfStock: c.outOfStock }));
+  return <div className="space-y-6 pb-12">
+      <PageHeader title="Inventory Dashboard" sub="Stock health, movements and daily alerts" />
+
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <KPICard label="Total SKUs" value={totalSKUs} icon={Boxes} color="blue" sub="Active inventory items" />
+        <KPICard label="Low Stock" value={lowStockCount} icon={AlertTriangle} color={lowStockCount > 0 ? "orange" : "green"} sub="Below reorder level" />
+        <KPICard label="Out of Stock" value={outOfStock} icon={Package} color={outOfStock > 0 ? "red" : "green"} sub="Zero stock items" />
+        <KPICard label="Pending Write-offs" value={pendingWriteOffs} icon={FileText} color={pendingWriteOffs > 0 ? "purple" : "green"} sub="Awaiting approval" />
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <Card className="p-5 bg-white dark:bg-gray-800/80 border-gray-100 dark:border-gray-700/50 cursor-pointer hover:border-emerald-300 dark:hover:border-emerald-700 transition-colors" onClick={() => (window.location.hash = "inward")}>
+          <div className="flex items-center gap-4">
+            <div className="p-3 bg-emerald-50 dark:bg-emerald-900/20 rounded-xl shrink-0"><ArrowDownLeft className="w-6 h-6 text-emerald-600" /></div>
+            <div>
+              <p className="text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Today's Inward</p>
+              <p className="text-[32px] font-black text-emerald-600 dark:text-emerald-400 leading-none">{todayInward}</p>
+              <p className="text-[11px] text-gray-400 mt-1">transactions recorded today</p>
+            </div>
+          </div>
+        </Card>
+        <Card className="p-5 bg-white dark:bg-gray-800/80 border-gray-100 dark:border-gray-700/50 cursor-pointer hover:border-orange-300 dark:hover:border-orange-700 transition-colors" onClick={() => (window.location.hash = "outward")}>
+          <div className="flex items-center gap-4">
+            <div className="p-3 bg-orange-50 dark:bg-orange-900/20 rounded-xl shrink-0"><ArrowUpRight className="w-6 h-6 text-orange-600" /></div>
+            <div>
+              <p className="text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Today's Outward</p>
+              <p className="text-[32px] font-black text-orange-600 dark:text-orange-400 leading-none">{todayOutward}</p>
+              <p className="text-[11px] text-gray-400 mt-1">transactions recorded today</p>
+            </div>
+          </div>
+        </Card>
+      </div>
+
+      {chartData.length > 0 && <Card className="p-5 bg-white dark:bg-gray-800/80 border-gray-100 dark:border-gray-700/50">
+          <SectionHeader title="Stock by Category" action={() => (window.location.hash = "inventory")} />
+          <ResponsiveContainer width="100%" height={200}>
+            <BarChart data={chartData} margin={{ top: 4, right: 8, bottom: 32, left: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="rgba(156,163,175,0.2)" />
+              <XAxis dataKey="name" tick={{ fontSize: 11 }} angle={-20} textAnchor="end" interval={0} />
+              <YAxis tick={{ fontSize: 11 }} />
+              <Tooltip />
+              <Bar dataKey="stock" name="In Stock" radius={[4, 4, 0, 0]}>
+                {chartData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        </Card>}
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {lowStockCount > 0 && <Card className="p-4 border-l-4 border-l-orange-500 bg-white dark:bg-gray-800/80 border-gray-100 dark:border-gray-700/50">
+            <div className="flex items-start gap-3">
+              <AlertTriangle className="w-5 h-5 text-orange-500 shrink-0 mt-0.5" />
+              <div>
+                <h4 className="text-[13px] font-bold text-gray-900 dark:text-white">Low Stock Alert</h4>
+                <p className="text-[13px] text-gray-500 dark:text-gray-400 mt-1">{lowStockCount} items are below reorder level.</p>
+                <button onClick={() => (window.location.hash = "inventory")} className="mt-2 text-[11px] font-bold text-orange-500 hover:underline">Review Inventory →</button>
+              </div>
+            </div>
+          </Card>}
+        {pendingWriteOffs > 0 && <Card className="p-4 border-l-4 border-l-purple-500 bg-white dark:bg-gray-800/80 border-gray-100 dark:border-gray-700/50">
+            <div className="flex items-start gap-3">
+              <FileText className="w-5 h-5 text-purple-500 shrink-0 mt-0.5" />
+              <div>
+                <h4 className="text-[13px] font-bold text-gray-900 dark:text-white">Pending Write-offs</h4>
+                <p className="text-[13px] text-gray-500 dark:text-gray-400 mt-1">{pendingWriteOffs} write-off requests awaiting approval.</p>
+                <button onClick={() => (window.location.hash = "write-off")} className="mt-2 text-[11px] font-bold text-purple-500 hover:underline">Go to Write-offs →</button>
+              </div>
+            </div>
+          </Card>}
+        {outOfStock > 0 && <Card className="p-4 border-l-4 border-l-red-500 bg-white dark:bg-gray-800/80 border-gray-100 dark:border-gray-700/50">
+            <div className="flex items-start gap-3">
+              <Package className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
+              <div>
+                <h4 className="text-[13px] font-bold text-gray-900 dark:text-white">Out of Stock</h4>
+                <p className="text-[13px] text-gray-500 dark:text-gray-400 mt-1">{outOfStock} SKUs have zero stock remaining.</p>
+                <button onClick={() => (window.location.hash = "inventory")} className="mt-2 text-[11px] font-bold text-red-500 hover:underline">View Inventory →</button>
+              </div>
+            </div>
+          </Card>}
+      </div>
+
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        {[
+          { label: "Inward", sub: "Record stock entry", icon: ArrowDownLeft, hash: "inward", color: "emerald" },
+          { label: "Outward", sub: "Issue stock", icon: ArrowUpRight, hash: "outward", color: "orange" },
+          { label: "Transfer", sub: "Move between projects", icon: ArrowRightLeft, hash: "transfer-outward", color: "blue" },
+          { label: "Inventory", sub: "View all stock", icon: Boxes, hash: "inventory", color: "purple" }
+        ].map(({ label, sub, icon: Icon, hash, color }) => <Card key={hash} className={cn("p-4 cursor-pointer transition-all group bg-white dark:bg-gray-800/80 border-gray-100 dark:border-gray-700/50", `hover:border-${color}-500/50`)} onClick={() => (window.location.hash = hash)}>
+            <div className="flex items-center gap-3">
+              <div className={cn("p-2 rounded-lg group-hover:scale-110 transition-transform", `bg-${color}-50 dark:bg-${color}-900/20 text-${color}-600`)}><Icon className="w-5 h-5" /></div>
+              <div><h4 className="text-[13px] font-bold text-gray-900 dark:text-white">{label}</h4><p className="text-[11px] text-gray-500">{sub}</p></div>
+            </div>
+          </Card>)}
+      </div>
+    </div>;
+}, "InventoryManagerDashboard");
+const ManagerDashboard = /* @__PURE__ */ __name(({ pos, materialRequirements, stats }) => {
+  const pendingPOs = useMemo(
+    () => (pos || []).filter((p) => ["Pending", "Pending L1", "Pending L2", "Pending L3"].includes(p.status)),
+    [pos]
+  );
+  const grnPendingPOs = useMemo(
+    () => (pos || []).filter((p) => ["GRN Pending", "Partially GRN"].includes(p.status)),
+    [pos]
+  );
+  const storePendingMRs = useMemo(
+    () => (materialRequirements || []).filter((mr) => mr.status === "Store Pending" || mr.status === "Pending"),
+    [materialRequirements]
+  );
+  const recentPOs = useMemo(() => [...(pos || [])].slice(0, 6), [pos]);
+  const pendingPOCount = stats?.allPendingPOCount ?? pendingPOs.length;
+  const grnPendingCount = stats?.grnPendingPOCount ?? grnPendingPOs.length;
+  return <div className="space-y-6 pb-12">
+      <PageHeader title="Manager Dashboard" sub="Operations overview — POs, MRs and stock health" />
+
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <KPICard label="Pending POs" value={pendingPOCount} icon={FileText} color={pendingPOCount > 0 ? "orange" : "green"} sub="Awaiting approval" />
+        <KPICard label="GRN Pending" value={grnPendingCount} icon={Truck} color={grnPendingCount > 0 ? "red" : "green"} sub="Delivery not received" />
+        <KPICard label="Pending MRs" value={storePendingMRs.length} icon={ClipboardList} color={storePendingMRs.length > 0 ? "blue" : "green"} sub="Material requests pending" />
+        <KPICard label="Low Stock" value={stats?.lowStockCount || 0} icon={AlertTriangle} color={(stats?.lowStockCount || 0) > 0 ? "purple" : "green"} sub="Items below reorder level" />
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <Card className="p-5 bg-white dark:bg-gray-800/80 border-gray-100 dark:border-gray-700/50">
+          <SectionHeader title={`Pending MRs (${storePendingMRs.length})`} action={() => (window.location.hash = "material-requirements")} />
+          {storePendingMRs.length === 0 ? <EmptyState text="No pending material requests." /> : <div className="space-y-2">
+              {storePendingMRs.slice(0, 5).map((mr) => <div key={mr.id} className="flex items-center justify-between p-3 rounded-xl bg-blue-50/30 dark:bg-blue-900/10 border border-blue-100/60 dark:border-blue-900/20 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors cursor-pointer" onClick={() => (window.location.hash = "material-requirements")}>
+                  <div>
+                    <p className="text-[13px] font-bold text-gray-900 dark:text-white">{mr.id}</p>
+                    <p className="text-[11px] text-gray-500 dark:text-gray-400">{mr.requesterName || "—"} · {mr.project || "—"}</p>
+                  </div>
+                  <div className="text-right">
+                    <StatusBadge status={mr.status} />
+                    <p className="text-[10px] text-gray-400 mt-1">{mr.items?.length || 0} items</p>
+                  </div>
+                </div>)}
+            </div>}
+        </Card>
+
+        <Card className="p-5 bg-white dark:bg-gray-800/80 border-gray-100 dark:border-gray-700/50">
+          <SectionHeader title={`GRN Pending POs (${grnPendingPOs.length})`} action={() => (window.location.hash = "grn")} />
+          {grnPendingPOs.length === 0 ? <EmptyState text="No POs awaiting GRN." /> : <div className="space-y-2">
+              {grnPendingPOs.slice(0, 5).map((po) => <div key={po.id} className="flex items-center justify-between p-3 rounded-xl bg-red-50/40 dark:bg-red-900/10 border border-red-100/60 dark:border-red-900/20 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors cursor-pointer" onClick={() => (window.location.hash = "grn")}>
+                  <div>
+                    <p className="text-[13px] font-bold text-gray-900 dark:text-white">{po.id}</p>
+                    <p className="text-[11px] text-gray-500 dark:text-gray-400">{po.project} · {po.supplier}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-[12px] font-bold text-gray-900 dark:text-white">{fmtCur(po.totalValue)}</p>
+                    <StatusBadge status={po.status} />
+                  </div>
+                </div>)}
+            </div>}
+        </Card>
+      </div>
+
+      <Card className="p-0 overflow-hidden border-gray-100 dark:border-gray-700/50 bg-white dark:bg-gray-800/80">
+        <div className="p-4 border-b border-gray-100 dark:border-gray-700/50">
+          <SectionHeader title="Recent Purchase Orders" action={() => (window.location.hash = "purchase-orders")} />
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse">
+            <thead className="bg-gray-50 dark:bg-gray-800/40">
+              <tr>
+                {["PO No.", "Supplier", "Project", "Value", "Status"].map((h) => <th key={h} className="px-4 py-2.5 text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">{h}</th>)}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100 dark:divide-gray-700/40">
+              {recentPOs.length === 0 && <tr><td colSpan={5} className="px-4 py-8 text-center text-gray-400 text-[13px]">No purchase orders found</td></tr>}
+              {recentPOs.map((po) => <tr key={po.id} className="hover:bg-gray-50/70 dark:hover:bg-gray-700/30 transition-colors cursor-pointer" onClick={() => (window.location.hash = "purchase-orders")}>
+                  <td className="px-4 py-2.5 text-[13px] font-bold text-gray-900 dark:text-white">{po.id}</td>
+                  <td className="px-4 py-2.5 text-[12px] text-gray-600 dark:text-gray-300 max-w-[130px] truncate">{po.supplier || "—"}</td>
+                  <td className="px-4 py-2.5 text-[12px] text-gray-600 dark:text-gray-300 max-w-[130px] truncate">{po.project || "—"}</td>
+                  <td className="px-4 py-2.5 text-[13px] font-bold text-gray-900 dark:text-white">{fmtCur(po.totalValue)}</td>
+                  <td className="px-4 py-2.5"><StatusBadge status={po.status} accountStatus={po.accountStatus} /></td>
+                </tr>)}
+            </tbody>
+          </table>
+        </div>
+      </Card>
+
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        {[
+          { label: "Purchase Orders", sub: "View and manage POs", icon: FileText, hash: "purchase-orders", color: "orange" },
+          { label: "Material Requests", sub: "MR approvals", icon: ClipboardList, hash: "material-requirements", color: "blue" },
+          { label: "GRN", sub: "Goods receipt notes", icon: PackageCheck, hash: "grn", color: "emerald" },
+          { label: "Inventory", sub: "Check stock levels", icon: Boxes, hash: "inventory", color: "purple" }
+        ].map(({ label, sub, icon: Icon, hash, color }) => <Card key={hash} className={cn("p-4 cursor-pointer transition-all group bg-white dark:bg-gray-800/80 border-gray-100 dark:border-gray-700/50", `hover:border-${color}-500/50`)} onClick={() => (window.location.hash = hash)}>
+            <div className="flex items-center gap-3">
+              <div className={cn("p-2 rounded-lg group-hover:scale-110 transition-transform", `bg-${color}-50 dark:bg-${color}-900/20 text-${color}-600`)}><Icon className="w-5 h-5" /></div>
+              <div><h4 className="text-[13px] font-bold text-gray-900 dark:text-white">{label}</h4><p className="text-[11px] text-gray-500">{sub}</p></div>
+            </div>
+          </Card>)}
+      </div>
+    </div>;
+}, "ManagerDashboard");
+const StaffDashboard = /* @__PURE__ */ __name(({ stats, user }) => {
+  const { todayInward = 0, todayOutward = 0, totalSKUs = 0, outOfStock = 0 } = stats;
+  return <div className="space-y-6 pb-12">
+      <PageHeader title={`Welcome${user?.name ? ", " + user.name : ""}`} sub="Your daily activity summary" />
+
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <KPICard label="Today's Inward" value={todayInward} icon={ArrowDownLeft} color="green" sub="Entries recorded today" />
+        <KPICard label="Today's Outward" value={todayOutward} icon={ArrowUpRight} color="orange" sub="Issues recorded today" />
+        <KPICard label="Total SKUs" value={totalSKUs} icon={Boxes} color="blue" sub="Active inventory items" />
+        <KPICard label="Out of Stock" value={outOfStock} icon={Package} color={outOfStock > 0 ? "red" : "green"} sub="Zero stock items" />
+      </div>
+
+      <Card className="p-6 bg-white dark:bg-gray-800/80 border-gray-100 dark:border-gray-700/50">
+        <h3 className="text-[14px] font-bold text-gray-900 dark:text-white mb-5">Quick Actions</h3>
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+          {[
+            { label: "Record Inward", sub: "Add incoming stock", icon: ArrowDownLeft, hash: "inward", color: "emerald" },
+            { label: "Record Outward", sub: "Issue stock to site", icon: ArrowUpRight, hash: "outward", color: "orange" },
+            { label: "Transfer Stock", sub: "Between projects", icon: ArrowRightLeft, hash: "transfer-outward", color: "blue" },
+            { label: "Inward Return", sub: "Return received stock", icon: ArrowDownLeft, hash: "inward-return", color: "purple" },
+            { label: "Outward Return", sub: "Return issued stock", icon: ArrowUpRight, hash: "outward-return", color: "amber" },
+            { label: "View Inventory", sub: "Check current stock", icon: Boxes, hash: "inventory", color: "blue" }
+          ].map(({ label, sub, icon: Icon, hash, color }) => <Card key={hash} className={cn("p-4 cursor-pointer transition-all group bg-gray-50/50 dark:bg-gray-700/30 border-gray-100 dark:border-gray-700/50", `hover:border-${color}-500/50 hover:bg-${color}-50/30 dark:hover:bg-${color}-900/10`)} onClick={() => (window.location.hash = hash)}>
+              <div className="flex items-center gap-3">
+                <div className={cn("p-2 rounded-lg group-hover:scale-110 transition-transform", `bg-${color}-50 dark:bg-${color}-900/20 text-${color}-600`)}><Icon className="w-5 h-5" /></div>
+                <div><h4 className="text-[13px] font-bold text-gray-900 dark:text-white">{label}</h4><p className="text-[11px] text-gray-500">{sub}</p></div>
+              </div>
+            </Card>)}
+        </div>
+      </Card>
+    </div>;
+}, "StaffDashboard");
+const ProcurementDashboard = /* @__PURE__ */ __name(({ pos, materialRequirements, stats, quotations }) => {
+  const pendingApprovalPOs = useMemo(
+    () => (pos || []).filter((p) => ["Pending", "Pending L1", "Pending L2", "Pending L3"].includes(p.status)),
+    [pos]
+  );
+  const grnPendingPOs = useMemo(
+    () => (pos || []).filter((p) => ["GRN Pending", "Partially GRN"].includes(p.status)),
+    [pos]
+  );
+  const mrsReadyForPO = useMemo(
+    () => (materialRequirements || []).filter((mr) => mr.status === "Approved by Store" || mr.status === "Approved"),
+    [materialRequirements]
+  );
+  const recentPOs = useMemo(
+    () => [...(pos || [])].slice(0, 8),
+    [pos]
+  );
+  const pendingPOCount = stats?.allPendingPOCount ?? pendingApprovalPOs.length;
+  const grnPendingCount = stats?.grnPendingPOCount ?? grnPendingPOs.length;
+  const pendingQuotationsCount = stats?.pendingQuotationCount ?? (quotations || []).filter((q) => q.status === "Pending").length;
+  return <div className="space-y-6 pb-12">
+      <PageHeader title="Procurement Dashboard" sub="PO approval pipeline, GRN status and MR tracking" />
+
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <KPICard label="Pending Approval" value={pendingPOCount} icon={Clock} color={pendingPOCount > 0 ? "orange" : "green"} sub="POs awaiting approval" />
+        <KPICard label="GRN Pending" value={grnPendingCount} icon={Truck} color={grnPendingCount > 0 ? "red" : "green"} sub="Awaiting material receipt" />
+        <KPICard label="MRs Ready" value={mrsReadyForPO.length} icon={ClipboardList} color={mrsReadyForPO.length > 0 ? "blue" : "green"} sub="Approved, needs PO" />
+        <KPICard label="Pending Quotations" value={pendingQuotationsCount} icon={FileText} color={pendingQuotationsCount > 0 ? "purple" : "green"} sub="Vendor quotes under review" />
+      </div>
+
+      {pendingApprovalPOs.length > 0 && <Card className="p-5 border-orange-200/60 dark:border-orange-700/30 bg-white dark:bg-gray-900">
+          <SectionHeader title={`Pending Approval POs (${pendingApprovalPOs.length})`} action={() => (window.location.hash = "purchase-orders")} />
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse min-w-[500px]">
+              <thead className="bg-gray-50 dark:bg-gray-800/40">
+                <tr>
+                  {["PO No.", "Supplier", "Project", "Value", "Stage", "Date"].map((h) => <th key={h} className="px-4 py-2.5 text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">{h}</th>)}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100 dark:divide-gray-700/40">
+                {pendingApprovalPOs.slice(0, 8).map((po) => <tr key={po.id} className="hover:bg-orange-50/30 dark:hover:bg-orange-900/10 transition-colors cursor-pointer" onClick={() => (window.location.hash = "purchase-orders")}>
+                    <td className="px-4 py-2.5 text-[13px] font-bold text-gray-900 dark:text-white">{po.id}</td>
+                    <td className="px-4 py-2.5 text-[12px] text-gray-600 dark:text-gray-300 max-w-[130px] truncate">{po.supplier || "—"}</td>
+                    <td className="px-4 py-2.5 text-[12px] text-gray-600 dark:text-gray-300 max-w-[130px] truncate">{po.project || "—"}</td>
+                    <td className="px-4 py-2.5 text-[13px] font-bold text-gray-900 dark:text-white">{fmtCur(po.totalValue)}</td>
+                    <td className="px-4 py-2.5"><StatusBadge status={po.status} /></td>
+                    <td className="px-4 py-2.5 text-[11px] text-gray-400">{formatDateTime(po.date)}</td>
+                  </tr>)}
+              </tbody>
+            </table>
+          </div>
+        </Card>}
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <Card className="p-5 border-gray-100 dark:border-gray-700/50 bg-white dark:bg-gray-800/80">
+          <SectionHeader title={`GRN Pending POs (${grnPendingPOs.length})`} action={() => (window.location.hash = "grn")} />
+          {grnPendingPOs.length === 0 ? <EmptyState text="No POs awaiting GRN." /> : <div className="space-y-2">
+              {grnPendingPOs.slice(0, 6).map((po) => <div key={po.id} className="flex items-center justify-between p-3 rounded-xl bg-red-50/40 dark:bg-red-900/10 border border-red-100/60 dark:border-red-900/20 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors cursor-pointer" onClick={() => (window.location.hash = "grn")}>
+                  <div>
+                    <p className="text-[13px] font-bold text-gray-900 dark:text-white">{po.id}</p>
+                    <p className="text-[11px] text-gray-500 dark:text-gray-400">{po.project} · {po.supplier}</p>
+                  </div>
+                  <div className="text-right">
+                    <StatusBadge status={po.status} />
+                    <p className="text-[11px] font-bold text-gray-900 dark:text-white mt-1">{fmtCur(po.totalValue)}</p>
+                  </div>
+                </div>)}
+            </div>}
+        </Card>
+
+        <Card className="p-5 border-gray-100 dark:border-gray-700/50 bg-white dark:bg-gray-800/80">
+          <SectionHeader title={`MRs Ready for PO (${mrsReadyForPO.length})`} action={() => (window.location.hash = "material-requirements")} />
+          {mrsReadyForPO.length === 0 ? <EmptyState text="No MRs awaiting PO creation." /> : <div className="space-y-2">
+              {mrsReadyForPO.slice(0, 6).map((mr) => <div key={mr.id} className="flex items-center justify-between p-3 rounded-xl bg-blue-50/30 dark:bg-blue-900/10 border border-blue-100/60 dark:border-blue-900/20 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors cursor-pointer" onClick={() => (window.location.hash = "purchase-orders")}>
+                  <div>
+                    <p className="text-[13px] font-bold text-gray-900 dark:text-white">{mr.id}</p>
+                    <p className="text-[11px] text-gray-500 dark:text-gray-400">{mr.requesterName || mr.project} · {mr.items?.length || 0} items</p>
+                  </div>
+                  <button className="text-[11px] font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 px-3 py-1 rounded-full hover:bg-blue-500 hover:text-white transition-all">Create PO</button>
+                </div>)}
+            </div>}
+        </Card>
+      </div>
+
+      <Card className="p-5 border-gray-100 dark:border-gray-700/50 bg-white dark:bg-gray-800/80">
+        <SectionHeader title="Recent Purchase Orders" action={() => (window.location.hash = "purchase-orders")} />
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse min-w-[500px]">
+            <thead className="bg-gray-50 dark:bg-gray-800/40">
+              <tr>
+                {["PO No.", "MR No.", "Project", "Supplier", "Value", "Status"].map((h) => <th key={h} className="px-4 py-2.5 text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">{h}</th>)}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100 dark:divide-gray-700/40">
+              {recentPOs.length === 0 && <tr><td colSpan={6} className="px-4 py-8 text-center text-gray-400 dark:text-gray-500 text-[13px]">No purchase orders found</td></tr>}
+              {recentPOs.map((po) => <tr key={po.id} className="hover:bg-gray-50/70 dark:hover:bg-gray-700/30 transition-colors cursor-pointer" onClick={() => (window.location.hash = "purchase-orders")}>
+                  <td className="px-4 py-2.5 text-[13px] font-bold text-gray-900 dark:text-white">{po.id}</td>
+                  <td className="px-4 py-2.5 text-[12px] text-gray-500 dark:text-gray-400">{po.mrId || "—"}</td>
+                  <td className="px-4 py-2.5 text-[12px] text-gray-600 dark:text-gray-300 max-w-[120px] truncate">{po.project || "—"}</td>
+                  <td className="px-4 py-2.5 text-[12px] text-gray-600 dark:text-gray-300 max-w-[120px] truncate">{po.supplier || "—"}</td>
+                  <td className="px-4 py-2.5 text-[13px] font-bold text-gray-900 dark:text-white">{fmtCur(po.totalValue)}</td>
+                  <td className="px-4 py-2.5"><StatusBadge status={po.status} accountStatus={po.accountStatus} /></td>
+                </tr>)}
+            </tbody>
+          </table>
+        </div>
+      </Card>
+
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        {[
+          { label: "Create PO", sub: "Start a new purchase order", icon: FileText, hash: "purchase-orders", color: "orange" },
+          { label: "View GRN", sub: "Record material receipts", icon: PackageCheck, hash: "grn", color: "emerald" },
+          { label: "Quotations", sub: "Manage vendor quotes", icon: ClipboardList, hash: "quotations", color: "blue" }
+        ].map(({ label, sub, icon: Icon, hash, color }) => <Card key={hash} className={cn("p-4 cursor-pointer transition-all group bg-white dark:bg-gray-800/80 border-gray-100 dark:border-gray-700/50", `hover:border-${color}-500/50`)} onClick={() => (window.location.hash = hash)}>
+            <div className="flex items-center gap-3">
+              <div className={cn("p-2 rounded-lg group-hover:scale-110 transition-transform", `bg-${color}-50 dark:bg-${color}-900/20 text-${color}-600`)}><Icon className="w-5 h-5" /></div>
+              <div><h4 className="text-[13px] font-bold text-gray-900 dark:text-white">{label}</h4><p className="text-[11px] text-gray-500">{sub}</p></div>
+            </div>
+          </Card>)}
+      </div>
+    </div>;
+}, "ProcurementDashboard");
+const AccountantDashboard = /* @__PURE__ */ __name(({ pos, stats }) => {
+  const billsPendingReview = useMemo(
+    () => (pos || []).filter((p) => p.status === "GRN Fulfilled" && (!p.accountStatus || p.accountStatus === "Pending")),
+    [pos]
+  );
+  const partiallyPaid = useMemo(
+    () => (pos || []).filter((p) => p.accountStatus === "Partially Paid"),
+    [pos]
+  );
+  const fullyPaid = useMemo(
+    () => (pos || []).filter((p) => p.accountStatus === "Paid"),
+    [pos]
+  );
+  const pendingPaymentPOs = useMemo(
+    () => (pos || []).filter((p) => p.status === "GRN Fulfilled" && p.accountStatus !== "Paid"),
+    [pos]
+  );
+  const totalPendingValue = pendingPaymentPOs.reduce((s, p) => s + (Number(p.grandTotal || p.totalValue) || 0), 0);
+  const totalPaidValue = fullyPaid.reduce((s, p) => s + (Number(p.grandTotal || p.totalValue) || 0), 0);
+  return <div className="space-y-6 pb-12">
+      <PageHeader title="Accounts Dashboard" sub="Payment status, billing review and financial summary" />
+
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <KPICard label="Bills to Review" value={billsPendingReview.length} icon={Receipt} color={billsPendingReview.length > 0 ? "red" : "green"} sub="GRN fulfilled, pending payment" />
+        <KPICard label="Partially Paid" value={partiallyPaid.length} icon={CreditCard} color={partiallyPaid.length > 0 ? "orange" : "green"} sub="Payment in progress" />
+        <KPICard label="Pending Amount" value={fmtCur(totalPendingValue)} icon={AlertTriangle} color="purple" sub="Total outstanding value" />
+        <KPICard label="Paid POs" value={fullyPaid.length} icon={CheckCircle2} color="green" sub={fmtCur(totalPaidValue) + " settled"} />
+      </div>
+
+      {billsPendingReview.length > 0 && <Card className="p-5 border-red-200/60 dark:border-red-700/30 bg-white dark:bg-gray-900">
+          <SectionHeader title={`Bills Pending Payment (${billsPendingReview.length})`} action={() => (window.location.hash = "purchase-orders")} />
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse min-w-[500px]">
+              <thead className="bg-gray-50 dark:bg-gray-800/40">
+                <tr>
+                  {["PO No.", "Supplier", "Project", "Value", "Acct. Status", "Date"].map((h) => <th key={h} className="px-4 py-2.5 text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">{h}</th>)}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100 dark:divide-gray-700/40">
+                {billsPendingReview.slice(0, 10).map((po) => <tr key={po.id} className="hover:bg-red-50/30 dark:hover:bg-red-900/10 transition-colors cursor-pointer" onClick={() => (window.location.hash = "purchase-orders")}>
+                    <td className="px-4 py-2.5 text-[13px] font-bold text-gray-900 dark:text-white">{po.id}</td>
+                    <td className="px-4 py-2.5 text-[12px] text-gray-600 dark:text-gray-300 max-w-[140px] truncate">{po.supplier || "—"}</td>
+                    <td className="px-4 py-2.5 text-[12px] text-gray-600 dark:text-gray-300 max-w-[140px] truncate">{po.project || "—"}</td>
+                    <td className="px-4 py-2.5 text-[13px] font-bold text-gray-900 dark:text-white">{fmtCur(po.grandTotal || po.totalValue)}</td>
+                    <td className="px-4 py-2.5"><StatusBadge status={po.accountStatus || "Pending"} /></td>
+                    <td className="px-4 py-2.5 text-[11px] text-gray-400">{formatDateTime(po.date)}</td>
+                  </tr>)}
+              </tbody>
+            </table>
+          </div>
+        </Card>}
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <Card className="p-5 border-gray-100 dark:border-gray-700/50 bg-white dark:bg-gray-800/80">
+          <SectionHeader title={`Partially Paid POs (${partiallyPaid.length})`} action={() => (window.location.hash = "purchase-orders")} />
+          {partiallyPaid.length === 0 ? <EmptyState text="No partially paid POs." /> : <div className="space-y-2">
+              {partiallyPaid.slice(0, 6).map((po) => <div key={po.id} className="flex items-center justify-between p-3 rounded-xl bg-amber-50/40 dark:bg-amber-900/10 border border-amber-100/60 dark:border-amber-900/20 hover:bg-amber-50 dark:hover:bg-amber-900/20 transition-colors cursor-pointer" onClick={() => (window.location.hash = "purchase-orders")}>
+                  <div>
+                    <p className="text-[13px] font-bold text-gray-900 dark:text-white">{po.id}</p>
+                    <p className="text-[11px] text-gray-500 dark:text-gray-400">{po.supplier} · {po.project}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-[13px] font-bold text-gray-900 dark:text-white">{fmtCur(po.grandTotal || po.totalValue)}</p>
+                    <StatusBadge status={po.accountStatus} />
+                  </div>
+                </div>)}
+            </div>}
+        </Card>
+
+        <Card className="p-5 border-gray-100 dark:border-gray-700/50 bg-white dark:bg-gray-800/80">
+          <SectionHeader title="Payment Summary" />
+          <div className="space-y-4 pt-1">
+            <div className="flex items-center justify-between p-4 rounded-xl bg-red-50 dark:bg-red-900/10 border border-red-100 dark:border-red-900/20">
+              <div>
+                <p className="text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">Total Outstanding</p>
+                <p className="text-[24px] font-black text-red-600 dark:text-red-400 leading-none">{fmtCur(totalPendingValue)}</p>
+                <p className="text-[11px] text-gray-400 mt-1">{pendingPaymentPOs.length} POs pending</p>
+              </div>
+              <AlertTriangle className="w-8 h-8 text-red-200 dark:text-red-900" />
+            </div>
+            <div className="flex items-center justify-between p-4 rounded-xl bg-emerald-50 dark:bg-emerald-900/10 border border-emerald-100 dark:border-emerald-900/20">
+              <div>
+                <p className="text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">Total Paid</p>
+                <p className="text-[24px] font-black text-emerald-600 dark:text-emerald-400 leading-none">{fmtCur(totalPaidValue)}</p>
+                <p className="text-[11px] text-gray-400 mt-1">{fullyPaid.length} POs fully settled</p>
+              </div>
+              <CheckSquare className="w-8 h-8 text-emerald-200 dark:text-emerald-900" />
+            </div>
+          </div>
+        </Card>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        {[
+          { label: "Purchase Orders", sub: "Review POs and approve bills", icon: FileText, hash: "purchase-orders", color: "orange" },
+          { label: "PO Report", sub: "Monthly financial summary", icon: BarChart3, hash: "po-report", color: "blue" },
+          { label: "Suppliers", sub: "Vendor payment history", icon: Boxes, hash: "suppliers", color: "purple" }
+        ].map(({ label, sub, icon: Icon, hash, color }) => <Card key={hash} className={cn("p-4 cursor-pointer transition-all group bg-white dark:bg-gray-800/80 border-gray-100 dark:border-gray-700/50", `hover:border-${color}-500/50`)} onClick={() => (window.location.hash = hash)}>
+            <div className="flex items-center gap-3">
+              <div className={cn("p-2 rounded-lg group-hover:scale-110 transition-transform", `bg-${color}-50 dark:bg-${color}-900/20 text-${color}-600`)}><Icon className="w-5 h-5" /></div>
+              <div><h4 className="text-[13px] font-bold text-gray-900 dark:text-white">{label}</h4><p className="text-[11px] text-gray-500">{sub}</p></div>
+            </div>
+          </Card>)}
+      </div>
+    </div>;
+}, "AccountantDashboard");
 const Dashboard = /* @__PURE__ */ __name(() => {
   const {
     stats,
@@ -773,6 +1361,7 @@ const Dashboard = /* @__PURE__ */ __name(() => {
     hasPermission,
     settings
   } = useAppStore();
+  const [adminTab, setAdminTab] = useState("admin");
   useEffect(() => {
     fetchResource("planning", 1, 500, true);
     fetchResource("material-requirements", 1, 200, true);
@@ -783,15 +1372,58 @@ const Dashboard = /* @__PURE__ */ __name(() => {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   const showEngineer = hasPermission("VIEW_ENGINEER_DASHBOARD") || role === "Site Engineer";
-  const showAGM = hasPermission("VIEW_AGM_DASHBOARD") || ["AGM", "Project Manager", "Head"].includes(role || "");
+  const showAGM = hasPermission("VIEW_AGM_DASHBOARD") || ["AGM", "Project Manager"].includes(role || "");
+  const showHead = hasPermission("VIEW_HEAD_DASHBOARD") || role === "Head";
   const showStore = hasPermission("VIEW_STORE_DASHBOARD") || role === "Store Incharge";
   const showAdmin = hasPermission("VIEW_ADMIN_DASHBOARD") || ["Super Admin", "Director", "admin"].includes(role || "");
-  const showProcurement = role === "Purchase coordinator" || role === "Inventory Manager" || role === "Accountant" || role === "manager";
+  const showAccountant = hasPermission("VIEW_ACCOUNTANT_DASHBOARD") || role === "Accountant";
+  const showProcurement = hasPermission("VIEW_PROCUREMENT_DASHBOARD") || role === "Purchase coordinator";
+  const showInventoryManager = hasPermission("VIEW_INVENTORY_DASHBOARD") || role === "Inventory Manager";
+  const showManager = hasPermission("VIEW_MANAGER_DASHBOARD") || role === "manager";
+  const showStaff = hasPermission("VIEW_STAFF_DASHBOARD") || role === "staff";
   if (showAdmin) {
-    return <AdminDashboard stats={stats} pos={pos} loading={loading} plans={plans} materialRequirements={materialRequirements} planRevisions={planRevisions} settings={settings} />;
+    const ADMIN_TABS = [
+      { key: "admin", label: "Admin / Director" },
+      { key: "agm", label: "AGM" },
+      { key: "head", label: "Head" },
+      { key: "store", label: "Store Incharge" },
+      { key: "engineer", label: "Site Engineer" },
+      { key: "procurement", label: "Purchase Coordinator" },
+      { key: "accountant", label: "Accountant" },
+      { key: "inventory", label: "Inventory Manager" },
+      { key: "manager", label: "Manager" },
+      { key: "staff", label: "Staff" }
+    ];
+    const renderAdminTab = () => {
+      switch (adminTab) {
+        case "agm": return <AGMDashboard user={user} plans={plans} materialRequirements={materialRequirements} mrAllocations={mrAllocations} planRevisions={planRevisions} pos={pos} quotations={quotations} stats={stats} role="AGM" hasPermission={hasPermission} />;
+        case "head": return <HeadDashboard user={user} plans={plans} materialRequirements={materialRequirements} mrAllocations={mrAllocations} planRevisions={planRevisions} pos={pos} quotations={quotations} stats={stats} />;
+        case "store": return <StoreInchargeDashboard stats={stats} materialRequirements={materialRequirements} mrAllocations={mrAllocations} pos={pos} loading={loading} />;
+        case "engineer": return <SiteEngineerDashboard user={user} plans={plans} materialRequirements={materialRequirements} mrAllocations={mrAllocations} />;
+        case "procurement": return <ProcurementDashboard pos={pos} materialRequirements={materialRequirements} stats={stats} quotations={quotations} />;
+        case "accountant": return <AccountantDashboard pos={pos} stats={stats} />;
+        case "inventory": return <InventoryManagerDashboard stats={stats} />;
+        case "manager": return <ManagerDashboard pos={pos} materialRequirements={materialRequirements} stats={stats} />;
+        case "staff": return <StaffDashboard stats={stats} user={user} />;
+        default: return <AdminDashboard stats={stats} pos={pos} loading={loading} plans={plans} materialRequirements={materialRequirements} planRevisions={planRevisions} settings={settings} />;
+      }
+    };
+    return <div>
+        <div className="mb-5 overflow-x-auto">
+          <div className="flex gap-1.5 min-w-max p-1 bg-gray-100 dark:bg-gray-800/80 rounded-xl border border-gray-200 dark:border-gray-700/50">
+            {ADMIN_TABS.map((tab) => <button key={tab.key} onClick={() => setAdminTab(tab.key)} className={cn("px-3.5 py-1.5 text-[12px] font-bold rounded-lg transition-all whitespace-nowrap", adminTab === tab.key ? "bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm" : "text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-white/50 dark:hover:bg-gray-700/50")}>
+                {tab.label}
+              </button>)}
+          </div>
+        </div>
+        {renderAdminTab()}
+      </div>;
   }
   if (showAGM) {
-    return <AGMDashboard user={user} plans={plans} materialRequirements={materialRequirements} mrAllocations={mrAllocations} planRevisions={planRevisions} pos={pos} quotations={quotations} stats={stats} role={role} />;
+    return <AGMDashboard user={user} plans={plans} materialRequirements={materialRequirements} mrAllocations={mrAllocations} planRevisions={planRevisions} pos={pos} quotations={quotations} stats={stats} role={role} hasPermission={hasPermission} />;
+  }
+  if (showHead) {
+    return <HeadDashboard user={user} plans={plans} materialRequirements={materialRequirements} mrAllocations={mrAllocations} planRevisions={planRevisions} pos={pos} quotations={quotations} stats={stats} />;
   }
   if (showStore) {
     return <StoreInchargeDashboard stats={stats} materialRequirements={materialRequirements} mrAllocations={mrAllocations} pos={pos} loading={loading} />;
@@ -799,8 +1431,20 @@ const Dashboard = /* @__PURE__ */ __name(() => {
   if (showEngineer) {
     return <SiteEngineerDashboard user={user} plans={plans} materialRequirements={materialRequirements} mrAllocations={mrAllocations} />;
   }
+  if (showAccountant) {
+    return <AccountantDashboard pos={pos} stats={stats} />;
+  }
   if (showProcurement) {
-    return <AGMDashboard user={user} plans={plans} materialRequirements={materialRequirements} mrAllocations={mrAllocations} planRevisions={planRevisions} pos={pos} quotations={quotations} stats={stats} role={role} />;
+    return <ProcurementDashboard pos={pos} materialRequirements={materialRequirements} stats={stats} quotations={quotations} />;
+  }
+  if (showInventoryManager) {
+    return <InventoryManagerDashboard stats={stats} />;
+  }
+  if (showManager) {
+    return <ManagerDashboard pos={pos} materialRequirements={materialRequirements} stats={stats} />;
+  }
+  if (showStaff) {
+    return <StaffDashboard stats={stats} user={user} />;
   }
   return <AdminDashboard stats={stats} pos={pos} loading={loading} plans={plans} materialRequirements={materialRequirements} planRevisions={planRevisions} settings={settings} />;
 }, "Dashboard");

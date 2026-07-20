@@ -518,12 +518,18 @@ export function POViewModal({ po, onClose, onApproveL1, onApproveL2, onApproveL3
                 <p className="text-white font-black text-[10px] tracking-widest px-4">Approval workflow & signatures</p>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-4 divide-y md:divide-y-0 md:divide-x divide-[#1A365D]">
-                {[
-                  { title: "PURCHASE COORDINATOR", name: settings?.approvers?.purchaseCoord || "Purchase Coordinator", date: po.date, approval: "Initiated", color: "blue" },
-                  { title: "AGM PURCHASE (L1)", name: settings?.approvers?.l1 || "L1 Approver", date: po.approvalL1At, approval: po.approvalL1, status: po.status },
-                  { title: "PROJECT HEAD (L2)", name: settings?.approvers?.l2 || "L2 Approver", date: po.approvalL2At, approval: po.approvalL2, status: po.status },
-                  { title: "DIRECTOR (L3)", name: settings?.approvers?.l3 || "L3 Approver", date: po.approvalL3At, approval: po.approvalL3, status: po.status },
-                ].map((col, i) => (
+                {(() => {
+                  const isRejected = ["Blocked", "rejected"].includes(po.status);
+                  const rejectLevel = isRejected
+                    ? (po.approvalL1 !== "Approved" ? 1 : po.approvalL2 !== "Approved" ? 2 : 3)
+                    : -1;
+                  return [
+                    { title: "PURCHASE COORDINATOR", name: settings?.approvers?.purchaseCoord || "Purchase Coordinator", date: po.date, approval: "Initiated", color: "blue" },
+                    { title: "AGM PURCHASE (L1)", name: settings?.approvers?.l1 || "L1 Approver", date: po.approvalL1At, approval: po.approvalL1 },
+                    { title: "PROJECT HEAD (L2)", name: settings?.approvers?.l2 || "L2 Approver", date: po.approvalL2At, approval: po.approvalL2 },
+                    { title: "DIRECTOR (L3)", name: settings?.approvers?.l3 || "L3 Approver", date: po.approvalL3At, approval: po.approvalL3 },
+                  ].map((col, i) => ({ ...col, stampStatus: col.approval === "Approved" ? "Approved" : (isRejected && i === rejectLevel) ? "rejected" : "pending" }));
+                })().map((col, i) => (
                   <div key={i} className="flex flex-col text-[9px] divide-y divide-[#1A365D]">
                     <div className="p-2 bg-[#1A365D]/10 dark:bg-[#1A365D]/30 font-black text-center border-b border-[#1A365D]">{col.title}</div>
                     <div className="p-2.5 min-h-[35px] flex items-center bg-white dark:bg-gray-900/50">
@@ -539,7 +545,7 @@ export function POViewModal({ po, onClose, onApproveL1, onApproveL2, onApproveL3
                           <span className="text-[7px] text-blue-400 tracking-widest font-bold">Digital auth</span>
                         </div>
                       ) : (
-                        <ApprovalStamp status={col.approval === "Approved" ? "Approved" : col.status === "rejected" ? "rejected" : "pending"} />
+                        <ApprovalStamp status={col.stampStatus} />
                       )}
                     </div>
                   </div>

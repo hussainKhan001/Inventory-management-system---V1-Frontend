@@ -30,7 +30,12 @@ function calcItemTotal(item) {
 const CELL_INPUT = "w-full px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg text-[13px] bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none";
 
 function isPOLocked(po) {
-  return !!(po?.paymentTimelines?.some((pt) => (pt.paid || 0) > 0) || po?.accountStatus === "Processed");
+  return !!(
+    (po?.payment?.amountPaid || 0) > 0 ||
+    po?.accountStatus === "paid" ||
+    po?.accountStatus === "Processed" ||
+    po?.paymentTimelines?.some((pt) => pt.status === "Paid" || (pt.paidAmount || 0) > 0 || (pt.paid || 0) > 0)
+  );
 }
 
 function ChargeBlock({ label, amountKey, gstPctKey, gstTypeKey, po, onChange, gstOptions = GST_PCT_OPTIONS }) {
@@ -64,7 +69,7 @@ function ChargeBlock({ label, amountKey, gstPctKey, gstTypeKey, po, onChange, gs
 }
 
 export function POFormModal({
-  po, isEditing, errors, autoLinking,
+  po, isEditing, itemsLocked, errors, autoLinking,
   onClose, onSubmit, onChange, onMrChange,
   addItem, updateItem, removeItem, linkToInventory, quickAddToInventory,
   companyOptions, mrOptions, vendorOptions, COMPANIES, CATEGORIES, UNITS,
@@ -217,17 +222,8 @@ export function POFormModal({
 
       {/* ── Form content ───────────────────────────────────────────── */}
       <div className="flex-1 px-4 sm:px-6 py-6 pb-24 sm:pb-8">
-        {isEditing && isPOLocked(po) && (
-        <div className="mb-6 p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl flex items-center gap-3">
-          <AlertTriangle className="w-5 h-5 text-amber-500" />
-          <div>
-            <p className="text-[13px] font-bold text-amber-900 dark:text-amber-400">Warning: Active Payments</p>
-            <p className="text-[11px] text-amber-700 dark:text-amber-500">This PO has processed payments. Modifications will reset approval status and require re-approval.</p>
-          </div>
-        </div>
-      )}
 
-      <div className="space-y-8">
+<div className="space-y-8">
         {/* Company + Vendor header grid */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-0 border border-gray-200 dark:border-gray-800 rounded-xl overflow-visible shadow-sm">
           {/* Left: Company */}
@@ -356,7 +352,6 @@ export function POFormModal({
         <div>
           <h3 className="text-[13px] font-bold text-gray-900 dark:text-white mb-3">Line Items</h3>
           {errors.items && <p className="text-[11px] text-red-500 mb-2">{errors.items}</p>}
-
           {/* Item search */}
           <div className="relative mb-4">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -365,7 +360,8 @@ export function POFormModal({
               placeholder="Search inventory to add items..."
               value={searchItem}
               onChange={(e) => setSearchItem(e.target.value)}
-              className="w-full pl-9 pr-4 py-2 border border-gray-200 dark:border-gray-800 rounded-lg text-[13px] focus:outline-none focus:border-orange-500 bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
+              disabled
+              className={cn("w-full pl-9 pr-4 py-2 border border-gray-200 dark:border-gray-800 rounded-lg text-[13px] focus:outline-none focus:border-orange-500 bg-white dark:bg-gray-900 text-gray-900 dark:text-white", "opacity-50 cursor-not-allowed")}
             />
             {searchItem && (
               <div className="absolute z-10 w-full mt-1 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg shadow-lg max-h-48 overflow-y-auto">
@@ -479,24 +475,28 @@ export function POFormModal({
                       <div>
                         <label className="block text-[10px] text-gray-500 dark:text-gray-400 font-semibold mb-1">Condition</label>
                         <select value={item.condition || "New"} onChange={(e) => updateItem(idx, "condition", e.target.value)}
-                          className={CELL_INPUT}>
+                          disabled
+                          className={cn(CELL_INPUT, "opacity-50 cursor-not-allowed")}>
                           {CONDITION_OPTIONS.map((v) => <option key={v} value={v}>{v}</option>)}
                         </select>
                       </div>
                       <div>
                         <label className="block text-[10px] text-gray-500 dark:text-gray-400 font-semibold mb-1">Order Qty</label>
                         <input type="number" value={item.qty ?? 0} onChange={(e) => updateItem(idx, "qty", Number(e.target.value))}
-                          className={cn(CELL_INPUT, "text-center")} />
+                          disabled
+                          className={cn(CELL_INPUT, "text-center", "opacity-50 cursor-not-allowed")} />
                       </div>
                       <div>
                         <label className="block text-[10px] text-gray-500 dark:text-gray-400 font-semibold mb-1">Rate (₹)</label>
                         <input type="number" value={item.rate ?? 0} onChange={(e) => updateItem(idx, "rate", Number(e.target.value))}
-                          className={CELL_INPUT} />
+                          disabled
+                          className={cn(CELL_INPUT, "opacity-50 cursor-not-allowed")} />
                       </div>
                       <div>
                         <label className="block text-[10px] text-gray-500 dark:text-gray-400 font-semibold mb-1">GST %</label>
                         <select value={item.gstPct} onChange={(e) => updateItem(idx, "gstPct", Number(e.target.value))}
-                          className={CELL_INPUT}>
+                          disabled
+                          className={cn(CELL_INPUT, "opacity-50 cursor-not-allowed")}>
                           {gstOptions.map((opt) => <option key={opt.key} value={opt.value}>{opt.label}</option>)}
                         </select>
                       </div>
@@ -504,7 +504,8 @@ export function POFormModal({
                     <div className="mb-3">
                       <label className="block text-[10px] text-gray-500 dark:text-gray-400 font-semibold mb-1">GST Type</label>
                       <select value={item.gstType || "Exclusive"} onChange={(e) => updateItem(idx, "gstType", e.target.value)}
-                        className={cn(CELL_INPUT, "font-semibold")}>
+                        disabled
+                        className={cn(CELL_INPUT, "font-semibold", "opacity-50 cursor-not-allowed")}>
                         {GST_TYPE_OPTIONS.map((v) => <option key={v} value={v}>{v}</option>)}
                       </select>
                     </div>
@@ -627,7 +628,8 @@ export function POFormModal({
                         {/* Condition */}
                         <td className="px-3 py-3">
                           <select value={item.condition || "New"} onChange={(e) => updateItem(idx, "condition", e.target.value)}
-                            className={CELL_INPUT}>
+                            disabled
+                            className={cn(CELL_INPUT, "opacity-50 cursor-not-allowed")}>
                             {CONDITION_OPTIONS.map((v) => <option key={v} value={v}>{v}</option>)}
                           </select>
                         </td>
@@ -635,24 +637,28 @@ export function POFormModal({
                         {/* Order Qty */}
                         <td className="px-3 py-3">
                           <input type="number" value={item.qty ?? 0} onChange={(e) => updateItem(idx, "qty", Number(e.target.value))}
-                            className={cn(CELL_INPUT, "text-center")} />
+                            disabled
+                            className={cn(CELL_INPUT, "text-center", "opacity-50 cursor-not-allowed")} />
                         </td>
 
                         {/* Rate */}
                         <td className="px-3 py-3">
                           <input type="number" value={item.rate ?? 0} onChange={(e) => updateItem(idx, "rate", Number(e.target.value))}
-                            className={CELL_INPUT} />
+                            disabled
+                            className={cn(CELL_INPUT, "opacity-50 cursor-not-allowed")} />
                         </td>
 
                         {/* GST % + GST Type in one cell */}
                         <td className="px-3 py-3">
                           <div className="flex gap-1.5">
                             <select value={item.gstPct} onChange={(e) => updateItem(idx, "gstPct", Number(e.target.value))}
-                              className={cn(CELL_INPUT, "w-[58px] shrink-0")}>
+                              disabled
+                              className={cn(CELL_INPUT, "w-[58px] shrink-0", "opacity-50 cursor-not-allowed")}>
                               {gstOptions.map((opt) => <option key={opt.key} value={opt.value}>{opt.label}</option>)}
                             </select>
                             <select value={item.gstType || "Exclusive"} onChange={(e) => updateItem(idx, "gstType", e.target.value)}
-                              className={cn(CELL_INPUT, "flex-1 min-w-0 font-semibold")}>
+                              disabled
+                              className={cn(CELL_INPUT, "flex-1 min-w-0 font-semibold", "opacity-50 cursor-not-allowed")}>
                               {GST_TYPE_OPTIONS.map((v) => <option key={v} value={v}>{v}</option>)}
                             </select>
                           </div>

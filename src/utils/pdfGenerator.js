@@ -301,12 +301,18 @@ const generatePOPDF = /* @__PURE__ */ __name((po, supplier, settings = {}, retur
     body: [
       [approvers.purchaseCoord || "Purchase Coord", approvers.l1 || "L1 Approver", approvers.l2 || "L2 Approver", approvers.l3 || "L3 Approver"],
       ["Date: " + formatPrettyDate(po.date), "Date: " + (po.approvalL1At ? formatPrettyDate(po.approvalL1At) : "Pending"), "Date: " + (po.approvalL2At ? formatPrettyDate(po.approvalL2At) : "Pending"), "Date: " + (po.approvalL3At ? formatPrettyDate(po.approvalL3At) : "Pending")],
-      [
-        "INVOKE: INITIATED",
-        "L1: " + (po.status === "rejected" ? "REJECTED" : po.approvalL1 || "PENDING"),
-        "L2: " + (po.status === "rejected" ? "REJECTED" : po.approvalL2 || "PENDING"),
-        "L3: " + (po.status === "rejected" ? "REJECTED" : po.approvalL3 || "PENDING")
-      ]
+      (() => {
+        const isRejected = po.status === "Blocked" || po.status === "rejected";
+        const rejectLevel = isRejected
+          ? (po.approvalL1 !== "Approved" ? "L1" : po.approvalL2 !== "Approved" ? "L2" : "L3")
+          : null;
+        return [
+          "INVOKE: INITIATED",
+          "L1: " + (rejectLevel === "L1" ? "REJECTED" : po.approvalL1 || "PENDING"),
+          "L2: " + (rejectLevel === "L2" ? "REJECTED" : po.approvalL2 || "PENDING"),
+          "L3: " + (rejectLevel === "L3" ? "REJECTED" : po.approvalL3 || "PENDING"),
+        ];
+      })()
     ],
     styles: { fontSize: 8, cellPadding: 1.5, lineColor: [220, 220, 220], lineWidth: 0.1 },
     headStyles: { fillColor: [248, 250, 252], textColor: 50, fontStyle: "bold", halign: "center" }

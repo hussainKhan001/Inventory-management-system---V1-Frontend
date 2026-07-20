@@ -105,7 +105,8 @@ const StatusBadge = React.memo(({ status, accountStatus, small }) => {
         {renderBadge(accStatus, accColor)}
       </div>;
   }
-  return renderBadge(statusStr, color);
+  const displayLabel = statusStr === "Blocked" ? "Rejected" : statusStr;
+  return renderBadge(displayLabel, color);
 });
 const Btn = React.memo(({
   label,

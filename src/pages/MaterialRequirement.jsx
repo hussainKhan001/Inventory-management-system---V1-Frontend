@@ -628,17 +628,8 @@ export function MaterialRequirementPage() {
                           <div className="flex flex-wrap gap-2">
                             {req.items.map((item, idx) => {
                               const linkedPO = getItemLinkedPO(item, req);
-                              // fallback: use best MR-level PO when item-level match fails
-                              const effectivePO = linkedPO || (mrPos.length > 0 ? (
-                                mrPos.find(po => po.status === "GRN Pending") ||
-                                mrPos.find(po => po.status === "GRN Variance") ||
-                                mrPos.find(po => po.status === "Ready for Payment") ||
-                                mrPos.find(po => ["GRN Fulfilled","PO Closed","Closed"].includes(po.status)) ||
-                                mrPos.find(po => po.approvalL3 === "Approved") ||
-                                mrPos.find(po => po.approvalL2 === "Approved") ||
-                                mrPos.find(po => po.approvalL1 === "Approved") ||
-                                mrPos[0]
-                              ) : null);
+                              // Only use item-level match — no MR-level fallback so items not in a PO don't show the PO tag
+                              const effectivePO = linkedPO;
                               const poPhase = effectivePO ? getPOPhase(effectivePO) : null;
                               const poPhaseColor = poPhase ? ({
                                 emerald: "text-emerald-600 dark:text-emerald-400",
@@ -862,8 +853,13 @@ export function MaterialRequirementPage() {
                       {mr.items.map((item, idx) => {
                         const isAllocated = ["Allocated", "Issued"].includes(item.status || "");
                         const noSku = !item.sku || item.sku.toUpperCase() === "N/A";
+                        const mrItemName = (item.materialName || "").trim().toLowerCase();
+                        const partialNameMatch = Object.entries(receivedQtyByName).find(([name]) =>
+                          name.startsWith(mrItemName) || mrItemName.startsWith(name)
+                        )?.[1] || 0;
                         const grnReceived = receivedQtyBySku[(item.sku || "").trim()] ||
-                          receivedQtyByName[(item.materialName || "").trim().toLowerCase()] || 0;
+                          receivedQtyByName[mrItemName] ||
+                          partialNameMatch || 0;
                         // Fallback: SKU already received via a GRN on a different PO (stock sitting in inventory)
                         const invItem = inventory.find(i => i.sku === (item.sku || "").trim());
                         const invStock = invItem?.sites?.length

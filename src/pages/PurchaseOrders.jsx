@@ -101,6 +101,18 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
 
   const { projects: PROJECTS, categories: CATEGORIES, units: UNITS } = settings;
 
+  const [activeTab, setActiveTab] = useState("all");
+
+  // Role-first: AGM=L1, Head=L2, Director=L3; other roles fall back to permission check
+  const myApprovalStatus =
+    role === "Director"    ? (hasPermission("APPROVE_PURCHASE_ORDER_L3") ? "Pending L3" : null)
+    : role === "Head"      ? (hasPermission("APPROVE_PURCHASE_ORDER_L2") ? "Pending L2" : null)
+    : role === "AGM"       ? (hasPermission("APPROVE_PURCHASE_ORDER_L1") ? "Pending L1" : null)
+    : hasPermission("APPROVE_PURCHASE_ORDER_L3") ? "Pending L3"
+    : hasPermission("APPROVE_PURCHASE_ORDER_L2") ? "Pending L2"
+    : hasPermission("APPROVE_PURCHASE_ORDER_L1") ? "Pending L1"
+    : null;
+
   const [search, setSearch] = useState("");
 
   const [debouncedSearch, setDebouncedSearch] = useState("");
@@ -113,7 +125,16 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
 
   const [filterSupplier, setFilterSupplier] = useState("");
 
-  const [filterStatus, setFilterStatus] = useState("");
+  const [filterStatus, setFilterStatus] = useState(
+    hasPermission("VIEW_PO_ALL") ? ""
+      : hasPermission("VIEW_PO_L3_ONLY") ? "Pending L3"
+      : hasPermission("VIEW_PO_L2_ONLY") ? "Pending L2"
+      : hasPermission("VIEW_PO_L1_ONLY") ? "Pending L1"
+      : hasPermission("APPROVE_PURCHASE_ORDER_L3") ? "Pending L3"
+      : hasPermission("APPROVE_PURCHASE_ORDER_L2") ? "Pending L2"
+      : hasPermission("APPROVE_PURCHASE_ORDER_L1") ? "Pending L1"
+      : ""
+  );
 
   const [occupiedQuoteIds, setOccupiedQuoteIds] = useState(null);
 
@@ -353,6 +374,13 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
       return { ...po, _supplierName: resolvedName };
     });
   }, [filteredPos, suppliers]);
+
+  const myPendingPos = useMemo(() => {
+    if (!myApprovalStatus) return [];
+    return (resolvedFilteredPos || []).filter((po) => po.status === myApprovalStatus);
+  }, [resolvedFilteredPos, myApprovalStatus]);
+
+  const tableData = activeTab === "my-approvals" ? myPendingPos : resolvedFilteredPos;
 
   const initialPO = {
     mrId: "",
@@ -1522,6 +1550,7 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
       <POFormModal
         po={newPO}
         isEditing={isEditing}
+        itemsLocked={isPOLocked(newPO) && role !== "Super Admin"}
         errors={errors}
         autoLinking={autoLinking}
         onClose={() => {
@@ -1578,6 +1607,31 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
         }
       />{" "}
       {showMonthly && <POMonthlyReport pos={pos} />}{" "}
+
+      {/* Tab switcher */}
+      <div className="flex items-center gap-1 p-1 bg-gray-100 dark:bg-gray-800 rounded-xl w-fit mb-4">
+        <button
+          onClick={() => setActiveTab("all")}
+          className={`px-4 py-2 text-[13px] font-medium rounded-lg transition-all flex items-center gap-1.5 ${activeTab === "all" ? "bg-white dark:bg-gray-700 text-primary shadow-sm" : "text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"}`}
+        >
+          All POs
+          {resolvedFilteredPos.length > 0 && (
+            <span className="px-1.5 py-0.5 bg-emerald-500 text-white rounded-full text-[10px] font-black leading-none">{resolvedFilteredPos.length}</span>
+          )}
+        </button>
+        {myApprovalStatus && (
+          <button
+            onClick={() => setActiveTab("my-approvals")}
+            className={`px-4 py-2 text-[13px] font-medium rounded-lg transition-all flex items-center gap-1.5 ${activeTab === "my-approvals" ? "bg-white dark:bg-gray-700 text-primary shadow-sm" : "text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"}`}
+          >
+            My Pending Approvals
+            {myPendingPos.length > 0 && (
+              <span className="px-1.5 py-0.5 bg-emerald-500 text-white rounded-full text-[10px] font-black leading-none">{myPendingPos.length}</span>
+            )}
+          </button>
+        )}
+      </div>
+
       <div className="mb-6">
         {" "}
         <FilterRow
@@ -1640,7 +1694,7 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
         {" "}
         <TableVirtuoso
           style={{ height: "calc(100vh - 350px)", minHeight: "400px" }}
-          data={resolvedFilteredPos}
+          data={tableData}
           endReached={loadMore}
           fixedHeaderContent={() => {
             const headerClass =
@@ -1726,7 +1780,22 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
                   <StatusBadge
                     status={po.status}
                     accountStatus={po.accountStatus}
-                  />{" "}
+                  />
+                  {po.status === "Pending L1" && settings?.approvers?.l1 && (
+                    <div className="text-[10px] text-gray-400 dark:text-gray-500 mt-0.5 truncate" title={settings.approvers.l1}>
+                      {settings.approvers.l1}
+                    </div>
+                  )}
+                  {po.status === "Pending L2" && settings?.approvers?.l2 && (
+                    <div className="text-[10px] text-gray-400 dark:text-gray-500 mt-0.5 truncate" title={settings.approvers.l2}>
+                      {settings.approvers.l2}
+                    </div>
+                  )}
+                  {po.status === "Pending L3" && settings?.approvers?.l3 && (
+                    <div className="text-[10px] text-gray-400 dark:text-gray-500 mt-0.5 truncate" title={settings.approvers.l3}>
+                      {settings.approvers.l3}
+                    </div>
+                  )}{" "}
                 </Td>
                 <Td className="hidden lg:table-cell px-4 py-3">
                   {" "}

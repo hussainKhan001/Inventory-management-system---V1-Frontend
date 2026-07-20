@@ -264,6 +264,15 @@ const GRNPage = /* @__PURE__ */ __name(() => {
   }, "updateItem");
   const handleCreate = /* @__PURE__ */ __name(async () => {
     if (!validateForm(newGRN)) {
+      const missing = [];
+      if (!newGRN.poId) missing.push("PO");
+      if (!newGRN.store) missing.push("Store / Godown");
+      if (!newGRN.challan) missing.push("Challan No.");
+      if (!newGRN.personName) missing.push("Received By");
+      if (!newGRN.docType) missing.push("Document Type");
+      if (!newGRN.items || newGRN.items.length === 0) missing.push("Items");
+      else if (newGRN.items.every(i => (i.received || 0) === 0)) missing.push("Received Qty");
+      toast.error("Required fields missing: " + missing.join(", "));
       return;
     }
     // Editing an existing receipt/shipment
@@ -597,13 +606,12 @@ const GRNPage = /* @__PURE__ */ __name(() => {
       onClick={(e) => { e.stopPropagation();
         const po = pos.find((p) => p.id === grn.poId);
         if (!po) { toast.error("PO not found"); return; }
-        const prevReceived = getPreviouslyReceived(grn.poId);
-        const outstandingItems = po.items
+        const outstandingItems = (grn.items || [])
           .map((i) => {
-            const poQty = i.qty || 0;
-            const totalReceived = prevReceived[i.sku] || 0;
-            const outstanding = Math.max(0, poQty - totalReceived);
-            return { sku: i.sku, itemName: i.itemName || i.name || "Unknown", poOrdered: poQty, alreadyReceived: totalReceived, ordered: outstanding, received: outstanding, variance: 0, unit: i.unit || "NOS", images: [] };
+            const grnOrdered = i.ordered || 0;
+            const grnReceived = i.received || 0;
+            const outstanding = Math.max(0, grnOrdered - grnReceived);
+            return { sku: i.sku, itemName: i.itemName || i.name || "Unknown", poOrdered: grnOrdered, alreadyReceived: grnReceived, ordered: outstanding, received: outstanding, variance: 0, unit: i.unit || "NOS", images: [] };
           })
           .filter((it) => it.ordered > 0);
         if (outstandingItems.length === 0) { toast.info("All items already fully received"); return; }
