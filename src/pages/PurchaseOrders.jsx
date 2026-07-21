@@ -1126,15 +1126,18 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
     const totalValue =
       itemsTotal + freightTotal + loadingTotal + unloadingTotal;
 
+    let normalizedTimelines = newPO.paymentTimelines;
     if (newPO.paymentTimelines?.length > 0) {
-      const timelinesTotal = newPO.paymentTimelines.reduce(
-        (s, pt) => s + (parseFloat(pt.amount) || 0),
-        0
+      const lastIdx = newPO.paymentTimelines.length - 1;
+      const otherSum = newPO.paymentTimelines.slice(0, lastIdx).reduce((s, pt) => s + (parseFloat(pt.amount) || 0), 0);
+      const lastAmt = Math.max(0, Math.round((totalValue - otherSum) * 100) / 100);
+      normalizedTimelines = newPO.paymentTimelines.map((pt, idx) =>
+        idx === lastIdx ? { ...pt, amount: String(lastAmt), ifPayable: lastAmt } : pt
       );
-      if (Math.abs(timelinesTotal - totalValue) > 0.01) {
-        const diff = totalValue - timelinesTotal;
+      if (otherSum > totalValue + 0.01) {
+        const excess = otherSum - totalValue;
         toast.error(
-          `Payment timelines total (₹${timelinesTotal.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}) does not match Grand Total (₹${totalValue.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}). ${diff > 0 ? `Remaining ₹${diff.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} is unaccounted.` : `Excess of ₹${Math.abs(diff).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} entered.`}`,
+          `Payment entries (₹${otherSum.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}) exceed Grand Total (₹${totalValue.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}). Excess of ₹${excess.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} entered.`,
           { duration: 5000 }
         );
         return;
@@ -1217,7 +1220,7 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
       location: newPO.location,
       vendorBankDetails: newPO.vendorBankDetails,
       deliveryDetails: newPO.deliveryDetails,
-      paymentTimelines: newPO.paymentTimelines,
+      paymentTimelines: normalizedTimelines,
       remark: newPO.remark,
       panNo: newPO.panNo,
       gstNo: newPO.gstNo,

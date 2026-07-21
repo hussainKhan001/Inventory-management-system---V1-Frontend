@@ -150,8 +150,7 @@ export function POFormModal({
     if (needsSync) {
       const pts = po.paymentTimelines.map((pt) => {
         const base = parseFloat(pt.amount) || 0;
-        const ifPayable = itemGstType === "Exclusive" ? base * (1 + itemGstPct / 100) : base;
-        return { ...pt, gstPct: itemGstPct, gstType: itemGstType, ifPayable };
+        return { ...pt, gstPct: itemGstPct, gstType: itemGstType, ifPayable: base };
       });
       onChange({ ...po, paymentTimelines: pts });
     }
@@ -179,10 +178,10 @@ export function POFormModal({
       const lastIdx = prev.paymentTimelines.length - 1;
       const otherSum = prev.paymentTimelines
         .slice(0, lastIdx)
-        .reduce((s, pt) => s + (parseFloat(pt.ifPayable || pt.amount) || 0), 0);
+        .reduce((s, pt) => s + (parseFloat(pt.amount) || 0), 0);
       const remaining = Math.round(Math.max(0, grandTotal - otherSum) * 100) / 100;
       const last = prev.paymentTimelines[lastIdx];
-      if (Math.abs((parseFloat(last.ifPayable) || 0) - remaining) <= 0.01) return prev;
+      if (Math.abs((parseFloat(last.amount) || 0) - remaining) <= 0.01) return prev;
       const pts = [...prev.paymentTimelines];
       pts[lastIdx] = { ...last, ifPayable: remaining, amount: String(remaining) };
       return { ...prev, paymentTimelines: pts };
@@ -192,6 +191,12 @@ export function POFormModal({
   const updateTimeline = (idx, partial) => {
     const pts = [...(po.paymentTimelines || [])];
     pts[idx] = { ...pts[idx], ...partial };
+    const lastIdx = pts.length - 1;
+    if (idx !== lastIdx && lastIdx >= 0) {
+      const otherSum = pts.slice(0, lastIdx).reduce((s, p) => s + (parseFloat(p.amount) || 0), 0);
+      const remaining = Math.round(Math.max(0, grandTotal - otherSum) * 100) / 100;
+      pts[lastIdx] = { ...pts[lastIdx], amount: String(remaining), ifPayable: remaining };
+    }
     set({ paymentTimelines: pts });
   };
 
@@ -805,11 +810,11 @@ export function POFormModal({
                   const timelines = po.paymentTimelines || [];
                   const isLast = idx === timelines.length - 1;
                   const otherSum = isLast
-                    ? timelines.slice(0, idx).reduce((s, p) => s + (parseFloat(p.ifPayable || p.amount) || 0), 0)
+                    ? timelines.slice(0, idx).reduce((s, p) => s + (parseFloat(p.amount) || 0), 0)
                     : 0;
                   const displayIfPayable = isLast
                     ? Math.max(0, Math.round((grandTotal - otherSum) * 100) / 100)
-                    : parseFloat(pt.ifPayable || pt.amount) || 0;
+                    : parseFloat(pt.amount) || 0;
                   return (
                     <tr key={idx} className="border-t border-[#1A365D]/20 hover:bg-[#1A365D]/5">
                       <td className="p-1.5 border-r border-[#1A365D]/20">
@@ -829,9 +834,7 @@ export function POFormModal({
                           onChange={(e) => {
                             const raw = e.target.value.replace(/[^0-9.]/g, "");
                             const val = parseFloat(raw) || 0;
-                            const norm = normalizeTimelineGST(pt);
-                            const ifPayable = norm.gstType === "Exclusive" ? val * (1 + norm.gstPct / 100) : val;
-                            updateTimeline(idx, { amount: raw, ifPayable });
+                            updateTimeline(idx, { amount: raw, ifPayable: val });
                           }} />
                       </td>
                       <td className="p-1.5 border-r border-[#1A365D]/20 text-right text-[12px] font-bold text-emerald-600 dark:text-emerald-400 min-w-[80px]">

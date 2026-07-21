@@ -103,17 +103,17 @@ const Profile = /* @__PURE__ */ __name(() => {
     label="Current Password"
     type={showPasswords ? "text" : "password"}
     value={passForm.current}
-    onChange={(e) => setPassForm({ ...passForm, current: e.target.value })}
+    onChange={(e) => setPassForm((prev) => ({ ...prev, current: e.target.value }))}
     placeholder="Enter current password"
     required
   />
-                
+
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                   <Field
     label="New Password"
     type={showPasswords ? "text" : "password"}
     value={passForm.new}
-    onChange={(e) => setPassForm({ ...passForm, new: e.target.value })}
+    onChange={(e) => setPassForm((prev) => ({ ...prev, new: e.target.value }))}
     placeholder="Min 6 characters"
     required
   />
@@ -121,7 +121,7 @@ const Profile = /* @__PURE__ */ __name(() => {
     label="Confirm New Password"
     type={showPasswords ? "text" : "password"}
     value={passForm.confirm}
-    onChange={(e) => setPassForm({ ...passForm, confirm: e.target.value })}
+    onChange={(e) => setPassForm((prev) => ({ ...prev, confirm: e.target.value }))}
     placeholder="Repeat new password"
     required
   />
