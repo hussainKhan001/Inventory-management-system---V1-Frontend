@@ -226,7 +226,7 @@ export function MRFormModal({ open, isEditing, initialData, onClose, onSuccess }
       try {
         await updateMaterialRequirement(form.id, {
           ...form, items: checkedItems,
-          status: allInStock ? "Approved by Store" : "Store Pending",
+          status: "Store Pending",
         });
         onClose();
       } catch (err) { console.error("Update failed:", err); }
@@ -242,7 +242,7 @@ export function MRFormModal({ open, isEditing, initialData, onClose, onSuccess }
       workType: form.workType || "",
       requirementDate: form.requirementDate || todayStr(),
       date: new Date().toISOString(),
-      status: allInStock ? "Approved by Store" : "Store Pending",
+      status: "Store Pending",
       items: checkedItems,
     };
     try {

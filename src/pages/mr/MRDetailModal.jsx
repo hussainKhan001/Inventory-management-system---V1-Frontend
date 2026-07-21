@@ -165,18 +165,12 @@ export function MRDetailModal({ requirement, onClose, onRequirementUpdate }) {
         }
         return { ...item, sku: invItem?.sku || item.sku || "N/A", availableInStock, remainingQty, status };
       }));
-      const allInStock = checkedItems.length > 0 && checkedItems.every(i => i.status === "In Stock");
       const updated = await updateMaterialRequirement(req.id, {
-        ...req, items: checkedItems, status: allInStock ? "Approved by Store" : req.status,
+        ...req, items: checkedItems, status: req.status,
       });
-      if (updated?.status === "Approved by Store" && req.status === "Store Pending") {
-        toast.success("All items found in stock! Requirement approved by Store.", { id: "recheck", duration: 5000 });
-        onClose();
-      } else {
-        toast.success("Inventory levels updated", { id: "recheck" });
-        setReq(updated);
-        onRequirementUpdate?.(updated);
-      }
+      toast.success("Inventory levels updated", { id: "recheck" });
+      setReq(updated);
+      onRequirementUpdate?.(updated);
     } catch (e) { toast.error("Recheck failed: " + e.message, { id: "recheck" }); }
   };
 
@@ -200,7 +194,7 @@ export function MRDetailModal({ requirement, onClose, onRequirementUpdate }) {
                       toast.loading("Saving changes...", { id: "save-mr" });
                       const allInStock = req.items.length > 0 && req.items.every(i => i.status === "In Stock");
                       await updateMaterialRequirement(req.id, {
-                        ...req, status: allInStock ? "Approved by Store" : "Store Pending",
+                        ...req, status: "Store Pending",
                       });
                       toast.success("Requirement saved successfully", { id: "save-mr" });
                       onClose();
@@ -309,8 +303,8 @@ export function MRDetailModal({ requirement, onClose, onRequirementUpdate }) {
                           return;
                         }
                         try {
-                          await updateMaterialRequirement(req.id, { ...req, status: "Approved by Store" });
-                          toast.success("Requirement approved by Store.");
+                          await updateMaterialRequirement(req.id, { ...req, status: "Quotation Phase" });
+                          toast.success("Requirement approved by Store — moved to Quotation Phase.");
                           onClose();
                         } catch (e) { toast.error("Failed to approve: " + e.message); }
                       }}
@@ -325,7 +319,7 @@ export function MRDetailModal({ requirement, onClose, onRequirementUpdate }) {
                 }
                 return null;
               })()}
-              {["Approved by Store", "Quotation Phase", "Approved by AGM"].includes(req.status) &&
+              {["Quotation Phase", "Approved by AGM"].includes(req.status) &&
                 !isMRLocked(req.id) &&
                 (hasPermission("REVISE_MR") || hasPermission("MANAGE_INVENTORY")) && (
                 <button
@@ -709,7 +703,7 @@ export function MRDetailModal({ requirement, onClose, onRequirementUpdate }) {
                                   it.status = alloc >= it.qty ? "In Stock" : alloc > 0 ? "Partial" : "Needs Purchase";
                                 });
                                 const allInStock = items.length > 0 && items.every(i => i.status === "In Stock");
-                                await updateMaterialRequirement(req.id, { ...req, items, status: allInStock ? "Approved by Store" : "Store Pending" });
+                                await updateMaterialRequirement(req.id, { ...req, items, status: req.status });
                                 toast.success("Requirement updated & saved");
                               } catch (e) { toast.error(e?.message || "Update failed"); }
                             }}
@@ -854,7 +848,7 @@ export function MRDetailModal({ requirement, onClose, onRequirementUpdate }) {
                             it.status = alloc >= it.qty ? "In Stock" : alloc > 0 ? "Partial" : "Needs Purchase";
                           });
                           const allInStock = items.length > 0 && items.every(i => i.status === "In Stock");
-                          await updateMaterialRequirement(req.id, { ...req, items, status: allInStock ? "Approved by Store" : "Store Pending" });
+                          await updateMaterialRequirement(req.id, { ...req, items, status: req.status });
                           toast.success("Saved");
                         } catch (e) { toast.error("Failed"); }
                       }}
