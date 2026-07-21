@@ -1,8 +1,8 @@
 var __defProp = Object.defineProperty;
 var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useAppStore } from "../store";
-import { PageHeader, Card, Btn, Field } from "../components/ui";
+import { PageHeader, Card, Btn, Field, CustomDropdown } from "../components/ui";
 import { FormBuilder } from "../components/FormBuilder";
 import {
   Settings as SettingsIcon,
@@ -170,6 +170,8 @@ const SettingsPage = /* @__PURE__ */ __name(() => {
     gstRates,
     addGSTRate,
     removeGSTRate,
+    users,
+    fetchUsers,
   } = useAppStore();
   const isSuperAdmin = role === "Super Admin";
   const [activeTab, setActiveTab] = useState("branding");
@@ -184,6 +186,10 @@ const SettingsPage = /* @__PURE__ */ __name(() => {
   };
   const [slaForm, setSlaForm] = useState(() => ({ ...defaultSlaConfig, ...(settings.slaConfig || {}) }));
   const mergeSlaForm = (patch) => setSlaForm((prev) => ({ ...prev, ...patch }));
+
+  useEffect(() => {
+    if (activeTab === "approvers" && !users.length) fetchUsers();
+  }, [activeTab]);
   const toggleWorkingDay = (day) => setSlaForm((prev) => ({
     ...prev,
     workingDays: prev.workingDays.includes(day)
@@ -722,22 +728,44 @@ const SettingsPage = /* @__PURE__ */ __name(() => {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className={`space-y-4 ${!isSuperAdmin ? "opacity-60 pointer-events-none" : ""}`}>
-              <Field
-    label="Purchase Coordinator (Initiator)"
-    placeholder="e.g. Vijay Kushwah"
-    value={settings.approvers?.purchaseCoord || ""}
-    onChange={(e) => isSuperAdmin && setSettings({ ...settings, approvers: { ...settings.approvers, purchaseCoord: e.target.value } })}
-    disabled={!isSuperAdmin}
-  />
+              <div>
+                <label className="block text-[11px] font-bold text-gray-500 dark:text-gray-400 tracking-widest mb-1.5">Purchase Coordinator (Initiator)</label>
+                <CustomDropdown
+                  options={users.filter((u) => u.isActive !== false).map((u) => ({ value: u._id, label: `${u.name}${u.role ? ` · ${u.role}` : ""}` }))}
+                  value={settings.approvers?.purchaseCoordId || ""}
+                  placeholder="— Select coordinator —"
+                  disabled={!isSuperAdmin}
+                  onChange={(selectedId) => {
+                    if (!isSuperAdmin) return;
+                    const u = users.find((usr) => usr._id === selectedId);
+                    const title = (u?.designation || u?.role || "").toUpperCase();
+                    setSettings({ ...settings, approvers: { ...settings.approvers, purchaseCoord: u?.name || "", purchaseCoordId: selectedId, purchaseCoordTitle: title } });
+                  }}
+                />
+                {!settings.approvers?.purchaseCoordId && settings.approvers?.purchaseCoord && (
+                  <p className="text-[10px] text-amber-500 dark:text-amber-400 mt-1">Currently: "{settings.approvers.purchaseCoord}" — select a user to enable dynamic permissions</p>
+                )}
+              </div>
               {/* L1 */}
               <div className="space-y-1.5">
-                <Field
-    label="L1 Approver — AGM Purchase"
-    placeholder="e.g. Akhilesh Singh"
-    value={settings.approvers?.l1 || ""}
-    onChange={(e) => isSuperAdmin && setSettings({ ...settings, approvers: { ...settings.approvers, l1: e.target.value } })}
-    disabled={!isSuperAdmin}
-  />
+                <div>
+                  <label className="block text-[11px] font-bold text-gray-500 dark:text-gray-400 tracking-widest mb-1.5">L1 Approver — AGM Purchase</label>
+                  <CustomDropdown
+                    options={users.filter((u) => u.isActive !== false).map((u) => ({ value: u._id, label: `${u.name}${u.role ? ` · ${u.role}` : ""}` }))}
+                    value={settings.approvers?.l1Id || ""}
+                    placeholder="— Select approver —"
+                    disabled={!isSuperAdmin}
+                    onChange={(selectedId) => {
+                      if (!isSuperAdmin) return;
+                      const u = users.find((usr) => usr._id === selectedId);
+                      const title = (u?.designation || u?.role || "").toUpperCase();
+                      setSettings({ ...settings, approvers: { ...settings.approvers, l1: u?.name || "", l1Id: selectedId, l1Title: title } });
+                    }}
+                  />
+                  {!settings.approvers?.l1Id && settings.approvers?.l1 && (
+                    <p className="text-[10px] text-amber-500 dark:text-amber-400 mt-1">Currently: "{settings.approvers.l1}" — select a user to enable dynamic permissions</p>
+                  )}
+                </div>
                 <label className="flex items-center justify-between px-1 cursor-pointer select-none">
                   <span className="text-[11px] font-bold text-gray-500 dark:text-gray-400">Bypass L1 Approval</span>
                   <button
@@ -751,13 +779,24 @@ const SettingsPage = /* @__PURE__ */ __name(() => {
               </div>
               {/* L2 */}
               <div className="space-y-1.5">
-                <Field
-    label="L2 Approver — Project Head / Manager"
-    placeholder="e.g. Jinesh Jain"
-    value={settings.approvers?.l2 || ""}
-    onChange={(e) => isSuperAdmin && setSettings({ ...settings, approvers: { ...settings.approvers, l2: e.target.value } })}
-    disabled={!isSuperAdmin}
-  />
+                <div>
+                  <label className="block text-[11px] font-bold text-gray-500 dark:text-gray-400 tracking-widest mb-1.5">L2 Approver — Project Head / Manager</label>
+                  <CustomDropdown
+                    options={users.filter((u) => u.isActive !== false).map((u) => ({ value: u._id, label: `${u.name}${u.role ? ` · ${u.role}` : ""}` }))}
+                    value={settings.approvers?.l2Id || ""}
+                    placeholder="— Select approver —"
+                    disabled={!isSuperAdmin}
+                    onChange={(selectedId) => {
+                      if (!isSuperAdmin) return;
+                      const u = users.find((usr) => usr._id === selectedId);
+                      const title = (u?.designation || u?.role || "").toUpperCase();
+                      setSettings({ ...settings, approvers: { ...settings.approvers, l2: u?.name || "", l2Id: selectedId, l2Title: title } });
+                    }}
+                  />
+                  {!settings.approvers?.l2Id && settings.approvers?.l2 && (
+                    <p className="text-[10px] text-amber-500 dark:text-amber-400 mt-1">Currently: "{settings.approvers.l2}" — select a user to enable dynamic permissions</p>
+                  )}
+                </div>
                 <label className="flex items-center justify-between px-1 cursor-pointer select-none">
                   <span className="text-[11px] font-bold text-gray-500 dark:text-gray-400">Bypass L2 Approval</span>
                   <button
@@ -771,13 +810,24 @@ const SettingsPage = /* @__PURE__ */ __name(() => {
               </div>
               {/* L3 */}
               <div className="space-y-1.5">
-                <Field
-    label="L3 Approver — Director (Final Sign-off)"
-    placeholder="e.g. Rahul Gupta"
-    value={settings.approvers?.l3 || ""}
-    onChange={(e) => isSuperAdmin && setSettings({ ...settings, approvers: { ...settings.approvers, l3: e.target.value } })}
-    disabled={!isSuperAdmin}
-  />
+                <div>
+                  <label className="block text-[11px] font-bold text-gray-500 dark:text-gray-400 tracking-widest mb-1.5">L3 Approver — Director (Final Sign-off)</label>
+                  <CustomDropdown
+                    options={users.filter((u) => u.isActive !== false).map((u) => ({ value: u._id, label: `${u.name}${u.role ? ` · ${u.role}` : ""}` }))}
+                    value={settings.approvers?.l3Id || ""}
+                    placeholder="— Select approver —"
+                    disabled={!isSuperAdmin}
+                    onChange={(selectedId) => {
+                      if (!isSuperAdmin) return;
+                      const u = users.find((usr) => usr._id === selectedId);
+                      const title = (u?.designation || u?.role || "").toUpperCase();
+                      setSettings({ ...settings, approvers: { ...settings.approvers, l3: u?.name || "", l3Id: selectedId, l3Title: title } });
+                    }}
+                  />
+                  {!settings.approvers?.l3Id && settings.approvers?.l3 && (
+                    <p className="text-[10px] text-amber-500 dark:text-amber-400 mt-1">Currently: "{settings.approvers.l3}" — select a user to enable dynamic permissions</p>
+                  )}
+                </div>
                 <label className="flex items-center justify-between px-1 cursor-pointer select-none">
                   <span className="text-[11px] font-bold text-gray-500 dark:text-gray-400">Bypass L3 Approval</span>
                   <button

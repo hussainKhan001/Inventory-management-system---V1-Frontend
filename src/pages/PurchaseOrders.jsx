@@ -86,6 +86,7 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
     patchPoInStore,
     deletePO,
     role,
+    user,
     inventory,
     grns,
     suppliers,
@@ -97,17 +98,22 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
     hasPermission,
   } = useAppStore();
 
+  const uid = user?._id;
+  const isL1Approver = uid && settings?.approvers?.l1Id && uid === settings.approvers.l1Id;
+  const isL2Approver = uid && settings?.approvers?.l2Id && uid === settings.approvers.l2Id;
+  const isL3Approver = uid && settings?.approvers?.l3Id && uid === settings.approvers.l3Id;
+
   const COMPANIES = settings.companies || [];
 
   const { projects: PROJECTS, categories: CATEGORIES, units: UNITS } = settings;
 
   const [activeTab, setActiveTab] = useState("all");
 
-  // Role-first: AGM=L1, Head=L2, Director=L3; other roles fall back to permission check
+  // Role-first: AGM=L1, Head=L2, Director=L3; dynamic approver from Settings takes priority
   const myApprovalStatus =
-    role === "Director"    ? (hasPermission("APPROVE_PURCHASE_ORDER_L3") ? "Pending L3" : null)
-    : role === "Head"      ? (hasPermission("APPROVE_PURCHASE_ORDER_L2") ? "Pending L2" : null)
-    : role === "AGM"       ? (hasPermission("APPROVE_PURCHASE_ORDER_L1") ? "Pending L1" : null)
+    isL3Approver || (role === "Director" && hasPermission("APPROVE_PURCHASE_ORDER_L3")) ? "Pending L3"
+    : isL2Approver || (role === "Head" && hasPermission("APPROVE_PURCHASE_ORDER_L2")) ? "Pending L2"
+    : isL1Approver || (role === "AGM" && hasPermission("APPROVE_PURCHASE_ORDER_L1")) ? "Pending L1"
     : hasPermission("APPROVE_PURCHASE_ORDER_L3") ? "Pending L3"
     : hasPermission("APPROVE_PURCHASE_ORDER_L2") ? "Pending L2"
     : hasPermission("APPROVE_PURCHASE_ORDER_L1") ? "Pending L1"
@@ -130,9 +136,9 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
       : hasPermission("VIEW_PO_L3_ONLY") ? "Pending L3"
       : hasPermission("VIEW_PO_L2_ONLY") ? "Pending L2"
       : hasPermission("VIEW_PO_L1_ONLY") ? "Pending L1"
-      : hasPermission("APPROVE_PURCHASE_ORDER_L3") ? "Pending L3"
-      : hasPermission("APPROVE_PURCHASE_ORDER_L2") ? "Pending L2"
-      : hasPermission("APPROVE_PURCHASE_ORDER_L1") ? "Pending L1"
+      : isL3Approver || hasPermission("APPROVE_PURCHASE_ORDER_L3") ? "Pending L3"
+      : isL2Approver || hasPermission("APPROVE_PURCHASE_ORDER_L2") ? "Pending L2"
+      : isL1Approver || hasPermission("APPROVE_PURCHASE_ORDER_L1") ? "Pending L1"
       : ""
   );
 

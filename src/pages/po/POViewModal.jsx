@@ -35,7 +35,28 @@ function ApprovalStamp({ status, label }) {
 
 
 export function POViewModal({ po, onClose, onApproveL1, onApproveL2, onApproveL3, onReject, onCancelApproved, onDownloadPDF, processingId }) {
-  const { suppliers, settings, role, hasPermission, updatePO, patchPoInStore, actionLoading, grns } = useAppStore();
+  const { suppliers, settings, role, hasPermission, user, updatePO, patchPoInStore, actionLoading, grns } = useAppStore();
+  const uid = user?._id;
+  const isL1Approver = uid && settings?.approvers?.l1Id && uid === settings.approvers.l1Id;
+  const isL2Approver = uid && settings?.approvers?.l2Id && uid === settings.approvers.l2Id;
+  const isL3Approver = uid && settings?.approvers?.l3Id && uid === settings.approvers.l3Id;
+
+  const TERMINAL_STATUSES = ["Approved", "Cancelled", "Blocked", "Rejected", "PO Closed", "GRN Pending", "Pending GRN", "GRN Fulfilled", "GRN Variance", "Ready for Payment", "Fulfilled"];
+  const LEGACY_APPROVER_DEFAULTS = {
+    purchaseCoord: "Vijay Kushwah", purchaseCoordTitle: "PURCHASE COORDINATOR",
+    l1: "Akhilesh Singh", l1Title: "AGM",
+    l2: "Jinesh Jain", l2Title: "PM",
+    l3: "Rahul Gupta", l3Title: "DIRECTOR",
+  };
+  const isCompleted = TERMINAL_STATUSES.includes(po.status);
+  const approverNames = !isCompleted
+    ? (settings?.approvers || {})
+    : (po.approverSnapshot || LEGACY_APPROVER_DEFAULTS);
+
+  const getApproverTitle = (storedTitle, level, fallback) => {
+    if (!storedTitle) return fallback;
+    return level ? `${storedTitle} (${level})` : storedTitle;
+  };
   const [editTimelines, setEditTimelines] = useState(false);
   const [draftTimelines, setDraftTimelines] = useState([]);
   const [showCloseConfirm, setShowCloseConfirm] = useState(false);
@@ -211,9 +232,9 @@ export function POViewModal({ po, onClose, onApproveL1, onApproveL2, onApproveL3
       )}
 
       <div className="flex items-center gap-3 flex-wrap ml-auto">
-        {po.status === "Pending L1" && hasPermission("APPROVE_PURCHASE_ORDER_L1") && <Btn label="Approve L1" color="green" disabled={isOnHold} onClick={() => onApproveL1(po.id)} loading={processingId === `approve-${po.id}`} />}
-        {po.status === "Pending L2" && hasPermission("APPROVE_PURCHASE_ORDER_L2") && <Btn label="Approve L2" color="green" disabled={isOnHold} onClick={() => onApproveL2(po.id)} loading={processingId === `approve-${po.id}`} />}
-        {po.status === "Pending L3" && hasPermission("APPROVE_PURCHASE_ORDER_L3") && <Btn label="Approve L3 (Director)" color="green" disabled={isOnHold} onClick={() => onApproveL3(po.id)} loading={processingId === `approve-${po.id}`} />}
+        {po.status === "Pending L1" && (hasPermission("APPROVE_PURCHASE_ORDER_L1") || isL1Approver) && <Btn label="Approve L1" color="green" disabled={isOnHold} onClick={() => onApproveL1(po.id)} loading={processingId === `approve-${po.id}`} />}
+        {po.status === "Pending L2" && (hasPermission("APPROVE_PURCHASE_ORDER_L2") || isL2Approver) && <Btn label="Approve L2" color="green" disabled={isOnHold} onClick={() => onApproveL2(po.id)} loading={processingId === `approve-${po.id}`} />}
+        {po.status === "Pending L3" && (hasPermission("APPROVE_PURCHASE_ORDER_L3") || isL3Approver) && <Btn label="Approve L3 (Director)" color="green" disabled={isOnHold} onClick={() => onApproveL3(po.id)} loading={processingId === `approve-${po.id}`} />}
         {["Pending L1", "Pending L2", "Pending L3"].includes(po.status || "") && hasPermission("REJECT_PURCHASE_ORDER") && (
           <Btn label="Reject PO" color="red" disabled={isOnHold} onClick={() => onReject(po.id)} loading={processingId === `reject-${po.id}`} />
         )}
@@ -544,10 +565,10 @@ export function POViewModal({ po, onClose, onApproveL1, onApproveL2, onApproveL3
                     ? (po.approvalL1 !== "Approved" ? 1 : po.approvalL2 !== "Approved" ? 2 : 3)
                     : -1;
                   return [
-                    { title: "PURCHASE COORDINATOR", name: settings?.approvers?.purchaseCoord || "Purchase Coordinator", date: po.date, approval: "Initiated", color: "blue" },
-                    { title: "AGM PURCHASE (L1)", name: settings?.approvers?.l1 || "L1 Approver", date: po.approvalL1At, approval: po.approvalL1 },
-                    { title: "PROJECT HEAD (L2)", name: settings?.approvers?.l2 || "L2 Approver", date: po.approvalL2At, approval: po.approvalL2 },
-                    { title: "DIRECTOR (L3)", name: settings?.approvers?.l3 || "L3 Approver", date: po.approvalL3At, approval: po.approvalL3 },
+                    { title: getApproverTitle(approverNames.purchaseCoordTitle, null, "PURCHASE COORDINATOR"), name: approverNames.purchaseCoord || "Purchase Coordinator", date: po.date, approval: "Initiated", color: "blue" },
+                    { title: getApproverTitle(approverNames.l1Title, "L1", "AGM PURCHASE (L1)"), name: approverNames.l1 || "L1 Approver", date: po.approvalL1At, approval: po.approvalL1 },
+                    { title: getApproverTitle(approverNames.l2Title, "L2", "PROJECT HEAD (L2)"), name: approverNames.l2 || "L2 Approver", date: po.approvalL2At, approval: po.approvalL2 },
+                    { title: getApproverTitle(approverNames.l3Title, "L3", "DIRECTOR (L3)"), name: approverNames.l3 || "L3 Approver", date: po.approvalL3At, approval: po.approvalL3 },
                   ].map((col, i) => ({ ...col, stampStatus: col.approval === "Approved" ? "Approved" : (isRejected && i === rejectLevel) ? "rejected" : "pending" }));
                 })().map((col, i) => (
                   <div key={i} className="flex flex-col text-[9px] divide-y divide-[#1A365D]">

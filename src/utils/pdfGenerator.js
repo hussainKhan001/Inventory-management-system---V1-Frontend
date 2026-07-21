@@ -300,11 +300,26 @@ const generatePOPDF = /* @__PURE__ */ __name((po, supplier, settings = {}, retur
   doc.setFontSize(9.5);
   doc.text("APPROVALS & AUTHORIZATION", 105, y + 5.5, { align: "center" });
   y += 8;
-  const approvers = settings.approvers || {};
+  const TERMINAL_STATUSES = ["Approved", "Cancelled", "Blocked", "Rejected", "PO Closed", "GRN Pending", "Pending GRN", "GRN Fulfilled", "GRN Variance", "Ready for Payment", "Fulfilled"];
+  const LEGACY_APPROVER_DEFAULTS = {
+    purchaseCoord: "Vijay Kushwah", purchaseCoordTitle: "PURCHASE COORDINATOR",
+    l1: "Akhilesh Singh", l1Title: "AGM",
+    l2: "Jinesh Jain", l2Title: "PM",
+    l3: "Rahul Gupta", l3Title: "DIRECTOR",
+  };
+  const _isCompleted = TERMINAL_STATUSES.includes(po.status);
+  const approvers = !_isCompleted
+    ? (settings.approvers || {})
+    : (po.approverSnapshot || LEGACY_APPROVER_DEFAULTS);
   autoTable(doc, {
     startY: y,
     margin: { left: 10, right: 10 },
-    head: [["PURCHASE COORD", "AGM (L1)", "PM / HEAD (L2)", "DIRECTOR (L3)"]],
+    head: [[
+      approvers.purchaseCoordTitle || "PURCHASE COORD",
+      approvers.l1Title ? `${approvers.l1Title} (L1)` : "AGM (L1)",
+      approvers.l2Title ? `${approvers.l2Title} (L2)` : "PM / HEAD (L2)",
+      approvers.l3Title ? `${approvers.l3Title} (L3)` : "DIRECTOR (L3)",
+    ]],
     body: [
       [approvers.purchaseCoord || "Purchase Coord", approvers.l1 || "L1 Approver", approvers.l2 || "L2 Approver", approvers.l3 || "L3 Approver"],
       ["Date: " + formatPrettyDate(po.date), "Date: " + (po.approvalL1At ? formatPrettyDate(po.approvalL1At) : "Pending"), "Date: " + (po.approvalL2At ? formatPrettyDate(po.approvalL2At) : "Pending"), "Date: " + (po.approvalL3At ? formatPrettyDate(po.approvalL3At) : "Pending")],
@@ -366,7 +381,162 @@ const generatePOPDF = /* @__PURE__ */ __name((po, supplier, settings = {}, retur
 const generatePOPDFBlob = /* @__PURE__ */ __name((po, supplier, settings = {}) =>
   generatePOPDF(po, supplier, settings, true),
 "generatePOPDFBlob");
+
+const generateGRNPDF = /* @__PURE__ */ __name((grn, supplier) => {
+  const doc = new jsPDF({ orientation: "p", unit: "mm", format: "a4" });
+  const pc = [26, 54, 93];
+  const fmtDate = (d) => {
+    if (!d) return "N/A";
+    try { return new Intl.DateTimeFormat("en-IN", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }).format(new Date(d)); }
+    catch { return String(d); }
+  };
+
+  let y = 8;
+  const checkPage = (h) => { if (y + h > 285) { doc.addPage(); y = 8; } };
+
+  // ── Header ──
+  doc.setFillColor(pc[0], pc[1], pc[2]);
+  doc.rect(10, y, 190, 10, "F");
+  doc.setTextColor(255);
+  doc.setFontSize(13);
+  doc.setFont("helvetica", "bold");
+  doc.text("GOODS RECEIPT NOTE", 105, y + 7, { align: "center" });
+  y += 10;
+
+  // ── Info rows ──
+  const rowH = 7;
+  const c1 = 10, c2 = 52, c3 = 110, c4 = 152;
+  const drawRow = (l1, v1, l2, v2) => {
+    checkPage(rowH);
+    doc.setFontSize(8);
+    doc.setFillColor(248, 250, 252);
+    doc.rect(c1, y, 42, rowH, "FD");
+    doc.rect(c2, y, 58, rowH, "D");
+    doc.rect(c3, y, 42, rowH, "FD");
+    doc.rect(c4, y, 48, rowH, "D");
+    doc.setTextColor(80); doc.setFont("helvetica", "bold");
+    doc.text(String(l1).toUpperCase(), c1 + 2, y + 4.8);
+    doc.setTextColor(0); doc.setFont("helvetica", "normal");
+    doc.text(safeStr(v1), c2 + 2, y + 4.8, { maxWidth: 54 });
+    doc.setTextColor(80); doc.setFont("helvetica", "bold");
+    doc.text(String(l2).toUpperCase(), c3 + 2, y + 4.8);
+    doc.setTextColor(0);
+    doc.text(safeStr(v2), c4 + 2, y + 4.8, { maxWidth: 44 });
+    y += rowH;
+  };
+
+  const vendorName = supplier ? (supplier.companyName || supplier.name || supplierId) : (grn.vendor || grn.supplier || "N/A");
+  const supplierId = grn.vendor || grn.supplier || "";
+  const vendorGST  = supplier ? (supplier.gstNumber || supplier.gst || "N/A") : "N/A";
+
+  drawRow("GRN No.",     grn.id,              "Vendor Name",  vendorName);
+  drawRow("PO Ref.",     grn.poId || "N/A",   "Vendor GST",   vendorGST);
+  drawRow("MR Ref.",     grn.mrNo || "N/A",   "Receipt Date", fmtDate(grn.date));
+  drawRow("Project/Site",grn.project || "N/A","Challan / Inv", grn.challan || "N/A");
+  drawRow("Store",       grn.store || "N/A",  "Received By",  grn.personName || "N/A");
+
+  y += 3;
+
+  // ── Items table ──
+  checkPage(16);
+  doc.setFillColor(pc[0], pc[1], pc[2]);
+  doc.rect(10, y, 190, 8, "F");
+  doc.setTextColor(255); doc.setFontSize(9.5);
+  doc.text("RECEIVED MATERIALS", 105, y + 5.5, { align: "center" });
+  y += 8;
+
+  autoTable(doc, {
+    startY: y,
+    margin: { left: 10, right: 10 },
+    head: [["#", "MATERIAL DESCRIPTION", "SKU", "ORDERED", "RECEIVED", "VARIANCE", "UNIT"]],
+    body: (grn.items || []).map((item, i) => {
+      const ordered  = item.ordered  || 0;
+      const received = item.received || 0;
+      const variance = received - ordered;
+      return [
+        i + 1,
+        item.itemName || item.name || item.material || "—",
+        item.sku || "—",
+        ordered,
+        received,
+        variance === 0 ? "0" : (variance > 0 ? `+${variance}` : String(variance)),
+        item.unit || "—",
+      ];
+    }),
+    styles: { fontSize: 8.5, cellPadding: 1.8, lineColor: [220, 220, 220], lineWidth: 0.1 },
+    headStyles: { fillColor: [pc[0], pc[1], pc[2]], textColor: 255, fontStyle: "bold" },
+    columnStyles: {
+      0: { cellWidth: 8,  halign: "center" },
+      3: { cellWidth: 20, halign: "center" },
+      4: { cellWidth: 22, halign: "center", fontStyle: "bold" },
+      5: { cellWidth: 22, halign: "center" },
+      6: { cellWidth: 18, halign: "center" },
+    },
+  });
+  y = doc.lastAutoTable.finalY + 4;
+
+  // ── Delivery history (multi-shipment) ──
+  if (grn.receipts && grn.receipts.length > 0) {
+    checkPage(16);
+    doc.setFillColor(pc[0], pc[1], pc[2]);
+    doc.rect(10, y, 190, 8, "F");
+    doc.setTextColor(255); doc.setFontSize(9.5);
+    doc.text(`DELIVERY HISTORY (${grn.receipts.length + 1} SHIPMENTS)`, 105, y + 5.5, { align: "center" });
+    y += 8;
+
+    const shipments = [
+      { label: "Shipment 1 (Initial)", date: grn.date, challan: grn.challan, person: grn.personName,
+        items: (grn.items || []).map((item) => {
+          const later = (grn.receipts || []).reduce((s, r) => {
+            const ri = (r.items || []).find((ri) => ri.sku === item.sku);
+            return s + (ri?.received || 0);
+          }, 0);
+          return { name: item.itemName || item.name || "—", received: (item.received || 0) - later, unit: item.unit || "" };
+        }).filter((i) => i.received > 0),
+      },
+      ...(grn.receipts || []).map((r, idx) => ({
+        label: `Shipment ${idx + 2}`,
+        date: r.date, challan: r.challan, person: r.personName,
+        items: (r.items || []).map((ri) => {
+          const base = (grn.items || []).find((gi) => gi.sku === ri.sku);
+          return { name: ri.itemName || base?.itemName || "—", received: ri.received || 0, unit: base?.unit || "" };
+        }),
+      })),
+    ];
+
+    autoTable(doc, {
+      startY: y,
+      margin: { left: 10, right: 10 },
+      head: [["SHIPMENT", "DATE", "CHALLAN", "MATERIAL", "QTY", "BY"]],
+      body: shipments.flatMap((s) =>
+        s.items.map((item) => [s.label, fmtDate(s.date), s.challan || "—", item.name, `+${item.received} ${item.unit}`, s.person || "—"])
+      ),
+      styles: { fontSize: 8, cellPadding: 1.5, lineColor: [220, 220, 220], lineWidth: 0.1 },
+      headStyles: { fillColor: [pc[0], pc[1], pc[2]], textColor: 255, fontStyle: "bold" },
+    });
+    y = doc.lastAutoTable.finalY + 4;
+  }
+
+  // ── Signature block ──
+  checkPage(22);
+  const colW = 47.5;
+  ["STORE INCHARGE", "SUPERVISOR", "SITE ENGINEER", "PROJECT MANAGER"].forEach((label, i) => {
+    const x = 10 + i * colW;
+    doc.setDrawColor(200); doc.setFillColor(248, 250, 252);
+    doc.rect(x, y, colW, 18, "FD");
+    doc.setFontSize(7); doc.setFont("helvetica", "bold"); doc.setTextColor(80);
+    doc.text(label, x + colW / 2, y + 4, { align: "center" });
+    doc.setFontSize(7); doc.setFont("helvetica", "normal"); doc.setTextColor(150);
+    doc.text("Signature:", x + 3, y + 10);
+    doc.text("Date:", x + 3, y + 15);
+  });
+  y += 20;
+
+  doc.save(`${grn.id}_GRN.pdf`);
+}, "generateGRNPDF");
+
 export {
   generatePOPDF,
-  generatePOPDFBlob
+  generatePOPDFBlob,
+  generateGRNPDF,
 };

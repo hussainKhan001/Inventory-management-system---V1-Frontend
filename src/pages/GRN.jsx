@@ -24,6 +24,14 @@ import { toast } from "react-hot-toast";
 import { api, bustCache } from "../services/api";
 import { POViewModal } from "./po/POViewModal";
 import { GRNDetailModal } from "../components/GRNDetailModal";
+// Compute GRN status from actual received vs ordered — overrides stale stored status
+const grnEffectiveStatus = (grn) => {
+  const items = grn.items || [];
+  if (!items.length) return grn.status || "Confirmed";
+  const hasShortage = items.some((it) => (it.received || 0) < (it.ordered || 0));
+  const hasExcess   = items.some((it) => (it.received || 0) > (it.ordered || 0));
+  return hasShortage ? "Partial" : hasExcess ? "Over-Received" : "Confirmed";
+};
 const GRNPage = /* @__PURE__ */ __name(() => {
   const {
     grns,
@@ -411,7 +419,24 @@ const GRNPage = /* @__PURE__ */ __name(() => {
       <PageHeader
     title="Goods Receipt Note (GRN)"
     sub="Receive materials against approved POs"
-    actions={hasPermission("CREATE_GRN") && <Btn
+    actions={<div className="flex items-center gap-2">
+      {["super admin","superadmin"].includes((role||"").toLowerCase()) && (
+        <Btn
+          label="Renumber GRNs"
+          outline
+          small
+          onClick={async () => {
+            if (!window.confirm("This will renumber ALL GRNs from 1 (oldest) to N (newest). Continue?")) return;
+            try {
+              const res = await api.post("grn/renumber");
+              toast.success(res.data?.message || "GRNs renumbered");
+              bustCache("grns");
+              fetchResource("grns", 1, 50, false);
+            } catch (e) { toast.error(e.response?.data?.message || "Renumber failed"); }
+          }}
+        />
+      )}
+      {hasPermission("CREATE_GRN") && <Btn
       label="Create GRN"
       icon={Plus}
       onClick={() => {
@@ -427,6 +452,7 @@ const GRNPage = /* @__PURE__ */ __name(() => {
         setModal(true);
       }}
     />}
+    </div>}
   />
 
       <div className="mb-6">
@@ -518,7 +544,7 @@ const GRNPage = /* @__PURE__ */ __name(() => {
                     <span className="text-[11px] text-gray-500">PO: {safeStr(grn.poId)}</span>
                   </div>
                   <div className="md:hidden">
-                    <StatusBadge status={grn.status} />
+                    <StatusBadge status={grnEffectiveStatus(grn)} />
                   </div>
                 </div>
                 <div className="md:hidden mt-2 text-[12px] text-gray-500 space-y-1">
@@ -589,7 +615,7 @@ const GRNPage = /* @__PURE__ */ __name(() => {
                 </div>
               </Td>
               <Td className="hidden md:table-cell px-4 py-3">
-                <StatusBadge status={grn.status} />
+                <StatusBadge status={grnEffectiveStatus(grn)} />
               </Td>
               <Td className="md:px-4 md:py-3 py-2 text-right" onClick={(e) => e.stopPropagation()}>
                 <div className="flex items-center justify-end gap-1.5">
@@ -601,7 +627,7 @@ const GRNPage = /* @__PURE__ */ __name(() => {
                     <Eye className="w-4 h-4" />
                   </button>
 
-                  {grn.status === "Partial" && hasPermission("CREATE_GRN") && <button
+                  {grnEffectiveStatus(grn) === "Partial" && hasPermission("CREATE_GRN") && <button
       title="Receive Remaining Material"
       onClick={(e) => { e.stopPropagation();
         const po = pos.find((p) => p.id === grn.poId);

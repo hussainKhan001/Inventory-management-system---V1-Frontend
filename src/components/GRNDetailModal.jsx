@@ -6,6 +6,7 @@ import { useAppStore } from "../store";
 import { formatDateTime } from "../utils";
 import { cn } from "../lib/utils";
 import toast from "react-hot-toast";
+import { generateGRNPDF } from "../utils/pdfGenerator";
 
 export function GRNDetailModal({ grn, onClose, onEditReceipt }) {
   const { suppliers, pos, hasPermission } = useAppStore();
@@ -29,7 +30,7 @@ export function GRNDetailModal({ grn, onClose, onEditReceipt }) {
               label="Download PDF"
               icon={Download}
               className="rounded-xl h-10 text-[13px] bg-[#F97316] text-white border-none shadow-lg shadow-orange-500/20"
-              onClick={() => toast.success("Preparing PDF...")}
+              onClick={() => generateGRNPDF(grn, supplier)}
             />
             <Btn
               label="Close"
