@@ -40,23 +40,30 @@ export function MaterialRequirementPage() {
   const { projects: PROJECTS, requesters: REQUESTERS } = settings;
 
   const isMRLocked = (mrId, status) => status === "PO Created" || pos.some(po => po.mrId === mrId);
+  const itemNamesMatch = (poItem, mrItem) => {
+    const a = (poItem.itemName || poItem.name || "").trim().toLowerCase();
+    const b = (mrItem.materialName || mrItem.itemName || "").trim().toLowerCase();
+    if (!a || !b) return false;
+    if (a === b) return true;
+    // substring match: "White Cement" matches "White Cement 50 KG"
+    return a.includes(b) || b.includes(a);
+  };
+  const itemSkusMatch = (poItem, mrItem) => {
+    const a = (poItem.sku || "").trim().toUpperCase();
+    const b = (mrItem.sku || "").trim().toUpperCase();
+    return a && b && a !== "N/A" && b !== "N/A" && a === b;
+  };
   const isItemPOCreated = (item, mr) => {
     return pos.some(po =>
-      po.mrId === mr?.id &&
+      (po.mrId === mr?.id || po.mrId === mr?.mrNumber) &&
       !["Rejected", "Blocked", "Cancelled"].includes(po.status) &&
-      po.items?.some(poItem =>
-        (poItem.sku && item.sku && poItem.sku !== "N/A" && poItem.sku === item.sku) ||
-        (poItem.itemName && item.materialName && poItem.itemName === item.materialName)
-      )
+      po.items?.some(poItem => itemSkusMatch(poItem, item) || itemNamesMatch(poItem, item))
     );
   };
   const getItemLinkedPO = (item, mr) => pos.find(po =>
     (po.mrId === mr?.id || po.mrId === mr?.mrNumber) &&
     !["Rejected", "Blocked", "Cancelled"].includes(po.status) &&
-    po.items?.some(poItem =>
-      (poItem.sku && item.sku && poItem.sku !== "N/A" && poItem.sku === item.sku) ||
-      (poItem.itemName && item.materialName && poItem.itemName === item.materialName)
-    )
+    po.items?.some(poItem => itemSkusMatch(poItem, item) || itemNamesMatch(poItem, item))
   );
   const getPOPhase = (po) => {
     if (!po) return { label: "—", color: "gray" };

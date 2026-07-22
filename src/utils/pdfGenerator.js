@@ -311,35 +311,82 @@ const generatePOPDF = /* @__PURE__ */ __name((po, supplier, settings = {}, retur
   const approvers = !_isCompleted
     ? (settings.approvers || {})
     : (po.approverSnapshot || LEGACY_APPROVER_DEFAULTS);
-  autoTable(doc, {
-    startY: y,
-    margin: { left: 10, right: 10 },
-    head: [[
-      approvers.purchaseCoordTitle || "PURCHASE COORD",
-      approvers.l1Title ? `${approvers.l1Title} (L1)` : "AGM (L1)",
-      approvers.l2Title ? `${approvers.l2Title} (L2)` : "PM / HEAD (L2)",
-      approvers.l3Title ? `${approvers.l3Title} (L3)` : "DIRECTOR (L3)",
-    ]],
-    body: [
-      [approvers.purchaseCoord || "Purchase Coord", approvers.l1 || "L1 Approver", approvers.l2 || "L2 Approver", approvers.l3 || "L3 Approver"],
-      ["Date: " + formatPrettyDate(po.date), "Date: " + (po.approvalL1At ? formatPrettyDate(po.approvalL1At) : "Pending"), "Date: " + (po.approvalL2At ? formatPrettyDate(po.approvalL2At) : "Pending"), "Date: " + (po.approvalL3At ? formatPrettyDate(po.approvalL3At) : "Pending")],
-      (() => {
-        const isRejected = po.status === "Blocked" || po.status === "rejected";
-        const rejectLevel = isRejected
-          ? (po.approvalL1 !== "Approved" ? "L1" : po.approvalL2 !== "Approved" ? "L2" : "L3")
-          : null;
-        return [
-          "INVOKE: INITIATED",
-          "L1: " + (rejectLevel === "L1" ? "REJECTED" : po.approvalL1 || "PENDING"),
-          "L2: " + (rejectLevel === "L2" ? "REJECTED" : po.approvalL2 || "PENDING"),
-          "L3: " + (rejectLevel === "L3" ? "REJECTED" : po.approvalL3 || "PENDING"),
-        ];
-      })()
-    ],
-    styles: { fontSize: 8, cellPadding: 1.5, lineColor: [220, 220, 220], lineWidth: 0.1 },
-    headStyles: { fillColor: [248, 250, 252], textColor: 50, fontStyle: "bold", halign: "center" }
+  const isRejected = po.status === "Blocked" || po.status === "rejected";
+  const rejectLevel = isRejected
+    ? (po.approvalL1 !== "Approved" ? "L1" : po.approvalL2 !== "Approved" ? "L2" : "L3")
+    : null;
+  const sigCols = [
+    {
+      title: approvers.purchaseCoordTitle || "PURCHASE COORD",
+      name: approvers.purchaseCoord || "Purchase Coordinator",
+      date: formatPrettyDate(po.date),
+      status: "INITIATED",
+      color: [22, 163, 74],
+    },
+    {
+      title: approvers.l1Title ? `${approvers.l1Title} (L1)` : "AGM (L1)",
+      name: approvers.l1 || "L1 Approver",
+      date: po.approvalL1At ? formatPrettyDate(po.approvalL1At) : "—",
+      status: rejectLevel === "L1" ? "REJECTED" : (po.approvalL1 || "PENDING"),
+      color: rejectLevel === "L1" ? [220, 38, 38] : po.approvalL1 === "Approved" ? [22, 163, 74] : [107, 114, 128],
+    },
+    {
+      title: approvers.l2Title ? `${approvers.l2Title} (L2)` : "PM / HEAD (L2)",
+      name: approvers.l2 || "L2 Approver",
+      date: po.approvalL2At ? formatPrettyDate(po.approvalL2At) : "—",
+      status: rejectLevel === "L2" ? "REJECTED" : (po.approvalL2 || "PENDING"),
+      color: rejectLevel === "L2" ? [220, 38, 38] : po.approvalL2 === "Approved" ? [22, 163, 74] : [107, 114, 128],
+    },
+    {
+      title: approvers.l3Title ? `${approvers.l3Title} (L3)` : "DIRECTOR (L3)",
+      name: approvers.l3 || "L3 Approver",
+      date: po.approvalL3At ? formatPrettyDate(po.approvalL3At) : "—",
+      status: rejectLevel === "L3" ? "REJECTED" : (po.approvalL3 || "PENDING"),
+      color: rejectLevel === "L3" ? [220, 38, 38] : po.approvalL3 === "Approved" ? [22, 163, 74] : [107, 114, 128],
+    },
+  ];
+  checkPage(42);
+  const sigBlockW = 47.5;
+  const sigStartX = 10;
+  const sigStartY = y;
+  const sigH = 40;
+  sigCols.forEach((col, i) => {
+    const x = sigStartX + i * sigBlockW;
+    // outer border
+    doc.setDrawColor(220, 220, 220);
+    doc.setFillColor(248, 250, 252);
+    doc.rect(x, sigStartY, sigBlockW, sigH, "FD");
+    // title bar
+    doc.setFillColor(primaryColor[0], primaryColor[1], primaryColor[2]);
+    doc.rect(x, sigStartY, sigBlockW, 7, "F");
+    doc.setTextColor(255);
+    doc.setFontSize(7);
+    doc.setFont("helvetica", "bold");
+    doc.text(col.title, x + sigBlockW / 2, sigStartY + 4.8, { align: "center", maxWidth: sigBlockW - 2 });
+    // name
+    doc.setTextColor(30);
+    doc.setFontSize(8);
+    doc.setFont("helvetica", "bold");
+    doc.text(col.name, x + sigBlockW / 2, sigStartY + 13, { align: "center", maxWidth: sigBlockW - 4 });
+    // signature line (blank space)
+    doc.setDrawColor(160, 160, 160);
+    doc.setLineWidth(0.3);
+    doc.line(x + 5, sigStartY + 27, x + sigBlockW - 5, sigStartY + 27);
+    doc.setTextColor(150);
+    doc.setFontSize(6.5);
+    doc.setFont("helvetica", "normal");
+    doc.text("Signature", x + sigBlockW / 2, sigStartY + 30, { align: "center" });
+    // date
+    doc.setTextColor(80);
+    doc.setFontSize(7);
+    doc.text("Date: " + col.date, x + sigBlockW / 2, sigStartY + 35, { align: "center", maxWidth: sigBlockW - 4 });
+    // status stamp
+    doc.setTextColor(col.color[0], col.color[1], col.color[2]);
+    doc.setFontSize(7.5);
+    doc.setFont("helvetica", "bold");
+    doc.text(col.status.toUpperCase(), x + sigBlockW / 2, sigStartY + 38.5, { align: "center" });
   });
-  y = doc.lastAutoTable.finalY + 2;
+  y = sigStartY + sigH + 3;
   if (po.priceComparison && po.priceComparison.items.length > 0) {
     checkPage(14);
     doc.setFillColor(primaryColor[0], primaryColor[1], primaryColor[2]);

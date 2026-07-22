@@ -149,7 +149,7 @@ const PERMISSION_GROUPS = [
   {
     id: "accounts",
     name: "Accounts & Payments",
-    perms: ["VIEW_ACCOUNTS", "VERIFY_BILL", "REJECT_BILL", "MAKE_PAYMENT", "VIEW_PAYMENTS"]
+    perms: ["VIEW_ACCOUNTS", "VERIFY_BILL", "APPROVE_BILL", "REJECT_BILL", "MAKE_PAYMENT", "VIEW_PAYMENTS"]
   },
   {
     id: "archive",

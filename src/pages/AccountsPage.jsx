@@ -26,6 +26,7 @@ import {
   RefreshCw,
   Pencil,
   Trash2,
+  Printer,
   X
 } from "lucide-react";
 import { fmtCur, formatDate, calculatePriceComparison } from "../utils";
@@ -45,7 +46,7 @@ const EMAILJS_SERVICE_ID = "YOUR_SERVICE_ID";
 const EMAILJS_TEMPLATE_ID = "YOUR_TEMPLATE_ID";
 emailjs.init(EMAILJS_PUBLIC_KEY);
 const AccountsPage = /* @__PURE__ */ __name(() => {
-  const { pos, updatePO, user, fetchResource, suppliers, uploadImage, hasPermission, settings } = useAppStore();
+  const { pos, updatePO, user, fetchResource, suppliers, materialRequirements, uploadImage, hasPermission, settings } = useAppStore();
   const [filter, setFilter] = useState("All");
   const [selectedPO, setSelectedPO] = useState(null);
   const [previewPO, setPreviewPO] = useState(null);
@@ -83,6 +84,8 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
   const [removeConfirmPO, setRemoveConfirmPO] = useState(null);
   const [isRemovingFromAccounts, setIsRemovingFromAccounts] = useState(false);
   const [isEditingPayment, setIsEditingPayment] = useState(false);
+  const [verifyRemark, setVerifyRemark] = useState("");
+  const [showVerifyRemark, setShowVerifyRemark] = useState(false);
   useEffect(() => {
     if (!paymentForm.toCompany) return;
     const supplierName = paymentForm.toCompany.toLowerCase();
@@ -157,7 +160,9 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
   }, "getSupplierName");
   const metrics = useMemo(() => {
     const all = pos || [];
-    const pendingPayment = all.filter((p) => (p.accountStatus || "").toLowerCase() === "payment_pending").length;
+    const pendingPaymentPOs = all.filter((p) => (p.accountStatus || "").toLowerCase() === "payment_pending");
+    const pendingPayment = pendingPaymentPOs.length;
+    const totalPendingAmount = pendingPaymentPOs.reduce((sum, p) => sum + Math.max(0, (p.totalValue || 0) - (p.totalPaid || 0)), 0);
     const pendingVerify = all.filter((p) => {
       const accStatus = (p.accountStatus || "").toLowerCase();
       const poStatus = (p.status || "").toLowerCase();
@@ -165,6 +170,7 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
       if (accStatus === "partial_paid" && ["grn fulfilled", "grn variance"].includes(poStatus)) return true;
       return !accStatus && ["grn fulfilled", "grn variance", "ready for payment"].includes(poStatus);
     }).length;
+    const pendingVerified = all.filter((p) => (p.accountStatus || "").toLowerCase() === "bill_verified").length;
     const paidThisMonth = all.filter((p) => {
       const accStatus = (p.accountStatus || "").toLowerCase();
       if (accStatus !== "paid" || !p.payment?.date) return false;
@@ -180,7 +186,9 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
     }).length;
     return {
       pendingPayment,
+      totalPendingAmount,
       pendingVerify,
+      pendingVerified,
       paidCount: paidThisMonth.length,
       totalPaidAmount,
       partialPaidCount,
@@ -218,8 +226,9 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
         , 0);
         status = (gv > totalPd + 1 || poStatus === "grn fulfilled") ? "bill_verify" : "partial_paid";
       }
-      if (filter === "All" && !["bill_verify", "payment_pending", "paid", "partial_paid", "rejected"].includes(status)) return false;
+      if (filter === "All" && !["bill_verify", "bill_verified", "payment_pending", "paid", "partial_paid", "rejected"].includes(status)) return false;
       if (filter === "Verify Bills" && status !== "bill_verify") return false;
+      if (filter === "Verified" && status !== "bill_verified") return false;
       if (filter === "Pending Payment" && status !== "payment_pending") return false;
       if (filter === "Paid" && status !== "paid") return false;
       if (filter === "Partial Paid" && status !== "partial_paid") return false;
@@ -242,9 +251,44 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
       return true;
     });
   }, [pos, allGrns, filter, search, startDate, endDate, filterVendor, filterProject, suppliers]);
-  const handleBillApprove = /* @__PURE__ */ __name(async (poId) => {
+  const handleBillVerify = /* @__PURE__ */ __name(async (poId, remark) => {
     if (!hasPermission("VERIFY_BILL")) {
       toast.error("Unauthorized: Access to verify bills is restricted.");
+      return;
+    }
+    setIsSubmitting(true);
+    try {
+      const timestamp = (/* @__PURE__ */ new Date()).toISOString();
+      const po = pos.find((p) => p.id === poId);
+      const audit = {
+        timestamp,
+        action: "bill_verified",
+        po_number: poId,
+        done_by: user?.name || "System",
+        amount: po?.totalValue || 0,
+        details: remark ? { remark } : undefined
+      };
+      await updatePO(poId, {
+        accountStatus: "bill_verified",
+        verifiedBy: user?.name || "Accounts Team",
+        verifiedAt: timestamp,
+        verifyRemark: remark || null,
+        auditTrail: [...(po?.auditTrail || []), audit]
+      });
+      toast.success("Bill verified! Sent for final approval.");
+      setSelectedPO(null);
+      setShowVerifyRemark(false);
+      setVerifyRemark("");
+    } catch (err) {
+      toast.error(err?.message || "Failed to verify bill.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  }, "handleBillVerify");
+
+  const handleBillApprove = /* @__PURE__ */ __name(async (poId) => {
+    if (!hasPermission("APPROVE_BILL")) {
+      toast.error("Unauthorized: Access to approve bills is restricted.");
       return;
     }
     setIsSubmitting(true);
@@ -262,18 +306,18 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
         accountStatus: "payment_pending",
         billApprovedBy: user?.name || "Finance Dept",
         billApprovedDate: timestamp,
-        auditTrail: [...po?.auditTrail || [], audit]
+        auditTrail: [...(po?.auditTrail || []), audit]
       });
-      toast.success("Bill approved! Moved to pending payment state.");
+      toast.success("Bill approved! Ready for payment.");
       setSelectedPO(null);
     } catch (err) {
-      toast.error("Failed to approve bill.");
+      toast.error(err?.message || "Failed to approve bill.");
     } finally {
       setIsSubmitting(false);
     }
   }, "handleBillApprove");
 
-  const handleRevokeApproval = /* @__PURE__ */ __name(async (poId) => {
+  const handleRevokeVerify = /* @__PURE__ */ __name(async (poId) => {
     if (!hasPermission("VERIFY_BILL")) {
       toast.error("Unauthorized: Access to verify bills is restricted.");
       return;
@@ -282,10 +326,41 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
     try {
       const timestamp = (/* @__PURE__ */ new Date()).toISOString();
       const po = pos.find((p) => p.id === poId);
-      
-      const isRevertingRemaining = po.payment?.isPartial || po.payment?.partialAmount;
-      const newStatus = isRevertingRemaining ? "partial_paid" : null;
+      const audit = {
+        timestamp,
+        action: "verify_revoked",
+        po_number: poId,
+        done_by: user?.name || "System",
+        amount: po?.totalValue || 0,
+        details: { note: "Verification revoked for re-check" }
+      };
+      await updatePO(poId, {
+        accountStatus: "bill_verify",
+        verifiedBy: null,
+        verifiedAt: null,
+        verifyRemark: null,
+        auditTrail: [...(po?.auditTrail || []), audit]
+      });
+      toast.success("Verification revoked. Bill sent back for re-verification.");
+      setSelectedPO(null);
+    } catch (err) {
+      toast.error("Failed to revoke verification.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  }, "handleRevokeVerify");
 
+  const handleRevokeApproval = /* @__PURE__ */ __name(async (poId) => {
+    if (!hasPermission("APPROVE_BILL")) {
+      toast.error("Unauthorized: Access to approve bills is restricted.");
+      return;
+    }
+    setIsSubmitting(true);
+    try {
+      const timestamp = (/* @__PURE__ */ new Date()).toISOString();
+      const po = pos.find((p) => p.id === poId);
+      const isRevertingRemaining = po.payment?.isPartial || po.payment?.partialAmount;
+      const newStatus = isRevertingRemaining ? "partial_paid" : "bill_verify";
       const audit = {
         timestamp,
         action: "approval_revised",
@@ -294,12 +369,14 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
         amount: po?.totalValue || 0,
         details: { note: "Approval revoked for revision" }
       };
-      
       await updatePO(poId, {
         accountStatus: newStatus,
         billApprovedBy: null,
         billApprovedDate: null,
-        auditTrail: [...po?.auditTrail || [], audit]
+        verifiedBy: null,
+        verifiedAt: null,
+        verifyRemark: null,
+        auditTrail: [...(po?.auditTrail || []), audit]
       });
       toast.success("Approval revoked. Bill sent back for verification.");
       setSelectedPO(null);
@@ -663,7 +740,9 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
         <div class="section">
           <div class="section-title">Internal Authorisation</div>
           <div class="grid3">
-            <div><div class="field-label">Bill Approved By</div><div class="field-value">${po.billApprovedBy || "Accounts Manager"}</div></div>
+            <div><div class="field-label">Verified By</div><div class="field-value">${po.verifiedBy || "—"}</div></div>
+            <div><div class="field-label">Verified On</div><div class="field-value">${fmtD(po.verifiedAt)}</div></div>
+            <div><div class="field-label">Approved By</div><div class="field-value">${po.billApprovedBy || "—"}</div></div>
             <div><div class="field-label">Approved On</div><div class="field-value">${fmtD(po.billApprovedAt || po.billApprovedDate)}</div></div>
             <div><div class="field-label">Paid By</div><div class="field-value">${po.payment?.paidBy || "—"}</div></div>
           </div>
@@ -689,6 +768,143 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
     if (w) { w.document.write(html); w.document.close(); }
   }, "handlePrintPaymentAdvice");
 
+  const handlePrintTransactionDetail = /* @__PURE__ */ __name((po, grn) => {
+    const supplierName = getSupplierName(po.supplier);
+    const fmtD = (d) => d ? new Date(d).toLocaleDateString("en-IN", { day: "2-digit", month: "long", year: "numeric" }) : "—";
+    const poAmount = po.totalValue || 0;
+    const totalPaid = po.totalPaid || po.payment?.partialAmount || po.payment?.amountPaid || 0;
+    const payableAmount = Math.max(0, poAmount - totalPaid);
+    const invoiceNo = po.payment?.ref || po.invoice?.number || grn?.challan || "—";
+
+    const materialRows = (grn?.items || []).map((gi) => {
+      const rcv = gi.received ?? gi.qty ?? 0;
+      const poItem = po.items?.find(pi =>
+        (pi.sku && gi.sku && pi.sku === gi.sku) ||
+        (pi.materialName || "").toLowerCase() === (gi.itemName || "").toLowerCase()
+      );
+      const ordered = poItem?.qty || poItem?.quantity || 0;
+      const rate = gi.rate || poItem?.rate || 0;
+      return `
+        <tr>
+          <td style="padding:6px 10px;border-bottom:1px solid #E2E8F0;font-size:11px">${gi.itemName || gi.name || "Item"}${gi.sku ? `<br/><span style="color:#9CA3AF;font-size:9px">${gi.sku}</span>` : ""}</td>
+          <td style="padding:6px 10px;border-bottom:1px solid #E2E8F0;font-size:11px;text-align:center">${ordered || "—"}</td>
+          <td style="padding:6px 10px;border-bottom:1px solid #E2E8F0;font-size:11px;text-align:center;font-weight:700">${rcv}</td>
+          <td style="padding:6px 10px;border-bottom:1px solid #E2E8F0;font-size:11px;text-align:right">${fmtCur(rate)}</td>
+          <td style="padding:6px 10px;border-bottom:1px solid #E2E8F0;font-size:11px;text-align:right;font-weight:700">${fmtCur(rcv * rate)}</td>
+        </tr>`;
+    }).join("");
+
+    const html = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"/>
+      <title>Transaction Detail — ${po.id}</title>
+      <style>
+        *{margin:0;padding:0;box-sizing:border-box}
+        body{font-family:"Segoe UI",Arial,sans-serif;font-size:12px;color:#1F2937;background:#fff}
+        .page{max-width:900px;margin:0 auto;padding:30px 40px}
+        .hdr{display:flex;justify-content:space-between;align-items:flex-start;padding-bottom:14px;border-bottom:3px solid #1E3A5F;margin-bottom:16px}
+        .company-name{font-size:19px;font-weight:800;color:#1E3A5F;letter-spacing:-0.5px}
+        .company-sub{font-size:10px;color:#6B7280;margin-top:2px}
+        .doc-title{font-size:17px;font-weight:900;color:#1E3A5F;letter-spacing:1px;text-transform:uppercase;text-align:right}
+        .doc-ref{font-size:10px;color:#6B7280;margin-top:3px;text-align:right}
+        .section{margin-bottom:14px}
+        .section-title{font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:1.2px;color:#6B7280;border-bottom:1px solid #E5E7EB;padding-bottom:4px;margin-bottom:8px}
+        .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px 20px}
+        .field-label{font-size:9px;font-weight:700;color:#9CA3AF;text-transform:uppercase;letter-spacing:0.8px;margin-bottom:1px}
+        .field-value{font-size:12px;font-weight:600;color:#111827}
+        .field-value.accent{color:#1E3A5F;font-weight:800}
+        .field-value.big{font-size:15px;font-weight:900;color:#1E3A5F;letter-spacing:-0.3px}
+        table{width:100%;border-collapse:collapse;font-size:11px}
+        thead tr{background:#1E3A5F}
+        thead th{padding:7px 10px;text-align:left;color:#fff;font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:0.8px}
+        thead th:nth-child(2),thead th:nth-child(3){text-align:center}
+        thead th:last-child,thead th:nth-child(4){text-align:right}
+        tfoot tr{background:#1E3A5F}
+        tfoot td{padding:7px 10px;color:#fff;font-weight:800;font-size:11px;text-align:right}
+        .divider{border:none;border-top:1px solid #E5E7EB;margin:12px 0}
+        .footer{margin-top:12px;padding-top:12px;border-top:2px solid #1E3A5F;font-size:10px;color:#9CA3AF}
+        .sig-row{display:flex;gap:16px;margin-top:20px}
+        .sig-box{flex:1;border:1px solid #E5E7EB;border-radius:6px;padding:10px 12px 30px}
+        .sig-box-label{font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:0.8px;color:#6B7280}
+        .sig-box-line{border-top:1px solid #374151;margin-top:30px;padding-top:4px;font-size:9px;color:#9CA3AF}
+        @media print{body{padding:0}@page{margin:10mm 12mm;size:A4}}
+      </style></head><body>
+      <div class="page">
+        <div class="hdr">
+          <div>
+            <div class="company-name">Neoteric Group</div>
+            <div class="company-sub">Accounts & Finance Department</div>
+          </div>
+          <div>
+            <div class="doc-title">Transaction Detail</div>
+            <div class="doc-ref">Ref: ${po.id} &nbsp;|&nbsp; ${fmtD(new Date().toISOString())}</div>
+          </div>
+        </div>
+
+        <div class="section">
+          <div class="section-title">Purchase Order Details</div>
+          <div class="grid3">
+            <div><div class="field-label">PO Number</div><div class="field-value accent">${po.id}</div></div>
+            <div><div class="field-label">Vendor</div><div class="field-value">${supplierName}</div></div>
+            <div><div class="field-label">PO Amount</div><div class="field-value">${fmtCur(poAmount)}</div></div>
+            <div><div class="field-label">PO Date</div><div class="field-value">${fmtD(po.date)}</div></div>
+            <div><div class="field-label">Project</div><div class="field-value">${po.project || po.location || "—"}</div></div>
+          </div>
+        </div>
+
+        <div class="section">
+          <div class="section-title">GRN &amp; Delivery</div>
+          <div class="grid3">
+            <div><div class="field-label">GRN No.</div><div class="field-value accent">${grn?.id || "—"}</div></div>
+            <div><div class="field-label">Receipt Date</div><div class="field-value">${fmtD(grn?.date || po.date)}</div></div>
+            <div><div class="field-label">Received By</div><div class="field-value">${grn?.personName || "—"}</div></div>
+            <div><div class="field-label">GRN Status</div><div class="field-value">${po.status || "—"}</div></div>
+            <div><div class="field-label">Invoice / Challan</div><div class="field-value">${invoiceNo}</div></div>
+          </div>
+        </div>
+
+        ${materialRows ? `<div class="section">
+          <div class="section-title">Received Materials</div>
+          <table>
+            <thead><tr><th>Material</th><th>Ordered</th><th>Received</th><th>Rate</th><th>Amount</th></tr></thead>
+            <tbody>${materialRows}</tbody>
+          </table>
+        </div>` : ""}
+
+        <div class="section">
+          <div class="section-title">Payment Summary</div>
+          <div class="grid3">
+            <div><div class="field-label">PO Grand Total</div><div class="field-value big">${fmtCur(poAmount)}</div></div>
+            ${totalPaid > 0 ? `<div><div class="field-label">Already Paid</div><div class="field-value big" style="color:#16A34A">${fmtCur(totalPaid)}</div></div>` : ""}
+            <div><div class="field-label">${totalPaid > 0 ? "Remaining Payable" : "Payable Amount"}</div><div class="field-value big" style="color:#EA580C">${fmtCur(payableAmount)}</div></div>
+          </div>
+        </div>
+
+        <div class="sig-row">
+          <div class="sig-box">
+            <div class="sig-box-label">Prepared By</div>
+            <div class="sig-box-line">Signature &amp; Date</div>
+          </div>
+          <div class="sig-box">
+            <div class="sig-box-label">Verified By</div>
+            <div style="font-size:11px;font-weight:700;color:#1E3A5F;margin-top:4px">${po.verifiedBy || ""}</div>
+            <div class="sig-box-line">${po.verifiedAt ? fmtD(po.verifiedAt) : "Signature &amp; Date"}</div>
+          </div>
+          <div class="sig-box">
+            <div class="sig-box-label">Approved By</div>
+            <div style="font-size:11px;font-weight:700;color:#1E3A5F;margin-top:4px">${po.billApprovedBy || ""}</div>
+            <div class="sig-box-line">${po.billApprovedDate ? fmtD(po.billApprovedDate) : "Signature &amp; Date"}</div>
+          </div>
+        </div>
+
+        <hr class="divider"/>
+        <div class="footer">This is a system-generated Transaction Detail from the IMS Portal.</div>
+      </div>
+      <script>window.onload=function(){window.print()}<\/script>
+    </body></html>`;
+
+    const w = window.open("", "_blank", "width=1000,height=750");
+    if (w) { w.document.write(html); w.document.close(); }
+  }, "handlePrintTransactionDetail");
+
   const handleFileChange = /* @__PURE__ */ __name((e) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -707,8 +923,8 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
         {[
           { label: "To Verify", value: metrics.pendingVerify, sub: "Bills awaiting verification", icon: ShieldAlert, iconCls: "bg-blue-50 dark:bg-blue-500/10 text-blue-500 dark:text-blue-400" },
-          { label: "Payment Pending", value: metrics.pendingPayment, sub: "Approved, awaiting payment", icon: Clock, iconCls: "bg-orange-50 dark:bg-orange-500/10 text-orange-500 dark:text-orange-400" },
-          { label: "Partial Paid", value: metrics.partialPaidCount, sub: "GRN variance — awaiting balance", icon: IndianRupee, iconCls: "bg-amber-50 dark:bg-amber-500/10 text-amber-500 dark:text-amber-400" },
+          { label: "Verified", value: metrics.pendingVerified, sub: "Awaiting final approval", icon: Check, iconCls: "bg-violet-50 dark:bg-violet-500/10 text-violet-500 dark:text-violet-400" },
+          { label: "Payment Pending", value: metrics.pendingPayment, sub: fmtCur(metrics.totalPendingAmount), icon: Clock, iconCls: "bg-orange-50 dark:bg-orange-500/10 text-orange-500 dark:text-orange-400" },
           { label: "Paid This Month", value: metrics.paidCount, sub: fmtCur(metrics.totalPaidAmount), icon: CheckCircle, iconCls: "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-500 dark:text-emerald-400" },
           { label: "Rejected", value: metrics.rejectedCount, sub: "Bills rejected", icon: XSquare, iconCls: "bg-red-50 dark:bg-red-500/10 text-red-500 dark:text-red-400" },
         ].map(({ label, value, sub, icon: Icon, iconCls }) => (
@@ -731,6 +947,7 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
           {[
             ["All", "All", 0],
             ["Verify Bills", "To Verify", metrics.pendingVerify],
+            ["Verified", "Verified", metrics.pendingVerified],
             ["Pending Payment", "Pending Payment", metrics.pendingPayment],
             ["Partial Paid", "Partial Paid", metrics.partialPaidCount],
             ["Paid", "Paid", metrics.paidCount],
@@ -811,6 +1028,8 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
       onClick={async () => {
         setSelectedPO(po);
         setShowRejectForm(false);
+        setShowVerifyRemark(false);
+        setVerifyRemark("");
         setRealGRN(null);
         try {
           // Fetch ALL GRNs for this PO (multiple shipments possible)
@@ -890,6 +1109,7 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
                       <StatusBadge status={
                         po.accountStatus === "payment_pending" ? "Payment Pending"
                         : po.accountStatus === "paid" ? "Paid"
+                        : po.accountStatus === "bill_verified" ? "Verified"
                         : po.accountStatus === "partial_paid" && (po.status || "").toLowerCase() === "grn fulfilled" ? "To Verify"
                         : po.accountStatus === "partial_paid" ? "Partial Paid"
                         : po.accountStatus === "rejected" ? "Rejected"
@@ -954,6 +1174,7 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
             if (gv > tpd + 1) return "bill_verify";
             return "partial_paid";
           }
+          if (accStatus === "bill_verified") return "bill_verified";
           if (accStatus) return accStatus;
           if (["grn fulfilled", "grn variance", "ready for payment"].includes(poSt)) return "bill_verify";
           return "other";
@@ -965,6 +1186,34 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
           // Always: remaining balance = PO total − already paid
           return Math.max(0, poTotal - tpd);
         })();
+        const downloadPOPDF = () => {
+          const _dl = (selectedPO.supplier || "").trim().toLowerCase();
+          const sup = (suppliers || []).find(s => {
+            if (!s) return false;
+            if (s.id === selectedPO.supplier || s._id === selectedPO.supplier) return true;
+            const cD = (s.companyName || s.name || "").trim().toLowerCase();
+            const oD = (s.ownerName || s.contact || "").trim().toLowerCase();
+            if (cD === _dl || oD === _dl) return true;
+            if (_dl.length >= 4 && (cD.startsWith(_dl) || oD.startsWith(_dl))) return true;
+            return false;
+          });
+          const poMR = (materialRequirements || []).find(m => m.id === selectedPO.mrId || m.mrNumber === selectedPO.mrId);
+          const mrLoc = poMR ? (poMR.location || poMR.site || poMR.address || "") : "";
+          generatePOPDF({...selectedPO, mrLocation: mrLoc}, sup, settings);
+        };
+
+        // Mismatch detection for verification step
+        const grnValue = realGRN ? realGRN.items.reduce((s, gi) => {
+          const rcv = gi.received ?? gi.qty ?? 0;
+          const rate = gi.rate || selectedPO.items?.find(pi =>
+            (pi.sku && gi.sku && pi.sku === gi.sku) ||
+            (pi.materialName || "").toLowerCase() === (gi.itemName || "").toLowerCase()
+          )?.rate || 0;
+          return s + rcv * rate;
+        }, 0) : 0;
+        const billValue = selectedPO.totalValue || 0;
+        const hasMismatch = realGRN && Math.abs(grnValue - billValue) > 0.01;
+
         const drawerFooter = resolvedStatus === "bill_verify" ? (
           drawerPayableAmount <= 0 ? (
             <div className="flex items-center gap-2 px-4 py-2.5 bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20 rounded-xl">
@@ -988,20 +1237,88 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
                 <Btn label="Confirm reject" color="red" onClick={() => handleBillReject(selectedPO.id)} loading={isSubmitting} disabled={!rejectionReason.trim() || isSubmitting} />
               </div>
             </div>
+          ) : showVerifyRemark ? (
+            <div className="flex flex-col gap-3 w-full">
+              {hasMismatch && (
+                <div className="flex items-start gap-2 px-3 py-2.5 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700/40 rounded-xl">
+                  <AlertCircle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[12px] font-bold text-amber-800 dark:text-amber-300">Amount mismatch detected</p>
+                    <p className="text-[11px] text-amber-700 dark:text-amber-400 mt-0.5">
+                      GRN received value: <span className="font-black">{fmtCur(grnValue)}</span> · Bill amount: <span className="font-black">{fmtCur(billValue)}</span>
+                    </p>
+                  </div>
+                </div>
+              )}
+              <div className="flex flex-col sm:flex-row gap-3 items-end">
+                <div className="flex-1">
+                  <label className="text-[10px] font-black text-gray-500 dark:text-gray-400 mb-1 block">Remark / reason for variance *</label>
+                  <input
+                    type="text"
+                    value={verifyRemark}
+                    onChange={(e) => setVerifyRemark(e.target.value)}
+                    placeholder="e.g. Rate difference due to freight, partial delivery..."
+                    className="w-full bg-white dark:bg-[#0F172A] border border-gray-200 dark:border-gray-700 p-3 rounded-xl text-sm outline-none focus:ring-4 ring-blue-500/10 font-bold text-gray-900 dark:text-[#F1F5F9] transition-all"
+                  />
+                </div>
+                <div className="flex gap-2 shrink-0">
+                  <Btn label="Cancel" outline onClick={() => { setShowVerifyRemark(false); setVerifyRemark(""); }} />
+                  <Btn
+                    label="Confirm verify"
+                    color="green"
+                    onClick={() => handleBillVerify(selectedPO.id, verifyRemark)}
+                    loading={isSubmitting}
+                    disabled={!verifyRemark.trim() || isSubmitting}
+                  />
+                </div>
+              </div>
+            </div>
           ) : (
-            <div className="flex justify-end gap-3 w-full">
-              {!isRemainingPayment && <Btn label="Reject bill" color="red" onClick={() => setShowRejectForm(true)} />}
+            <div className="flex justify-between gap-3 w-full flex-wrap">
+              <div className="flex gap-2">
+                <Btn label="Print" icon={Printer} outline onClick={() => handlePrintTransactionDetail(selectedPO, realGRN)} />
+                {!isRemainingPayment && <Btn label="Reject" color="red" onClick={() => setShowRejectForm(true)} />}
+              </div>
               <Btn
-                label={isRemainingPayment ? "Approve Remaining Bill" : "Approve bill"}
+                label={isRemainingPayment ? "Verify Remaining Bill" : "Verify"}
                 color="green"
-                onClick={() => handleBillApprove(selectedPO.id)}
+                onClick={() => {
+                  if (hasMismatch) {
+                    setShowVerifyRemark(true);
+                  } else {
+                    handleBillVerify(selectedPO.id, "");
+                  }
+                }}
                 loading={isSubmitting}
                 disabled={isSubmitting}
               />
             </div>
           )
+        ) : resolvedStatus === "bill_verified" ? (
+          <div className="flex justify-between gap-3 w-full flex-wrap">
+            <Btn label="Download PO PDF" icon={Download} outline onClick={downloadPOPDF} />
+            {hasPermission("APPROVE_BILL") && (
+              <div className="flex gap-3">
+                <button
+                  onClick={() => handleRevokeVerify(selectedPO.id)}
+                  disabled={isSubmitting}
+                  className="bg-white dark:bg-[#0F172A] hover:bg-amber-50 dark:hover:bg-amber-900/10 border border-gray-200 dark:border-[#334155] hover:border-amber-300 dark:hover:border-amber-700/40 text-gray-600 dark:text-gray-400 hover:text-amber-700 dark:hover:text-amber-400 disabled:opacity-50 py-2.5 px-5 rounded-xl text-[13px] font-bold shadow-sm transition-all"
+                >
+                  Revise
+                </button>
+                <Btn
+                  label="Approve"
+                  color="green"
+                  onClick={() => handleBillApprove(selectedPO.id)}
+                  loading={isSubmitting}
+                  disabled={isSubmitting}
+                />
+              </div>
+            )}
+          </div>
         ) : (resolvedStatus === "payment_pending" || ((resolvedStatus === "paid" || resolvedStatus === "partial_paid") && isEditingPayment)) ? (
-          <div className="flex justify-end gap-3 w-full items-center">
+          <div className="flex justify-between gap-3 w-full items-center">
+            <Btn label="Download PO PDF" icon={Download} outline onClick={downloadPOPDF} />
             {resolvedStatus === "payment_pending" && (
               <button
                 onClick={() => handleRevokeApproval(selectedPO.id)}
@@ -1036,25 +1353,28 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
             </div>
           </div>
         ) : resolvedStatus === "paid" && !isEditingPayment ? (
-          <div className="flex justify-end gap-3 w-full flex-wrap">
-            <Btn
-              label="Download Payment Advice"
-              icon={Download}
-              onClick={() => handlePrintPaymentAdvice(selectedPO)}
-              className="bg-orange-500 hover:bg-orange-600 text-white border-none shadow-lg shadow-orange-500/20 font-bold"
-            />
-            <Btn
-              label="Close"
-              outline
-              onClick={() => { setSelectedPO(null); setIsEditingPayment(false); }}
-              className="px-8 border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800"
-            />
+          <div className="flex justify-between gap-3 w-full flex-wrap">
+            <Btn label="Download PO PDF" icon={Download} outline onClick={downloadPOPDF} />
+            <div className="flex gap-3 flex-wrap">
+              <Btn
+                label="Download Payment Advice"
+                icon={Download}
+                onClick={() => handlePrintPaymentAdvice(selectedPO)}
+                className="bg-orange-500 hover:bg-orange-600 text-white border-none shadow-lg shadow-orange-500/20 font-bold"
+              />
+              <Btn
+                label="Close"
+                outline
+                onClick={() => { setSelectedPO(null); setIsEditingPayment(false); }}
+                className="px-8 border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800"
+              />
+            </div>
           </div>
         ) : null;
 
         return <Modal
           title={isEditingPayment ? `Edit Payment — ${selectedPO.id}` : `Transaction detail view`}
-          onClose={() => { setSelectedPO(null); setIsEditingPayment(false); }}
+          onClose={() => { setSelectedPO(null); setIsEditingPayment(false); setShowVerifyRemark(false); setVerifyRemark(""); }}
           extraWide
           footer={drawerFooter}
         >
@@ -1364,6 +1684,126 @@ const DetailPanel = /* @__PURE__ */ __name(({
           </div>
         </div>
 
+        {viewGRNDetail && realGrn && <GRNDetailModal grn={realGrn} onClose={() => setViewGRNDetail(false)} />}
+        {viewerImages && <ImageViewer {...viewerImages} onClose={() => setViewerImages(null)} />}
+      </div>;
+  }
+  if (status === "bill_verified") {
+    return <div className="space-y-5 pb-4">
+        {topGrid}
+        <div className="flex items-center gap-3 px-4 py-3 bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/20 rounded-xl">
+          <CheckCircle className="w-5 h-5 text-emerald-500 shrink-0" />
+          <div className="flex-1">
+            <p className="text-[12px] font-black text-emerald-700 dark:text-emerald-400">Bill verified — awaiting final approval</p>
+            {po.verifiedBy && <p className="text-[11px] text-emerald-600 dark:text-emerald-500 mt-0.5">Verified by {po.verifiedBy}{po.verifiedAt ? ` on ${formatDate(po.verifiedAt)}` : ""}</p>}
+            {po.verifyRemark && <p className="text-[11px] text-amber-600 dark:text-amber-400 mt-0.5">Remark: {po.verifyRemark}</p>}
+          </div>
+        </div>
+        {totalPaid > 0 && (
+          <div className="flex items-center gap-3 px-4 py-3 bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20 rounded-xl">
+            <IndianRupee className="w-4 h-4 text-amber-500 shrink-0" />
+            <p className="text-[12px] font-bold text-amber-700 dark:text-amber-400">
+              {fmtCur(totalPaid)} already paid — remaining payable: <span className="font-black">{fmtCur(payableAmount)}</span>
+            </p>
+          </div>
+        )}
+        {realGrn && realGrn.items?.length > 0 && (
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <div className="h-0.5 w-4 bg-[#F97316]" />
+              <h3 className="text-[12px] font-bold text-gray-900 dark:text-white">Received materials</h3>
+            </div>
+            <div className="overflow-hidden rounded-xl border border-gray-100 dark:border-gray-800">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-gray-50/90 dark:bg-gray-800/90 border-b border-gray-100 dark:border-gray-800">
+                    <th className="px-4 py-3 text-[10px] font-black text-gray-400 tracking-wider">Material</th>
+                    <th className="px-4 py-3 text-[10px] font-black text-gray-400 tracking-wider text-center">Ordered</th>
+                    <th className="px-4 py-3 text-[10px] font-black text-gray-400 tracking-wider text-center">Received</th>
+                    <th className="px-4 py-3 text-[10px] font-black text-gray-400 tracking-wider text-right">Rate</th>
+                    <th className="px-4 py-3 text-[10px] font-black text-gray-400 tracking-wider text-right">Amount</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50 dark:divide-gray-800">
+                  {realGrn.items.map((gi, idx) => {
+                    const rcv = gi.received ?? gi.qty ?? 0;
+                    const poItem = po.items?.find(pi =>
+                      (pi.sku && gi.sku && pi.sku === gi.sku) ||
+                      (pi.materialName || "").toLowerCase() === (gi.itemName || "").toLowerCase()
+                    );
+                    const ordered = poItem?.qty || poItem?.quantity || 0;
+                    const rate = gi.rate || poItem?.rate || 0;
+                    return (
+                      <tr key={idx} className="hover:bg-gray-50/30 dark:hover:bg-gray-800/10">
+                        <td className="px-4 py-3">
+                          <span className="text-[13px] font-semibold text-gray-900 dark:text-white">{gi.itemName || gi.name || "Item"}</span>
+                          {gi.sku && <p className="text-[10px] text-gray-400">{gi.sku}</p>}
+                        </td>
+                        <td className="px-4 py-3 text-center text-[12px] text-gray-400">{ordered || "—"}</td>
+                        <td className="px-4 py-3 text-center"><span className="text-[14px] font-black text-gray-900 dark:text-white">{rcv}</span></td>
+                        <td className="px-4 py-3 text-right text-[12px] text-gray-500 tabular-nums">{fmtCur(rate)}</td>
+                        <td className="px-4 py-3 text-right font-black text-[13px] text-gray-900 dark:text-white tabular-nums">{fmtCur(rcv * rate)}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+        {(() => {
+          const billImgs = [
+            po.invoice?.screenshotUrl,
+            realGrn?.challanImageUrl,
+            ...(Array.isArray(realGrn?.challanPhotos) ? realGrn.challanPhotos : [])
+          ].filter(Boolean);
+          if (!billImgs.length) return null;
+          return (
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <div className="h-0.5 w-4 bg-[#F97316]" />
+                <h3 className="text-[12px] font-bold text-gray-900 dark:text-white">Vendor bill</h3>
+                <span className="text-[10px] text-gray-400">{billImgs.length} photo{billImgs.length > 1 ? "s" : ""}</span>
+              </div>
+              <div className="flex gap-3 flex-wrap">
+                {billImgs.map((img, i) => (
+                  <div
+                    key={i}
+                    onClick={() => setViewerImages({ images: billImgs, index: i, title: "Vendor Bill" })}
+                    className="relative group cursor-zoom-in rounded-xl overflow-hidden border-2 border-gray-100 dark:border-gray-800 hover:border-orange-400 dark:hover:border-orange-500 transition-all shadow-sm"
+                    style={{ width: 90, height: 90 }}
+                  >
+                    <img src={img} alt={`Bill ${i + 1}`} referrerPolicy="no-referrer" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
+                      <span className="opacity-0 group-hover:opacity-100 text-white text-[10px] font-black bg-black/60 px-2 py-0.5 rounded-full transition-opacity">View</span>
+                    </div>
+                    {billImgs.length > 1 && i === 0 && (
+                      <span className="absolute bottom-1 right-1 text-[9px] font-black text-white bg-orange-500 px-1.5 py-0.5 rounded-full">{billImgs.length}</span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        })()}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-0 border border-gray-100 dark:border-gray-800 rounded-2xl overflow-hidden shadow-sm">
+          <div className="divide-y divide-gray-100 dark:divide-gray-800 bg-white dark:bg-gray-900">
+            <div className="bg-gray-50/50 dark:bg-gray-800/30 p-2.5 font-black text-[10px] text-gray-500 flex items-center gap-2">
+              <div className="w-1.5 h-3.5 bg-emerald-500 rounded-full" /> Payment summary
+            </div>
+            <GRNInfoRow label="PO Grand Total" value={fmtCur(poAmount)} />
+            {totalPaid > 0 && <GRNInfoRow label="Already paid" value={fmtCur(totalPaid)} />}
+            <GRNInfoRow label={payableLabel} value={fmtCur(payableAmount)} orange />
+          </div>
+          <div className="divide-y divide-gray-100 dark:divide-gray-800 border-l border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-900">
+            <div className="bg-gray-50/50 dark:bg-gray-800/30 p-2.5 font-black text-[10px] text-gray-500 flex items-center gap-2">
+              <div className="w-1.5 h-3.5 bg-emerald-500 rounded-full" /> Verification
+            </div>
+            <GRNInfoRow label="Verified by" value={po.verifiedBy || "—"} />
+            <GRNInfoRow label="Verified on" value={formatDate(po.verifiedAt)} />
+            {po.verifyRemark && <GRNInfoRow label="Verify remark" value={po.verifyRemark} />}
+          </div>
+        </div>
         {viewGRNDetail && realGrn && <GRNDetailModal grn={realGrn} onClose={() => setViewGRNDetail(false)} />}
         {viewerImages && <ImageViewer {...viewerImages} onClose={() => setViewerImages(null)} />}
       </div>;
