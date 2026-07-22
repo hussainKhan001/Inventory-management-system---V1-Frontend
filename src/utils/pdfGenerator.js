@@ -78,7 +78,7 @@ const generatePOPDF = /* @__PURE__ */ __name((po, supplier, settings = {}, retur
   drawRow("Company Addr", po.companyAddress || "N.A., Gulmohar City, Near New Collectorate, New City Centre, Gwalior, MP, 474011", "Vendor Contact", String(po.vendorContact || supplier?.mobile || supplier?.phone || "NA"));
   drawRow("Internal MR No.", po.mrId || "NA", "Vendor Email ID", po.vendorEmail || supplier?.email || "NA");
   drawRow("Work Type", po.workType || "NA", "Requirement By", po.requirementBy || "NA");
-  drawRow("Applied Area", po.applicatedArea || "NA", "Site/Location", po.project || po.location || "NA");
+  drawRow("MR Location", po.mrLocation || "NA", "Site/Location", po.project || po.location || "NA");
   drawRow("Priority", po.priority || "NORMAL", "Phase/Milestone", po.phase || po.milestone || "NA");
   drawRow("Date of Issue", formatPrettyDate(po.date), "Vendor PAN", po.panNo || supplier?.panNumber || "NA");
   if (po.justification) {
@@ -382,6 +382,65 @@ const generatePOPDFBlob = /* @__PURE__ */ __name((po, supplier, settings = {}) =
   generatePOPDF(po, supplier, settings, true),
 "generatePOPDFBlob");
 
+const generateGRNReportPDF = /* @__PURE__ */ __name((rows, meta = {}) => {
+  const doc = new jsPDF({ orientation: "l", unit: "mm", format: "a4" });
+  const pc = [26, 54, 93];
+  const fmtDate = (d) => {
+    if (!d) return "N/A";
+    try { return new Intl.DateTimeFormat("en-IN", { day: "2-digit", month: "short", year: "numeric" }).format(new Date(d)); }
+    catch { return String(d); }
+  };
+
+  doc.setFontSize(16);
+  doc.setTextColor(0, 0, 0);
+  doc.setFont("helvetica", "bold");
+  doc.text("GOODS RECEIPT NOTE (GRN) — REPORT", 14, 16);
+
+  doc.setFontSize(9);
+  doc.setFont("helvetica", "normal");
+  doc.setTextColor(100);
+  doc.text(`Generated: ${new Intl.DateTimeFormat("en-IN", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }).format(new Date(meta.generatedAt || Date.now()))}`, 14, 22);
+
+  const filterParts = [
+    meta.search && `Search: "${meta.search}"`,
+    (meta.startDate || meta.endDate) && `Period: ${meta.startDate || "any"} → ${meta.endDate || "any"}`,
+    meta.project && `Project: ${meta.project}`,
+    meta.supplier && `Supplier: ${meta.supplier}`,
+    meta.status && `Status: ${meta.status}`,
+  ].filter(Boolean);
+  let y = 22;
+  if (filterParts.length) {
+    y += 6;
+    doc.text(`Filters: ${filterParts.join(" | ")}`, 14, y);
+  }
+  y += 6;
+  doc.setTextColor(0, 0, 0);
+  doc.setFont("helvetica", "bold");
+  doc.text(`Total GRNs: ${rows.length}`, 14, y);
+
+  autoTable(doc, {
+    startY: y + 5,
+    margin: { left: 14, right: 14 },
+    head: [["GRN No.", "PO No.", "Date", "Project", "Store", "Supplier", "Challan / Inv", "MR No.", "Status"]],
+    body: rows.map((r) => [
+      safeStr(r.id),
+      safeStr(r.poId),
+      fmtDate(r.date),
+      safeStr(r.project),
+      safeStr(r.store),
+      safeStr(r.supplier),
+      safeStr(r.challan),
+      safeStr(r.mrNo),
+      safeStr(r.status),
+    ]),
+    styles: { fontSize: 8.5, cellPadding: 1.8, lineColor: [220, 220, 220], lineWidth: 0.1 },
+    headStyles: { fillColor: [pc[0], pc[1], pc[2]], textColor: 255, fontStyle: "bold" },
+  });
+
+  const suffix = meta.project ? `_${String(meta.project).replace(/\s+/g, "_")}` : "";
+  doc.save(`GRN_Report${suffix}_${fmtDate(meta.generatedAt || Date.now()).replace(/\s+/g, "_")}.pdf`);
+}, "generateGRNReportPDF");
+
 const generateGRNPDF = /* @__PURE__ */ __name((grn, supplier) => {
   const doc = new jsPDF({ orientation: "p", unit: "mm", format: "a4" });
   const pc = [26, 54, 93];
@@ -517,21 +576,6 @@ const generateGRNPDF = /* @__PURE__ */ __name((grn, supplier) => {
     y = doc.lastAutoTable.finalY + 4;
   }
 
-  // ── Signature block ──
-  checkPage(22);
-  const colW = 47.5;
-  ["STORE INCHARGE", "SUPERVISOR", "SITE ENGINEER", "PROJECT MANAGER"].forEach((label, i) => {
-    const x = 10 + i * colW;
-    doc.setDrawColor(200); doc.setFillColor(248, 250, 252);
-    doc.rect(x, y, colW, 18, "FD");
-    doc.setFontSize(7); doc.setFont("helvetica", "bold"); doc.setTextColor(80);
-    doc.text(label, x + colW / 2, y + 4, { align: "center" });
-    doc.setFontSize(7); doc.setFont("helvetica", "normal"); doc.setTextColor(150);
-    doc.text("Signature:", x + 3, y + 10);
-    doc.text("Date:", x + 3, y + 15);
-  });
-  y += 20;
-
   doc.save(`${grn.id}_GRN.pdf`);
 }, "generateGRNPDF");
 
@@ -539,4 +583,5 @@ export {
   generatePOPDF,
   generatePOPDFBlob,
   generateGRNPDF,
+  generateGRNReportPDF,
 };

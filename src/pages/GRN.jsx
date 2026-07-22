@@ -24,6 +24,7 @@ import { toast } from "react-hot-toast";
 import { api, bustCache } from "../services/api";
 import { POViewModal } from "./po/POViewModal";
 import { GRNDetailModal } from "../components/GRNDetailModal";
+import { generateGRNReportPDF } from "../utils/pdfGenerator";
 // Compute GRN status from actual received vs ordered — overrides stale stored status
 const grnEffectiveStatus = (grn) => {
   const items = grn.items || [];
@@ -415,6 +416,34 @@ const GRNPage = /* @__PURE__ */ __name(() => {
     finally { setSavingReceipt(false); }
   };
 
+  const downloadReport = /* @__PURE__ */ __name(() => {
+    if (!grns || grns.length === 0) { toast.error("No GRN data to export"); return; }
+    const rows = grns.map((g) => {
+      const supplierId = g.vendor || g.supplier;
+      const supplier = suppliers.find((s) => s.id === supplierId);
+      return {
+        id: g.id,
+        poId: g.poId,
+        date: g.date,
+        project: g.project,
+        store: g.store,
+        supplier: supplier ? (supplier.companyName || supplier.name) : supplierId,
+        challan: g.challan,
+        mrNo: g.mrNo,
+        status: grnEffectiveStatus(g)
+      };
+    });
+    generateGRNReportPDF(rows, {
+      generatedAt: Date.now(),
+      search: debouncedSearch,
+      startDate,
+      endDate,
+      project: filterProject,
+      supplier: filterSupplier,
+      status: filterStatus
+    });
+  }, "downloadReport");
+
   return <div className="space-y-6">
       <PageHeader
     title="Goods Receipt Note (GRN)"
@@ -436,6 +465,13 @@ const GRNPage = /* @__PURE__ */ __name(() => {
           }}
         />
       )}
+      <Btn
+        label="Download Report"
+        icon={Download}
+        outline
+        small
+        onClick={downloadReport}
+      />
       {hasPermission("CREATE_GRN") && <Btn
       label="Create GRN"
       icon={Plus}

@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from "react";
-import { X, Download, Ban, RotateCcw, AlertTriangle, Lock, LockOpen } from "lucide-react";
+import { X, Download, Ban, RotateCcw, AlertTriangle, Lock, LockOpen, Eye } from "lucide-react";
 import { api } from "../../services/api";
 import { Modal, Btn, StatusBadge } from "../../components/ui";
 import { DatePicker } from "../../components/ui/DatePicker";
@@ -8,6 +8,7 @@ import { fmtCur, formatDateTime, safeStr } from "../../utils";
 import { cn } from "../../lib/utils";
 import toast from "react-hot-toast";
 import { generatePOPDF } from "../../utils/pdfGenerator";
+import { MRDetailModal } from "../mr/MRDetailModal";
 import {
   calcChargeTotal, normalizeTimelineType,
   computeTimelineDates, formatPrettyDate,
@@ -35,7 +36,7 @@ function ApprovalStamp({ status, label }) {
 
 
 export function POViewModal({ po, onClose, onApproveL1, onApproveL2, onApproveL3, onReject, onCancelApproved, onDownloadPDF, processingId }) {
-  const { suppliers, settings, role, hasPermission, user, updatePO, patchPoInStore, actionLoading, grns } = useAppStore();
+  const { suppliers, settings, role, hasPermission, user, updatePO, patchPoInStore, actionLoading, grns, materialRequirements } = useAppStore();
   const uid = user?._id;
   const isL1Approver = uid && settings?.approvers?.l1Id && uid === settings.approvers.l1Id;
   const isL2Approver = uid && settings?.approvers?.l2Id && uid === settings.approvers.l2Id;
@@ -57,6 +58,7 @@ export function POViewModal({ po, onClose, onApproveL1, onApproveL2, onApproveL3
     if (!storedTitle) return fallback;
     return level ? `${storedTitle} (${level})` : storedTitle;
   };
+  const [viewingMR, setViewingMR] = useState(null);
   const [editTimelines, setEditTimelines] = useState(false);
   const [draftTimelines, setDraftTimelines] = useState([]);
   const [showCloseConfirm, setShowCloseConfirm] = useState(false);
@@ -123,6 +125,9 @@ export function POViewModal({ po, onClose, onApproveL1, onApproveL2, onApproveL3
   }, [po, displayItems]);
 
   if (!po) return null;
+
+  const poMR = (materialRequirements || []).find(m => m.id === po.mrId || m.mrNumber === po.mrId);
+  const mrLocation = poMR ? (poMR.location || poMR.site || poMR.address || "") : "";
 
   const _normId = (str) => (str || "").replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
   const _poSupLower = (po.supplier || "").trim().toLowerCase();
@@ -253,13 +258,14 @@ export function POViewModal({ po, onClose, onApproveL1, onApproveL2, onApproveL3
         {!isOnHold && !["Cancelled", "Blocked", "PO Closed", "Draft"].includes(localStatus) && hasPermission("HOLD_PURCHASE_ORDER") && (
           <Btn label="Hold PO" icon={Lock} color="amber" onClick={handleHoldPO} loading={holdLoading} />
         )}
-        <Btn label="Download PO PDF" icon={Download} onClick={() => { if (onDownloadPDF) { onDownloadPDF(po); } else { generatePOPDF(po, supplier, settings); } }} className="bg-orange-500 hover:bg-orange-600 text-white border-none shadow-lg shadow-orange-500/20 font-bold" />
+        <Btn label="Download PO PDF" icon={Download} onClick={() => { if (onDownloadPDF) { onDownloadPDF(po); } else { generatePOPDF({...po, mrLocation}, supplier, settings); } }} className="bg-orange-500 hover:bg-orange-600 text-white border-none shadow-lg shadow-orange-500/20 font-bold" />
         <Btn label="Close" outline onClick={onClose} className="px-8 border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800" />
       </div>
     </div>
   );
 
   return (
+    <>
     <Modal title={`Purchase Order Details - ${po.id}`} extraWide onClose={onClose} footer={footerButtons}>
       <div id="printable-po" className="p-1 sm:p-2 bg-white dark:bg-gray-900 text-[#1A365D] dark:text-gray-200 font-sans">
 
@@ -328,7 +334,8 @@ export function POViewModal({ po, onClose, onApproveL1, onApproveL2, onApproveL3
               ["Company name", po.companyName || "Neoteric Recreational And Hospitality"],
               ["Company gstin", po.companyGst || "23AACCG4573B1Z2", "font-mono text-[11px]"],
               ["Company address", po.companyAddress || "Gwalior MP", "leading-tight"],
-              ["Internal mr no.", po.mrId || "—", "text-indigo-600 dark:text-blue-400"],
+              ["Internal mr no.", <span className="flex items-center gap-2 text-indigo-600 dark:text-blue-400">{po.mrId || "—"}{po.mrId && <button onClick={() => { const mr = (materialRequirements || []).find(m => m.id === po.mrId || m.mrNumber === po.mrId); mr ? setViewingMR(mr) : toast.error("MR not found"); }} className="flex items-center gap-1 text-[9px] font-black text-blue-600 bg-blue-50 dark:bg-blue-500/10 px-2 py-0.5 rounded border border-blue-100 dark:border-blue-500/20 hover:bg-blue-100 dark:hover:bg-blue-500/20 transition-colors"><Eye className="w-3 h-3" /> View MR</button>}</span>, ""],
+              ...(mrLocation ? [["MR location", mrLocation, "text-amber-600 dark:text-amber-400"]] : []),
               ["Site/location", po.project || po.location || "—"],
               ["Date of issue", formatPrettyDate(po.date)],
             ].map(([label, value, extra = ""]) => (
@@ -693,5 +700,13 @@ export function POViewModal({ po, onClose, onApproveL1, onApproveL2, onApproveL3
         }
       ` }} />
     </Modal>
+    {viewingMR && (
+      <MRDetailModal
+        requirement={viewingMR}
+        onClose={() => setViewingMR(null)}
+        onRequirementUpdate={() => {}}
+      />
+    )}
+    </>
   );
 }

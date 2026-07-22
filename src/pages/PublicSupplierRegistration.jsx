@@ -3,7 +3,7 @@ var __name = (target, value) => __defProp(target, "name", { value, configurable:
 import { useState } from "react";
 import { useAppStore } from "../store";
 import { Card, Btn, Field, SField, ImageUpload } from "../components/ui";
-import { CheckCircle2, AlertCircle } from "lucide-react";
+import { CheckCircle2, AlertCircle, Banknote } from "lucide-react";
 import { scrollToError } from "../utils";
 import { useEffect } from "react";
 import { toast } from "react-hot-toast";
@@ -51,7 +51,8 @@ const PublicSupplierRegistration = /* @__PURE__ */ __name(() => {
     panCardUrl: "",
     bankProofUrl: "",
     businessCardUrl: "",
-    status: "Active"
+    status: "Active",
+    cashOnly: false
   };
   const [newSupplier, setNewSupplier] = useState(initialSupplier);
   const validateSection = /* @__PURE__ */ __name((s) => {
@@ -68,7 +69,7 @@ const PublicSupplierRegistration = /* @__PURE__ */ __name(() => {
       if (!newSupplier.address) newErrors.address = "Address is required";
       if (!newSupplier.dealingProducts) newErrors.dealingProducts = "Dealing products are required";
     }
-    if (s === 3) {
+    if (s === 3 && !newSupplier.cashOnly) {
       if (!newSupplier.accountHolderName) newErrors.accountHolderName = "Account holder name is required";
       if (!newSupplier.bankName) newErrors.bankName = "Bank name is required";
       if (!newSupplier.accountNumber) newErrors.accountNumber = "Account number is required";
@@ -83,7 +84,7 @@ const PublicSupplierRegistration = /* @__PURE__ */ __name(() => {
     }
     if (s === 5) {
       if (!newSupplier.panCardUrl) newErrors.panCardUrl = "PAN card upload is required";
-      if (!newSupplier.bankProofUrl) newErrors.bankProofUrl = "Bank proof upload is required";
+      if (!newSupplier.cashOnly && !newSupplier.bankProofUrl) newErrors.bankProofUrl = "Bank proof upload is required";
     }
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -210,14 +211,37 @@ const PublicSupplierRegistration = /* @__PURE__ */ __name(() => {
                   <div className="sm:col-span-2">
                     <Field label="Additional Info" value={newSupplier.additionalInfo} onChange={(e) => setNewSupplier((prev) => ({ ...prev, additionalInfo: e.target.value }))} error={errors.additionalInfo} />
                   </div>
+                  <div className="sm:col-span-2">
+                    <button
+                      type="button"
+                      onClick={() => setNewSupplier((prev) => ({ ...prev, cashOnly: !prev.cashOnly }))}
+                      className={`w-full flex items-center justify-between gap-4 p-4 rounded-xl border-2 transition-all duration-200 text-left ${newSupplier.cashOnly ? "border-amber-400 bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-900/25 dark:to-orange-900/15 shadow-sm shadow-amber-100 dark:shadow-none" : "border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/40 hover:border-amber-200 dark:hover:border-amber-800"}`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className={`w-10 h-10 rounded-lg flex items-center justify-center transition-all duration-200 ${newSupplier.cashOnly ? "bg-amber-400 dark:bg-amber-500 text-white" : "bg-gray-200 dark:bg-gray-700 text-gray-500 dark:text-gray-400"}`}>
+                          <Banknote className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <p className={`text-sm font-bold transition-colors ${newSupplier.cashOnly ? "text-amber-800 dark:text-amber-300" : "text-gray-700 dark:text-gray-300"}`}>Cash Only Vendor</p>
+                          <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">No bank account · No GST registration</p>
+                        </div>
+                      </div>
+                      <div className={`relative w-11 h-6 rounded-full transition-all duration-200 shrink-0 ${newSupplier.cashOnly ? "bg-amber-400 dark:bg-amber-500" : "bg-gray-300 dark:bg-gray-600"}`}>
+                        <div className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow-md transition-all duration-200 ${newSupplier.cashOnly ? "left-5" : "left-0.5"}`} />
+                      </div>
+                    </button>
+                  </div>
                 </>}
 
               {section === 3 && <>
-                  <Field label="Account Holder Name" value={newSupplier.accountHolderName} onChange={(e) => setNewSupplier((prev) => ({ ...prev, accountHolderName: e.target.value }))} required error={errors.accountHolderName} />
-                  <Field label="Bank Name" value={newSupplier.bankName} onChange={(e) => setNewSupplier((prev) => ({ ...prev, bankName: e.target.value }))} required error={errors.bankName} />
-                  <Field label="Account Number" value={newSupplier.accountNumber} onChange={(e) => setNewSupplier((prev) => ({ ...prev, accountNumber: e.target.value }))} required error={errors.accountNumber} />
-                  <Field label="IFSC Code" value={newSupplier.ifscCode} onChange={(e) => setNewSupplier((prev) => ({ ...prev, ifscCode: e.target.value.toUpperCase() }))} required placeholder="ABCD0123456" error={errors.ifscCode} />
-                  <Field label="Branch" value={newSupplier.branch} onChange={(e) => setNewSupplier((prev) => ({ ...prev, branch: e.target.value }))} required error={errors.branch} />
+                  {newSupplier.cashOnly && <div className="sm:col-span-2 p-3 rounded-lg border border-amber-200 dark:border-amber-700/40 bg-amber-50 dark:bg-amber-900/10 text-sm text-amber-800 dark:text-amber-400">
+                    Cash Only vendor — bank details are optional. You can skip this section or fill if available.
+                  </div>}
+                  <Field label={newSupplier.cashOnly ? "Account Holder Name (optional)" : "Account Holder Name"} value={newSupplier.accountHolderName} onChange={(e) => setNewSupplier((prev) => ({ ...prev, accountHolderName: e.target.value }))} required={!newSupplier.cashOnly} error={errors.accountHolderName} />
+                  <Field label={newSupplier.cashOnly ? "Bank Name (optional)" : "Bank Name"} value={newSupplier.bankName} onChange={(e) => setNewSupplier((prev) => ({ ...prev, bankName: e.target.value }))} required={!newSupplier.cashOnly} error={errors.bankName} />
+                  <Field label={newSupplier.cashOnly ? "Account Number (optional)" : "Account Number"} value={newSupplier.accountNumber} onChange={(e) => setNewSupplier((prev) => ({ ...prev, accountNumber: e.target.value }))} required={!newSupplier.cashOnly} error={errors.accountNumber} />
+                  <Field label={newSupplier.cashOnly ? "IFSC Code (optional)" : "IFSC Code"} value={newSupplier.ifscCode} onChange={(e) => setNewSupplier((prev) => ({ ...prev, ifscCode: e.target.value.toUpperCase() }))} required={!newSupplier.cashOnly} placeholder="ABCD0123456" error={errors.ifscCode} />
+                  <Field label={newSupplier.cashOnly ? "Branch (optional)" : "Branch"} value={newSupplier.branch} onChange={(e) => setNewSupplier((prev) => ({ ...prev, branch: e.target.value }))} required={!newSupplier.cashOnly} error={errors.branch} />
                 </>}
 
               {section === 4 && <>
@@ -237,13 +261,13 @@ const PublicSupplierRegistration = /* @__PURE__ */ __name(() => {
     loading={uploadingField === "panCardUrl"}
   />
                   <ImageUpload
-    label="Bank Proof"
+    label={newSupplier.cashOnly ? "Bank Proof (optional)" : "Bank Proof"}
     id="bank-upload"
     value={newSupplier.bankProofUrl}
     onChange={(file) => handleFileChange("bankProofUrl", file)}
     onRemove={() => setNewSupplier((prev) => ({ ...prev, bankProofUrl: "" }))}
     error={errors.bankProofUrl}
-    required
+    required={!newSupplier.cashOnly}
     loading={uploadingField === "bankProofUrl"}
   />
                   <ImageUpload

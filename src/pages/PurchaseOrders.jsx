@@ -131,16 +131,9 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
 
   const [filterSupplier, setFilterSupplier] = useState("");
 
-  const [filterStatus, setFilterStatus] = useState(
-    hasPermission("VIEW_PO_ALL") ? ""
-      : hasPermission("VIEW_PO_L3_ONLY") ? "Pending L3"
-      : hasPermission("VIEW_PO_L2_ONLY") ? "Pending L2"
-      : hasPermission("VIEW_PO_L1_ONLY") ? "Pending L1"
-      : isL3Approver || hasPermission("APPROVE_PURCHASE_ORDER_L3") ? "Pending L3"
-      : isL2Approver || hasPermission("APPROVE_PURCHASE_ORDER_L2") ? "Pending L2"
-      : isL1Approver || hasPermission("APPROVE_PURCHASE_ORDER_L1") ? "Pending L1"
-      : ""
-  );
+  // "All POs" always starts unfiltered — the approval-level default only applies
+  // to the "My Pending Approvals" tab (see effectiveStatusFilter below).
+  const [filterStatus, setFilterStatus] = useState("");
 
   const [occupiedQuoteIds, setOccupiedQuoteIds] = useState(null);
 
@@ -267,6 +260,11 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
 
   const [showMonthly, setShowMonthly] = useState(false);
 
+  // "My Pending Approvals" must fetch scoped to the user's approval-level status
+  // regardless of the (unrelated) "All POs" status dropdown, so pagination doesn't
+  // hide pending items that aren't on the currently loaded page.
+  const effectiveStatusFilter = activeTab === "my-approvals" ? myApprovalStatus : filterStatus;
+
   useEffect(() => {
     setPage(1);
   }, [
@@ -275,7 +273,8 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
     endDate,
     filterProject,
     filterSupplier,
-    filterStatus,
+    effectiveStatusFilter,
+    activeTab,
   ]);
   useEffect(() => {
     const isInitialLoad = (pos?.length || 0) === 0;
@@ -283,7 +282,7 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
     const filterObj = {};
     if (filterProject) filterObj.project = filterProject;
     if (filterSupplier) filterObj.supplier = filterSupplier;
-    if (filterStatus) filterObj.status = filterStatus;
+    if (effectiveStatusFilter) filterObj.status = effectiveStatusFilter;
 
     const finalFilter = Object.keys(filterObj).length > 0 ? filterObj : null;
     fetchResource(
@@ -312,7 +311,8 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
     endDate,
     filterProject,
     filterSupplier,
-    filterStatus,
+    effectiveStatusFilter,
+    activeTab,
   ]);
 
   const loadMore = useCallback(() => {
@@ -1455,7 +1455,9 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
       if (_dl.length >= 4 && (cD.startsWith(_dl) || oD.startsWith(_dl))) return true;
       return false;
     });
-    generatePOPDF(getEffectivePO(po), supplier, settings);
+    const poMR = (materialRequirements || []).find(m => m.id === po.mrId || m.mrNumber === po.mrId);
+    const mrLocation = poMR ? (poMR.location || poMR.site || poMR.address || "") : "";
+    generatePOPDF({...getEffectivePO(po), mrLocation}, supplier, settings);
   }, "downloadPDF");
 
   const addItem = /* @__PURE__ */ __name((invItem) => {

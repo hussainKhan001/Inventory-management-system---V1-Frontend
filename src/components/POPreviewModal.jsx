@@ -12,8 +12,10 @@ const POPreviewModal = /* @__PURE__ */ __name(({
   onApprove,
   onReject
 }) => {
-  const { settings } = useAppStore();
+  const { settings, materialRequirements } = useAppStore();
   if (!po) return null;
+  const poMR = (materialRequirements || []).find(m => m.id === po.mrId || m.mrNumber === po.mrId);
+  const mrLocation = poMR ? (poMR.location || poMR.site || poMR.address || "") : "";
   return <Modal
     title={`Purchase Order Details - ${po.id}`}
     ultraWide
@@ -32,7 +34,7 @@ const POPreviewModal = /* @__PURE__ */ __name(({
               <X className="w-4 h-4" /> Reject PO
             </button>}
           <button
-      onClick={() => generatePOPDF(po, supplier, settings)}
+      onClick={() => generatePOPDF({...po, mrLocation}, supplier, settings)}
       className="px-6 py-2.5 bg-orange-500 hover:bg-orange-600 text-white rounded-xl text-[13px] font-black shadow-lg shadow-orange-500/20 flex items-center gap-2 transition-all active:scale-95 tracking-widest"
     >
             <Download className="w-4 h-4" /> Download PO PDF
@@ -64,6 +66,10 @@ const POPreviewModal = /* @__PURE__ */ __name(({
               <div className="col-span-4 bg-[#1A365D]/5 dark:bg-[#1A365D]/20 p-2 font-bold text-[9px] text-gray-500 border-r border-[#1A365D] flex items-center">Internal MR No.</div>
               <div className="col-span-8 p-2 font-bold text-[11px] text-indigo-600 dark:text-blue-400 ">{po.mrId || "NA"}</div>
             </div>
+            {mrLocation && <div className="grid grid-cols-12 min-h-[35px]">
+              <div className="col-span-4 bg-[#1A365D]/5 dark:bg-[#1A365D]/20 p-2 font-bold text-[9px] text-gray-500 border-r border-[#1A365D] flex items-center">MR Location</div>
+              <div className="col-span-8 p-2 font-bold text-[11px] text-amber-600 dark:text-amber-400">{mrLocation}</div>
+            </div>}
             <div className="grid grid-cols-12 min-h-[35px]">
               <div className="col-span-4 bg-[#1A365D]/5 dark:bg-[#1A365D]/20 p-2 font-bold text-[9px] text-gray-500 border-r border-[#1A365D] flex items-center">Work Type</div>
               <div className="col-span-8 p-2 font-bold text-[11px] text-gray-700 dark:text-gray-300">{po.workType || "NA"}</div>
