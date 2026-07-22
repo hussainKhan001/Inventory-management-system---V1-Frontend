@@ -599,6 +599,7 @@ const AppProvider = /* @__PURE__ */ __name(({ children }) => {
             setFormConfigs(res.data);
             break;
         }
+        return res.data;
       }
     } catch (error) {
       console.error(`Failed to fetch ${resource}:`, error);

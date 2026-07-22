@@ -86,6 +86,7 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
   const [isEditingPayment, setIsEditingPayment] = useState(false);
   const [verifyRemark, setVerifyRemark] = useState("");
   const [showVerifyRemark, setShowVerifyRemark] = useState(false);
+  const [localPos, setLocalPos] = useState([]);
   useEffect(() => {
     if (!paymentForm.toCompany) return;
     const supplierName = paymentForm.toCompany.toLowerCase();
@@ -116,11 +117,17 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
       ]
     };
     try {
-      const [_, __, grnRes] = await Promise.all([
+      const [posData] = await Promise.all([
         fetchResource("pos", 1, 500, false, "", accountsFilter),
         fetchResource("suppliers", 1, 5000, true),
-        api.get("grn", { limit: 1000 }).catch(() => ({ success: false })),
       ]);
+      setLocalPos(posData || []);
+      // Only the GRNs belonging to these accounts-eligible POs are ever looked
+      // up here — scoping the fetch avoids pulling every GRN in the system.
+      const poIds = (posData || []).map((p) => p.id).filter(Boolean);
+      const grnRes = poIds.length
+        ? await api.get("grn", { limit: 1000, filter: JSON.stringify({ poId: { $in: poIds } }) }).catch(() => ({ success: false }))
+        : { success: true, data: [] };
       if (grnRes?.success && grnRes.data) setAllGrns(grnRes.data);
     } catch (err) {
       console.error(err);
@@ -129,7 +136,7 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
   }, "refresh");
   useEffect(() => {
     refresh();
-  }, [fetchResource]);
+  }, []);
 
   // Returns the latest GRN that has not yet been linked to a payment installment.
   // Needed because a PO can have multiple GRN batches (multiple shipments).
@@ -159,7 +166,7 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
     return s?.companyName || supplierIdOption;
   }, "getSupplierName");
   const metrics = useMemo(() => {
-    const all = pos || [];
+    const all = localPos;
     const pendingPaymentPOs = all.filter((p) => (p.accountStatus || "").toLowerCase() === "payment_pending");
     const pendingPayment = pendingPaymentPOs.length;
     const totalPendingAmount = pendingPaymentPOs.reduce((sum, p) => sum + Math.max(0, (p.totalValue || 0) - (p.totalPaid || 0)), 0);
@@ -194,17 +201,17 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
       partialPaidCount,
       rejectedCount: all.filter((p) => (p.accountStatus || "").toLowerCase() === "rejected").length
     };
-  }, [pos]);
+  }, [localPos]);
   const vendorOptions = useMemo(
     () => suppliers.map((s) => ({ label: s.companyName || s.name || s.id, value: s.id || s._id })),
     [suppliers]
   );
   const projectOptions = useMemo(
-    () => [...new Set((pos || []).map((p) => p.project || p.location).filter(Boolean))].map((v) => ({ label: v, value: v })),
-    [pos]
+    () => [...new Set(localPos.map((p) => p.project || p.location).filter(Boolean))].map((v) => ({ label: v, value: v })),
+    [localPos]
   );
   const filteredPOs = useMemo(() => {
-    const all = pos || [];
+    const all = localPos;
     return all.filter((p) => {
       const accStatus = (p.accountStatus || "").toLowerCase();
       const poStatus = (p.status || "").toLowerCase();
@@ -250,7 +257,7 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
       if (filterProject && (p.project || p.location) !== filterProject) return false;
       return true;
     });
-  }, [pos, allGrns, filter, search, startDate, endDate, filterVendor, filterProject, suppliers]);
+  }, [localPos, allGrns, filter, search, startDate, endDate, filterVendor, filterProject, suppliers]);
   const handleBillVerify = /* @__PURE__ */ __name(async (poId, remark) => {
     if (!hasPermission("VERIFY_BILL")) {
       toast.error("Unauthorized: Access to verify bills is restricted.");
@@ -259,7 +266,7 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
     setIsSubmitting(true);
     try {
       const timestamp = (/* @__PURE__ */ new Date()).toISOString();
-      const po = pos.find((p) => p.id === poId);
+      const po = localPos.find((p) => p.id === poId);
       const audit = {
         timestamp,
         action: "bill_verified",
@@ -275,6 +282,7 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
         verifyRemark: remark || null,
         auditTrail: [...(po?.auditTrail || []), audit]
       });
+      setLocalPos(prev => prev.map(p => p.id === poId ? { ...p, accountStatus: "bill_verified", verifiedBy: user?.name || "Accounts Team", verifiedAt: timestamp, verifyRemark: remark || null } : p));
       toast.success("Bill verified! Sent for final approval.");
       setSelectedPO(null);
       setShowVerifyRemark(false);
@@ -294,7 +302,7 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
     setIsSubmitting(true);
     try {
       const timestamp = (/* @__PURE__ */ new Date()).toISOString();
-      const po = pos.find((p) => p.id === poId);
+      const po = localPos.find((p) => p.id === poId);
       const audit = {
         timestamp,
         action: "bill_approved",
@@ -308,6 +316,7 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
         billApprovedDate: timestamp,
         auditTrail: [...(po?.auditTrail || []), audit]
       });
+      setLocalPos(prev => prev.map(p => p.id === poId ? { ...p, accountStatus: "payment_pending", billApprovedBy: user?.name || "Finance Dept", billApprovedDate: timestamp } : p));
       toast.success("Bill approved! Ready for payment.");
       setSelectedPO(null);
     } catch (err) {
@@ -318,14 +327,17 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
   }, "handleBillApprove");
 
   const handleRevokeVerify = /* @__PURE__ */ __name(async (poId) => {
-    if (!hasPermission("VERIFY_BILL")) {
-      toast.error("Unauthorized: Access to verify bills is restricted.");
+    // "Revise" here is triggered by the approver sending a verified bill back —
+    // gate on APPROVE_BILL to match the button's own visibility check below,
+    // not VERIFY_BILL (that belonged to the earlier verify step).
+    if (!hasPermission("APPROVE_BILL")) {
+      toast.error("Unauthorized: Access to approve bills is restricted.");
       return;
     }
     setIsSubmitting(true);
     try {
       const timestamp = (/* @__PURE__ */ new Date()).toISOString();
-      const po = pos.find((p) => p.id === poId);
+      const po = localPos.find((p) => p.id === poId);
       const audit = {
         timestamp,
         action: "verify_revoked",
@@ -341,6 +353,7 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
         verifyRemark: null,
         auditTrail: [...(po?.auditTrail || []), audit]
       });
+      setLocalPos(prev => prev.map(p => p.id === poId ? { ...p, accountStatus: "bill_verify", verifiedBy: null, verifiedAt: null, verifyRemark: null } : p));
       toast.success("Verification revoked. Bill sent back for re-verification.");
       setSelectedPO(null);
     } catch (err) {
@@ -358,7 +371,7 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
     setIsSubmitting(true);
     try {
       const timestamp = (/* @__PURE__ */ new Date()).toISOString();
-      const po = pos.find((p) => p.id === poId);
+      const po = localPos.find((p) => p.id === poId);
       const isRevertingRemaining = po.payment?.isPartial || po.payment?.partialAmount;
       const newStatus = isRevertingRemaining ? "partial_paid" : "bill_verify";
       const audit = {
@@ -378,6 +391,7 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
         verifyRemark: null,
         auditTrail: [...(po?.auditTrail || []), audit]
       });
+      setLocalPos(prev => prev.map(p => p.id === poId ? { ...p, accountStatus: newStatus, billApprovedBy: null, billApprovedDate: null, verifiedBy: null, verifiedAt: null, verifyRemark: null } : p));
       toast.success("Approval revoked. Bill sent back for verification.");
       setSelectedPO(null);
     } catch (err) {
@@ -397,7 +411,7 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
     }
     setIsSubmitting(true);
     try {
-      const po = pos.find((p) => p.id === poId);
+      const po = localPos.find((p) => p.id === poId);
       const audit = {
         timestamp: (/* @__PURE__ */ new Date()).toISOString(),
         action: "bill_rejected",
@@ -411,6 +425,7 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
         rejectionReason,
         auditTrail: [...po?.auditTrail || [], audit]
       });
+      setLocalPos(prev => prev.map(p => p.id === poId ? { ...p, accountStatus: "rejected", rejectionReason } : p));
       toast.success("Bill has been rejected.");
       setShowRejectForm(false);
       setRejectionReason("");
@@ -441,7 +456,7 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
     }
     setIsSubmitting(true);
     try {
-      const po = pos.find((p) => p.id === poId);
+      const po = localPos.find((p) => p.id === poId);
       const timestamp = (/* @__PURE__ */ new Date()).toISOString();
       let screenshotUrl = paymentForm.previewUrl;
       if (paymentForm.screenshot) {
@@ -515,6 +530,7 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
         payment: { ...paymentData, amountPaid: newTotalPaid, isPartial: !isFullyPaid, partialAmount: prevTotalPaid || paymentData.amountPaid },
         auditTrail: [...(po?.auditTrail || []), audit]
       });
+      setLocalPos(prev => prev.map(p => p.id === poId ? { ...p, accountStatus: isFullyPaid ? "paid" : "partial_paid", totalPaid: newTotalPaid } : p));
       toast.success(isFullyPaid
         ? "Payment confirmed! PO fully settled."
         : `Installment #${newEntry.installmentNo} recorded. ₹${(po?.totalValue - newTotalPaid).toLocaleString("en-IN", { maximumFractionDigits: 2 })} remaining — will activate on next GRN batch.`);
@@ -578,6 +594,7 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
     setIsDeletingPayment(true);
     try {
       await updatePO(deleteConfirmPO.id, { accountStatus: null, payment: null, totalPaid: 0, paymentHistory: [] });
+      setLocalPos(prev => prev.map(p => p.id === deleteConfirmPO.id ? { ...p, accountStatus: null, payment: null, totalPaid: 0, paymentHistory: [] } : p));
       toast.success("Payment entry deleted. PO reverted to bill verification.");
       setDeleteConfirmPO(null);
       if (selectedPO?.id === deleteConfirmPO.id) setSelectedPO(null);
@@ -1277,21 +1294,23 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
             <div className="flex justify-between gap-3 w-full flex-wrap">
               <div className="flex gap-2">
                 <Btn label="Print" icon={Printer} outline onClick={() => handlePrintTransactionDetail(selectedPO, realGRN)} />
-                {!isRemainingPayment && <Btn label="Reject" color="red" onClick={() => setShowRejectForm(true)} />}
+                {!isRemainingPayment && hasPermission("VERIFY_BILL") && <Btn label="Reject" color="red" onClick={() => setShowRejectForm(true)} />}
               </div>
-              <Btn
-                label={isRemainingPayment ? "Verify Remaining Bill" : "Verify"}
-                color="green"
-                onClick={() => {
-                  if (hasMismatch) {
-                    setShowVerifyRemark(true);
-                  } else {
-                    handleBillVerify(selectedPO.id, "");
-                  }
-                }}
-                loading={isSubmitting}
-                disabled={isSubmitting}
-              />
+              {hasPermission("VERIFY_BILL") && (
+                <Btn
+                  label={isRemainingPayment ? "Verify Remaining Bill" : "Verify"}
+                  color="green"
+                  onClick={() => {
+                    if (hasMismatch) {
+                      setShowVerifyRemark(true);
+                    } else {
+                      handleBillVerify(selectedPO.id, "");
+                    }
+                  }}
+                  loading={isSubmitting}
+                  disabled={isSubmitting}
+                />
+              )}
             </div>
           )
         ) : resolvedStatus === "bill_verified" ? (
@@ -1319,7 +1338,7 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
         ) : (resolvedStatus === "payment_pending" || ((resolvedStatus === "paid" || resolvedStatus === "partial_paid") && isEditingPayment)) ? (
           <div className="flex justify-between gap-3 w-full items-center">
             <Btn label="Download PO PDF" icon={Download} outline onClick={downloadPOPDF} />
-            {resolvedStatus === "payment_pending" && (
+            {resolvedStatus === "payment_pending" && hasPermission("APPROVE_BILL") && (
               <button
                 onClick={() => handleRevokeApproval(selectedPO.id)}
                 disabled={isSubmitting}
@@ -1333,7 +1352,7 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
                 <Clock className="w-4 h-4 text-amber-500 shrink-0" />
                 <p className="text-[12px] font-bold text-amber-700 dark:text-amber-400">Waiting for next GRN batch</p>
               </div>
-            ) : (
+            ) : hasPermission("MAKE_PAYMENT") ? (
               <button
                 onClick={() => handlePaymentSubmit(selectedPO.id)}
                 disabled={isSubmitting || drawerPayableAmount <= 0}
@@ -1341,7 +1360,7 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
               >
                 {isSubmitting ? "Syncing with ERP..." : isEditingPayment ? "Update Payment ✓" : isRemainingPayment ? "Pay Remaining Balance ✓" : "Mark Payment as Complete ✓"}
               </button>
-            )}
+            ) : null}
           </div>
         ) : resolvedStatus === "partial_paid" ? (
           <div className="flex items-center gap-3 w-full">
