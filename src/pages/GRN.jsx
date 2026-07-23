@@ -248,9 +248,12 @@ const GRNPage = /* @__PURE__ */ __name(() => {
       images: []
       };
     }).filter((item) => item.ordered > 0); // only items still outstanding
-    const existingPartialGRN = grns.find((g) => g.poId === poId && g.status === "Partial");
-    if (existingPartialGRN) {
-      setTargetGRNId(existingPartialGRN.id);
+    // Prefer a GRN already flagged Partial, but fall back to any existing GRN for this PO
+    // so a new delivery is always added as a shipment on it instead of creating a duplicate GRN.
+    const grnsForPO = grns.filter((g) => g.poId === poId);
+    const existingGRN = grnsForPO.find((g) => g.status === "Partial") || grnsForPO[0];
+    if (existingGRN) {
+      setTargetGRNId(existingGRN.id);
     }
     setNewGRN({
       ...newGRN,
@@ -552,6 +555,9 @@ const GRNPage = /* @__PURE__ */ __name(() => {
                 <th className={headerClass}>
                   Grn details
                 </th>
+                <th className={cn(headerClass, "hidden md:table-cell w-[120px]")}>
+                  PO no.
+                </th>
                 <th className={cn(headerClass, "hidden md:table-cell w-[148px]")}>
                   Date
                 </th>
@@ -577,7 +583,7 @@ const GRNPage = /* @__PURE__ */ __name(() => {
                 <div className="flex md:flex-col items-center md:items-start justify-between md:justify-start gap-2">
                   <div className="flex flex-col">
                     <span className="text-[13px] font-bold text-gray-900 dark:text-white md:font-medium">{safeStr(grn.id)}</span>
-                    <span className="text-[11px] text-gray-500">PO: {safeStr(grn.poId)}</span>
+                    <span className="text-[11px] text-gray-500">MR: {safeStr(grn.mrNo)}</span>
                   </div>
                   <div className="md:hidden">
                     <StatusBadge status={grnEffectiveStatus(grn)} />
@@ -605,6 +611,9 @@ const GRNPage = /* @__PURE__ */ __name(() => {
       referrerPolicy="no-referrer"
     />)}
                 </div>
+              </Td>
+              <Td className="hidden md:table-cell px-3 py-2.5 text-[13px] font-medium text-gray-700 dark:text-gray-300 whitespace-nowrap overflow-hidden">
+                {safeStr(grn.poId)}
               </Td>
               <Td className="hidden md:table-cell px-3 py-2.5 text-[13px] text-gray-600 dark:text-gray-400 whitespace-nowrap overflow-hidden">
                 {formatDateTime(grn.date)}

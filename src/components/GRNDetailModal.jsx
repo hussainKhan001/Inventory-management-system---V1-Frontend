@@ -8,20 +8,24 @@ import { cn } from "../lib/utils";
 import toast from "react-hot-toast";
 import { generateGRNPDF } from "../utils/pdfGenerator";
 
-export function GRNDetailModal({ grn, onClose, onEditReceipt }) {
+export function GRNDetailModal({ grn, grns, onClose, onEditReceipt }) {
   const { suppliers, pos, hasPermission } = useAppStore();
   const [previewImage, setPreviewImage] = useState(null);
   const [previewPO, setPreviewPO] = useState(null);
+  const [activeIdx, setActiveIdx] = useState(0);
 
-  if (!grn) return null;
+  const list = (grns && grns.length ? grns : (grn ? [grn] : []));
+  const active = list[Math.min(activeIdx, list.length - 1)];
+  if (!active) return null;
+  const grnDoc = active;
 
-  const supplierId = grn.vendor || grn.supplier;
+  const supplierId = grnDoc.vendor || grnDoc.supplier;
   const supplier = suppliers?.find((s) => s.id === supplierId);
 
   return (
     <>
       <Modal
-        title={`GRN Details: ${grn.id}`}
+        title={`GRN Details: ${grnDoc.id}`}
         extraWide
         onClose={onClose}
         footer={
@@ -30,7 +34,7 @@ export function GRNDetailModal({ grn, onClose, onEditReceipt }) {
               label="Download PDF"
               icon={Download}
               className="rounded-xl h-10 text-[13px] bg-[#F97316] text-white border-none shadow-lg shadow-orange-500/20"
-              onClick={() => generateGRNPDF(grn, supplier)}
+              onClick={() => generateGRNPDF(grnDoc, supplier)}
             />
             <Btn
               label="Close"
@@ -42,6 +46,25 @@ export function GRNDetailModal({ grn, onClose, onEditReceipt }) {
         }
       >
         <div className="space-y-8 pb-4">
+          {/* GRN batch picker — shown when this PO has more than one GRN document */}
+          {list.length > 1 && (
+            <div className="flex items-center gap-2 flex-wrap">
+              {list.map((g, idx) => (
+                <button
+                  key={g.id}
+                  onClick={() => setActiveIdx(idx)}
+                  className={cn(
+                    "px-3 py-1.5 rounded-full text-[11px] font-bold border transition-colors",
+                    idx === activeIdx
+                      ? "bg-orange-500 text-white border-orange-500"
+                      : "bg-gray-50 dark:bg-gray-800 text-gray-500 dark:text-gray-400 border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700"
+                  )}
+                >
+                  {g.id} <span className="opacity-70 font-medium">· {formatDateTime(g.date)}</span>
+                </button>
+              ))}
+            </div>
+          )}
           {/* Header info grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-0 border border-gray-100 dark:border-gray-800 rounded-2xl overflow-hidden shadow-sm">
             {/* Left: Receipt info */}
@@ -52,14 +75,14 @@ export function GRNDetailModal({ grn, onClose, onEditReceipt }) {
               </div>
               <div className="grid grid-cols-12 items-center">
                 <div className="col-span-4 p-3 text-[11px] font-bold text-gray-400 border-r border-gray-100 dark:border-gray-800">Grn no.</div>
-                <div className="col-span-8 px-4 py-2.5 text-[14px] font-black text-gray-900 dark:text-white tracking-tight">{grn.id}</div>
+                <div className="col-span-8 px-4 py-2.5 text-[14px] font-black text-gray-900 dark:text-white tracking-tight">{grnDoc.id}</div>
               </div>
               <div className="grid grid-cols-12 items-center">
                 <div className="col-span-4 p-3 text-[11px] font-bold text-gray-400 border-r border-gray-100 dark:border-gray-800">Po reference</div>
                 <div className="col-span-8 px-4 py-2 flex items-center gap-2">
-                  <span className="text-[13px] font-bold text-orange-600 dark:text-orange-400">{grn.poId}</span>
+                  <span className="text-[13px] font-bold text-orange-600 dark:text-orange-400">{grnDoc.poId}</span>
                   {(() => {
-                    const po = pos?.find((p) => p.id === grn.poId);
+                    const po = pos?.find((p) => p.id === grnDoc.poId);
                     return po ? (
                       <button
                         onClick={() => setPreviewPO(po)}
@@ -75,18 +98,18 @@ export function GRNDetailModal({ grn, onClose, onEditReceipt }) {
                 <div className="col-span-4 p-3 text-[11px] font-bold text-gray-400 border-r border-gray-100 dark:border-gray-800">Mr reference</div>
                 <div className="col-span-8 px-4 py-2 text-[13px] font-medium text-gray-700 dark:text-gray-300">
                   <span className="bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded text-[11px] font-bold text-gray-600 dark:text-gray-400">
-                    {grn.mrNo || "N/a"}
+                    {grnDoc.mrNo || "N/a"}
                   </span>
                 </div>
               </div>
               <div className="grid grid-cols-12 items-center">
                 <div className="col-span-4 p-3 text-[11px] font-bold text-gray-400 border-r border-gray-100 dark:border-gray-800">Project/site</div>
-                <div className="col-span-8 px-4 py-2.5 text-[13px] font-bold text-gray-900 dark:text-white">{grn.project}</div>
+                <div className="col-span-8 px-4 py-2.5 text-[13px] font-bold text-gray-900 dark:text-white">{grnDoc.project}</div>
               </div>
-              {grn.store && (
+              {grnDoc.store && (
                 <div className="grid grid-cols-12 items-center">
                   <div className="col-span-4 p-3 text-[11px] font-bold text-gray-400 border-r border-gray-100 dark:border-gray-800">Store / Godown</div>
-                  <div className="col-span-8 px-4 py-2.5 text-[13px] font-bold text-orange-600 dark:text-orange-400">{grn.store}</div>
+                  <div className="col-span-8 px-4 py-2.5 text-[13px] font-bold text-orange-600 dark:text-orange-400">{grnDoc.store}</div>
                 </div>
               )}
             </div>
@@ -113,19 +136,19 @@ export function GRNDetailModal({ grn, onClose, onEditReceipt }) {
               <div className="grid grid-cols-12 items-center">
                 <div className="col-span-4 p-3 text-[11px] font-bold text-gray-400 border-r border-gray-100 dark:border-gray-800">Receipt date</div>
                 <div className="col-span-8 px-4 py-2.5 text-[13px] font-bold text-gray-700 dark:text-gray-300">
-                  {formatDateTime(grn.date)}
+                  {formatDateTime(grnDoc.date)}
                 </div>
               </div>
               <div className="grid grid-cols-12 items-center">
                 <div className="col-span-4 p-3 text-[11px] font-bold text-gray-400 border-r border-gray-100 dark:border-gray-800">Challan/inv</div>
                 <div className="col-span-8 px-4 py-2.5 text-[13px] font-black text-blue-500 dark:text-blue-400">
-                  {grn.challan}
+                  {grnDoc.challan}
                 </div>
               </div>
               <div className="grid grid-cols-12 items-center">
                 <div className="col-span-4 p-3 text-[11px] font-bold text-gray-400 border-r border-gray-100 dark:border-gray-800">Received by</div>
                 <div className="col-span-8 px-4 py-2.5 text-[13px] font-bold text-gray-900 dark:text-white">
-                  {grn.personName || "System auto"}
+                  {grnDoc.personName || "System auto"}
                 </div>
               </div>
             </div>
@@ -151,7 +174,7 @@ export function GRNDetailModal({ grn, onClose, onEditReceipt }) {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-50 dark:divide-gray-800">
-                    {(grn.items || []).map((item, idx) => {
+                    {(grnDoc.items || []).map((item, idx) => {
                       const ordered = item.ordered || 0;
                       const received = item.received || 0;
                       const variance = received - ordered;
@@ -194,12 +217,12 @@ export function GRNDetailModal({ grn, onClose, onEditReceipt }) {
           </div>
 
           {/* Delivery History */}
-          {(grn.receipts?.length > 0) && (
+          {(grnDoc.receipts?.length > 0) && (
             <div className="space-y-3">
               <div className="flex items-center gap-2">
                 <div className="h-0.5 w-4 bg-[#F97316]" />
                 <h3 className="text-[12px] font-bold text-gray-900 dark:text-white">
-                  Delivery history ({(grn.receipts?.length || 0) + 1} shipments)
+                  Delivery history ({(grnDoc.receipts?.length || 0) + 1} shipments)
                 </h3>
               </div>
               <div className="relative pl-1">
@@ -214,13 +237,13 @@ export function GRNDetailModal({ grn, onClose, onEditReceipt }) {
                       <div className="flex items-center justify-between mb-1.5">
                         <span className="text-[12px] font-bold text-gray-900 dark:text-white">Shipment 1 (Initial)</span>
                         <div className="flex items-center gap-2">
-                          {grn.challan && <span className="text-[10px] font-medium text-blue-500 bg-blue-50 dark:bg-blue-900/20 px-2 py-0.5 rounded">{grn.challan}</span>}
-                          <span className="text-[10px] text-gray-400">{formatDateTime(grn.date)}</span>
+                          {grnDoc.challan && <span className="text-[10px] font-medium text-blue-500 bg-blue-50 dark:bg-blue-900/20 px-2 py-0.5 rounded">{grnDoc.challan}</span>}
+                          <span className="text-[10px] text-gray-400">{formatDateTime(grnDoc.date)}</span>
                         </div>
                       </div>
                       <div className="space-y-1">
-                        {(grn.items || []).map((item, i) => {
-                          const laterReceipts = (grn.receipts || []).reduce((sum, r) => {
+                        {(grnDoc.items || []).map((item, i) => {
+                          const laterReceipts = (grnDoc.receipts || []).reduce((sum, r) => {
                             const ri = (r.items || []).find((ri) => ri.sku === item.sku);
                             return sum + (ri?.received || 0);
                           }, 0);
@@ -234,11 +257,11 @@ export function GRNDetailModal({ grn, onClose, onEditReceipt }) {
                           );
                         })}
                       </div>
-                      {grn.personName && <p className="mt-1.5 text-[10px] text-gray-400">By: <span className="font-medium text-gray-600 dark:text-gray-300">{grn.personName}</span></p>}
+                      {grnDoc.personName && <p className="mt-1.5 text-[10px] text-gray-400">By: <span className="font-medium text-gray-600 dark:text-gray-300">{grnDoc.personName}</span></p>}
                     </div>
                   </div>
                   {/* Additional receipts */}
-                  {(grn.receipts || []).map((receipt, idx) => (
+                  {(grnDoc.receipts || []).map((receipt, idx) => (
                     <div key={idx} className="flex gap-3 items-start">
                       <div className="w-7 h-7 rounded-full bg-emerald-500 border-2 border-white dark:border-gray-900 flex items-center justify-center shrink-0 shadow-sm">
                         <span className="text-[9px] font-bold text-white">{idx + 2}</span>
@@ -261,7 +284,7 @@ export function GRNDetailModal({ grn, onClose, onEditReceipt }) {
                             <div key={i} className="flex items-center justify-between text-[12px]">
                               <span className="text-gray-600 dark:text-gray-400">{item.itemName}</span>
                               <span className="font-bold text-gray-900 dark:text-white">
-                                +{item.received} <span className="text-gray-400 font-normal">{grn.items?.find((gi) => gi.sku === item.sku)?.unit || ""}</span>
+                                +{item.received} <span className="text-gray-400 font-normal">{grnDoc.items?.find((gi) => gi.sku === item.sku)?.unit || ""}</span>
                               </span>
                             </div>
                           ))}
@@ -276,11 +299,11 @@ export function GRNDetailModal({ grn, onClose, onEditReceipt }) {
           )}
 
           {/* Challan photos */}
-          {grn.challanPhotos?.length > 0 && (
+          {grnDoc.challanPhotos?.length > 0 && (
             <div className="flex flex-col md:flex-row items-center justify-between gap-6 pt-4">
               <div className="flex items-center gap-4">
                 <div className="flex gap-2">
-                  {grn.challanPhotos.map((img, i) => (
+                  {grnDoc.challanPhotos.map((img, i) => (
                     <div key={i} className="p-1 rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 cursor-pointer hover:shadow-lg transition-shadow" onClick={() => setPreviewImage(img)}>
                       <img src={img} className="w-16 h-16 rounded-lg object-cover" referrerPolicy="no-referrer" />
                     </div>

@@ -450,7 +450,7 @@ export function POViewModal({ po, onClose, onApproveL1, onApproveL2, onApproveL3
                   ["Delivery location", po.deliveryDetails?.location || "—"],
                   ["Delivery date", po.deliveryDetails?.deliveryDate ? formatPrettyDate(po.deliveryDetails.deliveryDate) : "—", "text-orange-600"],
                   ["Receiver name", po.deliveryDetails?.contactPerson || "—"],
-                  ["Contact person", po.vendorContact || "—"],
+                  ["Contact person", po.deliveryDetails?.contactPhone || "—"],
                 ]},
               ].map(({ title, rows }) => (
                 <div key={title} className="border border-[#1A365D] rounded-lg overflow-hidden">

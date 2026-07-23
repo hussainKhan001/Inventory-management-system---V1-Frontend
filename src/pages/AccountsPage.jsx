@@ -35,6 +35,7 @@ import { generatePOPDF } from "../utils/pdfGenerator";
 import { StatusBadge, PageHeader, Card, ConfirmModal, Modal, Btn } from "../components/ui";
 import { SearchFilter, DateRangePicker, SelectFilter, FilterRow } from "../components/ui/Filters";
 import { POViewModal } from "./po/POViewModal";
+import { calcChargeTotal } from "./po/poUtils";
 import { GRNDetailModal } from "../components/GRNDetailModal";
 import { ImageViewer } from "../components/ImageViewer";
 import { api } from "../services/api";
@@ -481,24 +482,26 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
       };
       // Compute cumulative paid and determine if this closes the PO
       const prevTotalPaid = po?.totalPaid || po?.payment?.amountPaid || 0;
-      const poGrandTotal = po?.totalValue || 0;
-      const remainingPayable = Math.max(0, poGrandTotal - prevTotalPaid);
-      // Hard cap: total paid must never exceed PO grand total
+      // Payable is capped by the value of goods actually received (qty × rate × GST as of
+      // receipt), not the full PO amount — you only pay for what's been delivered so far.
+      const rGrnForPayment = getCurrentGRN(po, allGrns);
+      const grnValForPayment = rGrnForPayment ? rGrnForPayment.items.reduce((s, gi) => {
+        const rcv = gi.received ?? gi.qty ?? 0;
+        const poItem = po?.items?.find(pi => (pi.sku && pi.sku === gi.sku) || (pi.materialName || "").toLowerCase() === (gi.itemName || "").toLowerCase());
+        const rate = gi.rate || poItem?.rate || 0;
+        return s + calcChargeTotal(rcv * rate, poItem?.gstPct || 0, poItem?.gstType || "Exclusive");
+      }, 0) : 0;
+      const remainingPayable = Math.max(0, grnValForPayment - prevTotalPaid);
+      // Hard cap: total paid must never exceed the received-goods value
       if (paymentData.amountPaid > remainingPayable + 0.01) {
         toast.error(`Amount ₹${paymentData.amountPaid.toLocaleString("en-IN")} exceeds remaining payable ₹${remainingPayable.toLocaleString("en-IN", { minimumFractionDigits: 2 })}. Please correct the amount.`);
         setIsSubmitting(false);
         return;
       }
       const newTotalPaid = prevTotalPaid + paymentData.amountPaid;
-      const isFullyPaid = newTotalPaid >= poGrandTotal - 0.01;
+      const isFullyPaid = newTotalPaid >= grnValForPayment - 0.01;
       const newAccountStatus = isFullyPaid ? "paid" : "partial_paid";
       // Build history entry for this installment (link to current unpaid GRN batch)
-      const rGrnForPayment = getCurrentGRN(po, allGrns);
-      const grnValForPayment = rGrnForPayment ? rGrnForPayment.items.reduce((s, gi) => {
-        const rcv = gi.received ?? gi.qty ?? 0;
-        const rate = gi.rate || po?.items?.find(pi => (pi.sku && pi.sku === gi.sku) || (pi.materialName || "").toLowerCase() === (gi.itemName || "").toLowerCase())?.rate || 0;
-        return s + rcv * rate;
-      }, 0) : 0;
       const newEntry = {
         installmentNo: (po?.paymentHistory?.length || 0) + 1,
         grnId: rGrnForPayment?.id || null,
@@ -533,7 +536,7 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
       setLocalPos(prev => prev.map(p => p.id === poId ? { ...p, accountStatus: isFullyPaid ? "paid" : "partial_paid", totalPaid: newTotalPaid } : p));
       toast.success(isFullyPaid
         ? "Payment confirmed! PO fully settled."
-        : `Installment #${newEntry.installmentNo} recorded. ₹${(po?.totalValue - newTotalPaid).toLocaleString("en-IN", { maximumFractionDigits: 2 })} remaining — will activate on next GRN batch.`);
+        : `Installment #${newEntry.installmentNo} recorded. ₹${(grnValForPayment - newTotalPaid).toLocaleString("en-IN", { maximumFractionDigits: 2 })} remaining — will activate on next GRN batch.`);
       setSelectedPO(null);
       setIsEditingPayment(false);
     } catch (err) {
@@ -790,9 +793,9 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
     const fmtD = (d) => d ? new Date(d).toLocaleDateString("en-IN", { day: "2-digit", month: "long", year: "numeric" }) : "—";
     const poAmount = po.totalValue || 0;
     const totalPaid = po.totalPaid || po.payment?.partialAmount || po.payment?.amountPaid || 0;
-    const payableAmount = Math.max(0, poAmount - totalPaid);
     const invoiceNo = po.payment?.ref || po.invoice?.number || grn?.challan || "—";
 
+    let grnReceivedValue = 0;
     const materialRows = (grn?.items || []).map((gi) => {
       const rcv = gi.received ?? gi.qty ?? 0;
       const poItem = po.items?.find(pi =>
@@ -801,15 +804,18 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
       );
       const ordered = poItem?.qty || poItem?.quantity || 0;
       const rate = gi.rate || poItem?.rate || 0;
+      const amount = calcChargeTotal(rcv * rate, poItem?.gstPct || 0, poItem?.gstType || "Exclusive");
+      grnReceivedValue += amount;
       return `
         <tr>
           <td style="padding:6px 10px;border-bottom:1px solid #E2E8F0;font-size:11px">${gi.itemName || gi.name || "Item"}${gi.sku ? `<br/><span style="color:#9CA3AF;font-size:9px">${gi.sku}</span>` : ""}</td>
           <td style="padding:6px 10px;border-bottom:1px solid #E2E8F0;font-size:11px;text-align:center">${ordered || "—"}</td>
           <td style="padding:6px 10px;border-bottom:1px solid #E2E8F0;font-size:11px;text-align:center;font-weight:700">${rcv}</td>
           <td style="padding:6px 10px;border-bottom:1px solid #E2E8F0;font-size:11px;text-align:right">${fmtCur(rate)}</td>
-          <td style="padding:6px 10px;border-bottom:1px solid #E2E8F0;font-size:11px;text-align:right;font-weight:700">${fmtCur(rcv * rate)}</td>
+          <td style="padding:6px 10px;border-bottom:1px solid #E2E8F0;font-size:11px;text-align:right;font-weight:700">${fmtCur(amount)}</td>
         </tr>`;
     }).join("");
+    const payableAmount = Math.max(0, grnReceivedValue - totalPaid);
 
     const html = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"/>
       <title>Transaction Detail — ${po.id}</title>
@@ -890,6 +896,7 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
           <div class="section-title">Payment Summary</div>
           <div class="grid3">
             <div><div class="field-label">PO Grand Total</div><div class="field-value big">${fmtCur(poAmount)}</div></div>
+            <div><div class="field-label">Received Value (Incl. GST)</div><div class="field-value big">${fmtCur(grnReceivedValue)}</div></div>
             ${totalPaid > 0 ? `<div><div class="field-label">Already Paid</div><div class="field-value big" style="color:#16A34A">${fmtCur(totalPaid)}</div></div>` : ""}
             <div><div class="field-label">${totalPaid > 0 ? "Remaining Payable" : "Payable Amount"}</div><div class="field-value big" style="color:#EA580C">${fmtCur(payableAmount)}</div></div>
           </div>
@@ -1507,32 +1514,18 @@ const DetailPanel = /* @__PURE__ */ __name(({
   const totalPaid = po.totalPaid || po.payment?.partialAmount || po.payment?.amountPaid || 0;
   const grnReceivedValue = realGrn
     ? realGrn.items.reduce((sum, gi) => {
-        const rcv = gi.received ?? gi.qty ?? 0;
-        const rate = gi.rate || po.items?.find(pi =>
+        const poItem = po.items?.find(pi =>
           (pi.sku && pi.sku === gi.sku) ||
           (pi.materialName || "").toLowerCase() === (gi.itemName || "").toLowerCase()
-        )?.rate || 0;
-        return sum + rcv * rate;
-      }, 0)
-    : 0;
-  // For GRN Variance: pay only for received goods + proportional GST (capped at PO total)
-  const grnReceivedWithGST = realGrn
-    ? realGrn.items.reduce((sum, gi) => {
-        const rcv = gi.received ?? gi.qty ?? 0;
-        const poItem = po.items?.find(pi =>
-          (pi.sku && gi.sku && pi.sku === gi.sku) ||
-          (pi.materialName || "").toLowerCase() === (gi.itemName || "").toLowerCase()
         );
+        const rcv = gi.received ?? gi.qty ?? 0;
         const rate = gi.rate || poItem?.rate || 0;
-        const gstPct = poItem?.gstPct || 0;
-        const gstType = poItem?.gstType || "Exclusive";
-        const base = rcv * rate;
-        const gst = gstType === "Inclusive" ? 0 : base * gstPct / 100;
-        return sum + base + gst;
+        return sum + calcChargeTotal(rcv * rate, poItem?.gstPct || 0, poItem?.gstType || "Exclusive");
       }, 0)
     : 0;
-  // Always: remaining balance = PO total − already paid
-  const payableAmount = Math.max(0, poAmount - totalPaid);
+  // Payable is capped by the value of goods actually received (qty × rate × GST), not
+  // the full PO amount — only pay for what's been delivered so far.
+  const payableAmount = Math.max(0, grnReceivedValue - totalPaid);
   const payableLabel = totalPaid > 0 ? "Remaining payable" : "Payable amount";
 
   useEffect(() => {
@@ -1593,9 +1586,107 @@ const DetailPanel = /* @__PURE__ */ __name(({
     </div>
   );
 
+  const allPOGRNs = allGrns?.filter(g => g.poId === po.id) || [];
+  const hasGRN = allPOGRNs.length > 0;
+  const hasBill = !!po.verifiedBy || ["bill_verified", "payment_pending", "paid", "partial_paid"].includes(status);
+  const hasPaid = status === "paid" || (status === "partial_paid" && (po.totalPaid || 0) > 0);
+  const chainSteps = [
+    { label: "MR", sub: po.mrId || po.mrNumber || "—", done: !!(po.mrId || po.mrNumber) },
+    { label: "PO", sub: po.id, done: true },
+    { label: "GRN", sub: allPOGRNs.length > 0 ? `${allPOGRNs.length} batch${allPOGRNs.length > 1 ? "es" : ""}` : "Pending", done: hasGRN, warn: (po.status || "").toLowerCase() === "grn variance" },
+    { label: "Bill", sub: hasBill ? (po.verifiedBy ? `${po.verifiedBy}` : "Verified") : "Pending", done: hasBill },
+    { label: "Payment", sub: hasPaid ? fmtCur(po.totalPaid || po.payment?.amountPaid || 0) : "Pending", done: hasPaid },
+  ];
+  const docChain = (
+    <div className="overflow-x-auto">
+      <div className="flex items-stretch min-w-[440px] bg-gray-50/60 dark:bg-gray-800/30 rounded-2xl border border-gray-100 dark:border-gray-800 px-2 py-3 gap-0">
+        {chainSteps.map((step, i) => (
+          <div key={i} className="flex items-center flex-1 min-w-0">
+            <div className="flex-1 flex flex-col items-center gap-1 px-1 min-w-0">
+              <div className={`w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-black ${step.done ? (step.warn ? "bg-amber-500 text-white" : "bg-emerald-500 text-white shadow-sm shadow-emerald-500/30") : "bg-gray-100 dark:bg-gray-800 text-gray-400 border-2 border-dashed border-gray-200 dark:border-gray-700"}`}>
+                {step.done ? (step.warn ? "!" : "✓") : (i + 1)}
+              </div>
+              <p className={`text-[10px] font-black tracking-wide ${step.done ? (step.warn ? "text-amber-600 dark:text-amber-400" : "text-emerald-700 dark:text-emerald-400") : "text-gray-400 dark:text-gray-600"}`}>{step.label}</p>
+              <p className={`text-[9px] truncate max-w-[70px] text-center font-mono leading-none ${step.done ? (step.warn ? "text-amber-500" : "text-emerald-600 dark:text-emerald-500") : "text-gray-300 dark:text-gray-700"}`}>{step.sub}</p>
+            </div>
+            {i < chainSteps.length - 1 && (
+              <div className={`w-4 h-0.5 shrink-0 rounded-full mx-0.5 ${step.done ? "bg-emerald-400 dark:bg-emerald-600" : "bg-gray-200 dark:bg-gray-700"}`} />
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+
+  const reconItems = (po.items || []).map(pi => {
+    const totalRcv = allPOGRNs.reduce((sum, g) => {
+      const gi = g.items?.find(gi =>
+        (pi.sku && gi.sku && pi.sku === gi.sku) ||
+        (pi.materialName || "").toLowerCase() === (gi.itemName || "").toLowerCase()
+      );
+      return sum + (gi ? (gi.received ?? gi.qty ?? 0) : 0);
+    }, 0);
+    const ordered = pi.qty || pi.quantity || 0;
+    return { pi, totalRcv, ordered };
+  });
+  const reconTable = reconItems.length > 0 ? (
+    <div className="space-y-3">
+      <div className="flex items-center gap-2">
+        <div className="h-0.5 w-4 bg-[#F97316]" />
+        <h3 className="text-[12px] font-bold text-gray-900 dark:text-white">Item reconciliation</h3>
+        {allPOGRNs.length > 0 && <span className="text-[10px] text-gray-400 font-bold">{allPOGRNs.length} GRN batch{allPOGRNs.length > 1 ? "es" : ""}</span>}
+      </div>
+      <div className="overflow-x-auto overflow-hidden rounded-xl border border-gray-100 dark:border-gray-800">
+        <table className="w-full text-left border-collapse min-w-[460px]">
+          <thead>
+            <tr className="bg-gray-50/90 dark:bg-gray-800/90 border-b border-gray-100 dark:border-gray-800">
+              <th className="px-4 py-3 text-[10px] font-black text-gray-400 tracking-wider">Material</th>
+              <th className="px-4 py-3 text-[10px] font-black text-gray-400 tracking-wider text-center">Ordered</th>
+              <th className="px-4 py-3 text-[10px] font-black text-gray-400 tracking-wider text-center">Received</th>
+              <th className="px-4 py-3 text-[10px] font-black text-gray-400 tracking-wider text-right">Rate</th>
+              <th className="px-4 py-3 text-[10px] font-black text-gray-400 tracking-wider text-right">Amount</th>
+              <th className="px-4 py-3 text-[10px] font-black text-gray-400 tracking-wider text-center">Match</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-50 dark:divide-gray-800">
+            {reconItems.map(({ pi, totalRcv, ordered }, idx) => {
+              const rate = pi.rate || 0;
+              const full = ordered > 0 && totalRcv >= ordered;
+              const partial = totalRcv > 0 && totalRcv < ordered;
+              return (
+                <tr key={idx} className="hover:bg-gray-50/30 dark:hover:bg-gray-800/10">
+                  <td className="px-4 py-3">
+                    <span className="text-[12px] font-semibold text-gray-900 dark:text-white">{pi.itemName || pi.materialName || pi.name || "Item"}</span>
+                    {pi.sku && <p className="text-[10px] text-gray-400">{pi.sku}</p>}
+                  </td>
+                  <td className="px-4 py-3 text-center text-[12px] text-gray-500 tabular-nums">{ordered}</td>
+                  <td className="px-4 py-3 text-center">
+                    <span className={`text-[13px] font-black tabular-nums ${full ? "text-emerald-600 dark:text-emerald-400" : partial ? "text-amber-600 dark:text-amber-400" : "text-gray-300 dark:text-gray-700"}`}>{totalRcv}</span>
+                  </td>
+                  <td className="px-4 py-3 text-right text-[12px] text-gray-500 tabular-nums">{fmtCur(rate)}</td>
+                  <td className="px-4 py-3 text-right font-black text-[12px] tabular-nums text-gray-900 dark:text-white">{fmtCur(calcChargeTotal(totalRcv * rate, pi.gstPct || 0, pi.gstType || "Exclusive"))}</td>
+                  <td className="px-4 py-3 text-center">
+                    {full ? (
+                      <span className="inline-flex items-center gap-0.5 text-[9px] font-black text-emerald-600 bg-emerald-50 dark:bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-100 dark:border-emerald-500/20">✓ Full</span>
+                    ) : partial ? (
+                      <span className="inline-flex items-center gap-0.5 text-[9px] font-black text-amber-600 bg-amber-50 dark:bg-amber-500/10 px-2 py-0.5 rounded-full border border-amber-100 dark:border-amber-500/20">~ Part</span>
+                    ) : (
+                      <span className="inline-flex items-center gap-0.5 text-[9px] font-black text-gray-400 bg-gray-50 dark:bg-gray-800/50 px-2 py-0.5 rounded-full border border-gray-200 dark:border-gray-700">— None</span>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  ) : null;
+
   if (status === "bill_verify") {
     return <div className="space-y-5 pb-4">
         {topGrid}
+        {docChain}
         {totalPaid > 0 && (
           <div className="flex items-center gap-3 px-4 py-3 bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20 rounded-xl">
             <IndianRupee className="w-4 h-4 text-amber-500 shrink-0" />
@@ -1604,50 +1695,7 @@ const DetailPanel = /* @__PURE__ */ __name(({
             </p>
           </div>
         )}
-        {realGrn && realGrn.items?.length > 0 && (
-          <div className="space-y-3">
-            <div className="flex items-center gap-2">
-              <div className="h-0.5 w-4 bg-[#F97316]" />
-              <h3 className="text-[12px] font-bold text-gray-900 dark:text-white">Received materials</h3>
-            </div>
-            <div className="overflow-hidden rounded-xl border border-gray-100 dark:border-gray-800">
-              <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr className="bg-gray-50/90 dark:bg-gray-800/90 border-b border-gray-100 dark:border-gray-800">
-                    <th className="px-4 py-3 text-[10px] font-black text-gray-400 tracking-wider">Material</th>
-                    <th className="px-4 py-3 text-[10px] font-black text-gray-400 tracking-wider text-center">Ordered</th>
-                    <th className="px-4 py-3 text-[10px] font-black text-gray-400 tracking-wider text-center">Received</th>
-                    <th className="px-4 py-3 text-[10px] font-black text-gray-400 tracking-wider text-right">Rate</th>
-                    <th className="px-4 py-3 text-[10px] font-black text-gray-400 tracking-wider text-right">Amount</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-50 dark:divide-gray-800">
-                  {realGrn.items.map((gi, idx) => {
-                    const rcv = gi.received ?? gi.qty ?? 0;
-                    const poItem = po.items?.find(pi =>
-                      (pi.sku && gi.sku && pi.sku === gi.sku) ||
-                      (pi.materialName || "").toLowerCase() === (gi.itemName || "").toLowerCase()
-                    );
-                    const ordered = poItem?.qty || poItem?.quantity || 0;
-                    const rate = gi.rate || poItem?.rate || 0;
-                    return (
-                      <tr key={idx} className="hover:bg-gray-50/30 dark:hover:bg-gray-800/10">
-                        <td className="px-4 py-3">
-                          <span className="text-[13px] font-semibold text-gray-900 dark:text-white">{gi.itemName || gi.name || "Item"}</span>
-                          {gi.sku && <p className="text-[10px] text-gray-400">{gi.sku}</p>}
-                        </td>
-                        <td className="px-4 py-3 text-center text-[12px] text-gray-400">{ordered || "—"}</td>
-                        <td className="px-4 py-3 text-center"><span className="text-[14px] font-black text-gray-900 dark:text-white">{rcv}</span></td>
-                        <td className="px-4 py-3 text-right text-[12px] text-gray-500 tabular-nums">{fmtCur(rate)}</td>
-                        <td className="px-4 py-3 text-right font-black text-[13px] text-gray-900 dark:text-white tabular-nums">{fmtCur(rcv * rate)}</td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
+        {reconTable}
         {(() => {
           const billImgs = [
             po.invoice?.screenshotUrl,
@@ -1690,6 +1738,7 @@ const DetailPanel = /* @__PURE__ */ __name(({
               <div className="w-1.5 h-3.5 bg-emerald-500 rounded-full" /> Payment summary
             </div>
             <GRNInfoRow label="PO Grand Total" value={fmtCur(poAmount)} />
+            {realGrn && <GRNInfoRow label="Received value (incl. GST)" value={fmtCur(grnReceivedValue)} />}
             {totalPaid > 0 && <GRNInfoRow label="Already paid" value={fmtCur(totalPaid)} />}
             <GRNInfoRow label={payableLabel} value={fmtCur(payableAmount)} orange />
           </div>
@@ -1703,13 +1752,14 @@ const DetailPanel = /* @__PURE__ */ __name(({
           </div>
         </div>
 
-        {viewGRNDetail && realGrn && <GRNDetailModal grn={realGrn} onClose={() => setViewGRNDetail(false)} />}
+        {viewGRNDetail && realGrn && <GRNDetailModal grns={allPOGRNs.length ? allPOGRNs : (realGrn ? [realGrn] : [])} onClose={() => setViewGRNDetail(false)} />}
         {viewerImages && <ImageViewer {...viewerImages} onClose={() => setViewerImages(null)} />}
       </div>;
   }
   if (status === "bill_verified") {
     return <div className="space-y-5 pb-4">
         {topGrid}
+        {docChain}
         <div className="flex items-center gap-3 px-4 py-3 bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/20 rounded-xl">
           <CheckCircle className="w-5 h-5 text-emerald-500 shrink-0" />
           <div className="flex-1">
@@ -1726,50 +1776,7 @@ const DetailPanel = /* @__PURE__ */ __name(({
             </p>
           </div>
         )}
-        {realGrn && realGrn.items?.length > 0 && (
-          <div className="space-y-3">
-            <div className="flex items-center gap-2">
-              <div className="h-0.5 w-4 bg-[#F97316]" />
-              <h3 className="text-[12px] font-bold text-gray-900 dark:text-white">Received materials</h3>
-            </div>
-            <div className="overflow-hidden rounded-xl border border-gray-100 dark:border-gray-800">
-              <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr className="bg-gray-50/90 dark:bg-gray-800/90 border-b border-gray-100 dark:border-gray-800">
-                    <th className="px-4 py-3 text-[10px] font-black text-gray-400 tracking-wider">Material</th>
-                    <th className="px-4 py-3 text-[10px] font-black text-gray-400 tracking-wider text-center">Ordered</th>
-                    <th className="px-4 py-3 text-[10px] font-black text-gray-400 tracking-wider text-center">Received</th>
-                    <th className="px-4 py-3 text-[10px] font-black text-gray-400 tracking-wider text-right">Rate</th>
-                    <th className="px-4 py-3 text-[10px] font-black text-gray-400 tracking-wider text-right">Amount</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-50 dark:divide-gray-800">
-                  {realGrn.items.map((gi, idx) => {
-                    const rcv = gi.received ?? gi.qty ?? 0;
-                    const poItem = po.items?.find(pi =>
-                      (pi.sku && gi.sku && pi.sku === gi.sku) ||
-                      (pi.materialName || "").toLowerCase() === (gi.itemName || "").toLowerCase()
-                    );
-                    const ordered = poItem?.qty || poItem?.quantity || 0;
-                    const rate = gi.rate || poItem?.rate || 0;
-                    return (
-                      <tr key={idx} className="hover:bg-gray-50/30 dark:hover:bg-gray-800/10">
-                        <td className="px-4 py-3">
-                          <span className="text-[13px] font-semibold text-gray-900 dark:text-white">{gi.itemName || gi.name || "Item"}</span>
-                          {gi.sku && <p className="text-[10px] text-gray-400">{gi.sku}</p>}
-                        </td>
-                        <td className="px-4 py-3 text-center text-[12px] text-gray-400">{ordered || "—"}</td>
-                        <td className="px-4 py-3 text-center"><span className="text-[14px] font-black text-gray-900 dark:text-white">{rcv}</span></td>
-                        <td className="px-4 py-3 text-right text-[12px] text-gray-500 tabular-nums">{fmtCur(rate)}</td>
-                        <td className="px-4 py-3 text-right font-black text-[13px] text-gray-900 dark:text-white tabular-nums">{fmtCur(rcv * rate)}</td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
+        {reconTable}
         {(() => {
           const billImgs = [
             po.invoice?.screenshotUrl,
@@ -1811,6 +1818,7 @@ const DetailPanel = /* @__PURE__ */ __name(({
               <div className="w-1.5 h-3.5 bg-emerald-500 rounded-full" /> Payment summary
             </div>
             <GRNInfoRow label="PO Grand Total" value={fmtCur(poAmount)} />
+            {realGrn && <GRNInfoRow label="Received value (incl. GST)" value={fmtCur(grnReceivedValue)} />}
             {totalPaid > 0 && <GRNInfoRow label="Already paid" value={fmtCur(totalPaid)} />}
             <GRNInfoRow label={payableLabel} value={fmtCur(payableAmount)} orange />
           </div>
@@ -1823,13 +1831,14 @@ const DetailPanel = /* @__PURE__ */ __name(({
             {po.verifyRemark && <GRNInfoRow label="Verify remark" value={po.verifyRemark} />}
           </div>
         </div>
-        {viewGRNDetail && realGrn && <GRNDetailModal grn={realGrn} onClose={() => setViewGRNDetail(false)} />}
+        {viewGRNDetail && realGrn && <GRNDetailModal grns={allPOGRNs.length ? allPOGRNs : (realGrn ? [realGrn] : [])} onClose={() => setViewGRNDetail(false)} />}
         {viewerImages && <ImageViewer {...viewerImages} onClose={() => setViewerImages(null)} />}
       </div>;
   }
   if (status === "payment_pending" || ((status === "paid" || status === "partial_paid") && isEditingPayment)) {
     return <div className="space-y-5 pb-4">
       {topGrid}
+      {docChain}
 
       {totalPaid > 0 && (
         <div className="space-y-3">
@@ -1884,6 +1893,7 @@ const DetailPanel = /* @__PURE__ */ __name(({
             <div className="w-1.5 h-3.5 bg-emerald-500 rounded-full" /> Payable now
           </div>
           <GRNInfoRow label="PO Grand Total" value={fmtCur(poAmount)} />
+          {realGrn && <GRNInfoRow label="Received value (incl. GST)" value={fmtCur(grnReceivedValue)} />}
           {totalPaid > 0 && <GRNInfoRow label="Already paid" value={fmtCur(totalPaid)} />}
           <GRNInfoRow label={payableLabel} value={fmtCur(payableAmount)} orange />
           <GRNInfoRow label="Bill approved by" value={po.billApprovedBy || "—"} />
@@ -2002,7 +2012,7 @@ const DetailPanel = /* @__PURE__ */ __name(({
           </FormGroup>
         </div>
       )}
-      {viewGRNDetail && realGrn && <GRNDetailModal grn={realGrn} onClose={() => setViewGRNDetail(false)} />}
+      {viewGRNDetail && realGrn && <GRNDetailModal grns={allPOGRNs.length ? allPOGRNs : (realGrn ? [realGrn] : [])} onClose={() => setViewGRNDetail(false)} />}
     </div>;
   }
   if (status === "partial_paid" && !isEditingPayment) {
@@ -2012,6 +2022,8 @@ const DetailPanel = /* @__PURE__ */ __name(({
     const installments = po.paymentHistory?.length > 0 ? po.paymentHistory : null;
     return <div className="space-y-5 pb-4">
       {topGrid}
+      {docChain}
+      {reconTable}
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-0 border border-gray-100 dark:border-gray-800 rounded-2xl overflow-hidden shadow-sm">
         <div className="divide-y divide-gray-100 dark:divide-gray-800 bg-white dark:bg-gray-900">
@@ -2084,7 +2096,7 @@ const DetailPanel = /* @__PURE__ */ __name(({
       </div>
 
       <AuditTrail log={po.auditTrail} />
-      {viewGRNDetail && realGrn && <GRNDetailModal grn={realGrn} onClose={() => setViewGRNDetail(false)} />}
+      {viewGRNDetail && realGrn && <GRNDetailModal grns={allPOGRNs.length ? allPOGRNs : (realGrn ? [realGrn] : [])} onClose={() => setViewGRNDetail(false)} />}
     </div>;
   }
   if (status === "paid" && !isEditingPayment) {
@@ -2099,6 +2111,7 @@ const DetailPanel = /* @__PURE__ */ __name(({
       : (realGrn && po.payment) ? [{ ph: po.payment, grn: realGrn }] : [];
     return <div className="space-y-5 pb-4">
       {topGrid}
+      {docChain}
 
       {(() => {
         const billImgs = [
@@ -2278,7 +2291,7 @@ const DetailPanel = /* @__PURE__ */ __name(({
       )}
 
       <AuditTrail log={po.auditTrail} />
-      {viewGRNDetail && realGrn && <GRNDetailModal grn={realGrn} onClose={() => setViewGRNDetail(false)} />}
+      {viewGRNDetail && realGrn && <GRNDetailModal grns={allPOGRNs.length ? allPOGRNs : (realGrn ? [realGrn] : [])} onClose={() => setViewGRNDetail(false)} />}
       {viewerImages && <ImageViewer images={viewerImages.images} index={viewerImages.index} title={viewerImages.title} onClose={() => setViewerImages(null)} />}
     </div>;
   }
@@ -2309,7 +2322,7 @@ const DetailPanel = /* @__PURE__ */ __name(({
           </div>
         </div>
       </div>
-      {viewGRNDetail && realGrn && <GRNDetailModal grn={realGrn} onClose={() => setViewGRNDetail(false)} />}
+      {viewGRNDetail && realGrn && <GRNDetailModal grns={allPOGRNs.length ? allPOGRNs : (realGrn ? [realGrn] : [])} onClose={() => setViewGRNDetail(false)} />}
     </div>;
   }
   return <div className="py-24 text-center space-y-8">
