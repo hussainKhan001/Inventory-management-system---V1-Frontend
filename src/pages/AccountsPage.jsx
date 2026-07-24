@@ -1,9 +1,9 @@
 var __defProp = Object.defineProperty;
 var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
-import { useState, useEffect, useMemo, useRef } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import { useAppStore } from "../store";
 import { motion, AnimatePresence } from "motion/react";
-import { Virtuoso } from "react-virtuoso";
+import { Virtuoso, TableVirtuoso } from "react-virtuoso";
 import {
   CheckCircle,
   Clock,
@@ -27,12 +27,14 @@ import {
   Pencil,
   Trash2,
   Printer,
-  X
+  X,
+  Building
 } from "lucide-react";
 import { fmtCur, formatDate, calculatePriceComparison } from "../utils";
+import { normalizeShipments } from "../utils/normalizeShipments";
 import { cn } from "../lib/utils";
-import { generatePOPDF } from "../utils/pdfGenerator";
-import { StatusBadge, PageHeader, Card, ConfirmModal, Modal, Btn } from "../components/ui";
+import { generatePOPDF, generateTransactionDetailPDF } from "../utils/pdfGenerator";
+import { StatusBadge, PageHeader, Card, ConfirmModal, Modal, Btn, Table, Tr, Td } from "../components/ui";
 import { SearchFilter, DateRangePicker, SelectFilter, FilterRow } from "../components/ui/Filters";
 import { POViewModal } from "./po/POViewModal";
 import { calcChargeTotal } from "./po/poUtils";
@@ -47,7 +49,7 @@ const EMAILJS_SERVICE_ID = "YOUR_SERVICE_ID";
 const EMAILJS_TEMPLATE_ID = "YOUR_TEMPLATE_ID";
 emailjs.init(EMAILJS_PUBLIC_KEY);
 const AccountsPage = /* @__PURE__ */ __name(() => {
-  const { pos, updatePO, user, fetchResource, suppliers, materialRequirements, uploadImage, hasPermission, settings } = useAppStore();
+  const { pos, grns: storeGrns, updatePO, user, fetchResource, suppliers, materialRequirements, uploadImage, hasPermission, settings } = useAppStore();
   const [filter, setFilter] = useState("All");
   const [selectedPO, setSelectedPO] = useState(null);
   const [previewPO, setPreviewPO] = useState(null);
@@ -138,6 +140,75 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
   useEffect(() => {
     refresh();
   }, []);
+
+  // When the global store's grns update (WebSocket broadcast):
+  // • ADD new GRNs we haven't seen yet
+  // • MERGE payment-only fields on existing GRNs (paymentStatus, invoiceAmount, payment,
+  //   verifiedBy/At, approvedBy/At, and per-receipt equivalents).
+  // Quantity fields (items[].received, receipts[].items) are intentionally NOT overwritten
+  // so that receipt batch additions don't break locked invoice amounts.
+  useEffect(() => {
+    if (!storeGrns?.length || !localPos?.length) return;
+    const accountsPOIds = new Set(localPos.map(p => p.id));
+    setAllGrns(prev => {
+      const prevMap = new Map(prev.map(g => [g.id, g]));
+      let changed = false;
+
+      const merged = prev.map(g => {
+        const sg = storeGrns.find(s => s.id === g.id);
+        if (!sg) return g;
+
+        // Check if any payment field changed
+        const rootChanged =
+          sg.paymentStatus !== g.paymentStatus ||
+          sg.invoiceAmount !== g.invoiceAmount ||
+          sg.invoiceNo     !== g.invoiceNo;
+
+        const receiptsChanged = (sg.receipts || []).some((r, i) =>
+          r.paymentStatus !== g.receipts?.[i]?.paymentStatus ||
+          r.invoiceAmount !== g.receipts?.[i]?.invoiceAmount
+        );
+
+        if (!rootChanged && !receiptsChanged) return g;
+        changed = true;
+
+        // Merge only payment fields — keep original quantity data
+        return {
+          ...g,
+          paymentStatus: sg.paymentStatus,
+          invoiceAmount: sg.invoiceAmount,
+          invoiceNo:     sg.invoiceNo,
+          verifiedBy:    sg.verifiedBy,
+          verifiedAt:    sg.verifiedAt,
+          verifyRemark:  sg.verifyRemark,
+          approvedBy:    sg.approvedBy,
+          approvedAt:    sg.approvedAt,
+          payment:       sg.payment,
+          receipts: (g.receipts || []).map((r, i) => {
+            const sr = sg.receipts?.[i];
+            if (!sr) return r;
+            return {
+              ...r,
+              paymentStatus: sr.paymentStatus,
+              invoiceAmount: sr.invoiceAmount,
+              invoiceNo:     sr.invoiceNo,
+              verifiedBy:    sr.verifiedBy,
+              verifiedAt:    sr.verifiedAt,
+              verifyRemark:  sr.verifyRemark,
+              approvedBy:    sr.approvedBy,
+              approvedAt:    sr.approvedAt,
+              payment:       sr.payment,
+            };
+          }),
+        };
+      });
+
+      // Add brand-new GRNs for this PO
+      const fresh = storeGrns.filter(g => accountsPOIds.has(g.poId) && !prevMap.has(g.id));
+      if (!changed && !fresh.length) return prev;
+      return [...merged, ...fresh];
+    });
+  }, [storeGrns]);
 
   // Returns the latest GRN that has not yet been linked to a payment installment.
   // Needed because a PO can have multiple GRN batches (multiple shipments).
@@ -364,6 +435,168 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
     }
   }, "handleRevokeVerify");
 
+  // ── GRN-level payment handlers ──────────────────────────────────────────────
+  const handleGRNVerify = /* @__PURE__ */ __name(async (grnId, remark, invoiceNo, invoiceAmount, receiptIdx = null) => {
+    if (!hasPermission("VERIFY_BILL")) { toast.error("Unauthorized: Access to verify bills is restricted."); return; }
+    setIsSubmitting(true);
+    try {
+      const path = receiptIdx !== null
+        ? `grn/${grnId}/receipt/${receiptIdx}/bill-verify`
+        : `grn/${grnId}/bill-verify`;
+      const res = await api.putSimple(path, { remark, invoiceNo, invoiceAmount: invoiceAmount ? Number(invoiceAmount) : undefined });
+      if (!res.success) throw new Error(res.message);
+      const verifiedFields = { paymentStatus: "bill_verified", verifiedBy: user?.name, verifiedAt: new Date().toISOString(), verifyRemark: remark || null };
+      setAllGrns(prev => prev.map(g => {
+        if (g.id !== grnId) return g;
+        if (receiptIdx === null) return { ...g, ...verifiedFields, invoiceNo: invoiceNo || g.invoiceNo, invoiceAmount: invoiceAmount ? Number(invoiceAmount) : g.invoiceAmount };
+        return { ...g, receipts: (g.receipts || []).map((r, i) =>
+          i === receiptIdx ? { ...r, ...verifiedFields, invoiceNo: invoiceNo || r.invoiceNo, invoiceAmount: invoiceAmount ? Number(invoiceAmount) : r.invoiceAmount } : r
+        )};
+      }));
+      toast.success("Bill verified! Sent for approval.");
+    } catch (err) { toast.error(err?.message || "Failed to verify bill."); }
+    finally { setIsSubmitting(false); }
+  }, "handleGRNVerify");
+
+  const handleGRNApprove = /* @__PURE__ */ __name(async (grnId, receiptIdx = null) => {
+    if (!hasPermission("APPROVE_BILL")) { toast.error("Unauthorized: Access to approve bills is restricted."); return; }
+    setIsSubmitting(true);
+    try {
+      const path = receiptIdx !== null
+        ? `grn/${grnId}/receipt/${receiptIdx}/bill-approve`
+        : `grn/${grnId}/bill-approve`;
+      const res = await api.putSimple(path, {});
+      if (!res.success) throw new Error(res.message);
+      const approvedFields = { paymentStatus: "payment_pending", approvedBy: user?.name, approvedAt: new Date().toISOString() };
+      setAllGrns(prev => prev.map(g => {
+        if (g.id !== grnId) return g;
+        if (receiptIdx === null) return { ...g, ...approvedFields };
+        return { ...g, receipts: (g.receipts || []).map((r, i) =>
+          i === receiptIdx ? { ...r, ...approvedFields } : r
+        )};
+      }));
+      toast.success("Bill approved! Ready for payment.");
+    } catch (err) { toast.error(err?.message || "Failed to approve bill."); }
+    finally { setIsSubmitting(false); }
+  }, "handleGRNApprove");
+
+  const handleGRNPaymentSubmit = /* @__PURE__ */ __name(async (grnId, receiptIdx = null) => {
+    if (!hasPermission("MAKE_PAYMENT")) { toast.error("Unauthorized: Access to process payments is restricted."); return; }
+    const required = ["date", "mode", "ref", "amountPaid", "bank"];
+    if (paymentForm.mode === "NEFT" || paymentForm.mode === "RTGS" || paymentForm.mode === "UPI") required.push("utr");
+    if (paymentForm.mode === "Cheque") required.push("chequeNo", "chequeDate");
+    if (!paymentForm.screenshot && !paymentForm.previewUrl) { toast.error("Payment screenshot is mandatory."); return; }
+    const missing = required.filter(f => !paymentForm[f]);
+    if (missing.length > 0) { toast.error(`Please fill: ${missing.join(", ")}`); return; }
+    setIsSubmitting(true);
+    try {
+      let screenshotUrl = paymentForm.previewUrl;
+      if (paymentForm.screenshot) {
+        const uploadRes = await uploadImage(paymentForm.screenshot);
+        if (uploadRes?.url) screenshotUrl = uploadRes.url;
+      }
+      const { screenshot, previewUrl, ...form } = paymentForm;
+      const path = receiptIdx !== null
+        ? `grn/${grnId}/receipt/${receiptIdx}/payment`
+        : `grn/${grnId}/payment`;
+      const res = await api.putSimple(path, { ...form, screenshotUrl });
+      if (!res.success) throw new Error(res.message);
+      const paidGRN = allGrns.find(g => g.id === grnId);
+      const paidPayment = { amount: form.amountPaid, date: form.date, mode: form.mode, ref: form.ref, utr: form.utr, screenshotUrl };
+      const updatedGrns = allGrns.map(g => {
+        if (g.id !== grnId) return g;
+        if (receiptIdx === null) return { ...g, paymentStatus: "paid", payment: paidPayment };
+        return { ...g, receipts: (g.receipts || []).map((r, i) =>
+          i === receiptIdx ? { ...r, paymentStatus: "paid", payment: paidPayment } : r
+        )};
+      });
+      setAllGrns(updatedGrns);
+      if (paidGRN?.poId) {
+        const poGRNs = updatedGrns.filter(g => g.poId === paidGRN.poId);
+        const allPaid2 = poGRNs.every(g =>
+          g.paymentStatus === "paid" && (g.receipts || []).every(r => r.paymentStatus === "paid")
+        );
+        const somePaid2 = poGRNs.some(g =>
+          g.paymentStatus === "paid" || (g.receipts || []).some(r => r.paymentStatus === "paid")
+        );
+        const totalPaid2 = poGRNs.reduce((s, g) => {
+          let t = g.payment?.amount || 0;
+          (g.receipts || []).forEach(r => { t += r.payment?.amount || 0; });
+          return s + t;
+        }, 0);
+        const newPOAccStatus = allPaid2 ? "paid" : somePaid2 ? "partial_paid" : "bill_verify";
+        setLocalPos(prev => prev.map(p => p.id === paidGRN.poId ? { ...p, accountStatus: newPOAccStatus, totalPaid: totalPaid2 } : p));
+        if (selectedPO?.id === paidGRN.poId) setSelectedPO(prev => ({ ...prev, accountStatus: newPOAccStatus, totalPaid: totalPaid2 }));
+      }
+      setPaymentForm({ date: new Date().toISOString().split("T")[0], mode: "NEFT", ref: "", amountPaid: 0, bank: "", utr: "", chequeNo: "", chequeDate: "", screenshot: null, previewUrl: "", remarks: "", fromCompany: "", toCompany: "", vendorBankDetails: null });
+      toast.success("Payment recorded successfully!");
+    } catch (err) { toast.error(err?.message || "Failed to record payment."); }
+    finally { setIsSubmitting(false); }
+  }, "handleGRNPaymentSubmit");
+
+  const handleGRNVerifyRevert = /* @__PURE__ */ __name(async (grnId, receiptIdx = null) => {
+    if (!hasPermission("VERIFY_BILL")) { toast.error("Unauthorized"); return; }
+    setIsSubmitting(true);
+    try {
+      const path = receiptIdx !== null
+        ? `grn/${grnId}/receipt/${receiptIdx}/bill-verify-revert`
+        : `grn/${grnId}/bill-verify-revert`;
+      const res = await api.putSimple(path, {});
+      if (!res.success) throw new Error(res.message);
+      const revertedFields = { paymentStatus: "unpaid", verifiedBy: null, verifiedAt: null, verifyRemark: null, approvedBy: null, approvedAt: null };
+      setAllGrns(prev => prev.map(g => {
+        if (g.id !== grnId) return g;
+        if (receiptIdx === null) return { ...g, ...revertedFields };
+        return { ...g, receipts: (g.receipts || []).map((r, i) =>
+          i === receiptIdx ? { ...r, ...revertedFields } : r
+        )};
+      }));
+      toast.success("Verification reverted.");
+    } catch (err) { toast.error(err?.message || "Failed to revert."); }
+    finally { setIsSubmitting(false); }
+  }, "handleGRNVerifyRevert");
+  const handleGRNPaymentEdit = /* @__PURE__ */ __name(async (grnId, receiptIdx, editData) => {
+    if (!hasPermission("APPROVE_BILL")) { toast.error("Unauthorized"); return; }
+    setIsSubmitting(true);
+    try {
+      const path = receiptIdx !== null
+        ? `grn/${grnId}/receipt/${receiptIdx}/payment`
+        : `grn/${grnId}/payment`;
+      const res = await api.patch(path, editData);
+      if (!res.success) throw new Error(res.message);
+      const newPayment = { amount: editData.amountPaid, date: editData.date, mode: editData.mode, ref: editData.ref, utr: editData.utr, chequeNo: editData.chequeNo, chequeDate: editData.chequeDate, screenshotUrl: editData.screenshotUrl, bank: editData.bank, fromCompany: editData.fromCompany, toCompany: editData.toCompany, remarks: editData.remarks };
+      setAllGrns(prev => prev.map(g => {
+        if (g.id !== grnId) return g;
+        if (receiptIdx === null) return { ...g, payment: newPayment };
+        return { ...g, receipts: (g.receipts || []).map((r, i) => i === receiptIdx ? { ...r, payment: newPayment } : r) };
+      }));
+      toast.success("Payment updated.");
+    } catch (err) { toast.error(err?.message || "Failed to update payment."); }
+    finally { setIsSubmitting(false); }
+  }, "handleGRNPaymentEdit");
+
+  const handleGRNPaymentDelete = /* @__PURE__ */ __name(async (grnId, receiptIdx) => {
+    if (!hasPermission("APPROVE_BILL")) { toast.error("Unauthorized"); return; }
+    setIsSubmitting(true);
+    try {
+      const path = receiptIdx !== null
+        ? `grn/${grnId}/receipt/${receiptIdx}/payment`
+        : `grn/${grnId}/payment`;
+      const res = await api.deleteSimple(path);
+      if (!res.success) throw new Error(res.message);
+      const revertFields = { paymentStatus: "payment_pending", payment: null };
+      setAllGrns(prev => prev.map(g => {
+        if (g.id !== grnId) return g;
+        if (receiptIdx === null) return { ...g, ...revertFields };
+        return { ...g, receipts: (g.receipts || []).map((r, i) => i === receiptIdx ? { ...r, ...revertFields } : r) };
+      }));
+      toast.success("Payment entry deleted — shipment reverted to Payment Pending.");
+    } catch (err) { toast.error(err?.message || "Failed to delete payment."); }
+    finally { setIsSubmitting(false); }
+  }, "handleGRNPaymentDelete");
+
+  // ────────────────────────────────────────────────────────────────────────────
+
   const handleRevokeApproval = /* @__PURE__ */ __name(async (poId) => {
     if (!hasPermission("APPROVE_BILL")) {
       toast.error("Unauthorized: Access to approve bills is restricted.");
@@ -484,13 +717,18 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
       const prevTotalPaid = po?.totalPaid || po?.payment?.amountPaid || 0;
       // Payable is capped by the value of goods actually received (qty × rate × GST as of
       // receipt), not the full PO amount — you only pay for what's been delivered so far.
-      const rGrnForPayment = getCurrentGRN(po, allGrns);
+      const rGrnForPayment = realGRN || getCurrentGRN(po, allGrns);
       const grnValForPayment = rGrnForPayment ? rGrnForPayment.items.reduce((s, gi) => {
         const rcv = gi.received ?? gi.qty ?? 0;
-        const poItem = po?.items?.find(pi => (pi.sku && pi.sku === gi.sku) || (pi.materialName || "").toLowerCase() === (gi.itemName || "").toLowerCase());
+        const poItem = po?.items?.find(pi =>
+          (pi.sku && gi.sku && pi.sku === gi.sku) ||
+          (pi.materialName || pi.itemName || pi.name || "").toLowerCase() === (gi.itemName || gi.name || gi.materialName || "").toLowerCase()
+        );
         const rate = gi.rate || poItem?.rate || 0;
-        return s + calcChargeTotal(rcv * rate, poItem?.gstPct || 0, poItem?.gstType || "Exclusive");
-      }, 0) : 0;
+        const gstPct = gi.gstPct ?? poItem?.gstPct ?? 0;
+        const gstType = gi.gstType || poItem?.gstType || "Exclusive";
+        return s + calcChargeTotal(rcv * rate, gstPct, gstType);
+      }, 0) : (po?.totalValue || 0);
       const remainingPayable = Math.max(0, grnValForPayment - prevTotalPaid);
       // Hard cap: total paid must never exceed the received-goods value
       if (paymentData.amountPaid > remainingPayable + 0.01) {
@@ -790,143 +1028,20 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
 
   const handlePrintTransactionDetail = /* @__PURE__ */ __name((po, grn) => {
     const supplierName = getSupplierName(po.supplier);
-    const fmtD = (d) => d ? new Date(d).toLocaleDateString("en-IN", { day: "2-digit", month: "long", year: "numeric" }) : "—";
-    const poAmount = po.totalValue || 0;
-    const totalPaid = po.totalPaid || po.payment?.partialAmount || po.payment?.amountPaid || 0;
-    const invoiceNo = po.payment?.ref || po.invoice?.number || grn?.challan || "—";
-
-    let grnReceivedValue = 0;
-    const materialRows = (grn?.items || []).map((gi) => {
-      const rcv = gi.received ?? gi.qty ?? 0;
-      const poItem = po.items?.find(pi =>
-        (pi.sku && gi.sku && pi.sku === gi.sku) ||
-        (pi.materialName || "").toLowerCase() === (gi.itemName || "").toLowerCase()
-      );
-      const ordered = poItem?.qty || poItem?.quantity || 0;
-      const rate = gi.rate || poItem?.rate || 0;
-      const amount = calcChargeTotal(rcv * rate, poItem?.gstPct || 0, poItem?.gstType || "Exclusive");
-      grnReceivedValue += amount;
-      return `
-        <tr>
-          <td style="padding:6px 10px;border-bottom:1px solid #E2E8F0;font-size:11px">${gi.itemName || gi.name || "Item"}${gi.sku ? `<br/><span style="color:#9CA3AF;font-size:9px">${gi.sku}</span>` : ""}</td>
-          <td style="padding:6px 10px;border-bottom:1px solid #E2E8F0;font-size:11px;text-align:center">${ordered || "—"}</td>
-          <td style="padding:6px 10px;border-bottom:1px solid #E2E8F0;font-size:11px;text-align:center;font-weight:700">${rcv}</td>
-          <td style="padding:6px 10px;border-bottom:1px solid #E2E8F0;font-size:11px;text-align:right">${fmtCur(rate)}</td>
-          <td style="padding:6px 10px;border-bottom:1px solid #E2E8F0;font-size:11px;text-align:right;font-weight:700">${fmtCur(amount)}</td>
-        </tr>`;
-    }).join("");
-    const payableAmount = Math.max(0, grnReceivedValue - totalPaid);
-
-    const html = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"/>
-      <title>Transaction Detail — ${po.id}</title>
-      <style>
-        *{margin:0;padding:0;box-sizing:border-box}
-        body{font-family:"Segoe UI",Arial,sans-serif;font-size:12px;color:#1F2937;background:#fff}
-        .page{max-width:900px;margin:0 auto;padding:30px 40px}
-        .hdr{display:flex;justify-content:space-between;align-items:flex-start;padding-bottom:14px;border-bottom:3px solid #1E3A5F;margin-bottom:16px}
-        .company-name{font-size:19px;font-weight:800;color:#1E3A5F;letter-spacing:-0.5px}
-        .company-sub{font-size:10px;color:#6B7280;margin-top:2px}
-        .doc-title{font-size:17px;font-weight:900;color:#1E3A5F;letter-spacing:1px;text-transform:uppercase;text-align:right}
-        .doc-ref{font-size:10px;color:#6B7280;margin-top:3px;text-align:right}
-        .section{margin-bottom:14px}
-        .section-title{font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:1.2px;color:#6B7280;border-bottom:1px solid #E5E7EB;padding-bottom:4px;margin-bottom:8px}
-        .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px 20px}
-        .field-label{font-size:9px;font-weight:700;color:#9CA3AF;text-transform:uppercase;letter-spacing:0.8px;margin-bottom:1px}
-        .field-value{font-size:12px;font-weight:600;color:#111827}
-        .field-value.accent{color:#1E3A5F;font-weight:800}
-        .field-value.big{font-size:15px;font-weight:900;color:#1E3A5F;letter-spacing:-0.3px}
-        table{width:100%;border-collapse:collapse;font-size:11px}
-        thead tr{background:#1E3A5F}
-        thead th{padding:7px 10px;text-align:left;color:#fff;font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:0.8px}
-        thead th:nth-child(2),thead th:nth-child(3){text-align:center}
-        thead th:last-child,thead th:nth-child(4){text-align:right}
-        tfoot tr{background:#1E3A5F}
-        tfoot td{padding:7px 10px;color:#fff;font-weight:800;font-size:11px;text-align:right}
-        .divider{border:none;border-top:1px solid #E5E7EB;margin:12px 0}
-        .footer{margin-top:12px;padding-top:12px;border-top:2px solid #1E3A5F;font-size:10px;color:#9CA3AF}
-        .sig-row{display:flex;gap:16px;margin-top:20px}
-        .sig-box{flex:1;border:1px solid #E5E7EB;border-radius:6px;padding:10px 12px 30px}
-        .sig-box-label{font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:0.8px;color:#6B7280}
-        .sig-box-line{border-top:1px solid #374151;margin-top:30px;padding-top:4px;font-size:9px;color:#9CA3AF}
-        @media print{body{padding:0}@page{margin:10mm 12mm;size:A4}}
-      </style></head><body>
-      <div class="page">
-        <div class="hdr">
-          <div>
-            <div class="company-name">Neoteric Group</div>
-            <div class="company-sub">Accounts & Finance Department</div>
-          </div>
-          <div>
-            <div class="doc-title">Transaction Detail</div>
-            <div class="doc-ref">Ref: ${po.id} &nbsp;|&nbsp; ${fmtD(new Date().toISOString())}</div>
-          </div>
-        </div>
-
-        <div class="section">
-          <div class="section-title">Purchase Order Details</div>
-          <div class="grid3">
-            <div><div class="field-label">PO Number</div><div class="field-value accent">${po.id}</div></div>
-            <div><div class="field-label">Vendor</div><div class="field-value">${supplierName}</div></div>
-            <div><div class="field-label">PO Amount</div><div class="field-value">${fmtCur(poAmount)}</div></div>
-            <div><div class="field-label">PO Date</div><div class="field-value">${fmtD(po.date)}</div></div>
-            <div><div class="field-label">Project</div><div class="field-value">${po.project || po.location || "—"}</div></div>
-          </div>
-        </div>
-
-        <div class="section">
-          <div class="section-title">GRN &amp; Delivery</div>
-          <div class="grid3">
-            <div><div class="field-label">GRN No.</div><div class="field-value accent">${grn?.id || "—"}</div></div>
-            <div><div class="field-label">Receipt Date</div><div class="field-value">${fmtD(grn?.date || po.date)}</div></div>
-            <div><div class="field-label">Received By</div><div class="field-value">${grn?.personName || "—"}</div></div>
-            <div><div class="field-label">GRN Status</div><div class="field-value">${po.status || "—"}</div></div>
-            <div><div class="field-label">Invoice / Challan</div><div class="field-value">${invoiceNo}</div></div>
-          </div>
-        </div>
-
-        ${materialRows ? `<div class="section">
-          <div class="section-title">Received Materials</div>
-          <table>
-            <thead><tr><th>Material</th><th>Ordered</th><th>Received</th><th>Rate</th><th>Amount</th></tr></thead>
-            <tbody>${materialRows}</tbody>
-          </table>
-        </div>` : ""}
-
-        <div class="section">
-          <div class="section-title">Payment Summary</div>
-          <div class="grid3">
-            <div><div class="field-label">PO Grand Total</div><div class="field-value big">${fmtCur(poAmount)}</div></div>
-            <div><div class="field-label">Received Value (Incl. GST)</div><div class="field-value big">${fmtCur(grnReceivedValue)}</div></div>
-            ${totalPaid > 0 ? `<div><div class="field-label">Already Paid</div><div class="field-value big" style="color:#16A34A">${fmtCur(totalPaid)}</div></div>` : ""}
-            <div><div class="field-label">${totalPaid > 0 ? "Remaining Payable" : "Payable Amount"}</div><div class="field-value big" style="color:#EA580C">${fmtCur(payableAmount)}</div></div>
-          </div>
-        </div>
-
-        <div class="sig-row">
-          <div class="sig-box">
-            <div class="sig-box-label">Prepared By</div>
-            <div class="sig-box-line">Signature &amp; Date</div>
-          </div>
-          <div class="sig-box">
-            <div class="sig-box-label">Verified By</div>
-            <div style="font-size:11px;font-weight:700;color:#1E3A5F;margin-top:4px">${po.verifiedBy || ""}</div>
-            <div class="sig-box-line">${po.verifiedAt ? fmtD(po.verifiedAt) : "Signature &amp; Date"}</div>
-          </div>
-          <div class="sig-box">
-            <div class="sig-box-label">Approved By</div>
-            <div style="font-size:11px;font-weight:700;color:#1E3A5F;margin-top:4px">${po.billApprovedBy || ""}</div>
-            <div class="sig-box-line">${po.billApprovedDate ? fmtD(po.billApprovedDate) : "Signature &amp; Date"}</div>
-          </div>
-        </div>
-
-        <hr class="divider"/>
-        <div class="footer">This is a system-generated Transaction Detail from the IMS Portal.</div>
-      </div>
-      <script>window.onload=function(){window.print()}<\/script>
-    </body></html>`;
-
-    const w = window.open("", "_blank", "width=1000,height=750");
-    if (w) { w.document.write(html); w.document.close(); }
+    const vendorSup = suppliers?.find(s =>
+      s.id === po.supplier || s._id === po.supplier ||
+      (s.companyName || "").toLowerCase() === (po.supplier || "").toLowerCase() ||
+      (s.name || "").toLowerCase() === (po.supplier || "").toLowerCase()
+    );
+    const vBank = vendorSup?.accountNumber || vendorSup?.bankName ? {
+      holder: vendorSup.accountHolderName || vendorSup.ownerName || vendorSup.companyName || supplierName,
+      bank: vendorSup.bankName || "",
+      account: vendorSup.accountNumber || "",
+      ifsc: vendorSup.ifscCode || "",
+      branch: vendorSup.branch || "",
+    } : null;
+    const cBank = settings?.companyBankDetails?.bankName || settings?.companyBankDetails?.accountNumber ? settings.companyBankDetails : null;
+    generateTransactionDetailPDF(po, grn, supplierName, vBank, cBank);
   }, "handlePrintTransactionDetail");
 
   const handleFileChange = /* @__PURE__ */ __name((e) => {
@@ -952,14 +1067,14 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
           { label: "Paid This Month", value: metrics.paidCount, sub: fmtCur(metrics.totalPaidAmount), icon: CheckCircle, iconCls: "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-500 dark:text-emerald-400" },
           { label: "Rejected", value: metrics.rejectedCount, sub: "Bills rejected", icon: XSquare, iconCls: "bg-red-50 dark:bg-red-500/10 text-red-500 dark:text-red-400" },
         ].map(({ label, value, sub, icon: Icon, iconCls }) => (
-          <div key={label} className="bg-white dark:bg-gray-800/80 rounded-xl border border-gray-100 dark:border-gray-700/50 shadow-sm p-3.5 flex items-center gap-3">
-            <div className={cn("w-9 h-9 rounded-lg flex items-center justify-center shrink-0", iconCls)}>
-              <Icon className="w-4 h-4" />
+          <div key={label} className="bg-white dark:bg-gray-900/80 rounded-xl border border-gray-100 dark:border-gray-800 shadow-sm p-4 flex items-center gap-3.5">
+            <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center shrink-0", iconCls)}>
+              <Icon className="w-4.5 h-4.5" />
             </div>
             <div className="min-w-0 flex-1">
-              <p className="text-[10px] font-medium text-gray-400 dark:text-gray-500 truncate">{label}</p>
-              <p className="text-lg font-bold text-gray-900 dark:text-white tabular-nums leading-tight">{value}</p>
-              <p className="text-[10px] text-gray-400 dark:text-gray-500 truncate">{sub}</p>
+              <p className="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wide truncate mb-0.5">{label}</p>
+              <p className="text-[20px] font-black text-gray-900 dark:text-white tabular-nums leading-none">{value}</p>
+              <p className="text-[10px] text-gray-400 dark:text-gray-500 truncate mt-0.5">{sub}</p>
             </div>
           </div>
         ))}
@@ -1028,129 +1143,128 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
     /* Table */
   }
       <Card className="p-0 overflow-hidden border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900">
-        <div className="overflow-x-auto overflow-y-hidden">
-          <div className="min-w-[900px]">
-            <div className="grid grid-cols-[1.5fr_2fr_1.5fr_1fr_1fr_1fr_80px] gap-4 px-4 py-3.5 border-b border-gray-100 dark:border-gray-800 bg-gray-50/90 dark:bg-gray-800/90 backdrop-blur-md text-[10px] font-black text-gray-400 dark:text-gray-500 whitespace-nowrap tracking-wider">
-              <div className="pl-2 sm:pl-4">PO records</div>
-              <div className="hidden lg:block">Vendor name</div>
-              <div className="hidden sm:block text-right">Amount (₹)</div>
-              <div className="hidden lg:block text-center">GRN</div>
-              <div className="hidden sm:block text-center">Status</div>
-              <div className="hidden md:block text-right">Date</div>
-              <div className="hidden md:block text-right pr-2 sm:pr-4">Actions</div>
+        {filteredPOs.length === 0 ? (
+          <div className="py-24 text-center">
+            <div className="flex flex-col items-center gap-4 text-gray-400">
+              <Search className="w-12 h-12 opacity-20" />
+              <p className="font-bold text-[13px]">No records found matching filter</p>
             </div>
-            
-            {filteredPOs.length === 0 ? <div className="py-24 text-center">
-                <div className="flex flex-col items-center gap-4 text-gray-400">
-                  <Search className="w-12 h-12 opacity-20" />
-                  <p className="font-bold text-[13px]">No records found matching filter</p>
-                </div>
-              </div> : <Virtuoso
-    style={{ height: "calc(100vh - 380px)", minHeight: "400px" }}
-    data={filteredPOs}
-    itemContent={(_index, po) => <div
-      onClick={async () => {
-        setSelectedPO(po);
-        setShowRejectForm(false);
-        setShowVerifyRemark(false);
-        setVerifyRemark("");
-        setRealGRN(null);
-        try {
-          // Fetch ALL GRNs for this PO (multiple shipments possible)
-          const grnRes = await api.get("grn", { filter: JSON.stringify({ poId: po.id }), limit: 100 });
-          if (grnRes.success && grnRes.data?.length > 0) {
-            const sorted = [...grnRes.data].sort((a, b) =>
-              new Date(b.createdAt || b.date || 0) - new Date(a.createdAt || a.date || 0)
-            );
-            const paidGRNIds = new Set((po.paymentHistory || []).map(ph => ph.grnId).filter(Boolean));
-            setRealGRN(sorted.find(g => !paidGRNIds.has(g.id)) || sorted[0]);
-          }
-        } catch (err) {
-          console.error("Failed to fetch GRN for PO", err);
-        }
-        const sup = suppliers.find(
-          (s) => s.id === po.supplier || s._id === po.supplier || (s.companyName || "").toLowerCase() === (po.supplier || "").toLowerCase() || (s.name || "").toLowerCase() === (po.supplier || "").toLowerCase()
-        );
-        const _accSt = (po.accountStatus || "").toLowerCase();
-        const _poSt = (po.status || "").toLowerCase();
-        const _isRemaining = (_accSt === "partial_paid" || (_accSt === "payment_pending" && po.payment?.isPartial)) && _poSt === "grn fulfilled";
-        const _priorPartial = _isRemaining ? (po.payment?.partialAmount || 0) : 0;
-        const _initAmt = _isRemaining && _priorPartial > 0 ? Math.max(0, (po.totalValue || 0) - _priorPartial) : (po.totalValue || 0);
-        setPaymentForm((prev) => ({
-          ...prev,
-          amountPaid: _initAmt,
-          fromCompany: po.companyName || "Our Company",
-          toCompany: sup?.companyName || po.supplier || "Unknown Vendor",
-          vendorBankDetails: po.vendorBankDetails ? { ...po.vendorBankDetails } : sup ? {
-            accountHolder: sup.accountHolderName || sup.ownerName || "",
-            bankName: sup.bankName || "",
-            accountNo: sup.accountNumber || "",
-            branchIFSC: `${sup.branch || ""}, ${sup.ifscCode || ""}`.trim().replace(/^,/, "").replace(/,$/, "").trim() || ""
-          } : {
-            accountHolder: "",
-            bankName: "",
-            accountNo: "",
-            branchIFSC: ""
-          },
-          utr: "",
-          chequeNo: "",
-          chequeDate: "",
-          ref: "",
-          remarks: "",
-          previewUrl: "",
-          screenshot: null
-        }));
-      }}
-      className="grid grid-cols-[1.5fr_2fr_1.5fr_1fr_1fr_1fr_80px] gap-4 px-4 py-3 border-b border-gray-50 dark:border-gray-800/80 hover:bg-gray-50/50 dark:hover:bg-gray-800/20 transition-colors cursor-pointer items-center group"
-    >
-                    <div className="pl-2 sm:pl-4 flex flex-col justify-center">
-                      <div className="flex items-center gap-3">
-                        <span className="text-gray-900 dark:text-white font-black text-[13px] sm:text-[14px] tracking-tight whitespace-nowrap truncate max-w-[120px] sm:max-w-[160px]">{po.id}</span>
+          </div>
+        ) : (
+          <TableVirtuoso
+            style={{ height: "calc(100vh - 380px)", minHeight: "400px" }}
+            data={filteredPOs}
+            fixedHeaderContent={() => {
+              const headerClass = "px-3 py-3 text-[11px] font-bold text-[#6B7280] dark:text-gray-400 whitespace-nowrap overflow-hidden sticky top-0 z-10 sticky-th";
+              return (
+                <tr className="bg-gray-50/90 dark:bg-gray-800/90 backdrop-blur-md border-b border-[#E8ECF0] dark:border-gray-800 text-left">
+                  <th className={cn(headerClass, "w-[140px]")}>PO Details</th>
+                  <th className={cn(headerClass, "w-[160px]")}>Vendor</th>
+                  <th className={cn(headerClass, "w-[130px]")}>Project</th>
+                  <th className={cn(headerClass, "w-[110px]")}>Date</th>
+                  <th className={cn(headerClass, "w-[120px] text-right")}>Amount</th>
+                  <th className={cn(headerClass, "w-[130px]")}>Status</th>
+                  <th className={cn(headerClass, "w-[110px] text-right")}>Actions</th>
+                </tr>
+              );
+            }}
+            itemContent={(_index, po) => {
+              const cardGRNs = allGrns.filter(g => g.poId === po.id);
+              const cardShipments = cardGRNs.flatMap(g => normalizeShipments(g));
+              const paidCount     = cardShipments.filter(s => s.paymentStatus === "paid").length;
+              const pendingCount  = cardShipments.filter(s => s.paymentStatus === "payment_pending").length;
+              const verifiedCount = cardShipments.filter(s => s.paymentStatus === "bill_verified").length;
+              const unpaidCount   = cardShipments.filter(s => (s.paymentStatus || "unpaid") === "unpaid").length;
+              const totalPaidCard = cardShipments.reduce((s, sh) => s + (sh.payment?.amount || 0), 0);
+              const dueAmt = Math.max(0, (po.totalValue || 0) - totalPaidCard);
+              const accStatusLabel = po.accountStatus === "payment_pending" ? "Payment Pending"
+                : po.accountStatus === "paid" ? "Paid"
+                : po.accountStatus === "bill_verified" ? "Verified"
+                : po.accountStatus === "partial_paid" && (po.status || "").toLowerCase() === "grn fulfilled" ? "To Verify"
+                : po.accountStatus === "partial_paid" ? "Partial Paid"
+                : po.accountStatus === "rejected" ? "Rejected"
+                : "To Verify";
 
-                      </div>
-                      <div className="sm:hidden mt-2 flex items-center gap-2">
-                        <StatusBadge status={po.status} accountStatus={po.accountStatus || (po.status === "Approved" ? "bill_verify" : void 0)} />
-                      </div>
-                    </div>
-                    
-                    <div className="hidden lg:flex items-center">
-                      <p className="text-[12px] sm:text-[13px] font-bold text-gray-700 dark:text-[#CBD5E1] truncate pr-4" title={getSupplierName(po.supplier)}>
-                        {getSupplierName(po.supplier)}
-                      </p>
-                    </div>
-                    
-                    <div className="hidden sm:flex items-center justify-end">
-                      <p className="text-[13px] sm:text-sm font-black text-gray-900 dark:text-[#F1F5F9] tabular-nums whitespace-nowrap truncate">
-                        {fmtCur(getPayableAmount(po))}
-                      </p>
-                    </div>
-                    
-                    <div className="hidden lg:flex items-center justify-center">
-                      <StatusBadge status={po.status} />
-                    </div>
+              const openDrawer = async () => {
+                setSelectedPO(po);
+                setShowRejectForm(false);
+                setShowVerifyRemark(false);
+                setVerifyRemark("");
+                setRealGRN(null);
+                try {
+                  const grnRes = await api.get("grn", { filter: JSON.stringify({ poId: po.id }), limit: 100 });
+                  if (grnRes.success && grnRes.data?.length > 0) {
+                    const sorted = [...grnRes.data].sort((a, b) =>
+                      new Date(b.createdAt || b.date || 0) - new Date(a.createdAt || a.date || 0)
+                    );
+                    const paidGRNIds = new Set((po.paymentHistory || []).map(ph => ph.grnId).filter(Boolean));
+                    setRealGRN(sorted.find(g => !paidGRNIds.has(g.id)) || sorted[0]);
+                  }
+                } catch (err) {
+                  console.error("Failed to fetch GRN for PO", err);
+                }
+                const sup = suppliers.find(
+                  (s) => s.id === po.supplier || s._id === po.supplier || (s.companyName || "").toLowerCase() === (po.supplier || "").toLowerCase() || (s.name || "").toLowerCase() === (po.supplier || "").toLowerCase()
+                );
+                const _accSt = (po.accountStatus || "").toLowerCase();
+                const _poSt = (po.status || "").toLowerCase();
+                const _isRemaining = (_accSt === "partial_paid" || (_accSt === "payment_pending" && po.payment?.isPartial)) && _poSt === "grn fulfilled";
+                const _priorPartial = _isRemaining ? (po.payment?.partialAmount || 0) : 0;
+                const _initAmt = _isRemaining && _priorPartial > 0 ? Math.max(0, (po.totalValue || 0) - _priorPartial) : (po.totalValue || 0);
+                setPaymentForm((prev) => ({
+                  ...prev,
+                  amountPaid: _initAmt,
+                  fromCompany: po.companyName || "Our Company",
+                  toCompany: sup?.companyName || po.supplier || "Unknown Vendor",
+                  vendorBankDetails: po.vendorBankDetails ? { ...po.vendorBankDetails } : sup ? {
+                    accountHolder: sup.accountHolderName || sup.ownerName || "",
+                    bankName: sup.bankName || "",
+                    accountNo: sup.accountNumber || "",
+                    branchIFSC: `${sup.branch || ""}, ${sup.ifscCode || ""}`.trim().replace(/^,/, "").replace(/,$/, "").trim() || ""
+                  } : { accountHolder: "", bankName: "", accountNo: "", branchIFSC: "" },
+                  utr: "", chequeNo: "", chequeDate: "", ref: "", remarks: "", previewUrl: "", screenshot: null
+                }));
+              };
 
-                    <div className="hidden sm:flex items-center justify-center">
-                      <StatusBadge status={
-                        po.accountStatus === "payment_pending" ? "Payment Pending"
-                        : po.accountStatus === "paid" ? "Paid"
-                        : po.accountStatus === "bill_verified" ? "Verified"
-                        : po.accountStatus === "partial_paid" && (po.status || "").toLowerCase() === "grn fulfilled" ? "To Verify"
-                        : po.accountStatus === "partial_paid" ? "Partial Paid"
-                        : po.accountStatus === "rejected" ? "Rejected"
-                        : "To Verify"
-                      } />
-                    </div>
-                    
-                    <div className="hidden md:flex items-center justify-end">
-                      <p className="text-[10px] sm:text-[11px] font-bold text-gray-400 dark:text-[#64748B] whitespace-nowrap font-mono truncate">
-                        {formatDate(po.date)}
-                      </p>
-                    </div>
-                    <div className="hidden md:flex items-center justify-end gap-1 pr-2 sm:pr-4">
+              return (
+                <>
+                  <Td className="px-3 py-2.5 overflow-hidden">
+                    <span className="block truncate text-[13px] font-black text-gray-900 dark:text-white tracking-tight" title={po.id}>
+                      {po.id}
+                    </span>
+                  </Td>
+                  <Td className="px-3 py-2.5 overflow-hidden">
+                    <span className="block truncate text-[13px] font-medium text-gray-700 dark:text-gray-300" title={getSupplierName(po.supplier)}>
+                      {getSupplierName(po.supplier)}
+                    </span>
+                  </Td>
+                  <Td className="px-3 py-2.5 overflow-hidden">
+                    <span className="block truncate text-[13px] text-gray-500 dark:text-gray-400 capitalize" title={po.project || po.location || "—"}>
+                      {po.project || po.location || "—"}
+                    </span>
+                  </Td>
+                  <Td className="px-3 py-2.5 text-[13px] text-gray-500 dark:text-gray-400 whitespace-nowrap overflow-hidden">
+                    {formatDate(po.date)}
+                  </Td>
+                  <Td className="px-3 py-2.5 text-[13px] font-bold text-right text-gray-900 dark:text-white whitespace-nowrap overflow-hidden">
+                    {fmtCur(po.totalValue || 0)}
+                  </Td>
+                  <Td className="px-3 py-2.5 overflow-hidden">
+                    <StatusBadge status={accStatusLabel} />
+                  </Td>
+                  <Td className="px-3 py-2.5">
+                    <div className="flex items-center justify-end gap-1.5">
+                      <button
+                        onClick={openDrawer}
+                        className="p-1.5 rounded-lg bg-blue-500/10 text-blue-500 hover:bg-blue-500/20 transition-colors"
+                        title="View Transaction Details"
+                      >
+                        <Eye className="w-3.5 h-3.5" />
+                      </button>
                       {["paid", "partial_paid"].includes(po.accountStatus) && (
                         <button
                           onClick={(e) => handleEditPayment(e, po)}
-                          className="p-1.5 rounded-lg bg-blue-50 dark:bg-blue-500/10 text-blue-500 hover:opacity-80 transition-opacity"
+                          className="p-1.5 rounded-lg bg-orange-500/10 text-orange-500 hover:bg-orange-500/20 transition-colors"
                           title="Edit payment"
                         >
                           <Pencil className="w-3.5 h-3.5" />
@@ -1159,17 +1273,84 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
                       {["paid", "partial_paid"].includes(po.accountStatus) && (
                         <button
                           onClick={(e) => { e.stopPropagation(); setDeleteConfirmPO(po); }}
-                          className="p-1.5 rounded-lg bg-red-50 dark:bg-red-500/10 text-red-500 hover:opacity-80 transition-opacity"
+                          className="p-1.5 rounded-lg bg-red-500/10 text-red-500 hover:bg-red-500/20 transition-colors"
                           title="Delete payment entry"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
                       )}
                     </div>
-                  </div>}
-  />}
-          </div>
-        </div>
+                  </Td>
+                </>
+              );
+            }}
+            components={{
+              Table: (props) => (
+                <table
+                  {...props}
+                  className="w-full text-left border-collapse table-fixed min-w-[800px] lg:min-w-0"
+                />
+              ),
+              TableBody: React.forwardRef((props, ref) => (
+                <tbody
+                  {...props}
+                  ref={ref}
+                  className="divide-y divide-gray-100 dark:divide-gray-800/60"
+                />
+              )),
+              TableRow: (props) => {
+                const po = filteredPOs[props["data-index"]];
+                return (
+                  <Tr
+                    {...props}
+                    onClick={async () => {
+                      if (!po) return;
+                      setSelectedPO(po);
+                      setShowRejectForm(false);
+                      setShowVerifyRemark(false);
+                      setVerifyRemark("");
+                      setRealGRN(null);
+                      try {
+                        const grnRes = await api.get("grn", { filter: JSON.stringify({ poId: po.id }), limit: 100 });
+                        if (grnRes.success && grnRes.data?.length > 0) {
+                          const sorted = [...grnRes.data].sort((a, b) =>
+                            new Date(b.createdAt || b.date || 0) - new Date(a.createdAt || a.date || 0)
+                          );
+                          const paidGRNIds = new Set((po.paymentHistory || []).map(ph => ph.grnId).filter(Boolean));
+                          setRealGRN(sorted.find(g => !paidGRNIds.has(g.id)) || sorted[0]);
+                        }
+                      } catch (err) {
+                        console.error("Failed to fetch GRN for PO", err);
+                      }
+                      const sup = suppliers.find(
+                        (s) => s.id === po.supplier || s._id === po.supplier || (s.companyName || "").toLowerCase() === (po.supplier || "").toLowerCase() || (s.name || "").toLowerCase() === (po.supplier || "").toLowerCase()
+                      );
+                      const _accSt = (po.accountStatus || "").toLowerCase();
+                      const _poSt = (po.status || "").toLowerCase();
+                      const _isRemaining = (_accSt === "partial_paid" || (_accSt === "payment_pending" && po.payment?.isPartial)) && _poSt === "grn fulfilled";
+                      const _priorPartial = _isRemaining ? (po.payment?.partialAmount || 0) : 0;
+                      const _initAmt = _isRemaining && _priorPartial > 0 ? Math.max(0, (po.totalValue || 0) - _priorPartial) : (po.totalValue || 0);
+                      setPaymentForm((prev) => ({
+                        ...prev,
+                        amountPaid: _initAmt,
+                        fromCompany: po.companyName || "Our Company",
+                        toCompany: sup?.companyName || po.supplier || "Unknown Vendor",
+                        vendorBankDetails: po.vendorBankDetails ? { ...po.vendorBankDetails } : sup ? {
+                          accountHolder: sup.accountHolderName || sup.ownerName || "",
+                          bankName: sup.bankName || "",
+                          accountNo: sup.accountNumber || "",
+                          branchIFSC: `${sup.branch || ""}, ${sup.ifscCode || ""}`.trim().replace(/^,/, "").replace(/,$/, "").trim() || ""
+                        } : { accountHolder: "", bankName: "", accountNo: "", branchIFSC: "" },
+                        utr: "", chequeNo: "", chequeDate: "", ref: "", remarks: "", previewUrl: "", screenshot: null
+                      }));
+                    }}
+                    className={cn("cursor-pointer hover:bg-gray-50/70 dark:hover:bg-gray-800/40 transition-colors", props.className)}
+                  />
+                );
+              }
+            }}
+          />
+        )}
       </Card>
 
       {/* Detail Drawer */}
@@ -1238,7 +1419,42 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
         const billValue = selectedPO.totalValue || 0;
         const hasMismatch = realGRN && Math.abs(grnValue - billValue) > 0.01;
 
-        const drawerFooter = resolvedStatus === "bill_verify" ? (
+        // Check if any GRN for this PO exists or uses GRN-level payment tracking
+        const poGRNsForDrawer = allGrns.filter(g => g.poId === selectedPO.id);
+        const usesGRNPayments = poGRNsForDrawer.length > 0;
+
+        const drawerFooter = usesGRNPayments ? (
+          showRejectForm ? (
+            <div className="flex flex-col sm:flex-row gap-3 items-end w-full">
+              <div className="flex-1">
+                <label className="text-[10px] font-black text-red-500 dark:text-red-400 mb-1 block">Rejection reason *</label>
+                <input
+                  type="text"
+                  value={rejectionReason}
+                  onChange={(e) => setRejectionReason(e.target.value)}
+                  placeholder="e.g. Price mismatch, quantity error..."
+                  className="w-full bg-white dark:bg-[#0F172A] border border-red-200 dark:border-red-900/40 p-3 rounded-xl text-sm outline-none focus:ring-4 ring-red-500/10 font-bold text-gray-900 dark:text-[#F1F5F9] transition-all"
+                />
+              </div>
+              <div className="flex gap-2 shrink-0">
+                <Btn label="Cancel" outline onClick={() => { setShowRejectForm(false); setRejectionReason(""); }} />
+                <Btn label="Confirm reject" color="red" onClick={() => handleBillReject(selectedPO.id)} loading={isSubmitting} disabled={!rejectionReason.trim() || isSubmitting} />
+              </div>
+            </div>
+          ) : (
+            <div className="flex justify-between gap-3 w-full flex-wrap">
+              <div className="flex gap-2">
+                <Btn label="Download PDF" icon={Download} outline onClick={() => handlePrintTransactionDetail(selectedPO, realGRN)} />
+                {resolvedStatus !== "paid" && hasPermission("VERIFY_BILL") && (
+                  <Btn label="Reject" color="red" onClick={() => setShowRejectForm(true)} />
+                )}
+              </div>
+              {resolvedStatus === "paid" && (
+                <Btn label="Download Payment Advice" icon={Download} onClick={() => handlePrintPaymentAdvice(selectedPO)} className="bg-orange-500 hover:bg-orange-600 text-white border-none shadow-lg shadow-orange-500/20 font-bold" />
+              )}
+            </div>
+          )
+        ) : resolvedStatus === "bill_verify" ? (
           drawerPayableAmount <= 0 ? (
             <div className="flex items-center gap-2 px-4 py-2.5 bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20 rounded-xl">
               <Clock className="w-4 h-4 text-amber-500 shrink-0" />
@@ -1300,7 +1516,7 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
           ) : (
             <div className="flex justify-between gap-3 w-full flex-wrap">
               <div className="flex gap-2">
-                <Btn label="Print" icon={Printer} outline onClick={() => handlePrintTransactionDetail(selectedPO, realGRN)} />
+                <Btn label="Download PDF" icon={Download} outline onClick={() => handlePrintTransactionDetail(selectedPO, realGRN)} />
                 {!isRemainingPayment && hasPermission("VERIFY_BILL") && <Btn label="Reject" color="red" onClick={() => setShowRejectForm(true)} />}
               </div>
               {hasPermission("VERIFY_BILL") && (
@@ -1322,7 +1538,9 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
           )
         ) : resolvedStatus === "bill_verified" ? (
           <div className="flex justify-between gap-3 w-full flex-wrap">
-            <Btn label="Download PO PDF" icon={Download} outline onClick={downloadPOPDF} />
+            <div className="flex gap-2">
+              <Btn label="Download PDF" icon={Download} outline onClick={() => handlePrintTransactionDetail(selectedPO, realGRN)} />
+            </div>
             {hasPermission("APPROVE_BILL") && (
               <div className="flex gap-3">
                 <button
@@ -1344,7 +1562,9 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
           </div>
         ) : (resolvedStatus === "payment_pending" || ((resolvedStatus === "paid" || resolvedStatus === "partial_paid") && isEditingPayment)) ? (
           <div className="flex justify-between gap-3 w-full items-center">
-            <Btn label="Download PO PDF" icon={Download} outline onClick={downloadPOPDF} />
+            <div className="flex gap-2">
+              <Btn label="Download PDF" icon={Download} outline onClick={() => handlePrintTransactionDetail(selectedPO, realGRN)} />
+            </div>
             {resolvedStatus === "payment_pending" && hasPermission("APPROVE_BILL") && (
               <button
                 onClick={() => handleRevokeApproval(selectedPO.id)}
@@ -1371,6 +1591,7 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
           </div>
         ) : resolvedStatus === "partial_paid" ? (
           <div className="flex items-center gap-3 w-full">
+            <Btn label="Download PDF" icon={Download} outline onClick={() => handlePrintTransactionDetail(selectedPO, realGRN)} />
             <div className="flex items-center gap-2 flex-1 px-3 py-2 bg-amber-50 dark:bg-amber-500/10 rounded-xl border border-amber-200 dark:border-amber-500/20">
               <Clock className="w-4 h-4 text-amber-500 shrink-0" />
               <p className="text-[12px] font-bold text-amber-700 dark:text-amber-400">
@@ -1380,7 +1601,9 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
           </div>
         ) : resolvedStatus === "paid" && !isEditingPayment ? (
           <div className="flex justify-between gap-3 w-full flex-wrap">
-            <Btn label="Download PO PDF" icon={Download} outline onClick={downloadPOPDF} />
+            <div className="flex gap-2">
+              <Btn label="Download PDF" icon={Download} outline onClick={() => handlePrintTransactionDetail(selectedPO, realGRN)} />
+            </div>
             <div className="flex gap-3 flex-wrap">
               <Btn
                 label="Download Payment Advice"
@@ -1430,6 +1653,13 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
             allGrns={allGrns}
             onPrintPaymentAdvice={handlePrintPaymentAdvice}
             onClose={() => { setSelectedPO(null); setIsEditingPayment(false); }}
+            onGRNVerify={handleGRNVerify}
+            onGRNApprove={handleGRNApprove}
+            onGRNPaymentSubmit={handleGRNPaymentSubmit}
+            onGRNVerifyRevert={handleGRNVerifyRevert}
+            onGRNPaymentEdit={handleGRNPaymentEdit}
+            onGRNPaymentDelete={handleGRNPaymentDelete}
+            hasPermission={hasPermission}
           />
         </Modal>;
       })()}
@@ -1466,6 +1696,408 @@ const GRNInfoRow = /* @__PURE__ */ __name(({ label, value, orange, mono }) => (
   </div>
 ), "GRNInfoRow");
 
+const GRN_STATUS_CONFIG = {
+  unpaid:          { label: "Needs Verification", dot: "bg-blue-400",   badge: "text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-500/10 border-blue-100 dark:border-blue-500/20" },
+  bill_verified:   { label: "Verified",           dot: "bg-emerald-400", badge: "text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 border-emerald-100 dark:border-emerald-500/20" },
+  payment_pending: { label: "Pending Payment",    dot: "bg-amber-400",   badge: "text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-500/10 border-amber-100 dark:border-amber-500/20" },
+  paid:            { label: "Paid",               dot: "bg-emerald-500", badge: "text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-500/10 border-emerald-200 dark:border-emerald-500/30" },
+};
+
+const GRNShipmentCard = /* @__PURE__ */ __name(({ shipment, po, isSubmitting, onVerify, onApprove, onPaymentSubmit, onVerifyRevert, onPaymentEdit, onPaymentDelete, paymentForm, setPaymentForm, fileInputRef, handleFileChange, hasPermission: hp, defaultExpanded }) => {
+  const grnValue = (shipment.items || []).reduce((sum, gi) => {
+    const rcv = gi.received ?? gi.qty ?? 0;
+    const poItem = (po.items || []).find(pi =>
+      (pi.sku && gi.sku && pi.sku === gi.sku) ||
+      (pi.materialName || "").toLowerCase() === (gi.itemName || "").toLowerCase()
+    );
+    return sum + rcv * (gi.rate || poItem?.rate || 0);
+  }, 0);
+  const suggestedAmount = shipment.invoiceAmount
+    || (shipment.paymentStatus === "paid" ? (shipment.payment?.amount || 0) : 0)
+    || Math.round(grnValue) || 0;
+
+  const [expanded, setExpanded] = useState(defaultExpanded || false);
+  const [verifyForm, setVerifyForm] = useState({ remark: "", invoiceNo: shipment.invoiceNo || "", invoiceAmount: suggestedAmount });
+  const [showVerifyForm, setShowVerifyForm] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showEditPayForm, setShowEditPayForm] = useState(false);
+  const [editPay, setEditPay] = useState({
+    amountPaid: shipment.payment?.amount || 0,
+    date: shipment.payment?.date || new Date().toISOString().split("T")[0],
+    mode: shipment.payment?.mode || "NEFT",
+    ref: shipment.payment?.ref || "",
+    utr: shipment.payment?.utr || "",
+    chequeNo: shipment.payment?.chequeNo || "",
+    chequeDate: shipment.payment?.chequeDate || "",
+    bank: shipment.payment?.bank || "",
+    remarks: shipment.payment?.remarks || "",
+  });
+
+  const status = shipment.paymentStatus || "unpaid";
+  const sc = GRN_STATUS_CONFIG[status] || GRN_STATUS_CONFIG.unpaid;
+  const isLocked = status === "paid";
+
+  useEffect(() => {
+    if (expanded && status === "payment_pending") {
+      setPaymentForm(p => ({ ...p, amountPaid: suggestedAmount }));
+    }
+  }, [expanded, status, suggestedAmount]);
+
+  return (
+    <div className={`rounded-xl border overflow-hidden shadow-sm transition-shadow hover:shadow ${isLocked ? "border-gray-100 dark:border-gray-700/40" : "border-gray-100 dark:border-gray-800"}`}>
+      {/* Header row */}
+      <button onClick={() => setExpanded(e => !e)} className={`w-full flex items-stretch gap-0 text-left transition-colors ${isLocked ? "bg-gray-50/80 dark:bg-gray-800/25 hover:bg-gray-50 dark:hover:bg-gray-800/40" : "bg-white dark:bg-gray-900 hover:bg-gray-50/70 dark:hover:bg-gray-800/20"}`}>
+        {/* Left status accent stripe */}
+        <div className={`w-[3px] shrink-0 self-stretch rounded-r-sm ${sc.dot}`} />
+        <div className="flex-1 flex items-center justify-between gap-3 px-4 py-3.5">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 mb-0.5">
+                <p className="text-[13px] font-black text-gray-900 dark:text-white tracking-tight">{shipment.label}</p>
+                {isLocked && <span className="text-[8px] px-2 py-0.5 bg-gray-200/80 dark:bg-gray-700 text-gray-500 dark:text-gray-400 rounded-full font-black tracking-widest uppercase">Locked</span>}
+              </div>
+              <p className="text-[10px] text-gray-400 dark:text-gray-500 font-mono">{shipment.grnId} · {formatDate(shipment.date)} · {(shipment.items || []).length} item{(shipment.items || []).length !== 1 ? "s" : ""} · {fmtCur(suggestedAmount)}</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <span className={`text-[10px] font-black px-2.5 py-0.5 rounded-full border ${sc.badge}`}>{sc.label}</span>
+            {expanded ? <ChevronUp className="w-3.5 h-3.5 text-gray-400" /> : <ChevronDown className="w-3.5 h-3.5 text-gray-400" />}
+          </div>
+        </div>
+      </button>
+
+      {expanded && (
+        <div className="border-t border-gray-100 dark:border-gray-800 bg-gray-50/30 dark:bg-gray-900/60 p-4 space-y-4">
+          {/* Items table */}
+          {(shipment.items || []).length > 0 && (
+            <div className="overflow-x-auto overflow-hidden rounded-xl border border-gray-100 dark:border-gray-800 shadow-sm">
+              <table className="w-full text-left border-collapse min-w-[380px]">
+                <thead>
+                  <tr className="bg-gray-100/70 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+                    <th className="px-3 py-2.5 text-[10px] font-black text-gray-500 dark:text-gray-400 uppercase tracking-wider">Material</th>
+                    <th className="px-3 py-2.5 text-[10px] font-black text-gray-500 dark:text-gray-400 uppercase tracking-wider text-center">Received</th>
+                    <th className="px-3 py-2.5 text-[10px] font-black text-gray-500 dark:text-gray-400 uppercase tracking-wider text-right">Rate</th>
+                    <th className="px-3 py-2.5 text-[10px] font-black text-gray-500 dark:text-gray-400 uppercase tracking-wider text-right">Amount</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50 dark:divide-gray-800/80 bg-white dark:bg-gray-900/50">
+                  {shipment.items.map((gi, i) => {
+                    const rcv = gi.received ?? gi.qty ?? 0;
+                    const poItem = (po.items || []).find(pi =>
+                      (pi.sku && gi.sku && pi.sku === gi.sku) ||
+                      (pi.materialName || "").toLowerCase() === (gi.itemName || "").toLowerCase()
+                    );
+                    const rootItem = (shipment.rootItems || []).find(ri =>
+                      (ri.sku && gi.sku && ri.sku === gi.sku) ||
+                      (ri.itemName || "").toLowerCase() === (gi.itemName || "").toLowerCase()
+                    );
+                    const rate = gi.rate || poItem?.rate || 0;
+                    const unit = gi.unit || rootItem?.unit || poItem?.unit || "";
+                    return (
+                      <tr key={i} className="hover:bg-gray-50/50 dark:hover:bg-gray-800/20 transition-colors">
+                        <td className="px-3 py-3">
+                          <span className="text-[12px] font-semibold text-gray-900 dark:text-white">{gi.itemName || gi.name || "Item"}</span>
+                          {gi.sku && <p className="text-[9px] text-gray-400 dark:text-gray-600 font-mono mt-0.5">{gi.sku}</p>}
+                        </td>
+                        <td className="px-3 py-3 text-center">
+                          <span className="text-[13px] font-black text-gray-900 dark:text-white tabular-nums">{rcv}</span>
+                          {unit && <span className="text-[10px] font-medium text-gray-400 ml-1">{unit}</span>}
+                        </td>
+                        <td className="px-3 py-3 text-right text-[11px] text-gray-400 dark:text-gray-500 tabular-nums">{fmtCur(rate)}</td>
+                        <td className="px-3 py-3 text-right font-black text-[13px] text-gray-900 dark:text-white tabular-nums">{fmtCur(rcv * rate)}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+                <tfoot>
+                  <tr className="bg-orange-50/50 dark:bg-orange-900/10 border-t border-orange-100 dark:border-orange-900/20">
+                    <td colSpan={3} className="px-3 py-2.5 text-[10px] font-black text-orange-600 dark:text-orange-400 uppercase tracking-wide">Shipment Total</td>
+                    <td className="px-3 py-2.5 text-right font-black text-[14px] text-orange-500 dark:text-orange-400 tabular-nums">{fmtCur(suggestedAmount)}</td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          )}
+
+          {/* Doc photos */}
+          {(() => {
+            const imgs = [...(shipment.challanPhotos || []), ...(shipment.personPhotos || [])].filter(Boolean);
+            if (!imgs.length) return null;
+            return (
+              <div className="flex gap-2 flex-wrap">
+                {imgs.map((img, i) => (
+                  <div key={i} onClick={() => window.open(img, "_blank")} className="w-16 h-16 rounded-lg overflow-hidden border border-gray-100 dark:border-gray-800 cursor-zoom-in hover:border-orange-400 dark:hover:border-orange-500 transition-colors shadow-sm">
+                    <img src={img} alt={`Doc ${i + 1}`} referrerPolicy="no-referrer" className="w-full h-full object-cover" />
+                  </div>
+                ))}
+              </div>
+            );
+          })()}
+
+          {/* ── Status-based action area ── */}
+
+          {status === "unpaid" && hp("VERIFY_BILL") && (
+            !showVerifyForm ? (
+              <div className="flex justify-end pt-1">
+                <button onClick={() => setShowVerifyForm(true)} className="text-[12px] font-black bg-emerald-500 hover:bg-emerald-600 text-white px-5 py-2 rounded-xl shadow-sm shadow-emerald-500/20 transition-all flex items-center gap-2">
+                  <Check className="w-3.5 h-3.5" /> Verify Bill
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-3 bg-gray-50/60 dark:bg-gray-800/30 rounded-xl border border-gray-100 dark:border-gray-800 p-4">
+                <p className="text-[11px] font-black text-gray-700 dark:text-gray-300">Bill Verification</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-[10px] font-black text-gray-400 mb-1 block">Invoice No.</label>
+                    <input type="text" value={verifyForm.invoiceNo} onChange={e => setVerifyForm(p => ({...p, invoiceNo: e.target.value}))} className="w-full bg-white dark:bg-[#0F172A] border border-gray-200 dark:border-gray-700 p-2.5 rounded-xl text-[12px] outline-none font-bold text-gray-900 dark:text-white focus:ring-2 ring-emerald-500/20" placeholder="INV-001" />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-black text-gray-400 mb-1 block">Invoice Amount (₹)</label>
+                    <input type="number" value={verifyForm.invoiceAmount} onChange={e => setVerifyForm(p => ({...p, invoiceAmount: e.target.value}))} className={`w-full bg-white dark:bg-[#0F172A] border p-2.5 rounded-xl text-[12px] outline-none font-bold text-gray-900 dark:text-white focus:ring-2 ${grnValue > 0 && Number(verifyForm.invoiceAmount) > grnValue ? "border-red-400 dark:border-red-500 ring-red-500/20" : "border-gray-200 dark:border-gray-700 ring-emerald-500/20"}`} placeholder="Invoice amount" />
+                    {grnValue > 0 && Number(verifyForm.invoiceAmount) > grnValue && (
+                      <p className="text-[10px] font-bold text-red-500 mt-1">⚠ Exceeds shipment value of {fmtCur(grnValue)}</p>
+                    )}
+                  </div>
+                </div>
+                <div>
+                  <label className="text-[10px] font-black text-gray-400 mb-1 block">Remark (optional)</label>
+                  <input type="text" value={verifyForm.remark} onChange={e => setVerifyForm(p => ({...p, remark: e.target.value}))} className="w-full bg-white dark:bg-[#0F172A] border border-gray-200 dark:border-gray-700 p-2.5 rounded-xl text-[12px] outline-none font-bold text-gray-900 dark:text-white focus:ring-2 ring-emerald-500/20" placeholder="e.g. Rate includes freight" />
+                </div>
+                <div className="flex justify-end gap-2">
+                  <Btn label="Cancel" outline onClick={() => setShowVerifyForm(false)} />
+                  <Btn label="Confirm Verify" color="green" loading={isSubmitting} disabled={isSubmitting} onClick={() => {
+                    const amt = Number(verifyForm.invoiceAmount);
+                    if (grnValue > 0 && amt > grnValue) {
+                      toast.error(`Invoice amount ${fmtCur(amt)} cannot exceed shipment value ${fmtCur(grnValue)}.`);
+                      return;
+                    }
+                    onVerify(shipment.grnId, verifyForm.remark, verifyForm.invoiceNo, verifyForm.invoiceAmount, shipment.receiptIdx);
+                    setShowVerifyForm(false);
+                  }} />
+                </div>
+              </div>
+            )
+          )}
+
+          {status === "bill_verified" && (
+            <div className="space-y-3">
+              <div className="flex items-center gap-3 px-3 py-2.5 bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/20 rounded-xl">
+                <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-[11px] font-black text-emerald-700 dark:text-emerald-400">Verified by {shipment.verifiedBy} · {formatDate(shipment.verifiedAt)}</p>
+                  {shipment.verifyRemark && <p className="text-[10px] text-emerald-600 dark:text-emerald-500 mt-0.5">{shipment.verifyRemark}</p>}
+                </div>
+              </div>
+              {(shipment.invoiceNo || shipment.invoiceAmount) && (
+                <div className="flex gap-4 text-[11px] px-1">
+                  {shipment.invoiceNo && <span className="text-gray-400">Invoice: <span className="font-black text-gray-700 dark:text-white">{shipment.invoiceNo}</span></span>}
+                  {shipment.invoiceAmount && <span className="text-gray-400">Amount: <span className="font-black text-orange-500">{fmtCur(shipment.invoiceAmount)}</span></span>}
+                </div>
+              )}
+              {hp("APPROVE_BILL") && (
+                <div className="flex justify-end gap-2 pt-1">
+                  <Btn label="Revise" outline onClick={() => onVerifyRevert(shipment.grnId, shipment.receiptIdx)} disabled={isSubmitting} />
+                  <Btn label="Approve for Payment" color="green" loading={isSubmitting} disabled={isSubmitting} onClick={() => onApprove(shipment.grnId, shipment.receiptIdx)} />
+                </div>
+              )}
+            </div>
+          )}
+
+          {status === "payment_pending" && (
+            <div className="space-y-4">
+              <div className="flex items-center gap-3 px-3 py-2.5 bg-blue-50 dark:bg-blue-500/10 border border-blue-100 dark:border-blue-500/20 rounded-xl">
+                <CreditCard className="w-4 h-4 text-blue-500 shrink-0" />
+                <p className="text-[11px] font-black text-blue-700 dark:text-blue-400">Approved by {shipment.approvedBy} · Ready for payment · {fmtCur(shipment.invoiceAmount || grnValue)}</p>
+              </div>
+              {hp("MAKE_PAYMENT") && (
+                <div className="space-y-3 bg-gray-50/60 dark:bg-gray-800/30 rounded-xl border border-gray-100 dark:border-gray-800 p-4">
+                  <p className="text-[11px] font-black text-gray-700 dark:text-gray-300">Payment Entry (ERP Sync)</p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <FormGroup label="Payment Date *">
+                      <DatePicker value={paymentForm.date} onChange={e => setPaymentForm(p => ({...p, date: e.target.value}))} />
+                    </FormGroup>
+                    <FormGroup label="Payment Mode *">
+                      <select value={paymentForm.mode} onChange={e => setPaymentForm(p => ({...p, mode: e.target.value}))} className="w-full bg-white dark:bg-[#0F172A] border border-gray-200 dark:border-[#334155] p-2.5 rounded-xl text-[12px] outline-none font-bold text-gray-900 dark:text-[#F1F5F9]">
+                        <option>NEFT</option><option>RTGS</option><option>Cheque</option><option>Cash</option><option>UPI</option>
+                      </select>
+                    </FormGroup>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <FormGroup label="Voucher Ref *" hint="Tally PV ref">
+                      <input type="text" value={paymentForm.ref} onChange={e => setPaymentForm(p => ({...p, ref: e.target.value}))} className="w-full bg-white dark:bg-[#0F172A] border border-gray-200 dark:border-[#334155] p-2.5 rounded-xl text-[12px] outline-none font-bold text-gray-900 dark:text-[#F1F5F9]" placeholder="PV-26-0045" />
+                    </FormGroup>
+                    <FormGroup label="Amount Paid *" hint={`Shipment value: ${fmtCur(shipment.invoiceAmount || grnValue)}`}>
+                      <input type="number" value={paymentForm.amountPaid} onChange={e => setPaymentForm(p => ({...p, amountPaid: Number(e.target.value)}))} className="w-full bg-white dark:bg-[#0F172A] border border-gray-200 dark:border-[#334155] p-2.5 rounded-xl text-[12px] outline-none font-bold text-gray-900 dark:text-[#F1F5F9]" />
+                    </FormGroup>
+                  </div>
+                  <FormGroup label="Debit Bank Account *">
+                    <select value={paymentForm.bank} onChange={e => setPaymentForm(p => ({...p, bank: e.target.value}))} className="w-full bg-white dark:bg-[#0F172A] border border-gray-200 dark:border-[#334155] p-2.5 rounded-xl text-[12px] outline-none font-bold text-gray-900 dark:text-[#F1F5F9]">
+                      <option value="">-- Select Bank --</option>
+                      <option>SBI Main Corporate A/C</option><option>HDFC Business OD A/C</option><option>ICICI Project Fund</option>
+                    </select>
+                  </FormGroup>
+                  {(paymentForm.mode === "NEFT" || paymentForm.mode === "RTGS" || paymentForm.mode === "UPI") && (
+                    <FormGroup label="UTR / Reference ID *">
+                      <input type="text" value={paymentForm.utr} onChange={e => setPaymentForm(p => ({...p, utr: e.target.value}))} className="w-full bg-white dark:bg-[#0F172A] border border-gray-200 dark:border-[#334155] p-2.5 rounded-xl text-[12px] outline-none font-bold text-gray-900 dark:text-[#F1F5F9]" placeholder="TRANSACTION ID" />
+                    </FormGroup>
+                  )}
+                  {paymentForm.mode === "Cheque" && (
+                    <div className="grid grid-cols-2 gap-3">
+                      <FormGroup label="Cheque No. *"><input type="text" value={paymentForm.chequeNo} onChange={e => setPaymentForm(p => ({...p, chequeNo: e.target.value}))} className="w-full bg-white dark:bg-[#0F172A] border border-gray-200 dark:border-[#334155] p-2.5 rounded-xl text-[12px] outline-none font-bold text-gray-900 dark:text-[#F1F5F9]" /></FormGroup>
+                      <FormGroup label="Cheque Date *"><DatePicker value={paymentForm.chequeDate} onChange={e => setPaymentForm(p => ({...p, chequeDate: e.target.value}))} /></FormGroup>
+                    </div>
+                  )}
+                  <FormGroup label="Payment Screenshot *" hint="Tally snapshot / bank receipt">
+                    <div
+                      onClick={() => fileInputRef.current?.click()}
+                      onDragOver={e => { e.preventDefault(); setIsDragging(true); }}
+                      onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget)) setIsDragging(false); }}
+                      onDrop={e => { e.preventDefault(); setIsDragging(false); const file = e.dataTransfer.files?.[0]; if (file) { const url = URL.createObjectURL(file); setPaymentForm(p => ({...p, screenshot: file, previewUrl: url})); } }}
+                      className={`border-2 border-dashed rounded-xl p-5 flex flex-col items-center justify-center gap-2 cursor-pointer transition-all ${isDragging ? "border-blue-400 bg-blue-50 dark:bg-blue-900/20" : "border-gray-200 dark:border-[#334155] hover:bg-gray-50 dark:hover:bg-[#0F172A]/50"}`}
+                    >
+                      <input type="file" ref={fileInputRef} className="hidden" onChange={handleFileChange} accept="image/*,.pdf" />
+                      {paymentForm.previewUrl ? (
+                        <div className="relative"><img src={paymentForm.previewUrl} className="h-20 rounded-xl shadow border border-white dark:border-[#334155]" alt="Preview" /></div>
+                      ) : (
+                        <><Upload className="w-6 h-6 text-blue-400" /><p className="text-[11px] font-bold text-blue-500">Click or drag to upload</p></>
+                      )}
+                    </div>
+                  </FormGroup>
+                  <div className="flex justify-end pt-1">
+                    <button
+                      onClick={() => {
+                        const paid = Number(paymentForm.amountPaid);
+                        if (suggestedAmount > 0 && paid > suggestedAmount) {
+                          toast.error(`Payment ${fmtCur(paid)} cannot exceed invoice value ${fmtCur(suggestedAmount)}.`);
+                          return;
+                        }
+                        onPaymentSubmit(shipment.grnId, shipment.receiptIdx);
+                      }}
+                      disabled={isSubmitting}
+                      className="bg-[#F97316] hover:bg-[#EA580C] disabled:opacity-50 text-white py-2.5 px-6 rounded-xl text-[13px] font-black shadow-lg shadow-orange-500/20 flex items-center gap-2 transition-all"
+                    >
+                      {isSubmitting ? "Processing..." : "Mark Payment Complete ✓"}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {status === "paid" && (
+            <div className="space-y-3">
+              {/* Payment summary row */}
+              <div className="flex items-center gap-3 px-4 py-3 bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/20 rounded-xl">
+                <div className="w-8 h-8 rounded-full bg-emerald-500 text-white flex items-center justify-center shrink-0 shadow-sm shadow-emerald-500/30">
+                  <CheckCircle className="w-4 h-4" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-[13px] font-black text-emerald-700 dark:text-emerald-400 tabular-nums">{fmtCur(shipment.payment?.amount)} paid</p>
+                  <p className="text-[10px] text-emerald-600 dark:text-emerald-500 mt-0.5">
+                    {formatDate(shipment.payment?.date)}
+                    {shipment.payment?.mode ? ` · ${shipment.payment.mode}` : ""}
+                    {shipment.payment?.ref ? ` · ${shipment.payment.ref}` : ""}
+                    {shipment.payment?.utr ? ` · UTR: ${shipment.payment.utr}` : ""}
+                  </p>
+                </div>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  {shipment.payment?.screenshotUrl && (
+                    <a href={shipment.payment.screenshotUrl} target="_blank" rel="noreferrer" className="text-[10px] font-black text-blue-500 hover:text-blue-700 dark:hover:text-blue-300 transition-colors underline underline-offset-2">Receipt</a>
+                  )}
+                  {hp("APPROVE_BILL") && (
+                    <>
+                      <button
+                        onClick={() => { setEditPay({ amountPaid: shipment.payment?.amount || 0, date: shipment.payment?.date || new Date().toISOString().split("T")[0], mode: shipment.payment?.mode || "NEFT", ref: shipment.payment?.ref || "", utr: shipment.payment?.utr || "", chequeNo: shipment.payment?.chequeNo || "", chequeDate: shipment.payment?.chequeDate || "", bank: shipment.payment?.bank || "", remarks: shipment.payment?.remarks || "" }); setShowEditPayForm(v => !v); setShowDeleteConfirm(false); }}
+                        className="p-1.5 rounded-lg bg-blue-500/10 text-blue-500 hover:bg-blue-500/20 transition-colors" title="Edit payment"
+                      >
+                        <Pencil className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={() => { setShowDeleteConfirm(v => !v); setShowEditPayForm(false); }}
+                        className="p-1.5 rounded-lg bg-red-500/10 text-red-500 hover:bg-red-500/20 transition-colors" title="Delete payment entry"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              {/* Delete confirmation */}
+              {showDeleteConfirm && (
+                <div className="space-y-3 bg-red-50/60 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20 rounded-xl p-4">
+                  <p className="text-[12px] font-bold text-red-700 dark:text-red-400">Delete this payment entry? The shipment will revert to <strong>Payment Pending</strong> status.</p>
+                  <div className="flex justify-end gap-2">
+                    <Btn label="Cancel" outline onClick={() => setShowDeleteConfirm(false)} />
+                    <Btn label="Delete Payment" color="red" loading={isSubmitting} disabled={isSubmitting} onClick={() => { onPaymentDelete(shipment.grnId, shipment.receiptIdx); setShowDeleteConfirm(false); }} />
+                  </div>
+                </div>
+              )}
+
+              {/* Edit payment form */}
+              {showEditPayForm && (
+                <div className="space-y-3 bg-gray-50/60 dark:bg-gray-800/30 border border-gray-100 dark:border-gray-800 rounded-xl p-4">
+                  <p className="text-[11px] font-black text-gray-700 dark:text-gray-300">Edit Payment Entry</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-[10px] font-black text-gray-400 mb-1 block">Payment Date</label>
+                      <DatePicker value={editPay.date} onChange={e => setEditPay(p => ({...p, date: e.target.value}))} />
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-black text-gray-400 mb-1 block">Mode</label>
+                      <select value={editPay.mode} onChange={e => setEditPay(p => ({...p, mode: e.target.value}))} className="w-full bg-white dark:bg-[#0F172A] border border-gray-200 dark:border-gray-700 p-2.5 rounded-xl text-[12px] outline-none font-bold text-gray-900 dark:text-white">
+                        <option>NEFT</option><option>RTGS</option><option>Cheque</option><option>Cash</option><option>UPI</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-[10px] font-black text-gray-400 mb-1 block">Amount Paid (₹)</label>
+                      <div className="w-full bg-gray-100 dark:bg-gray-800/60 border border-gray-200 dark:border-gray-700 p-2.5 rounded-xl text-[12px] font-black text-gray-500 dark:text-gray-400 tabular-nums select-none cursor-not-allowed">
+                        {fmtCur(editPay.amountPaid)}
+                      </div>
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-black text-gray-400 mb-1 block">Voucher Ref</label>
+                      <input type="text" value={editPay.ref} onChange={e => setEditPay(p => ({...p, ref: e.target.value}))} placeholder="PV-26-0045" className="w-full bg-white dark:bg-[#0F172A] border border-gray-200 dark:border-gray-700 p-2.5 rounded-xl text-[12px] outline-none font-bold text-gray-900 dark:text-white" />
+                    </div>
+                  </div>
+                  {(editPay.mode === "NEFT" || editPay.mode === "RTGS" || editPay.mode === "UPI") && (
+                    <div>
+                      <label className="text-[10px] font-black text-gray-400 mb-1 block">UTR / Reference ID</label>
+                      <input type="text" value={editPay.utr} onChange={e => setEditPay(p => ({...p, utr: e.target.value}))} placeholder="TRANSACTION ID" className="w-full bg-white dark:bg-[#0F172A] border border-gray-200 dark:border-gray-700 p-2.5 rounded-xl text-[12px] outline-none font-bold text-gray-900 dark:text-white" />
+                    </div>
+                  )}
+                  {editPay.mode === "Cheque" && (
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-[10px] font-black text-gray-400 mb-1 block">Cheque No.</label>
+                        <input type="text" value={editPay.chequeNo} onChange={e => setEditPay(p => ({...p, chequeNo: e.target.value}))} className="w-full bg-white dark:bg-[#0F172A] border border-gray-200 dark:border-gray-700 p-2.5 rounded-xl text-[12px] outline-none font-bold text-gray-900 dark:text-white" />
+                      </div>
+                      <div>
+                        <label className="text-[10px] font-black text-gray-400 mb-1 block">Cheque Date</label>
+                        <DatePicker value={editPay.chequeDate} onChange={e => setEditPay(p => ({...p, chequeDate: e.target.value}))} />
+                      </div>
+                    </div>
+                  )}
+                  <div className="flex justify-end gap-2 pt-1">
+                    <Btn label="Cancel" outline onClick={() => setShowEditPayForm(false)} />
+                    <Btn label="Save Changes" color="green" loading={isSubmitting} disabled={isSubmitting} onClick={() => {
+                      onPaymentEdit(shipment.grnId, shipment.receiptIdx, editPay);
+                      setShowEditPayForm(false);
+                    }} />
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}, "GRNShipmentCard");
+
 const DetailPanel = /* @__PURE__ */ __name(({
   po,
   grn: realGrn,
@@ -1487,7 +2119,14 @@ const DetailPanel = /* @__PURE__ */ __name(({
   isRemainingPayment,
   allGrns,
   onPrintPaymentAdvice,
-  onClose
+  onClose,
+  onGRNVerify,
+  onGRNApprove,
+  onGRNPaymentSubmit,
+  onGRNVerifyRevert,
+  onGRNPaymentEdit,
+  onGRNPaymentDelete,
+  hasPermission: hp,
 }) => {
   const [isDraggingPayment, setIsDraggingPayment] = useState(false);
   const [viewGRNDetail, setViewGRNDetail] = useState(false);
@@ -1515,12 +2154,14 @@ const DetailPanel = /* @__PURE__ */ __name(({
   const grnReceivedValue = realGrn
     ? realGrn.items.reduce((sum, gi) => {
         const poItem = po.items?.find(pi =>
-          (pi.sku && pi.sku === gi.sku) ||
-          (pi.materialName || "").toLowerCase() === (gi.itemName || "").toLowerCase()
+          (pi.sku && gi.sku && pi.sku === gi.sku) ||
+          (pi.materialName || pi.itemName || pi.name || "").toLowerCase() === (gi.itemName || gi.name || gi.materialName || "").toLowerCase()
         );
         const rcv = gi.received ?? gi.qty ?? 0;
         const rate = gi.rate || poItem?.rate || 0;
-        return sum + calcChargeTotal(rcv * rate, poItem?.gstPct || 0, poItem?.gstType || "Exclusive");
+        const gstPct = gi.gstPct ?? poItem?.gstPct ?? 0;
+        const gstType = gi.gstType || poItem?.gstType || "Exclusive";
+        return sum + calcChargeTotal(rcv * rate, gstPct, gstType);
       }, 0)
     : 0;
   // Payable is capped by the value of goods actually received (qty × rate × GST), not
@@ -1544,45 +2185,70 @@ const DetailPanel = /* @__PURE__ */ __name(({
 
   // Top info grid — shared across all statuses (GRN modal style)
   const topGrid = (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-0 border border-gray-100 dark:border-gray-800 rounded-2xl overflow-hidden shadow-sm">
-      <div className="divide-y divide-gray-100 dark:divide-gray-800 bg-white dark:bg-gray-900">
-        <div className="bg-gray-50/50 dark:bg-gray-800/30 p-2.5 font-black text-[10px] text-gray-500 flex items-center gap-2">
-          <div className="w-1.5 h-3.5 bg-orange-500 rounded-full" /> Purchase order
-        </div>
-        <GRNInfoRow label="PO No." value={po.id} orange />
-        <GRNInfoRow label="Vendor" value={getSupplierName(po.supplier)} />
-        <GRNInfoRow label="PO amount" value={fmtCur(poAmount)} />
-        <GRNInfoRow label="PO date" value={formatDate(po.date)} />
-        <GRNInfoRow label="Project" value={po.project || po.location || "—"} />
-        <div className="grid grid-cols-12 items-center divide-x divide-gray-100 dark:divide-gray-800">
-          <div className="col-span-4 p-3" />
-          <div className="col-span-8 px-4 py-2.5">
-            <button onClick={onViewPO} className="flex items-center gap-1.5 text-[10px] font-black text-blue-600 bg-blue-50 dark:bg-blue-500/10 px-2.5 py-1 rounded border border-blue-100 dark:border-blue-500/20 hover:bg-blue-100 dark:hover:bg-blue-500/20 transition-colors">
-              <Eye className="w-3 h-3" /> View PO
-            </button>
+    <div className="border border-gray-100 dark:border-gray-800 rounded-2xl overflow-hidden shadow-sm">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-0">
+        <div className="divide-y divide-gray-100 dark:divide-gray-800 bg-white dark:bg-gray-900">
+          <div className="bg-gray-50/50 dark:bg-gray-800/30 p-2.5 font-black text-[10px] text-gray-500 flex items-center gap-2">
+            <div className="w-1.5 h-3.5 bg-orange-500 rounded-full" /> Purchase order
           </div>
-        </div>
-      </div>
-      <div className="divide-y divide-gray-100 dark:divide-gray-800 border-l border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-900">
-        <div className="bg-gray-50/50 dark:bg-gray-800/30 p-2.5 font-black text-[10px] text-gray-500 flex items-center gap-2">
-          <div className="w-1.5 h-3.5 bg-orange-500 rounded-full" /> GRN & delivery
-        </div>
-        <GRNInfoRow label="GRN No." value={grnNo} orange />
-        <GRNInfoRow label="Receipt date" value={formatDate(grnDate)} />
-        <GRNInfoRow label="Received by" value={receivedBy} />
-        <GRNInfoRow label="GRN status" value={po.status} />
-        <GRNInfoRow label="Invoice / challan" value={invoiceNo} mono />
-        {realGrn && (
+          <GRNInfoRow label="PO No." value={po.id} orange />
+          <GRNInfoRow label="Vendor" value={getSupplierName(po.supplier)} />
+          <GRNInfoRow label="PO amount" value={fmtCur(poAmount)} />
+          <GRNInfoRow label="PO date" value={formatDate(po.date)} />
+          <GRNInfoRow label="Project" value={po.project || po.location || "—"} />
           <div className="grid grid-cols-12 items-center divide-x divide-gray-100 dark:divide-gray-800">
             <div className="col-span-4 p-3" />
             <div className="col-span-8 px-4 py-2.5">
-              <button onClick={() => setViewGRNDetail(true)} className="flex items-center gap-1.5 text-[10px] font-black text-amber-600 bg-amber-50 dark:bg-amber-500/10 px-2.5 py-1 rounded border border-amber-100 dark:border-amber-500/20 hover:bg-amber-100 dark:hover:bg-amber-500/20 transition-colors">
-                <Eye className="w-3 h-3" /> View GRN
+              <button onClick={onViewPO} className="flex items-center gap-1.5 text-[10px] font-black text-blue-600 bg-blue-50 dark:bg-blue-500/10 px-2.5 py-1 rounded border border-blue-100 dark:border-blue-500/20 hover:bg-blue-100 dark:hover:bg-blue-500/20 transition-colors">
+                <Eye className="w-3 h-3" /> View PO
               </button>
             </div>
           </div>
-        )}
+        </div>
+        <div className="divide-y divide-gray-100 dark:divide-gray-800 border-l border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-900">
+          <div className="bg-gray-50/50 dark:bg-gray-800/30 p-2.5 font-black text-[10px] text-gray-500 flex items-center gap-2">
+            <div className="w-1.5 h-3.5 bg-orange-500 rounded-full" /> GRN & delivery
+          </div>
+          <GRNInfoRow label="GRN No." value={grnNo} orange />
+          <GRNInfoRow label="Receipt date" value={formatDate(grnDate)} />
+          <GRNInfoRow label="Received by" value={receivedBy} />
+          <GRNInfoRow label="GRN status" value={po.status} />
+          <GRNInfoRow label="Invoice / challan" value={invoiceNo} mono />
+          {realGrn && (
+            <div className="grid grid-cols-12 items-center divide-x divide-gray-100 dark:divide-gray-800">
+              <div className="col-span-4 p-3" />
+              <div className="col-span-8 px-4 py-2.5">
+                <button onClick={() => setViewGRNDetail(true)} className="flex items-center gap-1.5 text-[10px] font-black text-amber-600 bg-amber-50 dark:bg-amber-500/10 px-2.5 py-1 rounded border border-amber-100 dark:border-amber-500/20 hover:bg-amber-100 dark:hover:bg-amber-500/20 transition-colors">
+                  <Eye className="w-3 h-3" /> View GRN
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
+
+      {/* Our company details — full-width row, only when filled in PO */}
+      {(po.companyName || po.companyGst || po.companyAddress) && (
+        <div className="border-t border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-900">
+          <div className="bg-blue-50/60 dark:bg-blue-900/10 px-3 py-2 font-black text-[10px] text-blue-600 dark:text-blue-400 flex items-center gap-2 border-b border-blue-100 dark:border-blue-900/20">
+            <Building className="w-3 h-3" /> Our Company
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 divide-y md:divide-y-0 md:divide-x divide-gray-100 dark:divide-gray-800">
+            <div className="grid grid-cols-12 items-center">
+              <div className="col-span-4 px-3 py-2.5 text-[11px] font-bold text-gray-400 dark:text-gray-500">Company</div>
+              <div className="col-span-8 px-3 py-2.5 text-[13px] font-black text-gray-900 dark:text-white truncate">{po.companyName || "—"}</div>
+            </div>
+            <div className="grid grid-cols-12 items-center">
+              <div className="col-span-4 px-3 py-2.5 text-[11px] font-bold text-gray-400 dark:text-gray-500">GSTIN</div>
+              <div className="col-span-8 px-3 py-2.5 text-[13px] font-bold text-blue-500 dark:text-blue-400 font-mono truncate">{po.companyGst || "—"}</div>
+            </div>
+            <div className="grid grid-cols-12 items-center">
+              <div className="col-span-4 px-3 py-2.5 text-[11px] font-bold text-gray-400 dark:text-gray-500">Address</div>
+              <div className="col-span-8 px-3 py-2.5 text-[11px] font-bold text-gray-600 dark:text-gray-300 leading-snug">{po.companyAddress || "—"}</div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 
@@ -1599,18 +2265,18 @@ const DetailPanel = /* @__PURE__ */ __name(({
   ];
   const docChain = (
     <div className="overflow-x-auto">
-      <div className="flex items-stretch min-w-[440px] bg-gray-50/60 dark:bg-gray-800/30 rounded-2xl border border-gray-100 dark:border-gray-800 px-2 py-3 gap-0">
+      <div className="flex items-stretch min-w-[460px] bg-white dark:bg-gray-900/70 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm px-3 py-4 gap-0">
         {chainSteps.map((step, i) => (
           <div key={i} className="flex items-center flex-1 min-w-0">
-            <div className="flex-1 flex flex-col items-center gap-1 px-1 min-w-0">
-              <div className={`w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-black ${step.done ? (step.warn ? "bg-amber-500 text-white" : "bg-emerald-500 text-white shadow-sm shadow-emerald-500/30") : "bg-gray-100 dark:bg-gray-800 text-gray-400 border-2 border-dashed border-gray-200 dark:border-gray-700"}`}>
+            <div className="flex-1 flex flex-col items-center gap-1.5 px-1 min-w-0">
+              <div className={`w-9 h-9 rounded-full flex items-center justify-center text-[13px] font-black shadow-sm ${step.done ? (step.warn ? "bg-amber-500 text-white shadow-amber-500/30" : "bg-emerald-500 text-white shadow-emerald-500/30") : "bg-gray-100 dark:bg-gray-800 text-gray-400 border-2 border-dashed border-gray-200 dark:border-gray-700"}`}>
                 {step.done ? (step.warn ? "!" : "✓") : (i + 1)}
               </div>
               <p className={`text-[10px] font-black tracking-wide ${step.done ? (step.warn ? "text-amber-600 dark:text-amber-400" : "text-emerald-700 dark:text-emerald-400") : "text-gray-400 dark:text-gray-600"}`}>{step.label}</p>
-              <p className={`text-[9px] truncate max-w-[70px] text-center font-mono leading-none ${step.done ? (step.warn ? "text-amber-500" : "text-emerald-600 dark:text-emerald-500") : "text-gray-300 dark:text-gray-700"}`}>{step.sub}</p>
+              <p className={`text-[9px] truncate max-w-[72px] text-center leading-none ${step.done ? (step.warn ? "text-amber-500 font-mono" : "text-emerald-600 dark:text-emerald-500 font-mono") : "text-gray-300 dark:text-gray-700"}`}>{step.sub}</p>
             </div>
             {i < chainSteps.length - 1 && (
-              <div className={`w-4 h-0.5 shrink-0 rounded-full mx-0.5 ${step.done ? "bg-emerald-400 dark:bg-emerald-600" : "bg-gray-200 dark:bg-gray-700"}`} />
+              <div className={`h-px w-5 shrink-0 rounded-full mx-0.5 ${step.done ? "bg-emerald-400 dark:bg-emerald-600" : "bg-gray-200 dark:bg-gray-700"}`} />
             )}
           </div>
         ))}
@@ -1627,44 +2293,57 @@ const DetailPanel = /* @__PURE__ */ __name(({
       return sum + (gi ? (gi.received ?? gi.qty ?? 0) : 0);
     }, 0);
     const ordered = pi.qty || pi.quantity || 0;
-    return { pi, totalRcv, ordered };
+    const remaining = Math.max(0, ordered - totalRcv);
+    const rate = pi.rate || 0;
+    const rcvdValue = calcChargeTotal(totalRcv * rate, pi.gstPct || 0, pi.gstType || "Exclusive");
+    const orderedValue = calcChargeTotal(ordered * rate, pi.gstPct || 0, pi.gstType || "Exclusive");
+    return { pi, totalRcv, ordered, remaining, rate, rcvdValue, orderedValue };
   });
+  const reconTotalOrdered = reconItems.reduce((s, r) => s + r.orderedValue, 0);
+  const reconTotalRcvd   = reconItems.reduce((s, r) => s + r.rcvdValue, 0);
+  const reconTotalRemain = Math.max(0, reconTotalOrdered - reconTotalRcvd);
   const reconTable = reconItems.length > 0 ? (
     <div className="space-y-3">
       <div className="flex items-center gap-2">
         <div className="h-0.5 w-4 bg-[#F97316]" />
         <h3 className="text-[12px] font-bold text-gray-900 dark:text-white">Item reconciliation</h3>
-        {allPOGRNs.length > 0 && <span className="text-[10px] text-gray-400 font-bold">{allPOGRNs.length} GRN batch{allPOGRNs.length > 1 ? "es" : ""}</span>}
+        {allPOGRNs.length > 0 && <span className="text-[10px] text-gray-400 font-bold">{allPOGRNs.length} shipment{allPOGRNs.length > 1 ? "s" : ""}</span>}
       </div>
       <div className="overflow-x-auto overflow-hidden rounded-xl border border-gray-100 dark:border-gray-800">
-        <table className="w-full text-left border-collapse min-w-[460px]">
+        <table className="w-full text-left border-collapse min-w-[520px]">
           <thead>
             <tr className="bg-gray-50/90 dark:bg-gray-800/90 border-b border-gray-100 dark:border-gray-800">
               <th className="px-4 py-3 text-[10px] font-black text-gray-400 tracking-wider">Material</th>
               <th className="px-4 py-3 text-[10px] font-black text-gray-400 tracking-wider text-center">Ordered</th>
               <th className="px-4 py-3 text-[10px] font-black text-gray-400 tracking-wider text-center">Received</th>
-              <th className="px-4 py-3 text-[10px] font-black text-gray-400 tracking-wider text-right">Rate</th>
-              <th className="px-4 py-3 text-[10px] font-black text-gray-400 tracking-wider text-right">Amount</th>
+              <th className="px-4 py-3 text-[10px] font-black text-gray-400 tracking-wider text-center">Remaining</th>
+              <th className="px-4 py-3 text-[10px] font-black text-gray-400 tracking-wider text-right">Rcvd Value</th>
               <th className="px-4 py-3 text-[10px] font-black text-gray-400 tracking-wider text-center">Match</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-50 dark:divide-gray-800">
-            {reconItems.map(({ pi, totalRcv, ordered }, idx) => {
-              const rate = pi.rate || 0;
+            {reconItems.map(({ pi, totalRcv, ordered, remaining, rcvdValue }, idx) => {
               const full = ordered > 0 && totalRcv >= ordered;
               const partial = totalRcv > 0 && totalRcv < ordered;
+              const unit = pi.unit || "";
               return (
                 <tr key={idx} className="hover:bg-gray-50/30 dark:hover:bg-gray-800/10">
                   <td className="px-4 py-3">
                     <span className="text-[12px] font-semibold text-gray-900 dark:text-white">{pi.itemName || pi.materialName || pi.name || "Item"}</span>
                     {pi.sku && <p className="text-[10px] text-gray-400">{pi.sku}</p>}
                   </td>
-                  <td className="px-4 py-3 text-center text-[12px] text-gray-500 tabular-nums">{ordered}</td>
+                  <td className="px-4 py-3 text-center text-[12px] text-gray-500 tabular-nums">{ordered}{unit && <span className="text-[9px] text-gray-400 ml-0.5">{unit}</span>}</td>
                   <td className="px-4 py-3 text-center">
-                    <span className={`text-[13px] font-black tabular-nums ${full ? "text-emerald-600 dark:text-emerald-400" : partial ? "text-amber-600 dark:text-amber-400" : "text-gray-300 dark:text-gray-700"}`}>{totalRcv}</span>
+                    <span className={`text-[13px] font-black tabular-nums ${full ? "text-emerald-600 dark:text-emerald-400" : partial ? "text-amber-600 dark:text-amber-400" : "text-gray-300 dark:text-gray-700"}`}>{totalRcv}{unit && <span className="text-[9px] font-normal text-gray-400 ml-0.5">{unit}</span>}</span>
                   </td>
-                  <td className="px-4 py-3 text-right text-[12px] text-gray-500 tabular-nums">{fmtCur(rate)}</td>
-                  <td className="px-4 py-3 text-right font-black text-[12px] tabular-nums text-gray-900 dark:text-white">{fmtCur(calcChargeTotal(totalRcv * rate, pi.gstPct || 0, pi.gstType || "Exclusive"))}</td>
+                  <td className="px-4 py-3 text-center">
+                    {remaining > 0 ? (
+                      <span className="text-[12px] font-black text-red-500 dark:text-red-400 tabular-nums">{remaining}{unit && <span className="text-[9px] font-normal text-gray-400 ml-0.5">{unit}</span>}</span>
+                    ) : (
+                      <span className="text-[10px] font-black text-emerald-500">✓ Done</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3 text-right font-black text-[12px] tabular-nums text-gray-900 dark:text-white">{fmtCur(rcvdValue)}</td>
                   <td className="px-4 py-3 text-center">
                     {full ? (
                       <span className="inline-flex items-center gap-0.5 text-[9px] font-black text-emerald-600 bg-emerald-50 dark:bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-100 dark:border-emerald-500/20">✓ Full</span>
@@ -1678,10 +2357,296 @@ const DetailPanel = /* @__PURE__ */ __name(({
               );
             })}
           </tbody>
+          <tfoot>
+            <tr className="border-t-2 border-gray-200 dark:border-gray-700 bg-gray-50/80 dark:bg-gray-800/50">
+              <td className="px-4 py-2.5 text-[10px] font-black text-gray-500 uppercase tracking-wide">Total</td>
+              <td className="px-4 py-2.5 text-center text-[10px] font-black text-gray-400 tabular-nums">{fmtCur(reconTotalOrdered)}</td>
+              <td className="px-4 py-2.5 text-center text-[12px] font-black text-emerald-600 dark:text-emerald-400 tabular-nums">{fmtCur(reconTotalRcvd)}</td>
+              <td className="px-4 py-2.5 text-center text-[12px] font-black tabular-nums">
+                {reconTotalRemain > 0
+                  ? <span className="text-red-500 dark:text-red-400">{fmtCur(reconTotalRemain)}</span>
+                  : <span className="text-emerald-500">✓ Fully received</span>}
+              </td>
+              <td colSpan={2} className="px-4 py-2.5 text-right text-[10px] text-gray-400">incl. GST</td>
+            </tr>
+          </tfoot>
         </table>
       </div>
     </div>
   ) : null;
+
+  // ── New GRN-level payment flow ───────────────────────────────────────────
+  const poGRNsSorted = [...allPOGRNs].sort((a, b) => new Date(a.createdAt || a.date || 0) - new Date(b.createdAt || b.date || 0));
+  // Use new GRN flow for any PO that has GRNs,
+  // EXCEPT old POs that were fully settled via the legacy PO-level payment system.
+  const allGRNsLegacy  = poGRNsSorted.length > 0 && poGRNsSorted.every(g => !g.paymentStatus);
+  const oldFlowFullyPaid = allGRNsLegacy && po.accountStatus === "paid";
+  const usesGRNPaymentFlow = poGRNsSorted.length > 0 && !oldFlowFullyPaid;
+
+  if (usesGRNPaymentFlow) {
+    const allShipments   = poGRNsSorted.flatMap(grn => normalizeShipments(grn));
+    const paidShipments  = allShipments.filter(s => s.paymentStatus === "paid");
+    const totalPaidAmt   = paidShipments.reduce((s, sh) => s + (sh.payment?.amount || 0), 0);
+
+    const shipmentDisplayVal = (sh) => {
+      if (sh.invoiceAmount) return sh.invoiceAmount;
+      if (sh.paymentStatus === "paid" && sh.payment?.amount) return sh.payment.amount;
+      return (sh.items || []).reduce((sum, gi) => {
+        const rcv = gi.received ?? gi.qty ?? 0;
+        const poItem = (po.items || []).find(pi =>
+          (pi.sku && gi.sku && pi.sku === gi.sku) ||
+          (pi.materialName || "").toLowerCase() === (gi.itemName || "").toLowerCase()
+        );
+        return sum + rcv * (gi.rate || poItem?.rate || 0);
+      }, 0);
+    };
+
+    const totalRcvdAmt = allShipments.reduce((s, sh) => s + shipmentDisplayVal(sh), 0);
+    const yetToPayAmt  = Math.max(0, totalRcvdAmt - totalPaidAmt);
+
+    // Aggregate received qty across all shipments per PO item
+    const itemSummary = (po.items || []).map(pi => {
+      let totalReceived = 0;
+      for (const sh of allShipments) {
+        const gi = (sh.items || []).find(item =>
+          (pi.sku && item.sku && pi.sku === item.sku) ||
+          (pi.materialName || "").toLowerCase() === (item.itemName || "").toLowerCase()
+        );
+        if (gi) totalReceived += gi.received ?? gi.qty ?? 0;
+      }
+      const ordered = pi.qty || pi.quantity || 0;
+      return { ...pi, totalReceived, remaining: Math.max(0, ordered - totalReceived), value: totalReceived * (pi.rate || 0) };
+    });
+
+    const paymentHistory = paidShipments.map(sh => ({
+      label: sh.label, grnId: sh.grnId, date: sh.payment?.date,
+      amount: sh.payment?.amount, mode: sh.payment?.mode,
+      utr: sh.payment?.utr, ref: sh.payment?.ref, invoiceNo: sh.invoiceNo,
+    })).sort((a, b) => new Date(a.date || 0) - new Date(b.date || 0));
+
+    const SHIP_STATUS = {
+      unpaid:          { label: "To Verify", cls: "text-blue-600 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/30 border-blue-200 dark:border-blue-700/50" },
+      bill_verified:   { label: "Verified",  cls: "text-violet-600 dark:text-violet-300 bg-violet-50 dark:bg-violet-900/30 border-violet-200 dark:border-violet-700/50" },
+      payment_pending: { label: "Approved",  cls: "text-amber-600 dark:text-amber-300 bg-amber-50 dark:bg-amber-900/30 border-amber-200 dark:border-amber-700/50" },
+      paid:            { label: "Paid ✓",    cls: "text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-900/20 border-emerald-300 dark:border-emerald-700/50" },
+    };
+
+    const vendorSupplier = suppliers?.find(s =>
+      s.id === po.supplier || s._id === po.supplier ||
+      (s.companyName || "").toLowerCase() === (po.supplier || "").toLowerCase() ||
+      (s.name || "").toLowerCase() === (po.supplier || "").toLowerCase()
+    );
+    const vendorBank = vendorSupplier && (vendorSupplier.accountNumber || vendorSupplier.bankName) ? vendorSupplier : null;
+
+    return (
+      <div className="space-y-4 pb-4">
+        {/* 0. PO + GRN info grid */}
+        {topGrid}
+
+        {/* 0b. Vendor bank details */}
+        {vendorBank && (
+          <div className="overflow-hidden rounded-xl border border-gray-100 dark:border-gray-800 shadow-sm">
+            <div className="px-4 py-2.5 bg-gray-100/80 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 flex items-center gap-2">
+              <CreditCard className="w-3.5 h-3.5 text-gray-400" />
+              <p className="text-[10px] font-black text-gray-500 dark:text-gray-400 uppercase tracking-wider">Vendor Bank Details</p>
+            </div>
+            <div className="grid grid-cols-2 divide-x divide-y divide-gray-100 dark:divide-gray-800">
+              <GRNInfoRow label="Account Holder" value={vendorBank.accountHolderName || vendorBank.ownerName || vendorBank.companyName} />
+              <GRNInfoRow label="Bank Name" value={vendorBank.bankName} />
+              <GRNInfoRow label="Account No." value={vendorBank.accountNumber} mono />
+              <GRNInfoRow label="Branch / IFSC" value={[vendorBank.branch, vendorBank.ifscCode].filter(Boolean).join(" · ")} mono />
+            </div>
+          </div>
+        )}
+
+        {/* 1. Doc chain */}
+        {docChain}
+
+        {/* 2. Shipment payment timeline — one row per shipment */}
+        <div className="overflow-x-auto rounded-xl border border-gray-100 dark:border-gray-800 shadow-sm">
+          <table className="w-full text-left border-collapse min-w-[560px]">
+            <thead>
+              <tr className="bg-gray-100/80 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+                <th className="px-4 py-3 text-[10px] font-black text-gray-500 dark:text-gray-400 uppercase tracking-wider">Shipment</th>
+                <th className="px-4 py-3 text-[10px] font-black text-gray-500 dark:text-gray-400 uppercase tracking-wider">Invoice No.</th>
+                <th className="px-4 py-3 text-[10px] font-black text-gray-500 dark:text-gray-400 uppercase tracking-wider text-center">Date</th>
+                <th className="px-4 py-3 text-[10px] font-black text-gray-500 dark:text-gray-400 uppercase tracking-wider text-right">Value</th>
+                <th className="px-4 py-3 text-[10px] font-black text-gray-500 dark:text-gray-400 uppercase tracking-wider text-right">Paid</th>
+                <th className="px-4 py-3 text-[10px] font-black text-gray-500 dark:text-gray-400 uppercase tracking-wider text-center">Status</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-50 dark:divide-gray-800/80">
+              {allShipments.map(sh => {
+                const ps = sh.paymentStatus || "unpaid";
+                const STATUS = SHIP_STATUS[ps] || SHIP_STATUS.unpaid;
+                return (
+                  <tr key={sh.key} className="hover:bg-gray-50/50 dark:hover:bg-gray-800/20 transition-colors">
+                    <td className="px-4 py-3">
+                      <p className="text-[12px] font-black text-gray-900 dark:text-white tracking-tight">{sh.label}</p>
+                      <p className="text-[9px] text-gray-400 dark:text-gray-600 font-mono mt-0.5">{sh.grnId}</p>
+                    </td>
+                    <td className="px-4 py-3">
+                      {sh.invoiceNo
+                        ? <span className="text-[11px] font-bold text-blue-600 dark:text-blue-400 font-mono">{sh.invoiceNo}</span>
+                        : <span className="text-[11px] text-gray-300 dark:text-gray-700">—</span>}
+                    </td>
+                    <td className="px-4 py-3 text-center text-[11px] text-gray-500 dark:text-gray-400">{formatDate(sh.date)}</td>
+                    <td className="px-4 py-3 text-right font-black text-[13px] text-gray-900 dark:text-white tabular-nums">{fmtCur(shipmentDisplayVal(sh))}</td>
+                    <td className="px-4 py-3 text-right tabular-nums">
+                      {ps === "paid"
+                        ? <span className="text-[13px] font-black text-emerald-600 dark:text-emerald-400">{fmtCur(sh.payment?.amount || 0)}</span>
+                        : <span className="text-[12px] text-gray-200 dark:text-gray-700">—</span>}
+                    </td>
+                    <td className="px-4 py-3 text-center">
+                      <span className={`text-[10px] font-black px-2.5 py-0.5 rounded-full border ${STATUS.cls}`}>{STATUS.label}</span>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+            <tfoot>
+              <tr className="border-t-2 border-gray-200 dark:border-gray-700 bg-gray-100/60 dark:bg-gray-800/70">
+                <td colSpan={3} className="px-4 py-3 text-[10px] font-black text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+                  {paidShipments.length} of {allShipments.length} shipments paid
+                </td>
+                <td className="px-4 py-3 text-right text-[13px] font-black text-gray-800 dark:text-gray-200 tabular-nums">{fmtCur(totalRcvdAmt)}</td>
+                <td className="px-4 py-3 text-right text-[13px] font-black text-emerald-600 dark:text-emerald-400 tabular-nums">{fmtCur(totalPaidAmt)}</td>
+                <td className="px-4 py-3 text-center">
+                  {yetToPayAmt > 0
+                    ? <span className="text-[11px] font-black text-amber-600 dark:text-amber-400">{fmtCur(yetToPayAmt)} due</span>
+                    : <span className="text-[11px] font-black text-emerald-500">Settled ✓</span>}
+                </td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+
+        {/* 3. Material summary — ordered / received / remaining / value */}
+        {itemSummary.length > 0 && (
+          <div className="overflow-x-auto rounded-xl border border-gray-100 dark:border-gray-800 shadow-sm">
+            <div className="px-4 py-2.5 bg-gray-100/80 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 flex items-center gap-2">
+              <Package className="w-3.5 h-3.5 text-gray-400" />
+              <p className="text-[10px] font-black text-gray-500 dark:text-gray-400 tracking-wider uppercase">Material Summary</p>
+            </div>
+            <table className="w-full text-left border-collapse min-w-[500px]">
+              <thead>
+                <tr className="border-b border-gray-100 dark:border-gray-800">
+                  <th className="px-4 py-2.5 text-[10px] font-black text-gray-400 uppercase tracking-wider">Material</th>
+                  <th className="px-4 py-2.5 text-[10px] font-black text-gray-400 uppercase tracking-wider text-center">Ordered</th>
+                  <th className="px-4 py-2.5 text-[10px] font-black text-gray-400 uppercase tracking-wider text-center">Received</th>
+                  <th className="px-4 py-2.5 text-[10px] font-black text-gray-400 uppercase tracking-wider text-center">Remaining</th>
+                  <th className="px-4 py-2.5 text-[10px] font-black text-gray-400 uppercase tracking-wider text-right">Value</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50 dark:divide-gray-800/80">
+                {itemSummary.map((pi, i) => {
+                  const ordered = pi.qty || pi.quantity || 0;
+                  const pct = ordered > 0 ? Math.min(100, (pi.totalReceived / ordered) * 100) : 0;
+                  return (
+                    <tr key={i} className="hover:bg-gray-50/50 dark:hover:bg-gray-800/20 transition-colors">
+                      <td className="px-4 py-3">
+                        <span className="text-[12px] font-semibold text-gray-900 dark:text-white">{pi.materialName || pi.itemName || pi.description || pi.name || "Item"}</span>
+                        {pi.sku && <p className="text-[9px] text-gray-400 dark:text-gray-600 font-mono mt-0.5">{pi.sku}</p>}
+                      </td>
+                      <td className="px-4 py-3 text-center text-[12px] font-bold text-gray-600 dark:text-gray-400 tabular-nums">
+                        {ordered} <span className="text-[10px] font-normal text-gray-400">{pi.unit || ""}</span>
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        <div className="flex flex-col items-center gap-1.5">
+                          <span className="text-[12px] font-black text-gray-900 dark:text-white tabular-nums">{pi.totalReceived} <span className="text-[10px] font-normal text-gray-400">{pi.unit || ""}</span></span>
+                          <div className="w-20 h-1.5 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
+                            <div className={`h-full rounded-full transition-all ${pct >= 100 ? "bg-emerald-500" : "bg-orange-400"}`} style={{ width: `${pct}%` }} />
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 text-center text-[12px] tabular-nums">
+                        {pi.remaining > 0
+                          ? <span className="font-bold text-amber-600 dark:text-amber-400">{pi.remaining} <span className="text-[10px] font-normal">{pi.unit || ""}</span></span>
+                          : <span className="text-emerald-500 dark:text-emerald-400 font-black text-[10px]">Complete ✓</span>}
+                      </td>
+                      <td className="px-4 py-3 text-right font-black text-[13px] text-gray-900 dark:text-white tabular-nums">{fmtCur(pi.value)}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {/* 4. Payment history */}
+        {paymentHistory.length > 0 && (
+          <div className="overflow-x-auto rounded-xl border border-emerald-100 dark:border-emerald-900/30 shadow-sm">
+            <div className="px-4 py-2.5 bg-emerald-50 dark:bg-emerald-900/20 border-b border-emerald-100 dark:border-emerald-900/30 flex items-center gap-2">
+              <CreditCard className="w-3.5 h-3.5 text-emerald-500" />
+              <p className="text-[10px] font-black text-emerald-700 dark:text-emerald-400 tracking-wider uppercase">Payment History</p>
+              <span className="text-[9px] font-black px-1.5 py-0.5 bg-emerald-500 text-white rounded-full leading-none ml-1">{paymentHistory.length}</span>
+            </div>
+            <table className="w-full text-left border-collapse min-w-[480px]">
+              <thead>
+                <tr className="border-b border-gray-100 dark:border-gray-800 bg-gray-50/80 dark:bg-gray-900">
+                  <th className="px-4 py-2.5 text-[10px] font-black text-gray-400 uppercase tracking-wider">Shipment</th>
+                  <th className="px-4 py-2.5 text-[10px] font-black text-gray-400 uppercase tracking-wider text-center">Date</th>
+                  <th className="px-4 py-2.5 text-[10px] font-black text-gray-400 uppercase tracking-wider text-right">Amount</th>
+                  <th className="px-4 py-2.5 text-[10px] font-black text-gray-400 uppercase tracking-wider">Mode · Ref</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50 dark:divide-gray-800/80">
+                {paymentHistory.map((ph, i) => (
+                  <tr key={i} className="hover:bg-emerald-50/30 dark:hover:bg-emerald-900/10 transition-colors">
+                    <td className="px-4 py-3">
+                      <p className="text-[12px] font-black text-gray-900 dark:text-white tracking-tight">{ph.label}</p>
+                      {ph.invoiceNo && <p className="text-[9px] text-gray-400 dark:text-gray-600 mt-0.5">Inv: {ph.invoiceNo}</p>}
+                    </td>
+                    <td className="px-4 py-3 text-center text-[11px] text-gray-500 dark:text-gray-400">{formatDate(ph.date)}</td>
+                    <td className="px-4 py-3 text-right font-black text-[14px] text-emerald-600 dark:text-emerald-400 tabular-nums">{fmtCur(ph.amount)}</td>
+                    <td className="px-4 py-3">
+                      <p className="text-[11px] font-bold text-gray-700 dark:text-gray-300">{ph.mode || "—"}</p>
+                      {ph.utr && <p className="text-[9px] text-gray-400 dark:text-gray-600 font-mono mt-0.5">UTR: {ph.utr}</p>}
+                      {!ph.utr && ph.ref && <p className="text-[9px] text-gray-400 dark:text-gray-600 font-mono mt-0.5">{ph.ref}</p>}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr className="border-t-2 border-emerald-200 dark:border-emerald-800/40 bg-emerald-50/60 dark:bg-emerald-900/15">
+                  <td colSpan={2} className="px-4 py-3 text-[10px] font-black text-emerald-700 dark:text-emerald-400 uppercase tracking-wide">Total paid</td>
+                  <td className="px-4 py-3 text-right text-[14px] font-black text-emerald-600 dark:text-emerald-400 tabular-nums">{fmtCur(totalPaidAmt)}</td>
+                  <td />
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        )}
+
+        {/* 5. Shipment action cards */}
+        <div className="space-y-2.5">
+          {allShipments.map((shipment, idx) => (
+            <GRNShipmentCard
+              key={shipment.key}
+              shipment={shipment}
+              po={po}
+              isSubmitting={isSubmitting}
+              onVerify={onGRNVerify}
+              onApprove={onGRNApprove}
+              onPaymentSubmit={onGRNPaymentSubmit}
+              onVerifyRevert={onGRNVerifyRevert}
+              onPaymentEdit={onGRNPaymentEdit}
+              onPaymentDelete={onGRNPaymentDelete}
+              paymentForm={paymentForm}
+              setPaymentForm={setPaymentForm}
+              fileInputRef={fileInputRef}
+              handleFileChange={handleFileChange}
+              hasPermission={hp}
+              defaultExpanded={idx === allShipments.length - 1 && (shipment.paymentStatus || "unpaid") !== "paid"}
+            />
+          ))}
+        </div>
+
+        {viewGRNDetail && realGrn && <GRNDetailModal grn={realGrn} onClose={() => setViewGRNDetail(false)} />}
+      </div>
+    );
+  }
+  // ─────────────────────────────────────────────────────────────────────────
 
   if (status === "bill_verify") {
     return <div className="space-y-5 pb-4">

@@ -25,6 +25,7 @@ import {
   Layout,
   Clock,
   AlarmClock,
+  CreditCard,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 const ListManager = /* @__PURE__ */ __name(({
@@ -973,6 +974,64 @@ const SettingsPage = /* @__PURE__ */ __name(() => {
                 <p className="text-[11px] text-gray-300 dark:text-gray-600 mt-1">Add your first legal entity above</p>
               </div>
             )}
+          </div>
+
+          {/* Company Bank Details */}
+          <div className="mt-6 pt-6 border-t border-gray-100 dark:border-gray-800">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h3 className="text-[13px] font-black text-gray-900 dark:text-white flex items-center gap-2">
+                  <CreditCard className="w-4 h-4 text-primary" /> Our Company Bank Details
+                </h3>
+                <p className="text-[11px] text-gray-400 mt-0.5">Appears on Transaction Detail & Payment Advice PDFs.</p>
+              </div>
+              {isSuperAdmin && (
+                <Btn
+                  label="Save Bank Details"
+                  icon={Check}
+                  small
+                  onClick={async () => { try { await saveSettings(settings); toast.success("Bank details saved!"); } catch { toast.error("Save failed"); } }}
+                  loading={actionLoading}
+                />
+              )}
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-4 bg-gray-50 dark:bg-gray-800/40 rounded-xl border border-gray-200 dark:border-gray-700">
+              <Field
+                label="Account Holder Name"
+                placeholder="e.g. Neoteric Properties Pvt. Ltd."
+                value={settings.companyBankDetails?.accountHolderName || ""}
+                onChange={(e) => isSuperAdmin && setSettings({ ...settings, companyBankDetails: { ...settings.companyBankDetails, accountHolderName: e.target.value } })}
+                disabled={!isSuperAdmin}
+              />
+              <Field
+                label="Bank Name"
+                placeholder="e.g. HDFC Bank"
+                value={settings.companyBankDetails?.bankName || ""}
+                onChange={(e) => isSuperAdmin && setSettings({ ...settings, companyBankDetails: { ...settings.companyBankDetails, bankName: e.target.value } })}
+                disabled={!isSuperAdmin}
+              />
+              <Field
+                label="Account Number"
+                placeholder="e.g. 50100123456789"
+                value={settings.companyBankDetails?.accountNumber || ""}
+                onChange={(e) => isSuperAdmin && setSettings({ ...settings, companyBankDetails: { ...settings.companyBankDetails, accountNumber: e.target.value } })}
+                disabled={!isSuperAdmin}
+              />
+              <Field
+                label="IFSC Code"
+                placeholder="e.g. HDFC0001234"
+                value={settings.companyBankDetails?.ifscCode || ""}
+                onChange={(e) => isSuperAdmin && setSettings({ ...settings, companyBankDetails: { ...settings.companyBankDetails, ifscCode: e.target.value } })}
+                disabled={!isSuperAdmin}
+              />
+              <Field
+                label="Branch"
+                placeholder="e.g. Indore Main Branch"
+                value={settings.companyBankDetails?.branch || ""}
+                onChange={(e) => isSuperAdmin && setSettings({ ...settings, companyBankDetails: { ...settings.companyBankDetails, branch: e.target.value } })}
+                disabled={!isSuperAdmin}
+              />
+            </div>
           </div>
 
           {/* Edit Company Modal */}

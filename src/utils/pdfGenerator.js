@@ -429,6 +429,343 @@ const generatePOPDFBlob = /* @__PURE__ */ __name((po, supplier, settings = {}) =
   generatePOPDF(po, supplier, settings, true),
 "generatePOPDFBlob");
 
+const generateTransactionDetailPDF = /* @__PURE__ */ __name((po, grn, supplierName, vBank, cBank) => {
+  const doc = new jsPDF({ orientation: "p", unit: "mm", format: "a4" });
+  // Palette
+  const navy   = [26, 54, 93];
+  const orange = [220, 80, 20];
+  const green  = [20, 140, 65];
+  const bdCol  = [210, 218, 230]; // border
+  const lblCol = [120, 135, 155]; // label grey
+
+  const fmtD = (d) => {
+    if (!d) return "—";
+    try { return new Intl.DateTimeFormat("en-IN", { day: "2-digit", month: "long", year: "numeric" }).format(new Date(d)); }
+    catch { return String(d); }
+  };
+  const fmtA = (n) => n != null ? "Rs. " + Number(n).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "—";
+
+  let y = 10;
+  const checkPage = (h) => { if (y + h > 277) { doc.addPage(); y = 10; } };
+
+  // ══════════════════════════════════════════════════
+  // HEADER
+  // ══════════════════════════════════════════════════
+  doc.setFillColor(navy[0], navy[1], navy[2]);
+  doc.rect(10, y, 190, 22, "F");
+
+  // Left — company name (dynamic from PO)
+  doc.setTextColor(255, 255, 255);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(15);
+  doc.text((po.companyName || "OUR COMPANY").toUpperCase(), 16, y + 10, { maxWidth: 110 });
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(7.5);
+  doc.setTextColor(175, 205, 235);
+  if (po.companyGst) doc.text(`GSTIN: ${po.companyGst}`, 16, y + 16);
+  if (po.companyAddress) {
+    const addrLine = doc.splitTextToSize(po.companyAddress, 110)[0];
+    doc.text(addrLine, 16, po.companyGst ? y + 20 : y + 17);
+  }
+
+  // Right — document title
+  doc.setTextColor(255, 255, 255);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(14);
+  doc.text("TRANSACTION DETAIL", 200, y + 10, { align: "right" });
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(8);
+  doc.setTextColor(175, 205, 235);
+  doc.text(`Ref: ${po.id}  |  ${fmtD(new Date())}`, 200, y + 17, { align: "right" });
+
+  // Orange accent bar
+  doc.setFillColor(orange[0], orange[1], orange[2]);
+  doc.rect(10, y + 22, 190, 1.8, "F");
+  y += 27;
+
+  // ══════════════════════════════════════════════════
+  // Helpers
+  // ══════════════════════════════════════════════════
+  const sectionHeader = (title) => {
+    checkPage(10);
+    doc.setFillColor(237, 242, 248);
+    doc.setDrawColor(bdCol[0], bdCol[1], bdCol[2]);
+    doc.rect(10, y, 190, 7.5, "FD");
+    // left accent stripe
+    doc.setFillColor(navy[0], navy[1], navy[2]);
+    doc.rect(10, y, 3.5, 7.5, "F");
+    doc.setTextColor(navy[0], navy[1], navy[2]);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(8);
+    doc.text(title, 18, y + 5.2);
+    y += 7.5;
+  };
+
+  // drawGrid — each cell: { label, value, color? ('navy'|'orange'|'green'|null), big? }
+  const drawGrid = (cells, numCols) => {
+    numCols = numCols || 3;
+    const gap = 1.5;
+    const totalW = 190;
+    const colW = (totalW - gap * (numCols - 1)) / numCols;
+    const colX = Array.from({ length: numCols }, (_, i) => 10 + i * (colW + gap));
+    const rH = 14;
+
+    for (let i = 0; i < cells.length; i += numCols) {
+      checkPage(rH);
+      const row = cells.slice(i, i + numCols);
+      row.forEach((cell, j) => {
+        const x = colX[j];
+        // cell background + border
+        doc.setFillColor(252, 253, 255);
+        doc.setDrawColor(bdCol[0], bdCol[1], bdCol[2]);
+        doc.rect(x, y, colW, rH, "FD");
+        if (!cell) return;
+
+        // label
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(6.5);
+        doc.setTextColor(lblCol[0], lblCol[1], lblCol[2]);
+        doc.text((cell.label || "").toUpperCase(), x + 3.5, y + 5);
+
+        // value color
+        const vc = cell.color === "orange" ? orange
+                 : cell.color === "green"  ? green
+                 : cell.color === "navy"   ? navy
+                 : [20, 30, 48];
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(cell.big ? 11 : 9.5);
+        doc.setTextColor(vc[0], vc[1], vc[2]);
+        doc.text(safeStr(cell.value || "—"), x + 3.5, y + 11.5, { maxWidth: colW - 6 });
+      });
+      y += rH;
+    }
+    y += 1;
+  };
+
+  // ══════════════════════════════════════════════════
+  // OUR COMPANY DETAILS
+  // ══════════════════════════════════════════════════
+  if (po.companyName || po.companyGst || po.companyAddress) {
+    sectionHeader("OUR COMPANY DETAILS");
+    drawGrid([
+      { label: "Company Name", value: po.companyName  || "—" },
+      { label: "GSTIN",        value: po.companyGst   || "—" },
+      { label: "Address",      value: po.companyAddress|| "—" },
+    ]);
+    y += 2;
+  }
+
+  // ══════════════════════════════════════════════════
+  // PO DETAILS
+  // ══════════════════════════════════════════════════
+  sectionHeader("PURCHASE ORDER DETAILS");
+  drawGrid([
+    { label: "PO Number",    value: po.id,                          color: "navy" },
+    { label: "Vendor",       value: supplierName },
+    { label: "PO Amount",    value: fmtA(po.totalValue || 0),       color: "navy", big: true },
+    { label: "PO Date",      value: fmtD(po.date) },
+    { label: "Project / Site", value: po.project || po.location || "—" },
+    { label: "",             value: "" },
+  ]);
+  y += 2;
+
+  // ══════════════════════════════════════════════════
+  // GRN & DELIVERY
+  // ══════════════════════════════════════════════════
+  sectionHeader("GRN & DELIVERY");
+  const invoiceNo = grn?.invoiceNo || grn?.challan || po.payment?.ref || po.invoice?.number || "—";
+  drawGrid([
+    { label: "GRN No.",          value: grn?.id || "—",              color: "navy" },
+    { label: "Receipt Date",     value: fmtD(grn?.date || po.date) },
+    { label: "Received By",      value: grn?.personName || "—" },
+    { label: "GRN Status",       value: po.status || "—" },
+    { label: "Invoice / Challan",value: invoiceNo },
+    { label: "",                 value: "" },
+  ]);
+  y += 2;
+
+  // ══════════════════════════════════════════════════
+  // RECEIVED MATERIALS
+  // ══════════════════════════════════════════════════
+  let grnValue = 0;
+  const matBody = (grn?.items || []).map((gi) => {
+    const rcv = gi.received ?? gi.qty ?? 0;
+    const poItem = (po.items || []).find(pi =>
+      (pi.sku && gi.sku && pi.sku === gi.sku) ||
+      (pi.materialName || "").toLowerCase() === (gi.itemName || "").toLowerCase()
+    );
+    const rate = gi.rate || poItem?.rate || 0;
+    const gstPct = poItem?.gstPct || 0;
+    const incl = (poItem?.gstType || "Exclusive") === "Inclusive";
+    const amt = incl ? rcv * rate : rcv * rate * (1 + gstPct / 100);
+    grnValue += amt;
+    return [gi.itemName || gi.name || "—", safeStr(poItem?.qty || "—"), String(rcv), fmtA(rate), fmtA(amt)];
+  });
+
+  if (matBody.length > 0) {
+    checkPage(20);
+    sectionHeader("RECEIVED MATERIALS");
+    autoTable(doc, {
+      startY: y,
+      margin: { left: 10, right: 10 },
+      head: [["MATERIAL", "ORDERED", "RECEIVED", "RATE", "AMOUNT"]],
+      body: matBody,
+      foot: [["", "", "", "TOTAL VALUE", fmtA(grnValue)]],
+      styles: {
+        fontSize: 8.5,
+        cellPadding: { top: 3.5, bottom: 3.5, left: 4, right: 4 },
+        lineColor: bdCol, lineWidth: 0.2,
+        textColor: [25, 38, 55],
+      },
+      headStyles: { fillColor: navy, textColor: 255, fontStyle: "bold", fontSize: 8 },
+      footStyles: { fillColor: navy, textColor: 255, fontStyle: "bold", fontSize: 9 },
+      alternateRowStyles: { fillColor: [245, 248, 252] },
+      columnStyles: {
+        0: { cellWidth: 78 },
+        1: { halign: "center", cellWidth: 22 },
+        2: { halign: "center", cellWidth: 22, fontStyle: "bold" },
+        3: { halign: "right",  cellWidth: 32 },
+        4: { halign: "right",  cellWidth: 32, fontStyle: "bold", textColor: navy },
+      },
+    });
+    y = doc.lastAutoTable.finalY + 5;
+  }
+
+  // ══════════════════════════════════════════════════
+  // PAYMENT SUMMARY
+  // ══════════════════════════════════════════════════
+  const totalPaid = po.totalPaid || po.payment?.partialAmount || po.payment?.amountPaid || 0;
+  const payable   = Math.max(0, grnValue - totalPaid);
+  sectionHeader("PAYMENT SUMMARY");
+  const payCells = totalPaid > 0 ? [
+    { label: "PO Grand Total",            value: fmtA(po.totalValue || 0), color: "navy",   big: true },
+    { label: "Received Value (Incl. GST)", value: fmtA(grnValue),           color: "navy",   big: true },
+    { label: "Already Paid",              value: fmtA(totalPaid),           color: "green",  big: true },
+    { label: "Remaining Payable",         value: fmtA(payable),             color: "orange", big: true },
+    { label: "", value: "" }, { label: "", value: "" },
+  ] : [
+    { label: "PO Grand Total",            value: fmtA(po.totalValue || 0), color: "navy",   big: true },
+    { label: "Received Value (Incl. GST)", value: fmtA(grnValue),           color: "navy",   big: true },
+    { label: "Payable Amount",            value: fmtA(payable),             color: "orange", big: true },
+  ];
+  drawGrid(payCells);
+  y += 4;
+
+  // ══════════════════════════════════════════════════
+  // BANK DETAILS (side-by-side)
+  // ══════════════════════════════════════════════════
+  if (vBank || cBank) {
+    checkPage(40);
+    const both = !!(vBank && cBank);
+    const bW   = both ? 93 : 190;
+    const bankStartY = y;
+
+    const drawBankTable = (bankData, isVendor, startX, tableWidth) => {
+      doc.setFillColor(navy[0], navy[1], navy[2]);
+      doc.rect(startX, bankStartY, tableWidth, 7.5, "F");
+      doc.setTextColor(255);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(8);
+      doc.text(
+        isVendor ? "VENDOR BANK DETAILS" : "OUR BANK DETAILS",
+        startX + tableWidth / 2, bankStartY + 5, { align: "center" }
+      );
+      autoTable(doc, {
+        startY: bankStartY + 7.5,
+        margin: {
+          left: startX,
+          right: both ? (isVendor ? 107 : 10) : 10,
+        },
+        body: isVendor ? [
+          ["A/C HOLDER", bankData.holder || "—"],
+          ["BANK NAME",  bankData.bank   || "—"],
+          ["ACCOUNT NO.", bankData.account || "—"],
+          ["IFSC / BRANCH", [bankData.ifsc, bankData.branch].filter(Boolean).join(" · ") || "—"],
+        ] : [
+          ["A/C HOLDER",  bankData.accountHolderName || "—"],
+          ["BANK NAME",   bankData.bankName          || "—"],
+          ["ACCOUNT NO.", bankData.accountNumber     || "—"],
+          ["IFSC / BRANCH", [bankData.ifscCode, bankData.branch].filter(Boolean).join(" · ") || "—"],
+        ],
+        styles: {
+          fontSize: 8.5,
+          cellPadding: { top: 3, bottom: 3, left: 4, right: 4 },
+          lineColor: bdCol, lineWidth: 0.2,
+        },
+        columnStyles: {
+          0: { cellWidth: 38, fontStyle: "bold", fillColor: [237, 242, 248], textColor: [60, 75, 100] },
+          1: { fontStyle: "bold", textColor: [20, 30, 48] },
+        },
+      });
+    };
+
+    if (vBank) drawBankTable(vBank, true,  10, both ? bW : 190);
+    if (cBank) drawBankTable(cBank, false, both ? 107 : 10, bW);
+
+    y = doc.lastAutoTable.finalY + 6;
+  }
+
+  // ══════════════════════════════════════════════════
+  // SIGNATURE ROW
+  // ══════════════════════════════════════════════════
+  checkPage(46);
+  const sigDefs = [
+    { title: "PREPARED BY",  name: "",              date: "" },
+    { title: "VERIFIED BY",  name: po.verifiedBy    || "", date: po.verifiedAt      ? fmtD(po.verifiedAt)      : "" },
+    { title: "APPROVED BY",  name: po.billApprovedBy|| "", date: po.billApprovedDate? fmtD(po.billApprovedDate): "" },
+  ];
+  const sigW = 62;
+  const sigH = 40;
+  sigDefs.forEach((col, i) => {
+    const x = 10 + i * (sigW + 2);
+    doc.setDrawColor(bdCol[0], bdCol[1], bdCol[2]);
+    doc.setFillColor(248, 251, 255);
+    doc.rect(x, y, sigW, sigH, "FD");
+    // title bar
+    doc.setFillColor(navy[0], navy[1], navy[2]);
+    doc.rect(x, y, sigW, 8, "F");
+    doc.setTextColor(255);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(7.5);
+    doc.text(col.title, x + sigW / 2, y + 5.2, { align: "center" });
+    // name
+    if (col.name) {
+      doc.setTextColor(navy[0], navy[1], navy[2]);
+      doc.setFontSize(9);
+      doc.text(col.name, x + sigW / 2, y + 17, { align: "center", maxWidth: sigW - 6 });
+    }
+    // signature line
+    doc.setDrawColor(170);
+    doc.setLineWidth(0.35);
+    doc.line(x + 7, y + 28, x + sigW - 7, y + 28);
+    doc.setTextColor(160);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(6.5);
+    doc.text("Signature & Date", x + sigW / 2, y + 32, { align: "center" });
+    // date below signature line
+    if (col.date) {
+      doc.setTextColor(80);
+      doc.setFontSize(7);
+      doc.text(col.date, x + sigW / 2, y + 37.5, { align: "center" });
+    }
+  });
+  y += sigH + 6;
+
+  // ══════════════════════════════════════════════════
+  // FOOTER
+  // ══════════════════════════════════════════════════
+  checkPage(10);
+  doc.setFillColor(navy[0], navy[1], navy[2]);
+  doc.rect(10, y, 190, 1.2, "F");
+  y += 5;
+  doc.setTextColor(lblCol[0], lblCol[1], lblCol[2]);
+  doc.setFont("helvetica", "italic");
+  doc.setFontSize(7.5);
+  doc.text("This is a system-generated Transaction Detail from the IMS Portal.", 105, y, { align: "center" });
+
+  doc.save(`Transaction-${po.id}.pdf`);
+}, "generateTransactionDetailPDF");
+
 const generateGRNReportPDF = /* @__PURE__ */ __name((rows, meta = {}) => {
   const doc = new jsPDF({ orientation: "l", unit: "mm", format: "a4" });
   const pc = [26, 54, 93];
@@ -631,4 +968,5 @@ export {
   generatePOPDFBlob,
   generateGRNPDF,
   generateGRNReportPDF,
+  generateTransactionDetailPDF,
 };

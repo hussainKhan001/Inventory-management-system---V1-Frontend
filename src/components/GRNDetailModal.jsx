@@ -228,86 +228,146 @@ export function GRNDetailModal({ grn, grns, onClose, onEditReceipt }) {
               <div className="relative pl-1">
                 <div className="absolute left-3.5 top-5 bottom-5 w-0.5 bg-gray-200 dark:bg-gray-700" />
                 <div className="space-y-3">
-                  {/* Initial delivery */}
-                  <div className="flex gap-3 items-start">
-                    <div className="w-7 h-7 rounded-full bg-orange-500 border-2 border-white dark:border-gray-900 flex items-center justify-center shrink-0 shadow-sm">
-                      <span className="text-[9px] font-bold text-white">1</span>
-                    </div>
-                    <div className="flex-1 bg-gray-50 dark:bg-gray-800/50 rounded-xl p-3 border border-gray-100 dark:border-gray-800">
-                      <div className="flex items-center justify-between mb-1.5">
-                        <span className="text-[12px] font-bold text-gray-900 dark:text-white">Shipment 1 (Initial)</span>
-                        <div className="flex items-center gap-2">
-                          {grnDoc.challan && <span className="text-[10px] font-medium text-blue-500 bg-blue-50 dark:bg-blue-900/20 px-2 py-0.5 rounded">{grnDoc.challan}</span>}
-                          <span className="text-[10px] text-gray-400">{formatDateTime(grnDoc.date)}</span>
-                        </div>
-                      </div>
-                      <div className="space-y-1">
-                        {(grnDoc.items || []).map((item, i) => {
-                          const laterReceipts = (grnDoc.receipts || []).reduce((sum, r) => {
-                            const ri = (r.items || []).find((ri) => ri.sku === item.sku);
-                            return sum + (ri?.received || 0);
-                          }, 0);
-                          const initialReceived = (item.received || 0) - laterReceipts;
-                          if (initialReceived <= 0) return null;
-                          return (
-                            <div key={i} className="flex items-center justify-between text-[12px]">
-                              <span className="text-gray-600 dark:text-gray-400">{item.itemName}</span>
-                              <span className="font-bold text-gray-900 dark:text-white">+{initialReceived} <span className="text-gray-400 font-normal">{item.unit}</span></span>
-                            </div>
-                          );
-                        })}
-                      </div>
-                      {grnDoc.personName && <p className="mt-1.5 text-[10px] text-gray-400">By: <span className="font-medium text-gray-600 dark:text-gray-300">{grnDoc.personName}</span></p>}
-                    </div>
-                  </div>
-                  {/* Additional receipts */}
-                  {(grnDoc.receipts || []).map((receipt, idx) => (
-                    <div key={idx} className="flex gap-3 items-start">
-                      <div className="w-7 h-7 rounded-full bg-emerald-500 border-2 border-white dark:border-gray-900 flex items-center justify-center shrink-0 shadow-sm">
-                        <span className="text-[9px] font-bold text-white">{idx + 2}</span>
-                      </div>
-                      <div className="flex-1 bg-gray-50 dark:bg-gray-800/50 rounded-xl p-3 border border-gray-100 dark:border-gray-800">
-                        <div className="flex items-center justify-between mb-1.5">
-                          <span className="text-[12px] font-bold text-gray-900 dark:text-white">Shipment {idx + 2}</span>
-                          <div className="flex items-center gap-2">
-                            {receipt.challan && <span className="text-[10px] font-medium text-blue-500 bg-blue-50 dark:bg-blue-900/20 px-2 py-0.5 rounded">{receipt.challan}</span>}
-                            <span className="text-[10px] text-gray-400">{formatDateTime(receipt.date)}</span>
-                            {onEditReceipt && hasPermission("EDIT_GRN_RECEIPT") && (
-                              <button onClick={() => onEditReceipt(idx, receipt)} className="p-1 rounded text-orange-500 hover:bg-orange-50 dark:hover:bg-orange-900/20 transition-colors" title="Edit shipment">
-                                <Pencil className="w-3 h-3" />
-                              </button>
-                            )}
-                          </div>
-                        </div>
-                        <div className="space-y-1">
-                          {(receipt.items || []).map((item, i) => (
-                            <div key={i} className="flex items-center justify-between text-[12px]">
-                              <span className="text-gray-600 dark:text-gray-400">{item.itemName}</span>
-                              <span className="font-bold text-gray-900 dark:text-white">
-                                +{item.received} <span className="text-gray-400 font-normal">{grnDoc.items?.find((gi) => gi.sku === item.sku)?.unit || ""}</span>
-                              </span>
-                            </div>
-                          ))}
-                        </div>
-                        {receipt.personName && <p className="mt-1.5 text-[10px] text-gray-400">By: <span className="font-medium text-gray-600 dark:text-gray-300">{receipt.personName}</span></p>}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          )}
 
-          {/* Challan photos */}
-          {grnDoc.challanPhotos?.length > 0 && (
-            <div className="flex flex-col md:flex-row items-center justify-between gap-6 pt-4">
-              <div className="flex items-center gap-4">
-                <div className="flex gap-2">
-                  {grnDoc.challanPhotos.map((img, i) => (
-                    <div key={i} className="p-1 rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 cursor-pointer hover:shadow-lg transition-shadow" onClick={() => setPreviewImage(img)}>
-                      <img src={img} className="w-16 h-16 rounded-lg object-cover" referrerPolicy="no-referrer" />
-                    </div>
-                  ))}
+                  {/* Shipment 1 — Initial */}
+                  {(() => {
+                    const initPhotos = [
+                      ...(grnDoc.challanPhotos || []),
+                      ...(grnDoc.personPhotos || []),
+                      ...(grnDoc.items || []).flatMap(gi => gi.images || []),
+                    ];
+                    return (
+                      <div className="flex gap-3 items-start">
+                        <div className="w-7 h-7 rounded-full bg-orange-500 border-2 border-white dark:border-gray-900 flex items-center justify-center shrink-0 shadow-sm z-10">
+                          <span className="text-[9px] font-bold text-white">1</span>
+                        </div>
+                        <div className="flex-1 bg-gray-50 dark:bg-gray-800/50 rounded-xl p-3 border border-gray-100 dark:border-gray-800">
+                          {/* Header */}
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="text-[12px] font-bold text-gray-900 dark:text-white">Shipment 1 (Initial)</span>
+                            <div className="flex items-center gap-2 flex-wrap justify-end">
+                              {grnDoc.docType && <span className="text-[9px] font-bold text-purple-600 bg-purple-50 dark:bg-purple-500/10 px-2 py-0.5 rounded border border-purple-100 dark:border-purple-500/20">{grnDoc.docType}</span>}
+                              {grnDoc.challan && <span className="text-[10px] font-medium text-blue-500 bg-blue-50 dark:bg-blue-900/20 px-2 py-0.5 rounded">{grnDoc.challan}</span>}
+                              {grnDoc.mrNo && <span className="text-[9px] font-bold text-gray-500 bg-gray-100 dark:bg-gray-700 px-2 py-0.5 rounded">{grnDoc.mrNo}</span>}
+                              <span className="text-[10px] text-gray-400">{formatDateTime(grnDoc.date)}</span>
+                            </div>
+                          </div>
+
+                          {/* Items */}
+                          <div className="space-y-1.5 mb-2">
+                            {(grnDoc.items || []).map((item, i) => {
+                              const laterReceipts = (grnDoc.receipts || []).reduce((sum, r) => {
+                                const ri = (r.items || []).find((ri) => ri.sku === item.sku);
+                                return sum + (ri?.received || 0);
+                              }, 0);
+                              const initialReceived = (item.received || 0) - laterReceipts;
+                              if (initialReceived <= 0) return null;
+                              const itemPhotos = item.images || [];
+                              return (
+                                <div key={i} className="flex items-center justify-between text-[12px]">
+                                  <span className="text-gray-600 dark:text-gray-400">{item.itemName}</span>
+                                  <div className="flex items-center gap-2">
+                                    {itemPhotos.map((img, pi) => (
+                                      <img key={pi} src={img} onClick={() => setPreviewImage(img)} referrerPolicy="no-referrer"
+                                        className="w-6 h-6 rounded object-cover cursor-pointer border border-gray-200 dark:border-gray-700 hover:scale-110 transition-transform" />
+                                    ))}
+                                    <span className="font-bold text-gray-900 dark:text-white">+{initialReceived} <span className="text-gray-400 font-normal">{item.unit}</span></span>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+
+                          {/* By */}
+                          {grnDoc.personName && (
+                            <p className="text-[10px] text-gray-400 mb-2">By: <span className="font-medium text-gray-600 dark:text-gray-300">{grnDoc.personName}</span></p>
+                          )}
+
+                          {/* Photos strip */}
+                          {initPhotos.length > 0 && (
+                            <div className="flex gap-2 flex-wrap mt-2 pt-2 border-t border-gray-100 dark:border-gray-700">
+                              {initPhotos.map((img, pi) => (
+                                <div key={pi} onClick={() => setPreviewImage(img)}
+                                  className="w-14 h-14 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden cursor-pointer hover:scale-105 transition-transform shadow-sm bg-white dark:bg-gray-900">
+                                  <img src={img} referrerPolicy="no-referrer" className="w-full h-full object-cover" />
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+                  {/* Shipments 2, 3, … — Additional receipts */}
+                  {(grnDoc.receipts || []).map((receipt, idx) => {
+                    const rcptPhotos = [
+                      ...(receipt.challanPhotos || []),
+                      ...(receipt.personPhotos || []),
+                      ...(receipt.items || []).flatMap(ri => ri.images || []),
+                    ];
+                    return (
+                      <div key={idx} className="flex gap-3 items-start">
+                        <div className="w-7 h-7 rounded-full bg-emerald-500 border-2 border-white dark:border-gray-900 flex items-center justify-center shrink-0 shadow-sm z-10">
+                          <span className="text-[9px] font-bold text-white">{idx + 2}</span>
+                        </div>
+                        <div className="flex-1 bg-gray-50 dark:bg-gray-800/50 rounded-xl p-3 border border-gray-100 dark:border-gray-800">
+                          {/* Header */}
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="text-[12px] font-bold text-gray-900 dark:text-white">Shipment {idx + 2}</span>
+                            <div className="flex items-center gap-2 flex-wrap justify-end">
+                              {receipt.docType && <span className="text-[9px] font-bold text-purple-600 bg-purple-50 dark:bg-purple-500/10 px-2 py-0.5 rounded border border-purple-100 dark:border-purple-500/20">{receipt.docType}</span>}
+                              {receipt.challan && <span className="text-[10px] font-medium text-blue-500 bg-blue-50 dark:bg-blue-900/20 px-2 py-0.5 rounded">{receipt.challan}</span>}
+                              {receipt.mrNo && <span className="text-[9px] font-bold text-gray-500 bg-gray-100 dark:bg-gray-700 px-2 py-0.5 rounded">{receipt.mrNo}</span>}
+                              <span className="text-[10px] text-gray-400">{formatDateTime(receipt.date)}</span>
+                              {onEditReceipt && hasPermission("EDIT_GRN_RECEIPT") && (
+                                <button onClick={() => onEditReceipt(idx, receipt)} className="p-1 rounded text-orange-500 hover:bg-orange-50 dark:hover:bg-orange-900/20 transition-colors" title="Edit shipment">
+                                  <Pencil className="w-3 h-3" />
+                                </button>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Items */}
+                          <div className="space-y-1.5 mb-2">
+                            {(receipt.items || []).map((item, i) => {
+                              const itemPhotos = item.images || [];
+                              const unit = grnDoc.items?.find(gi => gi.sku === item.sku)?.unit || "";
+                              return (
+                                <div key={i} className="flex items-center justify-between text-[12px]">
+                                  <span className="text-gray-600 dark:text-gray-400">{item.itemName}</span>
+                                  <div className="flex items-center gap-2">
+                                    {itemPhotos.map((img, pi) => (
+                                      <img key={pi} src={img} onClick={() => setPreviewImage(img)} referrerPolicy="no-referrer"
+                                        className="w-6 h-6 rounded object-cover cursor-pointer border border-gray-200 dark:border-gray-700 hover:scale-110 transition-transform" />
+                                    ))}
+                                    <span className="font-bold text-gray-900 dark:text-white">+{item.received} <span className="text-gray-400 font-normal">{unit}</span></span>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+
+                          {/* By */}
+                          {receipt.personName && (
+                            <p className="text-[10px] text-gray-400 mb-2">By: <span className="font-medium text-gray-600 dark:text-gray-300">{receipt.personName}</span></p>
+                          )}
+
+                          {/* Photos strip */}
+                          {rcptPhotos.length > 0 && (
+                            <div className="flex gap-2 flex-wrap mt-2 pt-2 border-t border-gray-100 dark:border-gray-700">
+                              {rcptPhotos.map((img, pi) => (
+                                <div key={pi} onClick={() => setPreviewImage(img)}
+                                  className="w-14 h-14 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden cursor-pointer hover:scale-105 transition-transform shadow-sm bg-white dark:bg-gray-900">
+                                  <img src={img} referrerPolicy="no-referrer" className="w-full h-full object-cover" />
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             </div>

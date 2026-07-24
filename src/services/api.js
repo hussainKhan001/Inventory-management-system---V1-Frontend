@@ -144,6 +144,16 @@ const api = {
       throw new Error(message);
     }
   }, "delete"),
+  deleteSimple: /* @__PURE__ */ __name(async (path) => {
+    try {
+      const res = await instance.delete(path);
+      _bust(path);
+      return res.data;
+    } catch (error) {
+      const message = error.response?.data?.message || error.message || "Deletion failed";
+      throw new Error(message);
+    }
+  }, "deleteSimple"),
   /** Manually bust the cache for a path prefix (e.g. after WebSocket push). */
   invalidate: _bust,
   seed: /* @__PURE__ */ __name(async (seedData) => {
