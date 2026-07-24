@@ -379,7 +379,8 @@ const SField = React.memo(({
 const Modal = /* @__PURE__ */ __name(({ title, subtitle, icon: Icon, onClose, wide, extraWide, ultraWide, children, footer, className }) => <motion.div
   initial={{ opacity: 0 }}
   animate={{ opacity: 1 }}
-  className="fixed inset-0 z-[80] flex justify-end bg-[#0F172A]/60 backdrop-blur-sm"
+  transition={{ duration: 0.12 }}
+  className="fixed inset-0 z-[80] flex justify-end bg-[#0F172A]/60"
   onClick={(e) => {
     if (e.target === e.currentTarget) onClose?.();
   }}
@@ -387,7 +388,8 @@ const Modal = /* @__PURE__ */ __name(({ title, subtitle, icon: Icon, onClose, wi
     <motion.div
   initial={{ x: "100%" }}
   animate={{ x: 0 }}
-  transition={{ type: "spring", damping: 30, stiffness: 300 }}
+  transition={{ type: "tween", duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
+  style={{ willChange: "transform" }}
   className={cn(
     "bg-white dark:bg-[#0F172A] h-full shadow-2xl flex flex-col border-l border-gray-100 dark:border-gray-700/40 transition-colors duration-200",
     ultraWide ? "w-full max-w-6xl" : extraWide ? "w-full max-w-4xl" : wide ? "w-full max-w-2xl" : "w-full max-w-md",
@@ -424,15 +426,16 @@ const Modal = /* @__PURE__ */ __name(({ title, subtitle, icon: Icon, onClose, wi
 const ConfirmModal = /* @__PURE__ */ __name(({ title, message, onConfirm, onCancel, loading, confirmLabel = "Confirm", confirmColor = "red" }) => <motion.div
   initial={{ opacity: 0 }}
   animate={{ opacity: 1 }}
-  className="fixed inset-0 z-[90] flex items-center justify-center p-4 bg-[#0F172A]/70 backdrop-blur-sm"
+  transition={{ duration: 0.1 }}
+  className="fixed inset-0 z-[90] flex items-center justify-center p-4 bg-[#0F172A]/70"
   onClick={(e) => {
     if (e.target === e.currentTarget) onCancel?.();
   }}
 >
     <motion.div
-  initial={{ scale: 0.95, opacity: 0 }}
+  initial={{ scale: 0.96, opacity: 0 }}
   animate={{ scale: 1, opacity: 1 }}
-  transition={{ type: "spring", damping: 30, stiffness: 300 }}
+  transition={{ type: "tween", duration: 0.15, ease: [0.22, 1, 0.36, 1] }}
   className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-sm flex flex-col border border-gray-100 dark:border-gray-700/50 p-6"
 >
       <h2 className="text-[15px] font-bold text-[#1A1A2E] dark:text-[#F1F5F9] mb-4 text-center">{title}</h2>

@@ -138,28 +138,20 @@ const generatePOPDF = /* @__PURE__ */ __name((po, supplier, settings = {}, retur
   autoTable(doc, {
     startY: y + 2,
     margin: { left: 10, right: 10 },
-    head: [["S.NO", "ITEM DESCRIPTION", "UQC", "QTY", "RATE (RS)", "GST %", "TOTAL (INCL. GST)"]],
-    body: po.items.map((it, i) => {
-      const base = it.qty * it.rate;
-      const gstPct = it.gstPct ?? 18;
-      const isInclusive = (it.gstType || "Exclusive") === "Inclusive";
-      const total = isInclusive ? base : base * (1 + gstPct / 100);
-      return [
-        i + 1,
-        (it.itemName || "").toUpperCase(),
-        (it.unit || "NOS").toUpperCase(),
-        it.qty,
-        fmtRs(it.rate),
-        isInclusive ? `${gstPct}% (Incl.)` : `${gstPct}%`,
-        fmtRs(total)
-      ];
-    }),
+    head: [["S.NO", "ITEM DESCRIPTION", "UQC", "QTY", "RATE (RS)", "AMOUNT (RS)"]],
+    body: po.items.map((it, i) => [
+      i + 1,
+      (it.itemName || "").toUpperCase(),
+      (it.unit || "NOS").toUpperCase(),
+      it.qty,
+      fmtRs(it.rate),
+      fmtRs(it.qty * it.rate)
+    ]),
     styles: { fontSize: 8.5, cellPadding: 1.8, lineColor: [220, 220, 220], lineWidth: 0.1 },
     headStyles: { fillColor: [primaryColor[0], primaryColor[1], primaryColor[2]], textColor: 255, fontStyle: "bold" },
     columnStyles: {
       4: { halign: "right" },
-      5: { halign: "center" },
-      6: { halign: "right", fontStyle: "bold" }
+      5: { halign: "right", fontStyle: "bold" }
     }
   });
   y = doc.lastAutoTable.finalY + 2;
@@ -345,48 +337,44 @@ const generatePOPDF = /* @__PURE__ */ __name((po, supplier, settings = {}, retur
       color: rejectLevel === "L3" ? [220, 38, 38] : po.approvalL3 === "Approved" ? [22, 163, 74] : [107, 114, 128],
     },
   ];
-  checkPage(42);
-  const sigBlockW = 47.5;
-  const sigStartX = 10;
-  const sigStartY = y;
-  const sigH = 40;
-  sigCols.forEach((col, i) => {
-    const x = sigStartX + i * sigBlockW;
-    // outer border
-    doc.setDrawColor(220, 220, 220);
-    doc.setFillColor(248, 250, 252);
-    doc.rect(x, sigStartY, sigBlockW, sigH, "FD");
-    // title bar
-    doc.setFillColor(primaryColor[0], primaryColor[1], primaryColor[2]);
-    doc.rect(x, sigStartY, sigBlockW, 7, "F");
-    doc.setTextColor(255);
-    doc.setFontSize(7);
-    doc.setFont("helvetica", "bold");
-    doc.text(col.title, x + sigBlockW / 2, sigStartY + 4.8, { align: "center", maxWidth: sigBlockW - 2 });
-    // name
-    doc.setTextColor(30);
-    doc.setFontSize(8);
-    doc.setFont("helvetica", "bold");
-    doc.text(col.name, x + sigBlockW / 2, sigStartY + 13, { align: "center", maxWidth: sigBlockW - 4 });
-    // signature line (blank space)
-    doc.setDrawColor(160, 160, 160);
-    doc.setLineWidth(0.3);
-    doc.line(x + 5, sigStartY + 27, x + sigBlockW - 5, sigStartY + 27);
-    doc.setTextColor(150);
-    doc.setFontSize(6.5);
-    doc.setFont("helvetica", "normal");
-    doc.text("Signature", x + sigBlockW / 2, sigStartY + 30, { align: "center" });
-    // date
-    doc.setTextColor(80);
-    doc.setFontSize(7);
-    doc.text("Date: " + col.date, x + sigBlockW / 2, sigStartY + 35, { align: "center", maxWidth: sigBlockW - 4 });
-    // status stamp
-    doc.setTextColor(col.color[0], col.color[1], col.color[2]);
-    doc.setFontSize(7.5);
-    doc.setFont("helvetica", "bold");
-    doc.text(col.status.toUpperCase(), x + sigBlockW / 2, sigStartY + 38.5, { align: "center" });
+  checkPage(38);
+  autoTable(doc, {
+    startY: y,
+    margin: { left: 10, right: 10 },
+    head: [[
+      { content: sigCols[0].title, styles: { halign: "center" } },
+      { content: sigCols[1].title, styles: { halign: "center" } },
+      { content: sigCols[2].title, styles: { halign: "center" } },
+      { content: sigCols[3].title, styles: { halign: "center" } },
+    ]],
+    body: [
+      // Name row
+      sigCols.map((c) => ({ content: c.name, styles: { halign: "center", fontStyle: "bold", fontSize: 8.5, textColor: [20, 20, 20] } })),
+      // Date row
+      sigCols.map((c) => ({ content: `Date: ${c.date}`, styles: { halign: "center", fontSize: 7.5, textColor: [80, 80, 80] } })),
+      // Status row — tint bg based on status
+      sigCols.map((c) => {
+        const s = c.status.toUpperCase();
+        const bg = s === "APPROVED" ? [220, 252, 231]
+          : s === "REJECTED" ? [254, 226, 226]
+          : s === "INITIATED" ? [219, 234, 254]
+          : [243, 244, 246];
+        return {
+          content: s,
+          styles: { halign: "center", fontStyle: "bold", fontSize: 8, textColor: c.color, fillColor: bg },
+        };
+      }),
+    ],
+    styles: { fontSize: 8, cellPadding: { top: 3.5, bottom: 3.5, left: 3, right: 3 }, lineColor: [200, 210, 225], lineWidth: 0.2 },
+    headStyles: { fillColor: primaryColor, textColor: 255, fontStyle: "bold", fontSize: 8, halign: "center" },
+    columnStyles: {
+      0: { cellWidth: 47.5 },
+      1: { cellWidth: 47.5 },
+      2: { cellWidth: 47.5 },
+      3: { cellWidth: 47.5 },
+    },
   });
-  y = sigStartY + sigH + 3;
+  y = doc.lastAutoTable.finalY + 3;
   if (po.priceComparison && po.priceComparison.items.length > 0) {
     checkPage(14);
     doc.setFillColor(primaryColor[0], primaryColor[1], primaryColor[2]);

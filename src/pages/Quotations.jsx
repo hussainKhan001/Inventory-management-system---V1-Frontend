@@ -189,6 +189,15 @@ const Quotations = /* @__PURE__ */ __name(() => {
         toast.success(`Quotation ${status.toLowerCase()} successfully`);
       }
       if (viewModal) setViewModal(false);
+      // Re-fetch without status filter so the updated quotation stays visible when WS
+      // DATA_UPDATED fires 500ms later and re-reads lastResourceParams.
+      if (filterStatus) {
+        const filterObj = {};
+        if (filterCategory) filterObj.category = filterCategory;
+        if (filterSupplier) filterObj.supplierName = filterSupplier;
+        const currentFilter = Object.keys(filterObj).length > 0 ? filterObj : null;
+        fetchResource("quotations", 1, 50, true, debouncedSearch, currentFilter, false, false, startDate, endDate, true);
+      }
     } catch (error) {
       toast.error(error.message || "Failed to update status");
     }

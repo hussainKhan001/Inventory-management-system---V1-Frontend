@@ -1356,7 +1356,7 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
   const handleReject = /* @__PURE__ */ __name(async (id) => {
     setProcessingId(`reject-${id}`);
     try {
-      const updateData = { status: "Blocked" };
+      const updateData = { status: "Blocked", rejectedByName: user?.name || "Unknown", rejectedAt: new Date().toISOString() };
       await updatePO(id, updateData);
       if (selectedPO) setSelectedPO({ ...selectedPO, ...updateData });
       toast.success("PO rejected successfully");
@@ -1434,7 +1434,11 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
         });
       });
       return (po.items || [])
-        .map((i) => ({ ...i, qty: receivedBySku[i.sku] || 0, total: (receivedBySku[i.sku] || 0) * i.rate, totalWithGST: (receivedBySku[i.sku] || 0) * i.rate * (1 + (i.gstPct || 18) / 100) }))
+        .map((i) => {
+          const q = receivedBySku[i.sku] || 0;
+          const inclusive = i.gstType === "Inclusive";
+          return { ...i, qty: q, total: q * i.rate, totalWithGST: inclusive ? q * i.rate : q * i.rate * (1 + (i.gstPct || 18) / 100) };
+        })
         .filter((i) => i.qty > 0);
     })();
     const newTotal = adjustedItems.reduce((s, it) => {
@@ -1527,8 +1531,9 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
       currentStock: invItem.liveStock,
       category: invItem.category,
     };
-    item.total = item.qty * item.rate;
-    item.totalWithGST = item.total * (1 + item.gstPct / 100);
+    const isInclusive = item.gstType === "Inclusive";
+    item.totalWithGST = isInclusive ? item.qty * item.rate : item.qty * item.rate * (1 + item.gstPct / 100);
+    item.total = isInclusive ? item.totalWithGST / (1 + item.gstPct / 100) : item.qty * item.rate;
     items[index] = item;
     setNewPO({ ...newPO, items });
   }, "linkToInventory");
@@ -1842,33 +1847,24 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
                   <div className="flex items-center justify-end gap-1">
                     {" "}
                     <button
-                      onClick={async (e) => {
+                      onClick={(e) => {
                         e.stopPropagation();
-                        setLoadingQuotes(true);
-                        try {
-                          let updatedPO = { ...po };
-                          if (po.mrId) {
-                            const qRes = await api.get("quotations", {
-                              filter: JSON.stringify({ mrId: po.mrId }),
-                              limit: 100,
-                            });
-
-                            const mrQuotes = qRes.data || [];
-                            if (mrQuotes.length > 0) {
-                              const newPC = calculatePriceComparison(
-                                mrQuotes,
-                                po.items,
-                              );
-                              if (newPC) updatedPO.priceComparison = newPC;
-                            }
-                          }
-                          setSelectedPO(updatedPO);
-                          setViewModal(true);
-                        } catch (err) {
-                          setSelectedPO(po);
-                          setViewModal(true);
-                        } finally {
-                          setLoadingQuotes(false);
+                        // Open immediately — don't wait for quotation fetch
+                        setSelectedPO(po);
+                        setViewModal(true);
+                        // Load price comparison in background after modal is visible
+                        if (po.mrId) {
+                          setLoadingQuotes(true);
+                          api.get("quotations", { filter: JSON.stringify({ mrId: po.mrId }), limit: 100 })
+                            .then((qRes) => {
+                              const mrQuotes = qRes.data || [];
+                              if (mrQuotes.length > 0) {
+                                const newPC = calculatePriceComparison(mrQuotes, po.items);
+                                if (newPC) setSelectedPO((prev) => prev ? { ...prev, priceComparison: newPC } : prev);
+                              }
+                            })
+                            .catch(() => {})
+                            .finally(() => setLoadingQuotes(false));
                         }
                       }}
                       className="p-1.5 text-gray-500 hover:text-orange-500 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-md transition-all"
@@ -2089,32 +2085,21 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
                     isPending && "ring-1 ring-orange-500/10",
                     props.className,
                   )}
-                  onClick={async () => {
-                    setLoadingQuotes(true);
-                    try {
-                      let updatedPO = { ...po };
-                      if (po.mrId) {
-                        const qRes = await api.get("quotations", {
-                          filter: JSON.stringify({ mrId: po.mrId }),
-                          limit: 100,
-                        });
-
-                        const mrQuotes = qRes.data || [];
-                        if (mrQuotes.length > 0) {
-                          const newPC = calculatePriceComparison(
-                            mrQuotes,
-                            po.items,
-                          );
-                          if (newPC) updatedPO.priceComparison = newPC;
-                        }
-                      }
-                      setSelectedPO(updatedPO);
-                      setViewModal(true);
-                    } catch (err) {
-                      setSelectedPO(po);
-                      setViewModal(true);
-                    } finally {
-                      setLoadingQuotes(false);
+                  onClick={() => {
+                    setSelectedPO(po);
+                    setViewModal(true);
+                    if (po.mrId) {
+                      setLoadingQuotes(true);
+                      api.get("quotations", { filter: JSON.stringify({ mrId: po.mrId }), limit: 100 })
+                        .then((qRes) => {
+                          const mrQuotes = qRes.data || [];
+                          if (mrQuotes.length > 0) {
+                            const newPC = calculatePriceComparison(mrQuotes, po.items);
+                            if (newPC) setSelectedPO((prev) => prev ? { ...prev, priceComparison: newPC } : prev);
+                          }
+                        })
+                        .catch(() => {})
+                        .finally(() => setLoadingQuotes(false));
                     }
                   }}
                 />
@@ -2201,7 +2186,7 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
                       });
                     });
                     const closedItems = (closePOConfirm.po.items || [])
-                      .map((i) => { const q = receivedBySku[i.sku] || 0; return { ...i, qty: q, total: q * i.rate, totalWithGST: q * i.rate * (1 + (i.gstPct || 18) / 100) }; })
+                      .map((i) => { const q = receivedBySku[i.sku] || 0; const inc = i.gstType === "Inclusive"; return { ...i, qty: q, total: q * i.rate, totalWithGST: inc ? q * i.rate : q * i.rate * (1 + (i.gstPct || 18) / 100) }; })
                       .filter((i) => i.qty > 0);
                     await api.post(`pos/${closePOConfirm.po.id}/close`, { closedItems });
                     patchPoInStore(closePOConfirm.po.id, { status: "Closed" });

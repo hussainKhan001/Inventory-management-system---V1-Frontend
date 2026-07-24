@@ -14,6 +14,26 @@ import {
   computeTimelineDates, formatPrettyDate,
 } from "./poUtils";
 
+// Base amount = qty × rate (always, regardless of GST type)
+function calcItemBase(item) {
+  return (Number(item.qty) || 0) * (Number(item.rate) || 0);
+}
+
+// GST portion only:
+// Exclusive → base × gstPct/100
+// Inclusive → base × gstPct/(100+gstPct)  [extract embedded GST]
+function calcItemGST(item) {
+  const base = calcItemBase(item);
+  const gstPct = Number(item.gstPct) || 0;
+  const isInclusive = (item.gstType || "Exclusive") === "Inclusive";
+  return isInclusive ? base * gstPct / (100 + gstPct) : base * gstPct / 100;
+}
+
+// Total including GST (used for grand total only)
+function calcItemTotal(item) {
+  return calcItemBase(item) + calcItemGST(item);
+}
+
 function ApprovalStamp({ status, label }) {
   if (status === "Approved") {
     return (
@@ -65,10 +85,21 @@ export function POViewModal({ po, onClose, onApproveL1, onApproveL2, onApproveL3
   const [closingItems, setClosingItems] = useState([]);
   const [holdLoading, setHoldLoading] = useState(false);
   const [localStatus, setLocalStatus] = useState(po.status || "");
+  // Defer heavy sections (price comparison, timelines) until after first paint
+  const [heavyReady, setHeavyReady] = useState(false);
 
   useEffect(() => {
     setLocalStatus(po.status || "");
   }, [po.status]);
+
+  useEffect(() => {
+    setHeavyReady(false);
+    let raf2;
+    const raf = requestAnimationFrame(() => {
+      raf2 = requestAnimationFrame(() => setHeavyReady(true));
+    });
+    return () => { cancelAnimationFrame(raf); cancelAnimationFrame(raf2); };
+  }, [po.id]);
 
   const handleHoldPO = async () => {
     setHoldLoading(true);
@@ -377,7 +408,11 @@ export function POViewModal({ po, onClose, onApproveL1, onApproveL2, onApproveL3
               <p className="text-[10px] text-gray-400 font-bold mb-1">Approval status</p>
               <StatusBadge status={localStatus} accountStatus={po.accountStatus} />
             </div>
-            <p className="text-[14px] font-black text-[#1A365D] dark:text-blue-400 opacity-20 rotate-[-15deg] border-2 border-current px-2 rounded hidden sm:block">Verified</p>
+            {["Blocked", "rejected", "Cancelled"].includes(localStatus) ? (
+              <p className="text-[14px] font-black text-rose-500 opacity-40 rotate-[-15deg] border-2 border-current px-2 rounded hidden sm:block">Rejected</p>
+            ) : (
+              <p className="text-[14px] font-black text-[#1A365D] dark:text-blue-400 opacity-20 rotate-[-15deg] border-2 border-current px-2 rounded hidden sm:block">Verified</p>
+            )}
           </div>
         </div>
 
@@ -407,18 +442,15 @@ export function POViewModal({ po, onClose, onApproveL1, onApproveL2, onApproveL3
                     <td className="border border-[#1A365D] p-1.5 text-center font-black text-gray-800 dark:text-slate-200">{item.qty}</td>
                     <td className="border border-[#1A365D] p-1.5 text-right font-medium text-slate-700 dark:text-slate-300">{fmtCur(item.rate)}</td>
                     <td className="border border-[#1A365D] p-1.5 text-right font-black text-gray-800 dark:text-slate-200">
-                      {fmtCur((item.gstType || "Exclusive") === "Inclusive" ? (item.totalWithGST || item.qty * item.rate) : (item.total || item.qty * item.rate))}
+                      {fmtCur(calcItemBase(item))}
                     </td>
                   </tr>
                 ))}
               </tbody>
               <tfoot>
                 {[
-                  ["Items Subtotal (Rs)", displayItems.reduce((s, it) => s + ((it.gstType || "Exclusive") === "Inclusive" ? (it.totalWithGST || it.qty * it.rate) : (it.total || it.qty * it.rate)), 0)],
-                  [`Gst ${displayItems[0]?.gstPct || 18}% (Items)`, displayItems.reduce((s, it) => {
-                    if ((it.gstType || "Exclusive") === "Exclusive") return s + it.qty * it.rate * (it.gstPct ?? 18) / 100;
-                    return s;
-                  }, 0)],
+                  ["Items Subtotal (Rs)", displayItems.reduce((s, it) => s + calcItemBase(it), 0)],
+                  [`Gst ${displayItems[0]?.gstPct || 18}% (Items)`, displayItems.reduce((s, it) => s + calcItemGST(it), 0)],
                   [`Freight Charges (${po.freightGstPct ?? 18}% GST · ${po.freightGstType || "Exclusive"})`, calcChargeTotal(po.freightAmount || 0, po.freightGstPct || 0, po.freightGstType || "Exclusive")],
                   [`Loading Charges (${po.loadingGstPct ?? 18}% GST · ${po.loadingGstType || "Exclusive"})`, calcChargeTotal(po.loadingAmount || 0, po.loadingGstPct || 0, po.loadingGstType || "Exclusive")],
                   [`Unloading Charges (${po.unloadingGstPct ?? 18}% GST · ${po.unloadingGstType || "Exclusive"})`, calcChargeTotal(po.unloadingAmount || 0, po.unloadingGstPct || 0, po.unloadingGstType || "Exclusive")],
@@ -470,7 +502,7 @@ export function POViewModal({ po, onClose, onApproveL1, onApproveL2, onApproveL3
             </div>
 
             {/* Payment Timelines */}
-            <div className="mt-4 border border-[#1A365D] rounded-lg overflow-hidden">
+            {heavyReady && <div className="mt-4 border border-[#1A365D] rounded-lg overflow-hidden">
               <div className="bg-[#1A365D] h-8 flex items-center justify-between px-4">
                 <p className="text-white font-black text-[10px] tracking-widest">Payment Timelines</p>
                 {!editTimelines ? (
@@ -558,7 +590,7 @@ export function POViewModal({ po, onClose, onApproveL1, onApproveL2, onApproveL3
                   </tfoot>
                 </table>
               </div>
-            </div>
+            </div>}
 
             {/* Approval workflow */}
             <div className="border border-[#1A365D] rounded-lg overflow-hidden mt-6 mb-8 shadow-sm">
@@ -576,7 +608,7 @@ export function POViewModal({ po, onClose, onApproveL1, onApproveL2, onApproveL3
                     { title: getApproverTitle(approverNames.l1Title, "L1", "AGM PURCHASE (L1)"), name: approverNames.l1 || "L1 Approver", date: po.approvalL1At, approval: po.approvalL1 },
                     { title: getApproverTitle(approverNames.l2Title, "L2", "PROJECT HEAD (L2)"), name: approverNames.l2 || "L2 Approver", date: po.approvalL2At, approval: po.approvalL2 },
                     { title: getApproverTitle(approverNames.l3Title, "L3", "DIRECTOR (L3)"), name: approverNames.l3 || "L3 Approver", date: po.approvalL3At, approval: po.approvalL3 },
-                  ].map((col, i) => ({ ...col, stampStatus: col.approval === "Approved" ? "Approved" : (isRejected && i === rejectLevel) ? "rejected" : "pending" }));
+                  ].map((col, i) => ({ ...col, stampStatus: (isRejected && i === rejectLevel) ? "rejected" : col.approval === "Approved" ? "Approved" : "pending" }));
                 })().map((col, i) => (
                   <div key={i} className="flex flex-col text-[9px] divide-y divide-[#1A365D]">
                     <div className="p-2 bg-[#1A365D]/10 dark:bg-[#1A365D]/30 font-black text-center border-b border-[#1A365D]">{col.title}</div>
@@ -596,6 +628,13 @@ export function POViewModal({ po, onClose, onApproveL1, onApproveL2, onApproveL3
                         <ApprovalStamp status={col.stampStatus} />
                       )}
                     </div>
+                    {col.stampStatus === "rejected" && po.rejectedByName && (
+                      <div className="p-2 flex flex-col gap-0.5 bg-rose-50/60 dark:bg-rose-900/20 border-t border-rose-200 dark:border-rose-800">
+                        <span className="text-[8px] text-rose-500 font-black tracking-wider uppercase">Rejected By</span>
+                        <span className="text-[9px] font-bold uppercase text-rose-700 dark:text-rose-400">{po.rejectedByName}</span>
+                        {po.rejectedAt && <span className="text-[8px] text-gray-500 font-mono">{formatPrettyDate(po.rejectedAt)}</span>}
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
@@ -607,7 +646,7 @@ export function POViewModal({ po, onClose, onApproveL1, onApproveL2, onApproveL3
             </div>
 
             {/* Price Comparison */}
-            {hasComparison && (
+            {heavyReady && hasComparison && (
               <div className="mt-8 border border-[#1A365D] rounded-xl overflow-hidden bg-white dark:bg-[#0F172A] shadow-2xl">
                 <div className="bg-[#1A365D] h-8 flex items-center justify-center">
                   <p className="text-white font-black text-[12px] tracking-[0.2em]">Quotation / price comparison {po.workType ? `(${po.workType})` : ""}</p>

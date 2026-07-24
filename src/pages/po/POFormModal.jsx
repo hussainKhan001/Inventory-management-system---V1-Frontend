@@ -901,7 +901,7 @@ export function POFormModal({
                       <td key={rIdx} className="px-4 py-2.5 border-r border-gray-200 dark:border-gray-700 text-center">
                         <div className="flex flex-col items-center">
                           <span className={cn("text-[12px] font-bold", VENDOR_COLORS[rIdx % VENDOR_COLORS.length])}>{rate ? fmtCur(rate) : "—"}</span>
-                          {it.gstPcts?.[rIdx] > 0 && <span className="text-[9px] text-gray-400">+{it.gstPcts[rIdx]}% GST</span>}
+                          {it.gstPcts?.[rIdx] > 0 && (po.priceComparison?.vendors?.[rIdx]?.gstType || "Exclusive") === "Exclusive" && <span className="text-[9px] text-gray-400">+{it.gstPcts[rIdx]}% GST</span>}
                         </div>
                       </td>
                     ))}
@@ -912,7 +912,7 @@ export function POFormModal({
                   <td className="px-4 py-2.5 text-[11px] font-black text-gray-500 border-r border-gray-200 dark:border-gray-700">Gst % / status</td>
                   <td className="border-r border-gray-200 dark:border-gray-700" />
                   {(po.priceComparison?.vendors || []).map((v, vIdx) => (
-                    <td key={vIdx} className="px-4 py-2.5 border-r border-gray-200 dark:border-gray-700 text-center text-[11px] font-bold text-gray-500">{v.gstType || "Inclusive"}</td>
+                    <td key={vIdx} className="px-4 py-2.5 border-r border-gray-200 dark:border-gray-700 text-center text-[11px] font-bold text-gray-500">{v.gstType || "Exclusive"}</td>
                   ))}
                 </tr>
                 <tr className="bg-orange-50/30 dark:bg-orange-400/5">
@@ -924,7 +924,7 @@ export function POFormModal({
                       const rate = it.rates?.[vIdx] || 0;
                       const qty = it.qty || 1;
                       const gstPct = it.gstPcts?.[vIdx] || 0;
-                      return sum + ((v.gstType || "Inclusive") === "Inclusive" ? rate * qty : rate * qty * (1 + gstPct / 100));
+                      return sum + ((v.gstType || "Exclusive") === "Inclusive" ? rate * qty : rate * qty * (1 + gstPct / 100));
                     }, 0);
                     return (
                       <td key={vIdx} className="px-4 py-3 text-[14px] text-center font-black border-r border-gray-200 dark:border-gray-700">
