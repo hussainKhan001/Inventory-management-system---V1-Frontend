@@ -39,7 +39,7 @@ export function MaterialRequirementPage() {
 
   const { projects: PROJECTS, requesters: REQUESTERS } = settings;
 
-  const isMRLocked = (mrId, status) => status === "PO Created" || pos.some(po => po.mrId === mrId);
+  const isMRLocked = (mrId, status, mrNumber) => status === "PO Created" || pos.some(po => po.mrId === mrId || (mrNumber && po.mrId === mrNumber));
   const itemNamesMatch = (poItem, mrItem) => {
     const a = (poItem.itemName || poItem.name || "").trim().toLowerCase();
     const b = (mrItem.materialName || mrItem.itemName || "").trim().toLowerCase();
@@ -156,10 +156,17 @@ export function MaterialRequirementPage() {
     return () => clearTimeout(t);
   }, [search]);
 
-  // Keep a stable snapshot of loaded MRs so client-side search survives server overwrites
+  // Keep a stable snapshot of loaded MRs so client-side search survives server overwrites.
+  // During search, only remove deleted items using functional updater to avoid stale closure.
   useEffect(() => {
-    if (!debouncedSearch && materialRequirements.length > 0) {
+    if (!debouncedSearch) {
       setStableMRs(materialRequirements);
+    } else {
+      const currentIds = new Set(materialRequirements.map(m => m.id));
+      setStableMRs(prev => {
+        const next = prev.filter(mr => currentIds.has(mr.id));
+        return next.length !== prev.length ? next : prev;
+      });
     }
   }, [materialRequirements, debouncedSearch]);
 
@@ -177,7 +184,7 @@ export function MaterialRequirementPage() {
         if (!hasFilters) grnFullFetched.current = true;
       }
     } else if (activeTab === "requirements") {
-      fetchResource("material-requirements", 1, 50, materialRequirements.length > 0, debouncedSearch, filter, false, false, startDate, endDate);
+      fetchResource("material-requirements", 1, 50, false, debouncedSearch, filter, false, false, startDate, endDate);
     } else {
       fetchResource("mr-allocations", 1, 1000, true, debouncedSearch, filter, false, false, startDate, endDate);
     }
@@ -189,12 +196,17 @@ export function MaterialRequirementPage() {
   }, [debouncedSearch, activeTab, startDate, endDate, filterProject, filterRequester, filterStatus]);
 
   const handlePageChange = useCallback(page => {
+    const filterObj = {};
+    if (filterProject) filterObj.project = filterProject;
+    if (filterRequester) filterObj.requesterName = filterRequester;
+    if (filterStatus) filterObj.status = filterStatus;
+    const filter = Object.keys(filterObj).length > 0 ? filterObj : null;
     if (activeTab === "requirements") {
-      fetchResource("material-requirements", page, 50, false, debouncedSearch);
+      fetchResource("material-requirements", page, 50, false, debouncedSearch, filter, false, false, startDate, endDate);
     } else {
-      fetchResource("mr-allocations", page, 50, false, debouncedSearch);
+      fetchResource("mr-allocations", page, 50, false, debouncedSearch, filter, false, false, startDate, endDate);
     }
-  }, [fetchResource, activeTab, debouncedSearch]);
+  }, [fetchResource, activeTab, debouncedSearch, filterProject, filterRequester, filterStatus, startDate, endDate]);
 
   const handleConfirmDelete = async () => {
     if (!deletingId) return;
@@ -220,8 +232,8 @@ export function MaterialRequirementPage() {
     if (filterProject && mr.project !== filterProject) return false;
     if (filterRequester && mr.requesterName !== filterRequester) return false;
     if (filterStatus && mr.status !== filterStatus) return false;
-    if (startDate && mr.date < startDate) return false;
-    if (endDate && mr.date > endDate) return false;
+    if (startDate && new Date(mr.date) < new Date(startDate)) return false;
+    if (endDate && new Date(mr.date) > new Date(endDate)) return false;
     if (debouncedSearch) {
       const s = debouncedSearch.trim().toLowerCase();
       const inHeader = [mr.mrNumber, mr.id, mr.requesterName, mr.project, mr.location, mr.status]
@@ -393,7 +405,7 @@ export function MaterialRequirementPage() {
                         <div className="flex items-center gap-1.5">
                           {isNewItem(req.createdAt) && <span className="px-1 py-0.5 rounded text-[9px] font-black tracking-widest bg-primary text-white">NEW</span>}
                           <span className="font-bold text-primary text-[12px]">{req.mrNumber || req.id}</span>
-                          {isMRLocked(req.id, req.status) && <Badge text="PO" color="blue" icon={Link2} className="px-1" />}
+                          {isMRLocked(req.id, req.status, req.mrNumber) && <Badge text="PO" color="blue" icon={Link2} className="px-1" />}
                         </div>
                       </td>
                       <td className="px-3 py-2.5 max-w-[140px]">
@@ -419,10 +431,10 @@ export function MaterialRequirementPage() {
                           <button title="View" onClick={() => { setSelectedRequirement(JSON.parse(JSON.stringify(req))); setViewModal(true); }} className="p-1.5 rounded text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"><Eye className="w-3.5 h-3.5" /></button>
                           <button title="Track" onClick={() => { window.location.hash = `tracking?id=${req.mrNumber || req.id}`; }} className="p-1.5 rounded text-primary hover:bg-primary/10 transition-colors"><TrendingUp className="w-3.5 h-3.5" /></button>
                           {hasPermission("EDIT_MATERIAL_REQUIREMENT") && (
-                            <button title="Edit" disabled={isMRLocked(req.id, req.status) && role !== "Super Admin"} onClick={() => openEditModal(req)} className={cn("p-1.5 rounded text-orange-500 hover:bg-orange-50 dark:hover:bg-orange-900/20 transition-colors", isMRLocked(req.id, req.status) && role !== "Super Admin" && "opacity-30 cursor-not-allowed")}><Pencil className="w-3.5 h-3.5" /></button>
+                            <button title="Edit" disabled={isMRLocked(req.id, req.status, req.mrNumber) && role !== "Super Admin"} onClick={() => openEditModal(req)} className={cn("p-1.5 rounded text-orange-500 hover:bg-orange-50 dark:hover:bg-orange-900/20 transition-colors", isMRLocked(req.id, req.status, req.mrNumber) && role !== "Super Admin" && "opacity-30 cursor-not-allowed")}><Pencil className="w-3.5 h-3.5" /></button>
                           )}
                           {hasPermission("DELETE_MATERIAL_REQUIREMENT") && (
-                            <button title="Delete" disabled={isMRLocked(req.id, req.status) && role !== "Super Admin"} onClick={() => setDeletingId(req.id)} className={cn("p-1.5 rounded text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors", isMRLocked(req.id, req.status) && role !== "Super Admin" && "opacity-30 cursor-not-allowed")}><Trash2 className="w-3.5 h-3.5" /></button>
+                            <button title="Delete" disabled={isMRLocked(req.id, req.status, req.mrNumber) && role !== "Super Admin"} onClick={() => setDeletingId(req.id)} className={cn("p-1.5 rounded text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors", isMRLocked(req.id, req.status, req.mrNumber) && role !== "Super Admin" && "opacity-30 cursor-not-allowed")}><Trash2 className="w-3.5 h-3.5" /></button>
                           )}
                         </div>
                       </td>
@@ -479,7 +491,7 @@ export function MaterialRequirementPage() {
                       <Card
                         className={cn(
                           "p-0 overflow-hidden border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 transition-all",
-                          (!isMRLocked(req.id, req.status) && (req.status === "Store Pending" || req.status === "Quotation Phase")) &&
+                          (!isMRLocked(req.id, req.status, req.mrNumber) && (req.status === "Store Pending" || req.status === "Quotation Phase")) &&
                           "approval-highlight ring-1 ring-primary/20 shadow-lg shadow-primary/5"
                         )}
                       >
@@ -491,7 +503,7 @@ export function MaterialRequirementPage() {
                                 <span className="px-1.5 py-0.5 rounded text-[9px] font-black tracking-widest bg-primary text-white animate-pulse">NEW</span>
                               )}
                               <h3 className="text-[14px] font-bold text-[#1A1A2E] dark:text-white">{req.id}</h3>
-                              {isMRLocked(req.id, req.status) && !["Fulfilled", "Closed"].includes(req.status) ? (
+                              {isMRLocked(req.id, req.status, req.mrNumber) && !["Fulfilled", "Closed"].includes(req.status) ? (
                                 <Badge text="PO Created" color="blue" icon={Link2} className="px-1.5" />
                               ) : (
                                 <StatusBadge status={req.status} />
@@ -517,7 +529,7 @@ export function MaterialRequirementPage() {
                               {req.items.some(i => i.status === "In Stock" || i.status === "Partial") && (
                                 <Badge text="Stock Available" color="green" icon={Check} className="gap-1 px-1.5" />
                               )}
-                              {(!isMRLocked(req.id, req.status) && (req.status === "Store Pending" || req.status === "Quotation Phase")) && (
+                              {(!isMRLocked(req.id, req.status, req.mrNumber) && (req.status === "Store Pending" || req.status === "Quotation Phase")) && (
                                 <span className="flex items-center gap-1 text-[10px] font-bold text-primary animate-bounce ml-1">
                                   <AlertTriangle className="w-3 h-3" />
                                   {req.status === "Quotation Phase" ? "Quotation Finalization Needed" : "Awaiting Review"}
@@ -583,20 +595,20 @@ export function MaterialRequirementPage() {
 
 {hasPermission("EDIT_MATERIAL_REQUIREMENT") && (
                                 <button
-                                  title={isMRLocked(req.id, req.status) && role !== "Super Admin" ? "Locked: Purchase Order exists" : "Edit MR"}
-                                  disabled={isMRLocked(req.id, req.status) && role !== "Super Admin"}
+                                  title={isMRLocked(req.id, req.status, req.mrNumber) && role !== "Super Admin" ? "Locked: Purchase Order exists" : "Edit MR"}
+                                  disabled={isMRLocked(req.id, req.status, req.mrNumber) && role !== "Super Admin"}
                                   onClick={e => { e.stopPropagation(); openEditModal(req); }}
-                                  className={cn("p-2 rounded-lg text-orange-500 hover:bg-orange-50 dark:hover:bg-orange-900/20 transition-colors", isMRLocked(req.id, req.status) && role !== "Super Admin" && "opacity-30 cursor-not-allowed")}
+                                  className={cn("p-2 rounded-lg text-orange-500 hover:bg-orange-50 dark:hover:bg-orange-900/20 transition-colors", isMRLocked(req.id, req.status, req.mrNumber) && role !== "Super Admin" && "opacity-30 cursor-not-allowed")}
                                 >
                                   <Pencil className="w-4 h-4" />
                                 </button>
                               )}
                               {hasPermission("DELETE_MATERIAL_REQUIREMENT") && (
                                 <button
-                                  title={isMRLocked(req.id, req.status) && role !== "Super Admin" ? "Locked: Purchase Order exists" : "Delete MR"}
-                                  disabled={isMRLocked(req.id, req.status) && role !== "Super Admin"}
+                                  title={isMRLocked(req.id, req.status, req.mrNumber) && role !== "Super Admin" ? "Locked: Purchase Order exists" : "Delete MR"}
+                                  disabled={isMRLocked(req.id, req.status, req.mrNumber) && role !== "Super Admin"}
                                   onClick={e => { e.stopPropagation(); setDeletingId(req.id); }}
-                                  className={cn("p-2 rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors", isMRLocked(req.id, req.status) && role !== "Super Admin" && "opacity-30 cursor-not-allowed")}
+                                  className={cn("p-2 rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors", isMRLocked(req.id, req.status, req.mrNumber) && role !== "Super Admin" && "opacity-30 cursor-not-allowed")}
                                 >
                                   <Trash2 className="w-4 h-4" />
                                 </button>

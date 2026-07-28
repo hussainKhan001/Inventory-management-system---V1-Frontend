@@ -112,6 +112,9 @@ const MaterialPlanning = /* @__PURE__ */ __name(() => {
   const [editPlanFields, setEditPlanFields] = useState({ engineer: "", gmAgm: "" });
   const [rejectModal, setRejectModal] = useState(null); // plan object being rejected
   const [rejectReason, setRejectReason] = useState("");
+  const [additionalItems, setAdditionalItems] = useState([]);
+  const [addingToPlan, setAddingToPlan] = useState(null);
+  const [searchAdditionalItem, setSearchAdditionalItem] = useState("");
 
   const isGM = hasPermission("APPROVE_MATERIAL_PLAN") || ["Super Admin", "Director", "admin", "GM"].includes(role || "");
   const canReject = hasPermission("REJECT_MATERIAL_PLAN") || ["Super Admin", "Director", "admin", "GM"].includes(role || "");
@@ -258,8 +261,11 @@ const MaterialPlanning = /* @__PURE__ */ __name(() => {
     return () => clearTimeout(delayDebounceFn);
   }, [searchItem, fetchResource, modal]);
   const handlePageChange = useCallback((page) => {
-    fetchResource("planning", page);
-  }, [fetchResource]);
+    const filter = {};
+    if (statusFilter) filter.status = statusFilter;
+    if (projectFilter) filter.project = projectFilter;
+    fetchResource("planning", page, 50, false, debouncedSearch, Object.keys(filter).length > 0 ? filter : null, false, false, dateRange.startDate, dateRange.endDate);
+  }, [fetchResource, statusFilter, projectFilter, debouncedSearch, dateRange]);
   const handleCreate = /* @__PURE__ */ __name(async () => {
     if (!validateForm(newPlan)) {
       return;
@@ -285,8 +291,10 @@ const MaterialPlanning = /* @__PURE__ */ __name(() => {
       const num = parseInt(parts[parts.length - 1] || "0");
       return num > max ? num : max;
     }, 0);
+    // Use Date.now() as tiebreaker so paginated plans array can't cause ID collision
+    const safeIdNum = Math.max(maxIdNum, Math.floor(Date.now() / 1000) % 100000);
     const plan = {
-      id: genId("MP", maxIdNum),
+      id: genId("MP", safeIdNum),
       project: finalProject,
       milestone: newPlan.milestone,
       workType: newPlan.workType,
@@ -338,6 +346,9 @@ const MaterialPlanning = /* @__PURE__ */ __name(() => {
     setNewPlan({ ...newPlan, items });
   }, "updateItem");
   const addAdditionalItem = /* @__PURE__ */ __name((inv) => {
+    const reusable = inventory.filter(
+      (i) => i.sku === inv.sku && ["Good", "Needs Repair"].includes(i.condition)
+    ).reduce((sum, i) => sum + i.liveStock, 0);
     setAdditionalItems([
       ...additionalItems,
       {
@@ -346,8 +357,8 @@ const MaterialPlanning = /* @__PURE__ */ __name(() => {
         required: 1,
         unit: inv.unit || "NOS",
         available: inv.liveStock || 0,
-        reusable: 0,
-        shortage: Math.max(0, 1 - (inv.liveStock || 0)),
+        reusable,
+        shortage: Math.max(0, 1 - (inv.liveStock || 0) - reusable),
         priority: "Medium",
         delivery: todayStr(),
         activity: ""

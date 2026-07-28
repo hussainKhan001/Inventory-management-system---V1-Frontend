@@ -580,7 +580,7 @@ const generateTransactionDetailPDF = /* @__PURE__ */ __name((po, grn, supplierNa
     const rcv = gi.received ?? gi.qty ?? 0;
     const poItem = (po.items || []).find(pi =>
       (pi.sku && gi.sku && pi.sku === gi.sku) ||
-      (pi.materialName || "").toLowerCase() === (gi.itemName || "").toLowerCase()
+      (pi.itemName || "").toLowerCase() === (gi.itemName || "").toLowerCase()
     );
     const rate = gi.rate || poItem?.rate || 0;
     const gstPct = poItem?.gstPct || 0;

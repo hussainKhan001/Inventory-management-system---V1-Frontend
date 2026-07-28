@@ -127,7 +127,7 @@ const SiteEngineerDashboard = /* @__PURE__ */ __name(({ user, plans, materialReq
           {myPlans.length === 0 ? <EmptyState text="No plans assigned to you yet." /> : <div className="space-y-3">
               {myPlans.slice(0, 5).map((plan) => {
     const total = (plan.items || []).reduce((s, i) => s + (Number(i.required) || 0), 0);
-    const allotted = mrAllocations.filter((a) => a.engineerName?.trim().toLowerCase() === myName.trim().toLowerCase() && a.projectName === plan.project).reduce((s, a) => s + (a.allocatedQty || 0), 0);
+    const allotted = mrAllocations.filter((a) => a.engineerName?.trim().toLowerCase() === myName.trim().toLowerCase() && a.projectName?.trim().toLowerCase() === plan.project?.trim().toLowerCase()).reduce((s, a) => s + (a.allocatedQty || 0), 0);
     const pct = total > 0 ? Math.min(100, Math.round(allotted / total * 100)) : 0;
     return <div key={plan.id} className="flex items-center gap-3 p-3 rounded-xl bg-gray-50 dark:bg-gray-800/40 hover:bg-primary/5 dark:hover:bg-primary/10 transition-colors cursor-pointer" onClick={() => window.location.hash = "planning"}>
                     <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
@@ -634,7 +634,7 @@ const AdminDashboard = /* @__PURE__ */ __name(({ stats, pos, loading, plans, mat
       }
     }, "fetchAI");
     fetchAI();
-  }, [stats.totalSKUs, pos]);
+  }, [stats.totalSKUs, pos, aiInsights]);
   const COLORS = ["#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899", "#06b6d4", "#4b5563"];
   const {
     totalSKUs = 0,
@@ -775,7 +775,7 @@ const AdminDashboard = /* @__PURE__ */ __name(({ stats, pos, loading, plans, mat
 
         <Card className="p-5 border-gray-100 dark:border-gray-700/50 bg-white dark:bg-gray-800/80">
           <div className="flex items-center justify-between mb-6">
-            <h3 className="text-[15px] font-bold text-gray-900 dark:text-white flex items-center gap-2"><PieIcon className="w-4 h-4 text-purple-500" />Value Concentration</h3>
+            <h3 className="text-[15px] font-bold text-gray-900 dark:text-white flex items-center gap-2"><PieIcon className="w-4 h-4 text-purple-500" />SKU Distribution by Category</h3>
           </div>
           <div className="h-64 sm:h-72 w-full">
             <ResponsiveContainer width="100%" height="100%">
@@ -991,14 +991,14 @@ const ManagerDashboard = /* @__PURE__ */ __name(({ pos, materialRequirements, st
     [pos]
   );
   const grnPendingPOs = useMemo(
-    () => (pos || []).filter((p) => ["GRN Pending", "Partially GRN"].includes(p.status)),
+    () => (pos || []).filter((p) => ["GRN Pending", "GRN Variance"].includes(p.status)),
     [pos]
   );
   const storePendingMRs = useMemo(
     () => (materialRequirements || []).filter((mr) => mr.status === "Store Pending" || mr.status === "Pending"),
     [materialRequirements]
   );
-  const recentPOs = useMemo(() => [...(pos || [])].slice(0, 6), [pos]);
+  const recentPOs = useMemo(() => [...(pos || [])].sort((a, b) => new Date(b.createdAt || b.date || 0) - new Date(a.createdAt || a.date || 0)).slice(0, 6), [pos]);
   const pendingPOCount = stats?.allPendingPOCount ?? pendingPOs.length;
   const grnPendingCount = stats?.grnPendingPOCount ?? grnPendingPOs.length;
   return <div className="space-y-6 pb-12">
@@ -1123,7 +1123,7 @@ const ProcurementDashboard = /* @__PURE__ */ __name(({ pos, materialRequirements
     [pos]
   );
   const grnPendingPOs = useMemo(
-    () => (pos || []).filter((p) => ["GRN Pending", "Partially GRN"].includes(p.status)),
+    () => (pos || []).filter((p) => ["GRN Pending", "GRN Variance"].includes(p.status)),
     [pos]
   );
   const mrsReadyForPO = useMemo(
@@ -1131,7 +1131,7 @@ const ProcurementDashboard = /* @__PURE__ */ __name(({ pos, materialRequirements
     [materialRequirements]
   );
   const recentPOs = useMemo(
-    () => [...(pos || [])].slice(0, 8),
+    () => [...(pos || [])].sort((a, b) => new Date(b.createdAt || b.date || 0) - new Date(a.createdAt || a.date || 0)).slice(0, 8),
     [pos]
   );
   const pendingPOCount = stats?.allPendingPOCount ?? pendingApprovalPOs.length;

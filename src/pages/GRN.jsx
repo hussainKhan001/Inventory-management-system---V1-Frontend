@@ -26,6 +26,7 @@ import { POViewModal } from "./po/POViewModal";
 import { GRNDetailModal } from "../components/GRNDetailModal";
 import { generateGRNReportPDF } from "../utils/pdfGenerator";
 // Compute GRN status from actual received vs ordered — overrides stale stored status
+const PO_CLOSED_STATUSES = new Set(["PO Closed", "Fulfilled", "Cancelled", "Rejected", "Blocked"]);
 const grnEffectiveStatus = (grn) => {
   const items = grn.items || [];
   if (!items.length) return grn.status || "Confirmed";
@@ -190,7 +191,7 @@ const GRNPage = /* @__PURE__ */ __name(() => {
 
   const availablePOs = React.useMemo(
     () => pos.filter((p) =>
-      p.status !== "PO Closed" &&
+      !PO_CLOSED_STATUSES.has(p.status) &&
       (p.status === "GRN Pending" ||
       p.status === "GRN Variance" ||
       poIdsWithPartialGRN.has(p.id))

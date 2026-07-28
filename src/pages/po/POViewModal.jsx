@@ -448,19 +448,26 @@ export function POViewModal({ po, onClose, onApproveL1, onApproveL2, onApproveL3
                 ))}
               </tbody>
               <tfoot>
-                {[
-                  ["Items Subtotal (Rs)", displayItems.reduce((s, it) => s + calcItemBase(it), 0)],
-                  [`Gst ${displayItems[0]?.gstPct || 18}% (Items)`, displayItems.reduce((s, it) => s + calcItemGST(it), 0)],
-                  [`Freight Charges (${po.freightGstPct ?? 18}% GST · ${po.freightGstType || "Exclusive"})`, calcChargeTotal(po.freightAmount || 0, po.freightGstPct || 0, po.freightGstType || "Exclusive")],
-                  [`Loading Charges (${po.loadingGstPct ?? 18}% GST · ${po.loadingGstType || "Exclusive"})`, calcChargeTotal(po.loadingAmount || 0, po.loadingGstPct || 0, po.loadingGstType || "Exclusive")],
-                  [`Unloading Charges (${po.unloadingGstPct ?? 18}% GST · ${po.unloadingGstType || "Exclusive"})`, calcChargeTotal(po.unloadingAmount || 0, po.unloadingGstPct || 0, po.unloadingGstType || "Exclusive")],
-                ].map(([label, value]) => (
-                  <tr key={label} className="bg-white dark:bg-gray-900 border-b border-[#1A365D]">
-                    <td colSpan={4} className="border-x border-[#1A365D] p-1.5" />
-                    <td className="border border-[#1A365D] p-1.5 text-right text-[10px] font-black bg-gray-50/50 dark:bg-slate-800/40">{label}</td>
-                    <td className="border border-[#1A365D] p-1.5 text-right text-[11px] font-black text-slate-800 dark:text-slate-200">{fmtCur(value)}</td>
-                  </tr>
-                ))}
+                {(() => {
+                  const itemsGstInclusive = (displayItems[0]?.gstType || "Exclusive") === "Inclusive";
+                  return [
+                    ["Items Subtotal (Rs)", displayItems.reduce((s, it) => s + calcItemBase(it), 0), false],
+                    [`Gst ${displayItems[0]?.gstPct || 18}% (Items)`, displayItems.reduce((s, it) => s + calcItemGST(it), 0), itemsGstInclusive],
+                    [`Freight Charges (${po.freightGstPct ?? 18}% GST · ${po.freightGstType || "Exclusive"})`, calcChargeTotal(po.freightAmount || 0, po.freightGstPct || 0, po.freightGstType || "Exclusive"), false],
+                    [`Loading Charges (${po.loadingGstPct ?? 18}% GST · ${po.loadingGstType || "Exclusive"})`, calcChargeTotal(po.loadingAmount || 0, po.loadingGstPct || 0, po.loadingGstType || "Exclusive"), false],
+                    [`Unloading Charges (${po.unloadingGstPct ?? 18}% GST · ${po.unloadingGstType || "Exclusive"})`, calcChargeTotal(po.unloadingAmount || 0, po.unloadingGstPct || 0, po.unloadingGstType || "Exclusive"), false],
+                  ].map(([label, value, isInclusive]) => (
+                    <tr key={label} className="bg-white dark:bg-gray-900 border-b border-[#1A365D]">
+                      <td colSpan={4} className="border-x border-[#1A365D] p-1.5" />
+                      <td className="border border-[#1A365D] p-1.5 text-right text-[10px] font-black bg-gray-50/50 dark:bg-slate-800/40">{label}</td>
+                      <td className="border border-[#1A365D] p-1.5 text-right text-[11px] font-black text-slate-800 dark:text-slate-200">
+                        {isInclusive
+                          ? <span className="text-blue-600 dark:text-blue-400 italic">Inclusive</span>
+                          : fmtCur(value)}
+                      </td>
+                    </tr>
+                  ));
+                })()}
                 <tr className="bg-gray-100 dark:bg-gray-800 font-black">
                   <td colSpan={4} className="border-x border-b border-[#1A365D] p-1.5" />
                   <td className="border border-[#1A365D] p-1.5 text-right text-[11px] font-black bg-[#1A365D] text-white">Grand Total (Rs)</td>

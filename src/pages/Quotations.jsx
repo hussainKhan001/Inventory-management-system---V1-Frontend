@@ -189,9 +189,11 @@ const Quotations = /* @__PURE__ */ __name(() => {
         toast.success(`Quotation ${status.toLowerCase()} successfully`);
       }
       if (viewModal) setViewModal(false);
-      // Re-fetch without status filter so the updated quotation stays visible when WS
-      // DATA_UPDATED fires 500ms later and re-reads lastResourceParams.
+      // Clear status filter and re-fetch so the updated quotation stays visible.
+      // Both the server re-fetch AND the client-side groupedQuotations memo need
+      // filterStatus cleared, otherwise the approved item is hidden client-side.
       if (filterStatus) {
+        setFilterStatus("");
         const filterObj = {};
         if (filterCategory) filterObj.category = filterCategory;
         if (filterSupplier) filterObj.supplierName = filterSupplier;
@@ -205,12 +207,6 @@ const Quotations = /* @__PURE__ */ __name(() => {
   const groupedQuotations = React.useMemo(() => {
     return quotations.reduce((acc, q) => {
       const mr = materialRequirements.find((m) => m.id === q.mrId);
-      if (hasPermission("APPROVE_MR_AGM")) {
-        const eligibleMR = true;
-        if (!eligibleMR && q.status !== "Rejected") {
-          return acc;
-        }
-      }
       if (filterProject && mr?.project !== filterProject) {
         return acc;
       }
@@ -409,7 +405,8 @@ const Quotations = /* @__PURE__ */ __name(() => {
       const [mrId, category] = key.split("|");
       const mr = getMrDetails(mrId);
       const isExpanded = activeMrId === key;
-      const bestPrice = Math.min(...mrQuotations.map((q) => q.totalAmount || 0));
+      const nonZeroAmounts = mrQuotations.map((q) => q.totalAmount || 0).filter((a) => a > 0);
+      const bestPrice = nonZeroAmounts.length > 0 ? Math.min(...nonZeroAmounts) : 0;
       return <div key={key} className="pb-4">
                 <div className={cn(
         "bg-white dark:bg-[#1E293B] border border-gray-100 dark:border-gray-800 rounded-3xl overflow-hidden shadow-sm hover:shadow-md transition-all",
@@ -1081,29 +1078,33 @@ const QuotationForm = /* @__PURE__ */ __name(({ initialData, mrData: initialMrDa
     return amount;
   }, "calculateChargeTotal");
   const handleItemChange = /* @__PURE__ */ __name((idx, field, value) => {
-    const newItems = [...formData.items || []];
-    newItems[idx] = { ...newItems[idx], [field]: value };
-    const itemsTotal = newItems.reduce((sum, item) => {
-      const base = item.qty * item.rate;
-      const gst = item.gstType === "Exclusive" ? base * (item.gstPct || 0) / 100 : 0;
-      return sum + (item.gstType === "Exclusive" ? base + gst : base);
-    }, 0);
-    const freightTotal = calculateChargeTotal(formData.freightAmount || 0, formData.freightGstPct || 0, formData.freightGstType || "Exclusive");
-    const loadingTotal = calculateChargeTotal(formData.loadingAmount || 0, formData.loadingGstPct || 0, formData.loadingGstType || "Exclusive");
-    const unloadingTotal = calculateChargeTotal(formData.unloadingAmount || 0, formData.unloadingGstPct || 0, formData.unloadingGstType || "Exclusive");
-    setFormData({ ...formData, items: newItems, totalAmount: itemsTotal + freightTotal + loadingTotal + unloadingTotal });
+    setFormData((prev) => {
+      const newItems = [...prev.items || []];
+      newItems[idx] = { ...newItems[idx], [field]: value };
+      const itemsTotal = newItems.reduce((sum, item) => {
+        const base = item.qty * item.rate;
+        const gst = item.gstType === "Exclusive" ? base * (item.gstPct || 0) / 100 : 0;
+        return sum + (item.gstType === "Exclusive" ? base + gst : base);
+      }, 0);
+      const freightTotal = calculateChargeTotal(prev.freightAmount || 0, prev.freightGstPct || 0, prev.freightGstType || "Exclusive");
+      const loadingTotal = calculateChargeTotal(prev.loadingAmount || 0, prev.loadingGstPct || 0, prev.loadingGstType || "Exclusive");
+      const unloadingTotal = calculateChargeTotal(prev.unloadingAmount || 0, prev.unloadingGstPct || 0, prev.unloadingGstType || "Exclusive");
+      return { ...prev, items: newItems, totalAmount: itemsTotal + freightTotal + loadingTotal + unloadingTotal };
+    });
   }, "handleItemChange");
   const handleChargeChange = /* @__PURE__ */ __name((field, value) => {
-    const newFormData = { ...formData, [field]: value };
-    const itemsTotal = (newFormData.items || []).reduce((sum, item) => {
-      const base = item.qty * item.rate;
-      const gst = item.gstType === "Exclusive" ? base * (item.gstPct || 0) / 100 : 0;
-      return sum + (item.gstType === "Exclusive" ? base + gst : base);
-    }, 0);
-    const freightTotal = calculateChargeTotal(newFormData.freightAmount || 0, newFormData.freightGstPct || 0, newFormData.freightGstType || "Exclusive");
-    const loadingTotal = calculateChargeTotal(newFormData.loadingAmount || 0, newFormData.loadingGstPct || 0, newFormData.loadingGstType || "Exclusive");
-    const unloadingTotal = calculateChargeTotal(newFormData.unloadingAmount || 0, newFormData.unloadingGstPct || 0, newFormData.unloadingGstType || "Exclusive");
-    setFormData({ ...newFormData, totalAmount: itemsTotal + freightTotal + loadingTotal + unloadingTotal });
+    setFormData((prev) => {
+      const newFormData = { ...prev, [field]: value };
+      const itemsTotal = (newFormData.items || []).reduce((sum, item) => {
+        const base = item.qty * item.rate;
+        const gst = item.gstType === "Exclusive" ? base * (item.gstPct || 0) / 100 : 0;
+        return sum + (item.gstType === "Exclusive" ? base + gst : base);
+      }, 0);
+      const freightTotal = calculateChargeTotal(newFormData.freightAmount || 0, newFormData.freightGstPct || 0, newFormData.freightGstType || "Exclusive");
+      const loadingTotal = calculateChargeTotal(newFormData.loadingAmount || 0, newFormData.loadingGstPct || 0, newFormData.loadingGstType || "Exclusive");
+      const unloadingTotal = calculateChargeTotal(newFormData.unloadingAmount || 0, newFormData.unloadingGstPct || 0, newFormData.unloadingGstType || "Exclusive");
+      return { ...newFormData, totalAmount: itemsTotal + freightTotal + loadingTotal + unloadingTotal };
+    });
   }, "handleChargeChange");
   const handleSubmit = /* @__PURE__ */ __name(async (e) => {
     e.preventDefault();
@@ -1322,7 +1323,7 @@ const QuotationForm = /* @__PURE__ */ __name(({ initialData, mrData: initialMrDa
                         <div className="flex items-center gap-2 justify-center min-w-[220px]">
                           <select
       value={item.gstPct}
-      onChange={(e) => handleItemChange(idx, "gstPct", parseInt(e.target.value) || 0)}
+      onChange={(e) => handleItemChange(idx, "gstPct", parseFloat(e.target.value) || 0)}
       className="bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-700 rounded-xl text-[13px] font-medium text-gray-900 dark:text-gray-100 px-3 py-2 h-11 outline-none focus:border-orange-500 transition-all cursor-pointer box-border"
     >
                             {GST_PCT_OPTIONS.map(opt => <option key={opt.key} value={opt.value}>{opt.label}</option>)}
@@ -1416,7 +1417,7 @@ const QuotationForm = /* @__PURE__ */ __name(({ initialData, mrData: initialMrDa
               <div className="grid grid-cols-2 gap-3">
                 <select
     value={formData.freightGstPct || 0}
-    onChange={(e) => handleChargeChange("freightGstPct", parseInt(e.target.value) || 0)}
+    onChange={(e) => handleChargeChange("freightGstPct", parseFloat(e.target.value) || 0)}
     className="w-full bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-700 rounded-xl text-[13px] font-bold text-gray-900 dark:text-gray-100 px-3 h-11 outline-none focus:border-orange-500 transition-all cursor-pointer box-border"
   >
                   {GST_PCT_OPTIONS.map(opt => <option key={opt.key} value={opt.value}>{opt.label}</option>)}
@@ -1447,7 +1448,7 @@ const QuotationForm = /* @__PURE__ */ __name(({ initialData, mrData: initialMrDa
               <div className="grid grid-cols-2 gap-3">
                 <select
     value={formData.loadingGstPct || 0}
-    onChange={(e) => handleChargeChange("loadingGstPct", parseInt(e.target.value) || 0)}
+    onChange={(e) => handleChargeChange("loadingGstPct", parseFloat(e.target.value) || 0)}
     className="w-full bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-700 rounded-xl text-[13px] font-bold text-gray-900 dark:text-gray-100 px-3 h-11 outline-none focus:border-orange-500 transition-all cursor-pointer box-border"
   >
                   {GST_PCT_OPTIONS.map(opt => <option key={opt.key} value={opt.value}>{opt.label}</option>)}
@@ -1478,7 +1479,7 @@ const QuotationForm = /* @__PURE__ */ __name(({ initialData, mrData: initialMrDa
               <div className="grid grid-cols-2 gap-3">
                 <select
     value={formData.unloadingGstPct || 0}
-    onChange={(e) => handleChargeChange("unloadingGstPct", parseInt(e.target.value) || 0)}
+    onChange={(e) => handleChargeChange("unloadingGstPct", parseFloat(e.target.value) || 0)}
     className="w-full bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-700 rounded-xl text-[13px] font-bold text-gray-900 dark:text-gray-100 px-3 h-11 outline-none focus:border-orange-500 transition-all cursor-pointer box-border"
   >
                   {GST_PCT_OPTIONS.map(opt => <option key={opt.key} value={opt.value}>{opt.label}</option>)}

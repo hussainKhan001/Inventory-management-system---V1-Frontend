@@ -8,6 +8,32 @@ import { ShieldAlert, Settings, Users, FileText, UserPlus, Pencil, Trash2, Key, 
 import { fmtCur } from "../utils";
 import { toast } from "react-hot-toast";
 import { motion, AnimatePresence } from "motion/react";
+const PERM_META = {
+  // Accounts & Payments — tab-view permissions (each tab has its own)
+  VIEW_ACCOUNTS:              { tab: "All",             func: "See all PO entries across every status" },
+  VIEW_ACCOUNTS_DRAFT:        { tab: "Draft",           func: "View bills pending verification (Maker queue)" },
+  VIEW_ACCOUNTS_VERIFIED:     { tab: "Verified",        func: "View bills that have been verified (Checker queue)" },
+  VIEW_ACCOUNTS_APPROVED:     { tab: "Approved",        func: "View approved bills ready for payment initiation" },
+  VIEW_ACCOUNTS_PENDING_PAYMENT: { tab: "Pending Payment", func: "View bills awaiting payment initiation" },
+  VIEW_ACCOUNTS_L2_AGM:       { tab: "L2 AGM",          func: "View payments pending AGM approval" },
+  VIEW_ACCOUNTS_L3_GM:        { tab: "L3 GM",           func: "View payments pending GM approval" },
+  VIEW_ACCOUNTS_L4_DIRECTOR:  { tab: "L4 Director",     func: "View payments pending Director approval" },
+  VIEW_ACCOUNTS_PHYSICAL_CHECK: { tab: "Physical Check", func: "View payments pending physical document check" },
+  VIEW_ACCOUNTS_PARTIAL_PAID: { tab: "Partial Paid",    func: "View POs with partial payments recorded" },
+  VIEW_ACCOUNTS_PAID:         { tab: "Paid",            func: "View fully settled payment records" },
+  VIEW_ACCOUNTS_REJECTED:     { tab: "Rejected",        func: "View bills sent back for revision" },
+  VIEW_PAYMENTS:              { tab: "Paid (legacy)",   func: "Legacy: view completed payment records" },
+  // Accounts & Payments — action permissions (approve / verify / reject)
+  VERIFY_BILL:                { tab: "Draft",          func: "Mark a bill as verified (Maker role)" },
+  APPROVE_BILL:               { tab: "Verified",       func: "Approve verified bills (Checker role)" },
+  REJECT_BILL:                { tab: "All tabs",       func: "Send a bill back for revision" },
+  MAKE_PAYMENT:               { tab: "Pending Payment", func: "Initiate payment process for approved bills" },
+  APPROVE_PAYMENT_AGM:        { tab: "L2 AGM",         func: "AGM-level payment approval" },
+  APPROVE_PAYMENT_GM:         { tab: "L3 GM",          func: "GM-level payment approval" },
+  APPROVE_PAYMENT_DIRECTOR:   { tab: "L4 Director",    func: "Director-level final payment approval" },
+  PHYSICAL_CHECK_PAYMENT:     { tab: "Physical Check", func: "Physical doc verification & mark as paid" },
+};
+
 const PERMISSION_GROUPS = [
   {
     id: "core",
@@ -147,9 +173,37 @@ const PERMISSION_GROUPS = [
     perms: ["VIEW_STOCK_CHECK", "CREATE_STOCK_CHECK", "APPROVE_STOCK_CHECK", "VIEW_STOCK_CHECK_REPORTS", "DELETE_STOCK_CHECK_REPORT"]
   },
   {
-    id: "accounts",
-    name: "Accounts & Payments",
-    perms: ["VIEW_ACCOUNTS", "VERIFY_BILL", "APPROVE_BILL", "REJECT_BILL", "MAKE_PAYMENT", "VIEW_PAYMENTS"]
+    id: "accounts_view",
+    name: "Accounts & Payments (View)",
+    perms: [
+      "VIEW_ACCOUNTS",
+      "VIEW_ACCOUNTS_DRAFT",
+      "VIEW_ACCOUNTS_VERIFIED",
+      "VIEW_ACCOUNTS_APPROVED",
+      "VIEW_ACCOUNTS_PENDING_PAYMENT",
+      "VIEW_ACCOUNTS_L2_AGM",
+      "VIEW_ACCOUNTS_L3_GM",
+      "VIEW_ACCOUNTS_L4_DIRECTOR",
+      "VIEW_ACCOUNTS_PHYSICAL_CHECK",
+      "VIEW_ACCOUNTS_PARTIAL_PAID",
+      "VIEW_ACCOUNTS_PAID",
+      "VIEW_ACCOUNTS_REJECTED",
+      "VIEW_PAYMENTS"
+    ]
+  },
+  {
+    id: "accounts_actions",
+    name: "Accounts & Payments (Actions)",
+    perms: [
+      "VERIFY_BILL",
+      "APPROVE_BILL",
+      "REJECT_BILL",
+      "MAKE_PAYMENT",
+      "APPROVE_PAYMENT_AGM",
+      "APPROVE_PAYMENT_GM",
+      "APPROVE_PAYMENT_DIRECTOR",
+      "PHYSICAL_CHECK_PAYMENT"
+    ]
   },
   {
     id: "archive",
@@ -561,6 +615,7 @@ const SuperAdmin = /* @__PURE__ */ __name(() => {
         const isDelete = p.startsWith("DELETE_");
         const isApprove = p.startsWith("APPROVE_");
         const isReject = p.startsWith("REJECT_");
+        const meta = PERM_META[p];
         return <label
           key={p}
           className={`flex items-center justify-between p-4 rounded-xl border-2 transition-all cursor-pointer group ${isChecked ? "border-primary/20 bg-primary/5 dark:bg-primary/20 shadow-sm" : "border-gray-50 dark:border-gray-800 hover:border-gray-100 dark:hover:border-gray-700"}`}
@@ -575,6 +630,18 @@ const SuperAdmin = /* @__PURE__ */ __name(() => {
                                     {isView ? "Read node" : isEdit ? "Logic write" : isDelete ? "Purge data" : isApprove ? "GM approve" : isReject ? "GM reject" : "Sys-link"}
                                   </span>
                                 </div>
+                                {meta && (
+                                  <div className="flex flex-col gap-1 mt-2 border-t border-dashed border-gray-100 dark:border-gray-800 pt-1.5">
+                                    <div className="flex items-center gap-1.5">
+                                      <span className="shrink-0 text-[7.5px] font-black uppercase tracking-widest text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-500/15 border border-orange-200 dark:border-orange-500/30 px-1.5 py-0.5 rounded">Tab</span>
+                                      <span className="text-[9px] font-semibold text-orange-700 dark:text-orange-300 leading-tight">{meta.tab}</span>
+                                    </div>
+                                    <div className="flex items-center gap-1.5">
+                                      <span className="shrink-0 text-[7.5px] font-black uppercase tracking-widest text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-500/15 border border-blue-200 dark:border-blue-500/30 px-1.5 py-0.5 rounded">Func</span>
+                                      <span className="text-[9px] text-gray-500 dark:text-gray-400 font-medium leading-tight">{meta.func}</span>
+                                    </div>
+                                  </div>
+                                )}
                               </div>
                               <div className="relative inline-flex items-center cursor-pointer">
                                 <input
