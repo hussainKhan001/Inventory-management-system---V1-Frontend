@@ -269,10 +269,14 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
     const totalPendingAmount = all.filter((p) => ["payment_pending", "payment_initiated"].includes((p.accountStatus || "").toLowerCase())).reduce((sum, p) => sum + Math.max(0, (p.totalValue || 0) - (p.totalPaid || 0)), 0);
     const pendingVerify = all.filter((p) => {
       const accStatus = (p.accountStatus || "").toLowerCase();
-      const poStatus = (p.status || "").toLowerCase();
-      if (accStatus === "bill_verify") return true;
-      if (accStatus === "partial_paid" && ["grn fulfilled", "grn variance"].includes(poStatus)) return true;
-      return !accStatus && ["grn fulfilled", "grn variance", "ready for payment"].includes(poStatus);
+      const advanced = ["bill_verified", "bill_approved", "payment_pending", "payment_initiated", "physical_check", "paid", "rejected"];
+      if (advanced.includes(accStatus)) return false;
+      if (accStatus === "partial_paid") {
+        const totalPd = p.totalPaid || p.payment?.amountPaid || 0;
+        const poTotalVal = p.totalValue || 0;
+        if (totalPd >= poTotalVal - 0.5) return false;
+      }
+      return true;
     }).length;
     const pendingVerified = all.filter((p) => {
       const st = (p.accountStatus || "").toLowerCase();
@@ -395,8 +399,8 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
       }
 
       if (filter === "Verify Bills") {
-        if (!["bill_verify", "bill_verified", "bill_approved"].includes(status)) return false;
-        if (status === "bill_verified" || status === "bill_approved") return false;
+        const advanced = ["bill_verified", "bill_approved", "payment_pending", "payment_initiated", "physical_check", "paid", "partial_paid", "rejected"];
+        if (advanced.includes(status)) return false;
       }
       if (filter === "Verified") {
         const isVerified = status === "bill_verified" || Boolean(p.billVerifiedBy) || Boolean(p.billVerifiedDate) || allGrns.some(g => g.poId === p.id && (g.paymentStatus || "").toLowerCase() === "bill_verified");
@@ -1939,12 +1943,12 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
         const billValue = selectedPO.totalValue || 0;
         const hasMismatch = realGRN && Math.abs(grnValue - billValue) > 0.01;
 
-        // Tab-context gates: each action is only allowed from its own tab (SuperAdmin bypasses)
+        // Tab-context gates: each action is allowed from its own tab, All tab, or SuperAdmin
         const TAB_LEVEL_MAP = { 2: "L2 Approval (AGM)", 3: "L3 Approval (GM)", 4: "L4 Approval (Director)" };
-        const tabAllowsVerify   = isSuperAdmin || filter === "Verify Bills";
-        const tabAllowsApprove  = isSuperAdmin || filter === "Verified";
-        const tabAllowsInitiate = isSuperAdmin || filter === "Approved";
-        const tabAllowsLevel    = (lvl) => isSuperAdmin || filter === TAB_LEVEL_MAP[lvl];
+        const tabAllowsVerify   = isSuperAdmin || filter === "Verify Bills"   || filter === "All";
+        const tabAllowsApprove  = isSuperAdmin || filter === "Verified"       || filter === "All";
+        const tabAllowsInitiate = isSuperAdmin || filter === "Approved"       || filter === "All";
+        const tabAllowsLevel    = (lvl) => isSuperAdmin || filter === TAB_LEVEL_MAP[lvl] || filter === "All";
 
         const drawerFooter = resolvedStatus === "payment_initiated" ? (() => {
           const approvals = selectedPO.paymentApprovals || PAYMENT_APPROVAL_LEVELS.map(l => ({ level: l.level, role: l.role, label: l.label, status: "Pending", approvedBy: null, approvedAt: null }));
