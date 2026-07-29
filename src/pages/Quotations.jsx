@@ -127,6 +127,23 @@ const Quotations = /* @__PURE__ */ __name(() => {
   const [selectedQuotation, setSelectedQuotation] = useState(null);
   const [activeMrId, setActiveMrId] = useState(null);
   const [selectedApprovedItems, setSelectedApprovedItems] = useState([]);
+
+  useEffect(() => {
+    const handler = async ({ detail }) => {
+      if (detail.source !== 'Quotation') return;
+      let q = quotations.find(x => x.id === detail.id);
+      if (!q) {
+        try {
+          const res = await api.get('quotations', { search: detail.id, limit: 1 });
+          q = res?.data?.[0];
+        } catch {}
+      }
+      if (q) { setSelectedQuotation(q); setViewModal(true); }
+    };
+    window.addEventListener('ledger:open', handler);
+    return () => window.removeEventListener('ledger:open', handler);
+  }, [quotations]);
+
   useEffect(() => {
     if (selectedQuotation) {
       const approved = (selectedQuotation.items || []).filter((item) => item.approved).map((item) => item.materialName);

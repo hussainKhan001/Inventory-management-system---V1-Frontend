@@ -192,6 +192,23 @@ const TransactionsPage = /* @__PURE__ */ __name(({ type }) => {
   const [modal, setModal] = useState(false);
   const [viewModal, setViewModal] = useState(false);
   const [selectedTransaction, setSelectedTransaction] = useState(null);
+
+  useEffect(() => {
+    const handler = async ({ detail }) => {
+      if (detail.source !== type) return;
+      let rec = data.find(r => r.id === detail.id);
+      if (!rec) {
+        try {
+          const res = await api.get(resourceName, { search: detail.id, limit: 1 });
+          rec = res?.data?.[0];
+        } catch {}
+      }
+      if (rec) { setSelectedTransaction(rec); setViewModal(true); }
+    };
+    window.addEventListener('ledger:open', handler);
+    return () => window.removeEventListener('ledger:open', handler);
+  }, [data, type, resourceName]);
+
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [newTransaction, setNewTransaction] = useState({ ...INITIAL_TRANSACTION, type: type || "Inward" });
   const [errors, setErrors] = useState({});

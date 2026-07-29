@@ -60,6 +60,25 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
   const { pos, grns: storeGrns, updatePO, user, fetchResource, suppliers, materialRequirements, uploadImage, hasPermission, settings } = useAppStore();
   const [filter, setFilter] = useState("All");
   const [selectedPO, setSelectedPO] = useState(null);
+
+  useEffect(() => {
+    const handler = async ({ detail }) => {
+      if (detail.source !== 'Account') return;
+      const targetPoId = detail.poId;
+      if (!targetPoId) return;
+      let po = pos.find(p => p.id === targetPoId);
+      if (!po) {
+        try {
+          const res = await api.get('pos', { search: targetPoId, limit: 1 });
+          po = res?.data?.[0];
+        } catch {}
+      }
+      if (po) setSelectedPO(po);
+    };
+    window.addEventListener('ledger:open', handler);
+    return () => window.removeEventListener('ledger:open', handler);
+  }, [pos]);
+
   const [previewPO, setPreviewPO] = useState(null);
   const [rejectionReason, setRejectionReason] = useState("");
   const [showRejectForm, setShowRejectForm] = useState(false);
@@ -2313,8 +2332,10 @@ const GRNShipmentCard = /* @__PURE__ */ __name(({ shipment, po, isSubmitting, on
     const rate = gi.rate || poItem?.rate || 0;
     const gstPct = gi.gstPct ?? poItem?.gstPct ?? 0;
     const gstType = gi.gstType || poItem?.gstType || "Exclusive";
-    const base = rcv * rate;
-    const total = calcChargeTotal(base, gstPct, gstType);
+    const isIncl = (gstType || "").toLowerCase().includes("inclus");
+    const total = calcChargeTotal(rcv * rate, gstPct, gstType);
+    // For inclusive, the rate already embeds GST — extract the pre-GST base
+    const base = isIncl && gstPct > 0 ? total / (1 + gstPct / 100) : rcv * rate;
     return { grnValue: acc.grnValue + total, grnBaseAmount: acc.grnBaseAmount + base };
   }, { grnValue: 0, grnBaseAmount: 0 });
   const grnGstAmount = grnValue - grnBaseAmount;
@@ -2749,7 +2770,7 @@ const GRNShipmentCard = /* @__PURE__ */ __name(({ shipment, po, isSubmitting, on
                     <th className="px-3 py-2.5 text-[10px] font-black text-gray-500 dark:text-gray-400 uppercase tracking-wider">Material</th>
                     <th className="px-3 py-2.5 text-[10px] font-black text-gray-500 dark:text-gray-400 uppercase tracking-wider text-center">Received</th>
                     <th className="px-3 py-2.5 text-[10px] font-black text-gray-500 dark:text-gray-400 uppercase tracking-wider text-right">Rate</th>
-                    <th className="px-3 py-2.5 text-[10px] font-black text-gray-500 dark:text-gray-400 uppercase tracking-wider text-right">{grnGstAmount > 0 ? "Amount (Incl. GST)" : "Amount"}</th>
+                    <th className="px-3 py-2.5 text-[10px] font-black text-gray-500 dark:text-gray-400 uppercase tracking-wider text-right">Amount</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50 dark:divide-gray-800/80 bg-white dark:bg-gray-900/50">
@@ -2767,7 +2788,9 @@ const GRNShipmentCard = /* @__PURE__ */ __name(({ shipment, po, isSubmitting, on
                     const unit = gi.unit || rootItem?.unit || poItem?.unit || "";
                     const gstPct = gi.gstPct ?? poItem?.gstPct ?? 0;
                     const gstType = gi.gstType || poItem?.gstType || "Exclusive";
+                    const isIncl = (gstType || "").toLowerCase().includes("inclus");
                     const itemTotalWithGst = calcChargeTotal(rcv * rate, gstPct, gstType);
+                    const gstOnItem = isIncl ? 0 : (itemTotalWithGst - rcv * rate);
                     return (
                       <tr key={i} className="hover:bg-gray-50/50 dark:hover:bg-gray-800/20 transition-colors">
                         <td className="px-3 py-3">
@@ -2780,20 +2803,27 @@ const GRNShipmentCard = /* @__PURE__ */ __name(({ shipment, po, isSubmitting, on
                         </td>
                         <td className="px-3 py-3 text-right text-[11px] text-gray-400 dark:text-gray-500 tabular-nums">
                           {fmtCur(rate)}
-                          {gstPct > 0 && (
-                            <span className="text-[9px] font-bold text-blue-500 block">
-                              {gstType === "Inclusive" ? `${gstPct}% GST (Incl.)` : `+${gstPct}% GST`}
+                          {gstPct > 0 && !isIncl && (
+                            <span className="text-[9px] font-bold block mt-0.5 text-blue-500">
+                              +{gstPct}% GST (Excl.)
                             </span>
                           )}
                         </td>
-                        <td className="px-3 py-3 text-right font-black text-[13px] text-gray-900 dark:text-white tabular-nums">{fmtCur(itemTotalWithGst)}</td>
+                        <td className="px-3 py-3 text-right tabular-nums">
+                          <span className="font-black text-[13px] text-gray-900 dark:text-white">{fmtCur(itemTotalWithGst)}</span>
+                          {gstPct > 0 && (
+                            <span className={`text-[9px] font-medium block mt-0.5 ${isIncl ? "text-emerald-500 dark:text-emerald-400" : "text-blue-400"}`}>
+                              {isIncl ? "GST Incl." : `+${fmtCur(gstOnItem)} GST`}
+                            </span>
+                          )}
+                        </td>
                       </tr>
                     );
                   })}
                 </tbody>
                 <tfoot>
                   <tr className="bg-orange-50/50 dark:bg-orange-900/10 border-t border-orange-100 dark:border-orange-900/20">
-                    <td colSpan={3} className="px-3 py-2.5 text-[10px] font-black text-orange-600 dark:text-orange-400 uppercase tracking-wide">{grnGstAmount > 0 ? "Shipment Total (Incl. GST)" : "Shipment Total"}</td>
+                    <td colSpan={3} className="px-3 py-2.5 text-[10px] font-black text-orange-600 dark:text-orange-400 uppercase tracking-wide">Shipment Total{grnGstAmount > 0.01 ? " (Incl. GST)" : ""}</td>
                     <td className="px-3 py-2.5 text-right font-black text-[14px] text-orange-500 dark:text-orange-400 tabular-nums">{fmtCur(grnValue)}</td>
                   </tr>
                 </tfoot>

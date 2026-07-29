@@ -17,7 +17,8 @@ import {
   IndianRupee,
   TrendingUp,
   Settings,
-  BarChart2
+  BarChart2,
+  GitBranch,
 } from "lucide-react";
 const ALL_ROLES = [
   "Super Admin",
@@ -215,6 +216,13 @@ const ROUTES = [
     icon: Settings,
     roles: ["admin", "Super Admin", "Director", "AGM"],
     permission: "MANAGE_USERS"
+  },
+  {
+    id: "ledger-search",
+    label: "Ledger Search",
+    icon: GitBranch,
+    roles: ALL_ROLES,
+    permission: "VIEW_DASHBOARD",
   },
   {
     id: "archive",

@@ -216,6 +216,23 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
   const [cancelNoteText, setCancelNoteText] = useState("");
 
   const [cancelTargetId, setCancelTargetId] = useState(null);
+
+  useEffect(() => {
+    const handler = async ({ detail }) => {
+      if (detail.source !== 'PO') return;
+      let po = pos.find(p => p.id === detail.id);
+      if (!po) {
+        try {
+          const res = await api.get('pos', { search: detail.id, limit: 1 });
+          po = res?.data?.[0];
+        } catch {}
+      }
+      if (po) { setSelectedPO(po); setViewModal(true); }
+    };
+    window.addEventListener('ledger:open', handler);
+    return () => window.removeEventListener('ledger:open', handler);
+  }, [pos]);
+
   useEffect(() => {
     if (Object.keys(errors).length > 0) {
       scrollToError();
@@ -1480,6 +1497,7 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
       category: invItem.category,
       requirementQty: 1,
       condition: invItem.condition || "New",
+      brand: invItem.brand || "",
     };
     setNewPO({ ...newPO, items: [...(newPO.items || []), item] });
   }, "addItem");

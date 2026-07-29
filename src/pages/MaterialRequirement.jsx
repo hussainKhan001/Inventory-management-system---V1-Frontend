@@ -98,6 +98,23 @@ export function MaterialRequirementPage() {
   const [successModal, setSuccessModal] = useState(null);
   const [viewModal, setViewModal] = useState(false);
   const [selectedRequirement, setSelectedRequirement] = useState(null);
+
+  useEffect(() => {
+    const handler = async ({ detail }) => {
+      if (detail.source !== 'MR') return;
+      let req = materialRequirements.find(r => r.id === detail.id);
+      if (!req) {
+        try {
+          const res = await api.get('material-requirements', { search: detail.id, limit: 1 });
+          req = res?.data?.[0];
+        } catch {}
+      }
+      if (req) { setSelectedRequirement(JSON.parse(JSON.stringify(req))); setViewModal(true); }
+    };
+    window.addEventListener('ledger:open', handler);
+    return () => window.removeEventListener('ledger:open', handler);
+  }, [materialRequirements]);
+
   const [deletingId, setDeletingId] = useState(null);
   const [deleteAllocConfirm, setDeleteAllocConfirm] = useState(null); // allocation id
   const [editAllocModal, setEditAllocModal] = useState(null); // { alc }

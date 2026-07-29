@@ -56,7 +56,8 @@ function ApprovalStamp({ status, label }) {
 
 
 export function POViewModal({ po, onClose, onApproveL1, onApproveL2, onApproveL3, onReject, onCancelApproved, onDownloadPDF, processingId }) {
-  const { suppliers, settings, role, hasPermission, user, updatePO, patchPoInStore, actionLoading, grns, materialRequirements } = useAppStore();
+  const { suppliers, settings, role, hasPermission, user, updatePO, patchPoInStore, actionLoading, grns, materialRequirements, catalogue } = useAppStore();
+  const getBrand = (item) => item.brand || catalogue.find(c => c.sku === item.sku)?.brand || "";
   const uid = user?._id;
   const isL1Approver = uid && settings?.approvers?.l1Id && uid === settings.approvers.l1Id;
   const isL2Approver = uid && settings?.approvers?.l2Id && uid === settings.approvers.l2Id;
@@ -439,7 +440,7 @@ export function POViewModal({ po, onClose, onApproveL1, onApproveL2, onApproveL3
                   <tr key={idx} className="text-[11px] hover:bg-gray-50/50 dark:hover:bg-gray-800/30">
                     <td className="border border-[#1A365D] p-1.5 text-center font-bold">{idx + 1}</td>
                     <td className="border border-[#1A365D] p-1.5"><p className="font-bold leading-tight">{safeStr(item.itemName)}</p></td>
-                    <td className="border border-[#1A365D] p-1.5 font-bold text-gray-700 dark:text-gray-300">{item.brand || "—"}</td>
+                    <td className="border border-[#1A365D] p-1.5 font-bold text-gray-700 dark:text-gray-300">{getBrand(item) || "—"}</td>
                     <td className="border border-[#1A365D] p-1.5 text-center font-bold text-gray-500">{safeStr(item.unit || "NOS")}</td>
                     <td className="border border-[#1A365D] p-1.5 text-center font-black text-gray-800 dark:text-slate-200">{item.qty}</td>
                     <td className="border border-[#1A365D] p-1.5 text-right font-medium text-slate-700 dark:text-slate-300">{fmtCur(item.rate)}</td>

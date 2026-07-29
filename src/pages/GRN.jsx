@@ -128,6 +128,23 @@ const GRNPage = /* @__PURE__ */ __name(() => {
   const [modal, setModal] = useState(false);
   const [viewModal, setViewModal] = useState(false);
   const [selectedGRN, setSelectedGRN] = useState(null);
+
+  useEffect(() => {
+    const handler = async ({ detail }) => {
+      if (detail.source !== 'GRN') return;
+      let grn = grns.find(g => g.id === detail.id);
+      if (!grn) {
+        try {
+          const res = await api.get('grn', { search: detail.id, limit: 1 });
+          grn = res?.data?.[0];
+        } catch {}
+      }
+      if (grn) { setSelectedGRN(grn); setViewModal(true); }
+    };
+    window.addEventListener('ledger:open', handler);
+    return () => window.removeEventListener('ledger:open', handler);
+  }, [grns]);
+
   const [previewPO, setPreviewPO] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
   const [targetGRNId, setTargetGRNId] = useState(null);

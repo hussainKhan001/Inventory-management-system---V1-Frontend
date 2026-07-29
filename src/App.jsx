@@ -35,6 +35,7 @@ const ProjectReports = lazy(() => import("./pages/ProjectReports").then((m) => (
 const Archive = lazy(() => import("./pages/Archive").then((m) => ({ default: m.Archive })));
 const AuditLogs = lazy(() => import("./pages/AuditLogs").then((m) => ({ default: m.AuditLogs })));
 const AccountsPage = lazy(() => import("./pages/AccountsPage").then((m) => ({ default: m.AccountsPage })));
+const LedgerSearch = lazy(() => import("./pages/LedgerSearch").then((m) => ({ default: m.LedgerSearch })));
 const TrackingPage = lazy(() => import("./pages/Tracking").then((m) => ({ default: m.TrackingPage })));
 const SettingsPage = lazy(() => import("./pages/Settings").then((m) => ({ default: m.SettingsPage })));
 const POReport = lazy(() => import("./pages/POReport").then((m) => ({ default: m.POReport })));
@@ -183,6 +184,7 @@ const AppContent = /* @__PURE__ */ __name(() => {
     { id: "profile",              el: <Profile /> },
     { id: "settings",             el: <SettingsPage /> },
     { id: "archive",              el: <Archive /> },
+    { id: "ledger-search",        el: <LedgerSearch /> },
   ];
 
   const effectiveHash = PAGE_ELEMENTS.find(p => p.id === hash) || hash === "tracking" ? hash : "dashboard";
