@@ -515,6 +515,13 @@ export function POFormModal({
                       </select>
                     </div>
 
+                    {item.brand && (
+                      <div className="mb-3">
+                        <label className="block text-[10px] text-gray-500 dark:text-gray-400 font-semibold mb-1">Brand</label>
+                        <span className="text-[13px] font-bold text-gray-900 dark:text-white">{item.brand}</span>
+                      </div>
+                    )}
+
                     {/* Total */}
                     <div className="flex justify-between items-center pt-3 border-t border-gray-100 dark:border-gray-800">
                       <span className="text-[12px] font-bold text-gray-500">Total (Incl. GST)</span>
@@ -529,7 +536,8 @@ export function POFormModal({
                 <table className="w-full text-left border-collapse min-w-[1000px] rounded-xl border border-gray-200 dark:border-gray-800 overflow-visible">
                   <thead>
                     <tr className="bg-gray-50 dark:bg-gray-800/60 border-b border-gray-200 dark:border-gray-700">
-                      <th className="px-3 py-2.5 text-[11px] font-bold text-gray-500 dark:text-gray-400 w-[35%]">Item</th>
+                      <th className="px-3 py-2.5 text-[11px] font-bold text-gray-500 dark:text-gray-400 w-[30%]">Item</th>
+                      <th className="px-3 py-2.5 text-[11px] font-bold text-gray-500 dark:text-gray-400 w-[10%]">Brand</th>
                       <th className="px-3 py-2.5 text-[11px] font-bold text-gray-500 dark:text-gray-400 w-[13%]">Condition</th>
                       <th className="px-3 py-2.5 text-[11px] font-bold text-gray-500 dark:text-gray-400 w-[10%]">Order Qty</th>
                       <th className="px-3 py-2.5 text-[11px] font-bold text-gray-500 dark:text-gray-400 w-[10%]">Rate (₹)</th>
@@ -628,6 +636,13 @@ export function POFormModal({
                               </div>
                             </div>
                           )}
+                        </td>
+
+                        {/* Brand */}
+                        <td className="px-3 py-3">
+                          <span className="text-[13px] font-bold text-gray-900 dark:text-white">
+                            {item.brand || "—"}
+                          </span>
                         </td>
 
                         {/* Condition */}

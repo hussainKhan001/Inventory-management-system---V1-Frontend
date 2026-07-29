@@ -426,7 +426,8 @@ export function POViewModal({ po, onClose, onApproveL1, onApproveL2, onApproveL3
               <thead>
                 <tr className="bg-[#1A365D] text-[10px] font-bold text-white">
                   <th className="border border-[#1A365D] p-1.5 text-center w-12">S.no.</th>
-                  <th className="border border-[#1A365D] p-1.5 text-left min-w-[250px]">Name / description</th>
+                  <th className="border border-[#1A365D] p-1.5 text-left min-w-[200px]">Name / description</th>
+                  <th className="border border-[#1A365D] p-1.5 text-left w-28">Brand</th>
                   <th className="border border-[#1A365D] p-1.5 text-center w-20">Uqc</th>
                   <th className="border border-[#1A365D] p-1.5 text-center w-20">Qty</th>
                   <th className="border border-[#1A365D] p-1.5 text-right w-28">Rate (Rs)</th>
@@ -438,6 +439,7 @@ export function POViewModal({ po, onClose, onApproveL1, onApproveL2, onApproveL3
                   <tr key={idx} className="text-[11px] hover:bg-gray-50/50 dark:hover:bg-gray-800/30">
                     <td className="border border-[#1A365D] p-1.5 text-center font-bold">{idx + 1}</td>
                     <td className="border border-[#1A365D] p-1.5"><p className="font-bold leading-tight">{safeStr(item.itemName)}</p></td>
+                    <td className="border border-[#1A365D] p-1.5 font-bold text-gray-700 dark:text-gray-300">{item.brand || "—"}</td>
                     <td className="border border-[#1A365D] p-1.5 text-center font-bold text-gray-500">{safeStr(item.unit || "NOS")}</td>
                     <td className="border border-[#1A365D] p-1.5 text-center font-black text-gray-800 dark:text-slate-200">{item.qty}</td>
                     <td className="border border-[#1A365D] p-1.5 text-right font-medium text-slate-700 dark:text-slate-300">{fmtCur(item.rate)}</td>
@@ -458,7 +460,7 @@ export function POViewModal({ po, onClose, onApproveL1, onApproveL2, onApproveL3
                     [`Unloading Charges (${po.unloadingGstPct ?? 18}% GST · ${po.unloadingGstType || "Exclusive"})`, calcChargeTotal(po.unloadingAmount || 0, po.unloadingGstPct || 0, po.unloadingGstType || "Exclusive"), false],
                   ].map(([label, value, isInclusive]) => (
                     <tr key={label} className="bg-white dark:bg-gray-900 border-b border-[#1A365D]">
-                      <td colSpan={4} className="border-x border-[#1A365D] p-1.5" />
+                      <td colSpan={5} className="border-x border-[#1A365D] p-1.5" />
                       <td className="border border-[#1A365D] p-1.5 text-right text-[10px] font-black bg-gray-50/50 dark:bg-slate-800/40">{label}</td>
                       <td className="border border-[#1A365D] p-1.5 text-right text-[11px] font-black text-slate-800 dark:text-slate-200">
                         {isInclusive
@@ -469,7 +471,7 @@ export function POViewModal({ po, onClose, onApproveL1, onApproveL2, onApproveL3
                   ));
                 })()}
                 <tr className="bg-gray-100 dark:bg-gray-800 font-black">
-                  <td colSpan={4} className="border-x border-b border-[#1A365D] p-1.5" />
+                  <td colSpan={5} className="border-x border-b border-[#1A365D] p-1.5" />
                   <td className="border border-[#1A365D] p-1.5 text-right text-[11px] font-black bg-[#1A365D] text-white">Grand Total (Rs)</td>
                   <td className="border border-[#1A365D] p-2 text-right text-[14px] bg-[#1A365D] text-white">{fmtCur(displayTotalValue)}</td>
                 </tr>

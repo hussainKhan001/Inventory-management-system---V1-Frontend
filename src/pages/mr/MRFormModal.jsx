@@ -20,6 +20,7 @@ export function MRFormModal({ open, isEditing, initialData, onClose, onSuccess }
     project: "",
     location: "",
     workType: "",
+    purpose: "",
     requirementDate: todayStr(),
     items: [{ materialName: "", sku: "", qty: 1, unit: "", condition: "New", category: "" }],
   });
@@ -240,6 +241,7 @@ export function MRFormModal({ open, isEditing, initialData, onClose, onSuccess }
       project: form.project === "Other" ? otherProject : form.project,
       location: form.location || "",
       workType: form.workType || "",
+      purpose: form.purpose || "",
       requirementDate: form.requirementDate || todayStr(),
       date: new Date().toISOString(),
       status: "Store Pending",
@@ -409,6 +411,16 @@ export function MRFormModal({ open, isEditing, initialData, onClose, onSuccess }
               value={form.location}
               onChange={e => setForm(f => ({ ...f, location: e.target.value }))}
               error={errors.location}
+            />
+          </div>
+          <div className="md:col-span-2">
+            <label className="block text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1.5">Purpose</label>
+            <textarea
+              rows={3}
+              placeholder="Describe the purpose or reason for this material requirement..."
+              value={form.purpose || ""}
+              onChange={e => setForm(f => ({ ...f, purpose: e.target.value }))}
+              className="w-full px-3 py-2.5 border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-xl text-[13px] text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-600 focus:outline-none focus:border-primary resize-none"
             />
           </div>
         </div>

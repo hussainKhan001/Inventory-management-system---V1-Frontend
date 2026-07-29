@@ -33,6 +33,7 @@ const PublicMaterialRequirement = /* @__PURE__ */ __name(() => {
     project: "",
     location: "",
     workType: "",
+    purpose: "",
     requirementDate: todayStr(),
     items: [{ materialName: "", sku: "", qty: 1, unit: "", condition: "New", category: "" }]
   });
@@ -133,7 +134,7 @@ const PublicMaterialRequirement = /* @__PURE__ */ __name(() => {
         project: form.project === "Other" ? otherProject : form.project,
         location: form.location || "",
         date: (/* @__PURE__ */ new Date()).toISOString(),
-        status: allInStock ? "Approved by Store" : "Store Pending",
+        status: "Store Pending",
         items: checkedItems
       };
       const result = await submitPublicMaterialRequirement(payload);
@@ -182,6 +183,7 @@ const PublicMaterialRequirement = /* @__PURE__ */ __name(() => {
           project: "",
           location: "",
           workType: "",
+          purpose: "",
           requirementDate: todayStr(),
           items: [{ materialName: "", sku: "", qty: 1, unit: "", condition: "New", category: "" }]
         });
@@ -272,6 +274,17 @@ const PublicMaterialRequirement = /* @__PURE__ */ __name(() => {
     onChange={(e) => setForm({ ...form, location: e.target.value })}
     error={errors.location}
   />
+              </div>
+
+              <div className="md:col-span-2">
+                <label className="block text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1.5">Purpose</label>
+                <textarea
+                  rows={3}
+                  placeholder="Describe the purpose or reason for this material requirement..."
+                  value={form.purpose || ""}
+                  onChange={(e) => setForm({ ...form, purpose: e.target.value })}
+                  className="w-full px-3 py-2.5 border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-xl text-[13px] text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-600 focus:outline-none focus:border-primary resize-none"
+                />
               </div>
             </div>
 

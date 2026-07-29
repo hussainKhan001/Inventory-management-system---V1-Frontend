@@ -179,7 +179,8 @@ const POPreviewModal = /* @__PURE__ */ __name(({
               <thead>
                 <tr className="bg-[#1A365D] text-[10px] font-bold text-white">
                   <th className="border border-[#1A365D] p-1.5 text-center w-12 ">S.No.</th>
-                  <th className="border border-[#1A365D] p-1.5 text-left min-w-[250px] tracking-tighter">Name / Description</th>
+                  <th className="border border-[#1A365D] p-1.5 text-left min-w-[200px] tracking-tighter">Name / Description</th>
+                  <th className="border border-[#1A365D] p-1.5 text-left w-28 tracking-tighter">Brand</th>
                   <th className="border border-[#1A365D] p-1.5 text-center w-20 ">UQC</th>
                   <th className="border border-[#1A365D] p-1.5 text-center w-20 ">Qty</th>
                   <th className="border border-[#1A365D] p-1.5 text-right w-28 tracking-tighter">Rate (Rs)</th>
@@ -192,6 +193,7 @@ const POPreviewModal = /* @__PURE__ */ __name(({
                     <td className="border border-[#1A365D] p-1.5">
                        <p className="font-bold leading-tight">{safeStr(item.itemName)}</p>
                     </td>
+                    <td className="border border-[#1A365D] p-1.5 font-bold text-gray-700 dark:text-gray-300">{item.brand || "—"}</td>
                     <td className="border border-[#1A365D] p-1.5 text-center font-bold text-gray-500 ">{safeStr(item.unit || "NOS")}</td>
                     <td className="border border-[#1A365D] p-1.5 text-center font-black text-gray-800 dark:text-slate-200">{item.qty}</td>
                     <td className="border border-[#1A365D] p-1.5 text-right font-medium text-slate-700 dark:text-slate-300">{fmtCur(item.rate)}</td>
@@ -205,7 +207,7 @@ const POPreviewModal = /* @__PURE__ */ __name(({
               </tbody>
               <tfoot>
                   <tr className="bg-white dark:bg-gray-900 border-b border-[#1A365D]">
-                    <td colSpan={4} className="border-x border-[#1A365D] p-1.5" />
+                    <td colSpan={5} className="border-x border-[#1A365D] p-1.5" />
                     <td className="border border-[#1A365D] p-1.5 text-right text-[10px] font-black bg-gray-50/50 dark:bg-slate-800/40">Total (Rs)</td>
                     <td className="border border-[#1A365D] p-1.5 text-right text-[11px] font-black text-slate-800 dark:text-slate-200">
                       {fmtCur(po.items.reduce(
@@ -215,7 +217,7 @@ const POPreviewModal = /* @__PURE__ */ __name(({
                     </td>
                   </tr>
                   <tr className="bg-white dark:bg-gray-900 border-b border-[#1A365D]">
-                    <td colSpan={4} className="border-x border-[#1A365D] p-1.5" />
+                    <td colSpan={5} className="border-x border-[#1A365D] p-1.5" />
                      <td className="border border-[#1A365D] p-1.5 text-right text-[10px] font-black bg-gray-50/50 dark:bg-slate-800/40">GST {po.items[0]?.gstPct || 18}%</td>
                      <td className="border border-[#1A365D] p-1.5 text-right text-[11px] font-black italic text-slate-500 dark:text-slate-400">
                        {po.items[0]?.gstType || (po.totalValue > po.items.reduce((s, it) => s + it.qty * it.rate, 0) + 0.5 ? "Exclusive" : "Inclusive")}

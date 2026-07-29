@@ -746,12 +746,13 @@ const Quotations = /* @__PURE__ */ __name(() => {
                         <thead>
                           <tr className="bg-gray-50 dark:bg-gray-800/80 border-b border-gray-100 dark:border-gray-700/60">
                             <th className="px-5 py-3 text-center text-[9px] font-black text-gray-400 tracking-[0.15em] w-16">Approve</th>
-                            <th className="px-5 py-3 text-[9px] font-black text-gray-400 tracking-[0.15em] ">Description</th>
+                            <th className="px-5 py-3 text-[9px] font-black text-gray-400 tracking-[0.15em]">Description</th>
+                            <th className="px-4 py-3 text-[9px] font-black text-gray-400 tracking-[0.15em]">Brand</th>
                             <th className="px-4 py-3 text-center text-[9px] font-black text-gray-400 tracking-[0.15em] w-20">Required</th>
                             <th className="px-4 py-3 text-center text-[9px] font-black text-gray-400 tracking-[0.15em] w-20">Offered</th>
-                            <th className="px-4 py-3 text-right text-[9px] font-black text-gray-400 tracking-[0.15em] ">Rate</th>
-                            <th className="px-4 py-3 text-right text-[9px] font-black text-gray-400 tracking-[0.15em] ">GST</th>
-                            <th className="px-5 py-3 text-right text-[9px] font-black text-gray-400 tracking-[0.15em] ">Total</th>
+                            <th className="px-4 py-3 text-right text-[9px] font-black text-gray-400 tracking-[0.15em]">Rate</th>
+                            <th className="px-4 py-3 text-right text-[9px] font-black text-gray-400 tracking-[0.15em]">GST</th>
+                            <th className="px-5 py-3 text-right text-[9px] font-black text-gray-400 tracking-[0.15em]">Total</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-50 dark:divide-gray-700/40 bg-white dark:bg-gray-900/30">
@@ -778,7 +779,10 @@ const Quotations = /* @__PURE__ */ __name(() => {
                                 </td>
                                 <td className="px-5 py-4">
                                   <p className="text-[13px] font-bold text-gray-900 dark:text-white">{safeStr(item.materialName)}</p>
-                                  {item.sku && <p className="text-[9px] font-bold text-gray-400 tracking-widest mt-0.5 ">{safeStr(item.sku)}</p>}
+                                  {item.sku && <p className="text-[9px] font-bold text-gray-400 tracking-widest mt-0.5">{safeStr(item.sku)}</p>}
+                                </td>
+                                <td className="px-4 py-4">
+                                  <span className="text-[13px] font-bold text-gray-900 dark:text-white">{item.brand ? safeStr(item.brand) : "—"}</span>
                                 </td>
                                 <td className="px-4 py-4 text-center">
                                   <span className="text-sm font-black text-gray-800 dark:text-gray-100">{reqQty}</span>

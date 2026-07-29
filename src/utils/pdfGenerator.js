@@ -138,10 +138,11 @@ const generatePOPDF = /* @__PURE__ */ __name((po, supplier, settings = {}, retur
   autoTable(doc, {
     startY: y + 2,
     margin: { left: 10, right: 10 },
-    head: [["S.NO", "ITEM DESCRIPTION", "UQC", "QTY", "RATE (RS)", "AMOUNT (RS)"]],
+    head: [["S.NO", "ITEM DESCRIPTION", "BRAND", "UQC", "QTY", "RATE (RS)", "AMOUNT (RS)"]],
     body: po.items.map((it, i) => [
       i + 1,
       (it.itemName || "").toUpperCase(),
+      (it.brand || "—"),
       (it.unit || "NOS").toUpperCase(),
       it.qty,
       fmtRs(it.rate),
@@ -150,8 +151,8 @@ const generatePOPDF = /* @__PURE__ */ __name((po, supplier, settings = {}, retur
     styles: { fontSize: 8.5, cellPadding: 1.8, lineColor: [220, 220, 220], lineWidth: 0.1 },
     headStyles: { fillColor: [primaryColor[0], primaryColor[1], primaryColor[2]], textColor: 255, fontStyle: "bold" },
     columnStyles: {
-      4: { halign: "right" },
-      5: { halign: "right", fontStyle: "bold" }
+      5: { halign: "right" },
+      6: { halign: "right", fontStyle: "bold" }
     }
   });
   y = doc.lastAutoTable.finalY + 2;

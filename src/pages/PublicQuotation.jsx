@@ -149,7 +149,8 @@ const PublicQuotation = /* @__PURE__ */ __name(() => {
           unit: item.unit,
           rate: 0,
           gstPct: 18,
-          gstType: "Exclusive"
+          gstType: "Exclusive",
+          brand: "",
         }));
         setItems(initialItems);
       }
@@ -475,10 +476,21 @@ const PublicQuotation = /* @__PURE__ */ __name(() => {
                   {items.map((item, idx) => <tr key={idx} className="transition-all group">
                       <td className="px-6 py-6">
                         <p className="font-semibold text-gray-900 dark:text-gray-100 text-sm leading-tight mb-1">{item.materialName}</p>
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 mb-2">
                           <span className="text-[9px] px-1.5 py-0.5 bg-gray-100 dark:bg-gray-700 text-gray-500 rounded font-medium tracking-wider">Sku</span>
                           <span className="text-[10px] text-gray-400 font-mono">{item.sku || "N/A"}</span>
                         </div>
+                        <input
+                          type="text"
+                          placeholder="Brand name..."
+                          value={item.brand || ""}
+                          onChange={(e) => {
+                            const newItems = [...items];
+                            newItems[idx].brand = e.target.value;
+                            setItems(newItems);
+                          }}
+                          className="w-full bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-700 rounded-md h-9 text-[13px] font-medium text-gray-700 dark:text-gray-300 px-2 focus:outline-none focus:border-orange-500 transition-all placeholder-gray-300 dark:placeholder-gray-600"
+                        />
                       </td>
                       <td className="px-4 py-6 text-center">
                         <div className="flex flex-col items-center">
@@ -604,6 +616,20 @@ const PublicQuotation = /* @__PURE__ */ __name(() => {
     onChange={(e) => handleRateChange(idx, parseFloat(e.target.value))}
     className="font-semibold h-11"
   />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-bold text-gray-400 tracking-widest block mb-1.5">Brand</label>
+                    <input
+                      type="text"
+                      placeholder="Brand name..."
+                      value={item.brand || ""}
+                      onChange={(e) => {
+                        const newItems = [...items];
+                        newItems[idx].brand = e.target.value;
+                        setItems(newItems);
+                      }}
+                      className="w-full bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-700 rounded-xl text-sm font-medium text-gray-900 dark:text-gray-100 px-4 h-11 outline-none focus:border-orange-500 transition-all"
+                    />
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <Field

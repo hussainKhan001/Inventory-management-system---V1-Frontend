@@ -825,6 +825,7 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
               category: invItem?.category || mrItem.category || "General",
               requirementQty: mrItem.qty || qty,
               condition: "New",
+              brand: qItem.brand || "",
             };
           })
         : mr.items.map((mrItem) => {
