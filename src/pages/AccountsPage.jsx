@@ -2015,7 +2015,12 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
               let accStatusLabel = filter === "Approved" ? "L1 Pending"
                 : filter === "L2 Director" ? "L2 Pending"
                 : filter === "My Approvals" ? (
-                    (po.accountStatus === "bill_approved" || Boolean(po.billApprovedBy)) ? "L2 Pending" : "L1 Pending"
+                    (po.accountStatus === "bill_approved" || Boolean(po.billApprovedBy) ||
+                      (po.accountStatus === "payment_initiated" && (() => {
+                        const l1 = (po.paymentApprovals || []).find(a => a.level === 1);
+                        return l1?.status === "Approved";
+                      })()))
+                    ? "L2 Pending" : "L1 Pending"
                   )
                 : (["payment_pending", "payment_initiated", "physical_check"].includes(po.accountStatus)) ? "Pending Payment"
                 : po.accountStatus === "paid" ? "Paid"
