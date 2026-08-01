@@ -5,7 +5,7 @@ const API_BASE = import.meta.env.VITE_API_BASE_URL || "/api";
 const instance = axios.create({
   baseURL: API_BASE,
   withCredentials: true,
-  timeout: 15_000,
+  timeout: 60_000,
 });
 
 // ── GET cache & deduplication ─────────────────────────────────────────────────

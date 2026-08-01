@@ -6,7 +6,7 @@ import {
 import {
   Check, Link2, RefreshCw, CheckCircle, AlertTriangle,
   User, Calendar, Building, MapPin, Activity, ShieldAlert,
-  Package, Trash2, Search, RotateCcw,
+  Package, Trash2, Search, RotateCcw, FileText,
 } from "lucide-react";
 import { safeStr, formatDateTime, formatDate } from "../../utils";
 import { toast } from "react-hot-toast";
@@ -433,6 +433,19 @@ export function MRDetailModal({ requirement, onClose, onRequirementUpdate }) {
                 <p className="text-[10px] font-bold text-gray-400 tracking-widest leading-none">Status</p>
                 <div className="mt-1"><StatusBadge status={req.status} /></div>
               </div>
+            </div>
+          </div>
+
+          {/* Purpose */}
+          <div className="flex items-start gap-3 p-4 bg-gray-50/25 dark:bg-[#0F172A]/40 border border-gray-150/60 dark:border-gray-800/80 rounded-2xl">
+            <div className="w-9 h-9 rounded-lg bg-orange-50 dark:bg-orange-950/30 flex items-center justify-center text-orange-600 dark:text-orange-400 shrink-0 mt-0.5">
+              <FileText className="w-5 h-5" />
+            </div>
+            <div>
+              <p className="text-[10px] font-bold text-gray-400 tracking-widest leading-none mb-1.5">PURPOSE</p>
+              <p className="text-[13px] font-medium text-gray-800 dark:text-gray-200 leading-relaxed">
+                {req.purpose || <span className="text-gray-400 italic">—</span>}
+              </p>
             </div>
           </div>
 

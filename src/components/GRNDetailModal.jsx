@@ -141,8 +141,16 @@ export function GRNDetailModal({ grn, grns, onClose, onEditReceipt }) {
               </div>
               <div className="grid grid-cols-12 items-center">
                 <div className="col-span-4 p-3 text-[11px] font-bold text-gray-400 border-r border-gray-100 dark:border-gray-800">Challan/inv</div>
-                <div className="col-span-8 px-4 py-2.5 text-[13px] font-black text-blue-500 dark:text-blue-400">
-                  {grnDoc.challan}
+                <div className="col-span-8 px-4 py-2.5 flex items-center gap-3">
+                  <span className="text-[13px] font-black text-blue-500 dark:text-blue-400">{grnDoc.challan}</span>
+                  {(grnDoc.challanPhotos?.[0] || grnDoc.challanImageUrl) && (
+                    <div
+                      onClick={() => setPreviewImage(grnDoc.challanPhotos?.[0] || grnDoc.challanImageUrl)}
+                      className="w-10 h-10 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden cursor-pointer hover:scale-105 transition-transform shadow-sm bg-white dark:bg-gray-900 shrink-0"
+                    >
+                      <img src={grnDoc.challanPhotos?.[0] || grnDoc.challanImageUrl} referrerPolicy="no-referrer" className="w-full h-full object-cover" />
+                    </div>
+                  )}
                 </div>
               </div>
               <div className="grid grid-cols-12 items-center">
@@ -154,67 +162,109 @@ export function GRNDetailModal({ grn, grns, onClose, onEditReceipt }) {
             </div>
           </div>
 
-          {/* Items Table */}
-          <div className="space-y-4">
-            <div className="flex items-center gap-2">
-              <div className="h-0.5 w-4 bg-[#F97316]" />
-              <h3 className="text-[12px] font-bold text-gray-900 dark:text-white">Received materials</h3>
-            </div>
-            <div className="overflow-hidden rounded-xl border border-gray-100 dark:border-gray-800">
-              <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse">
-                  <thead>
-                    <tr className="bg-gray-50/90 dark:bg-gray-800/90 backdrop-blur-md border-b border-[#E8ECF0] dark:border-gray-800">
-                      <th className="px-5 py-3 text-[11px] font-bold text-[#6B7280] dark:text-gray-400 tracking-wider">Material description</th>
-                      <th className="px-5 py-3 text-[11px] font-bold text-[#6B7280] dark:text-gray-400 tracking-wider text-center">Ordered</th>
-                      <th className="px-5 py-3 text-[11px] font-bold text-[#6B7280] dark:text-gray-400 tracking-wider text-center">Received</th>
-                      <th className="px-5 py-3 text-[11px] font-bold text-[#6B7280] dark:text-gray-400 tracking-wider text-center">Variance</th>
-                      <th className="px-5 py-3 text-[11px] font-bold text-[#6B7280] dark:text-gray-400 tracking-wider text-center">Unit</th>
-                      <th className="px-5 py-3 text-[11px] font-bold text-[#6B7280] dark:text-gray-400 tracking-wider">Photos</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-50 dark:divide-gray-800">
-                    {(grnDoc.items || []).map((item, idx) => {
-                      const ordered = item.ordered || 0;
-                      const received = item.received || 0;
-                      const variance = received - ordered;
-                      return (
-                        <tr key={idx} className="hover:bg-gray-50/30 dark:hover:bg-gray-800/10 transition-colors">
-                          <td className="px-5 py-4">
-                            <div className="flex flex-col">
-                              <span className="text-[13px] font-semibold text-gray-900 dark:text-white">
-                                {item.itemName || item.name || item.material || "Unknown Item"}
-                              </span>
-                              <span className="text-[11px] text-gray-500">{item.sku}</span>
-                            </div>
-                          </td>
-                          <td className="px-5 py-4 text-center text-[13px] text-gray-500">{ordered}</td>
-                          <td className="px-5 py-4 text-center">
-                            <span className="text-[14px] font-bold text-gray-900 dark:text-white">{received}</span>
-                          </td>
-                          <td className="px-5 py-4 text-center">
-                            <span className={cn("text-[12px] font-bold", variance === 0 ? "text-gray-400" : variance > 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-500 dark:text-red-400")}>
-                              {variance > 0 ? `+${variance}` : variance}
-                            </span>
-                          </td>
-                          <td className="px-5 py-4 text-center">
-                            <span className="text-[11px] font-medium text-gray-500 bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded">{item.unit}</span>
-                          </td>
-                          <td className="px-5 py-4">
-                            <div className="flex -space-x-2 overflow-hidden">
-                              {(item.images || []).map((img, i) => (
-                                <img key={i} src={img} className="w-8 h-8 rounded-lg border-2 border-white dark:border-gray-900 shadow-sm object-cover cursor-pointer hover:z-10 hover:scale-110 transition-transform" onClick={() => setPreviewImage(img)} referrerPolicy="no-referrer" />
-                              ))}
-                            </div>
-                          </td>
+          {/* Items Table — aggregated across all shipments */}
+          {(() => {
+            const po = pos?.find(p => p.id === grnDoc.poId);
+            const getOrdered = (sku, itemName) => {
+              if (!po) return 0;
+              const pi = (po.items || []).find(pi =>
+                (sku && pi.sku && pi.sku === sku) ||
+                (pi.materialName || pi.itemName || "").toLowerCase() === (itemName || "").toLowerCase()
+              );
+              return pi?.qty || pi?.quantity || 0;
+            };
+            const itemMap = new Map();
+            (grnDoc.items || []).forEach(item => {
+              const key = item.sku || item.itemName || item.name || "";
+              itemMap.set(key, {
+                itemName: item.itemName || item.name || item.material || "Unknown Item",
+                sku: item.sku,
+                unit: item.unit,
+                ordered: item.ordered || getOrdered(item.sku, item.itemName || item.name),
+                received: item.received || 0,
+                images: item.images || [],
+              });
+            });
+            (grnDoc.receipts || []).forEach(receipt => {
+              (receipt.items || []).forEach(item => {
+                const key = item.sku || item.itemName || item.name || "";
+                if (itemMap.has(key)) {
+                  itemMap.get(key).received += (item.received || 0);
+                } else {
+                  const name = item.itemName || item.name || item.material || "Unknown Item";
+                  itemMap.set(key, {
+                    itemName: name,
+                    sku: item.sku,
+                    unit: item.unit || (grnDoc.items || []).find(gi => gi.sku === item.sku)?.unit || "",
+                    ordered: getOrdered(item.sku, name),
+                    received: item.received || 0,
+                    images: item.images || [],
+                  });
+                }
+              });
+            });
+            const allItems = Array.from(itemMap.values());
+            return (
+              <div className="space-y-4">
+                <div className="flex items-center gap-2">
+                  <div className="h-0.5 w-4 bg-[#F97316]" />
+                  <h3 className="text-[12px] font-bold text-gray-900 dark:text-white">Received materials</h3>
+                </div>
+                <div className="overflow-hidden rounded-xl border border-gray-100 dark:border-gray-800">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse">
+                      <thead>
+                        <tr className="bg-gray-50/90 dark:bg-gray-800/90 backdrop-blur-md border-b border-[#E8ECF0] dark:border-gray-800">
+                          <th className="px-5 py-3 text-[11px] font-bold text-[#6B7280] dark:text-gray-400 tracking-wider">Material description</th>
+                          <th className="px-5 py-3 text-[11px] font-bold text-[#6B7280] dark:text-gray-400 tracking-wider text-center">Ordered</th>
+                          <th className="px-5 py-3 text-[11px] font-bold text-[#6B7280] dark:text-gray-400 tracking-wider text-center">Received</th>
+                          <th className="px-5 py-3 text-[11px] font-bold text-[#6B7280] dark:text-gray-400 tracking-wider text-center">Variance</th>
+                          <th className="px-5 py-3 text-[11px] font-bold text-[#6B7280] dark:text-gray-400 tracking-wider text-center">Unit</th>
+                          <th className="px-5 py-3 text-[11px] font-bold text-[#6B7280] dark:text-gray-400 tracking-wider">Photos</th>
                         </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
+                      </thead>
+                      <tbody className="divide-y divide-gray-50 dark:divide-gray-800">
+                        {allItems.map((item, idx) => {
+                          const ordered = item.ordered || 0;
+                          const received = item.received || 0;
+                          const variance = received - ordered;
+                          return (
+                            <tr key={idx} className="hover:bg-gray-50/30 dark:hover:bg-gray-800/10 transition-colors">
+                              <td className="px-5 py-4">
+                                <div className="flex flex-col">
+                                  <span className="text-[13px] font-semibold text-gray-900 dark:text-white">{item.itemName}</span>
+                                  <span className="text-[11px] text-gray-500">{item.sku}</span>
+                                </div>
+                              </td>
+                              <td className="px-5 py-4 text-center text-[13px] text-gray-500">{ordered}</td>
+                              <td className="px-5 py-4 text-center">
+                                <span className="text-[14px] font-bold text-gray-900 dark:text-white">{received}</span>
+                              </td>
+                              <td className="px-5 py-4 text-center">
+                                <span className={cn("text-[12px] font-bold", variance === 0 ? "text-gray-400" : variance > 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-500 dark:text-red-400")}>
+                                  {variance > 0 ? `+${variance}` : variance}
+                                </span>
+                              </td>
+                              <td className="px-5 py-4 text-center">
+                                <span className="text-[11px] font-medium text-gray-500 bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded">{item.unit}</span>
+                              </td>
+                              <td className="px-5 py-4">
+                                <div className="flex -space-x-2 overflow-hidden">
+                                  {(item.images || []).map((img, i) => (
+                                    <img key={i} src={img} className="w-8 h-8 rounded-lg border-2 border-white dark:border-gray-900 shadow-sm object-cover cursor-pointer hover:z-10 hover:scale-110 transition-transform" onClick={() => setPreviewImage(img)} referrerPolicy="no-referrer" />
+                                  ))}
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
               </div>
-            </div>
-          </div>
+            );
+          })()}
 
           {/* Delivery History */}
           {(grnDoc.receipts?.length > 0) && (

@@ -39,6 +39,7 @@ const LedgerSearch = lazy(() => import("./pages/LedgerSearch").then((m) => ({ de
 const TrackingPage = lazy(() => import("./pages/Tracking").then((m) => ({ default: m.TrackingPage })));
 const SettingsPage = lazy(() => import("./pages/Settings").then((m) => ({ default: m.SettingsPage })));
 const POReport = lazy(() => import("./pages/POReport").then((m) => ({ default: m.POReport })));
+const ProcurementTracker = lazy(() => import("./pages/ProcurementTracker").then((m) => ({ default: m.ProcurementTracker })));
 const PageLoader = /* @__PURE__ */ __name(() => (
   <div className="p-6 space-y-6 w-full animate-pulse">
     <div className="flex flex-col lg:flex-row justify-between gap-4">
@@ -174,6 +175,7 @@ const AppContent = /* @__PURE__ */ __name(() => {
     { id: "transfer-outward",     el: <TransactionsPage type="Transfer Outward" /> },
     { id: "material-requirements",el: <MaterialRequirementPage /> },
     { id: "po-report",            el: <POReport /> },
+    { id: "procurement-tracker", el: <ProcurementTracker /> },
     { id: "quotations",           el: <Quotations /> },
     { id: "writeoffs",            el: <WriteOffPage /> },
     { id: "stockcheck",           el: <StockCheck /> },

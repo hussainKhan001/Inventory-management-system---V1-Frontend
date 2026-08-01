@@ -34,6 +34,7 @@ export function normalizeShipments(grn) {
     verifyRemark:  grn.verifyRemark,
     approvedBy:    grn.approvedBy,
     approvedAt:    grn.approvedAt,
+    approveRemark: grn.approveRemark,
     payment:       grn.payment,
   });
 
@@ -60,6 +61,7 @@ export function normalizeShipments(grn) {
       verifyRemark:  r.verifyRemark,
       approvedBy:    r.approvedBy,
       approvedAt:    r.approvedAt,
+      approveRemark: r.approveRemark,
       payment:       r.payment,
       // root GRN items needed for unit lookup in receipt rows
       rootItems:     grn.items || [],

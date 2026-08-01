@@ -626,7 +626,7 @@ export function POViewModal({ po, onClose, onApproveL1, onApproveL2, onApproveL3
                       <span className="text-gray-500 mr-2">NAME:</span><span className="font-bold uppercase">{col.name}</span>
                     </div>
                     <div className="p-2.5 min-h-[35px] flex items-center bg-white dark:bg-gray-900/50">
-                      <span className="text-gray-500 mr-2">DATE:</span><span className="font-mono font-bold">{col.date ? formatPrettyDate(col.date) : " "}</span>
+                      <span className="text-gray-500 mr-2">DATE:</span><span className="font-mono font-bold">{col.date ? formatPrettyDate(col.date) : col.stampStatus === "rejected" && po.rejectedAt ? formatPrettyDate(po.rejectedAt) : " "}</span>
                     </div>
                     <div className="p-4 h-16 flex items-center justify-center bg-slate-50/30 dark:bg-slate-900/10 select-none">
                       {i === 0 ? (

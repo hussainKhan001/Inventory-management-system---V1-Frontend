@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
+import { createPortal } from "react-dom";
 import { X, ChevronLeft, ChevronRight, ZoomIn, ZoomOut, RotateCcw, Download } from "lucide-react";
 
 export function ImageViewer({ images = [], index = 0, title, onClose }) {
@@ -80,7 +81,7 @@ export function ImageViewer({ images = [], index = 0, title, onClose }) {
     ? "imgSlideRight 0.28s cubic-bezier(0.4,0,0.2,1) forwards"
     : "imgFadeIn 0.3s ease forwards";
 
-  return (
+  return createPortal(
     <div
       className="fixed inset-0 z-[9999] flex flex-col"
       style={{ background: "rgba(0,0,0,0.97)", animation: "overlayIn 0.2s ease forwards" }}
@@ -270,6 +271,7 @@ export function ImageViewer({ images = [], index = 0, title, onClose }) {
           </div>
         )}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

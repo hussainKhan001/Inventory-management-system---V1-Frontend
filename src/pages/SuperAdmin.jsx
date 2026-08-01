@@ -9,29 +9,26 @@ import { fmtCur } from "../utils";
 import { toast } from "react-hot-toast";
 import { motion, AnimatePresence } from "motion/react";
 const PERM_META = {
-  // Accounts & Payments — tab-view permissions (each tab has its own)
-  VIEW_ACCOUNTS:              { tab: "All",             func: "See all PO entries across every status" },
-  VIEW_ACCOUNTS_DRAFT:        { tab: "Draft",           func: "View bills pending verification (Maker queue)" },
-  VIEW_ACCOUNTS_VERIFIED:     { tab: "Verified",        func: "View bills that have been verified (Checker queue)" },
-  VIEW_ACCOUNTS_APPROVED:     { tab: "Approved",        func: "View approved bills ready for payment initiation" },
-  VIEW_ACCOUNTS_PENDING_PAYMENT: { tab: "Pending Payment", func: "View bills awaiting payment initiation" },
-  VIEW_ACCOUNTS_L2_AGM:       { tab: "L2 AGM",          func: "View payments pending AGM approval" },
-  VIEW_ACCOUNTS_L3_GM:        { tab: "L3 GM",           func: "View payments pending GM approval" },
-  VIEW_ACCOUNTS_L4_DIRECTOR:  { tab: "L4 Director",     func: "View payments pending Director approval" },
-  VIEW_ACCOUNTS_PHYSICAL_CHECK: { tab: "Physical Check", func: "View payments pending physical document check" },
-  VIEW_ACCOUNTS_PARTIAL_PAID: { tab: "Partial Paid",    func: "View POs with partial payments recorded" },
-  VIEW_ACCOUNTS_PAID:         { tab: "Paid",            func: "View fully settled payment records" },
-  VIEW_ACCOUNTS_REJECTED:     { tab: "Rejected",        func: "View bills sent back for revision" },
-  VIEW_PAYMENTS:              { tab: "Paid (legacy)",   func: "Legacy: view completed payment records" },
-  // Accounts & Payments — action permissions (approve / verify / reject)
-  VERIFY_BILL:                { tab: "Draft",          func: "Mark a bill as verified (Maker role)" },
-  APPROVE_BILL:               { tab: "Verified",       func: "Approve verified bills (Checker role)" },
-  REJECT_BILL:                { tab: "All tabs",       func: "Send a bill back for revision" },
-  MAKE_PAYMENT:               { tab: "Pending Payment", func: "Initiate payment process for approved bills" },
-  APPROVE_PAYMENT_AGM:        { tab: "L2 AGM",         func: "AGM-level payment approval" },
-  APPROVE_PAYMENT_GM:         { tab: "L3 GM",          func: "GM-level payment approval" },
-  APPROVE_PAYMENT_DIRECTOR:   { tab: "L4 Director",    func: "Director-level final payment approval" },
-  PHYSICAL_CHECK_PAYMENT:     { tab: "Physical Check", func: "Physical doc verification & mark as paid" },
+  // Accounts & Payments — tab-view permissions (one per UI tab)
+  VIEW_ACCOUNTS:              { tab: "All",              func: "See all PO entries across every status" },
+  VIEW_ACCOUNTS_DRAFT:        { tab: "Draft",            func: "View GRN bills pending verification (Maker queue)" },
+  VIEW_ACCOUNTS_VERIFIED:     { tab: "Verified",         func: "View bills that have been verified, awaiting L1 approval" },
+  VIEW_ACCOUNTS_APPROVED:     { tab: "L1 Approved",      func: "View L1-approved bills ready for payment initiation" },
+  VIEW_ACCOUNTS_PENDING_PAYMENT: { tab: "Pending Payment", func: "View bills where payment has been initiated and is under approval" },
+  VIEW_ACCOUNTS_L1_AGM:       { tab: "L1 AGM",           func: "View payments pending Account AGM (L1) approval" },
+  VIEW_ACCOUNTS_L2_DIRECTOR:  { tab: "L2 Director",      func: "View payments pending Director (L2) final approval" },
+  VIEW_ACCOUNTS_PAID:         { tab: "Paid",             func: "View fully paid POs" },
+  VIEW_ACCOUNTS_REJECTED:     { tab: "Rejected",         func: "View bills sent back for revision" },
+  // Accounts & Payments — action permissions
+  VERIFY_BILL:                { tab: "Draft",            func: "Verify a GRN shipment bill (Maker role)" },
+  REVERT_VERIFY:              { tab: "Verified",         func: "Revert a verified bill back to Draft" },
+  REJECT_BILL:                { tab: "All tabs",         func: "Send a bill back for revision" },
+  MAKE_PAYMENT:               { tab: "Pending Payment",  func: "Record payment for an approved GRN shipment (Record Payment button)" },
+  APPROVE_PAYMENT_AGM:        { tab: "L1 AGM",           func: "Account AGM (L1) — approve or reject a verified GRN bill" },
+  APPROVE_PAYMENT_GM:         { tab: "Pending Payment",  func: "GM — mid-chain approval on a submitted payment" },
+  APPROVE_PAYMENT_DIRECTOR:   { tab: "L2 Director",      func: "Director (L2) — final approve or reject a pending payment" },
+  EDIT_PAYMENT_ENTRY:         { tab: "Paid",             func: "Edit or delete an existing payment entry" },
+  REMOVE_FROM_ACCOUNTS:       { tab: "All tabs",         func: "Remove a PO from the Accounts module (resets account status)" },
 };
 
 const PERMISSION_GROUPS = [
@@ -181,14 +178,10 @@ const PERMISSION_GROUPS = [
       "VIEW_ACCOUNTS_VERIFIED",
       "VIEW_ACCOUNTS_APPROVED",
       "VIEW_ACCOUNTS_PENDING_PAYMENT",
-      "VIEW_ACCOUNTS_L2_AGM",
-      "VIEW_ACCOUNTS_L3_GM",
-      "VIEW_ACCOUNTS_L4_DIRECTOR",
-      "VIEW_ACCOUNTS_PHYSICAL_CHECK",
-      "VIEW_ACCOUNTS_PARTIAL_PAID",
+      "VIEW_ACCOUNTS_L1_AGM",
+      "VIEW_ACCOUNTS_L2_DIRECTOR",
       "VIEW_ACCOUNTS_PAID",
-      "VIEW_ACCOUNTS_REJECTED",
-      "VIEW_PAYMENTS"
+      "VIEW_ACCOUNTS_REJECTED"
     ]
   },
   {
@@ -196,13 +189,14 @@ const PERMISSION_GROUPS = [
     name: "Accounts & Payments (Actions)",
     perms: [
       "VERIFY_BILL",
-      "APPROVE_BILL",
+      "REVERT_VERIFY",
       "REJECT_BILL",
       "MAKE_PAYMENT",
       "APPROVE_PAYMENT_AGM",
       "APPROVE_PAYMENT_GM",
       "APPROVE_PAYMENT_DIRECTOR",
-      "PHYSICAL_CHECK_PAYMENT"
+      "EDIT_PAYMENT_ENTRY",
+      "REMOVE_FROM_ACCOUNTS"
     ]
   },
   {
