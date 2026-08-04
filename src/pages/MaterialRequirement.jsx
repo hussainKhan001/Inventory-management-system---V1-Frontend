@@ -1201,6 +1201,7 @@ export function MaterialRequirementPage() {
             try {
               await api.delete(`material-requirements/${alc.mrId}/items/${encodeURIComponent(alc.sku)}/allocation`);
               toast.success("Allocation removed");
+              fetchResource("mr-allocations", 1, 2000, true, "", null, false, false, "", "", true);
               fetchResource("material-requirements", 1, 100, true, "", null, false, false, "", "", true);
               fetchResource("inventory", 1, 100, true, "", null, false, false, "", "", true);
             } catch (err) {
@@ -1236,7 +1237,7 @@ export function MaterialRequirementPage() {
                     const mrNum = editAllocModal.alc.mrNumber || editAllocModal.alc.mrId;
                     await api.putSimple(`material-requirements/${mrNum}/items/${encodeURIComponent(sku)}/allocation`, { allocatedQty: qty });
                     toast.success("Allocation updated");
-                    fetchResource("mr-allocations", 1, 2000, true);
+                    fetchResource("mr-allocations", 1, 2000, true, "", null, false, false, "", "", true);
                     fetchResource("material-requirements", 1, 100, true, "", null, false, false, "", "", true);
                     fetchResource("inventory", 1, 100, true, "", null, false, false, "", "", true);
                     setEditAllocModal(null);
