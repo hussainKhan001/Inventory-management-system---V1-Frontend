@@ -1,6 +1,6 @@
 var __defProp = Object.defineProperty;
 var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
-import React, { useState, useEffect, useMemo, useRef } from "react";
+import React, { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { useAppStore } from "../store";
 import { motion, AnimatePresence } from "motion/react";
@@ -148,12 +148,18 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
   const [l2RejectReason, setL2RejectReason] = useState("");
   const [approvalSubFilter, setApprovalSubFilter] = useState("all"); // "all" | "pending" | "approved"
 
-  const isSuperAdmin = !user?.role || (user?.role || "").toLowerCase() === "super admin" || user?.isSuperAdmin || (user?.role || "").toLowerCase() === "admin";
-  const canAccessTab = (perm) => {
-    if (!perm) return true;
-    if (isSuperAdmin) return true;
-    return hasPermission(perm);
-  };
+  const isSuperAdmin = useMemo(
+    () => !user?.role || (user?.role || "").toLowerCase() === "super admin" || user?.isSuperAdmin || (user?.role || "").toLowerCase() === "admin",
+    [user?.role, user?.isSuperAdmin]
+  );
+  const canAccessTab = useCallback(
+    (perm) => {
+      if (!perm) return true;
+      if (isSuperAdmin) return true;
+      return hasPermission(perm);
+    },
+    [isSuperAdmin, hasPermission]
+  );
   useEffect(() => {
     if (!paymentForm.toCompany) return;
     const supplierName = paymentForm.toCompany.toLowerCase();
@@ -175,7 +181,7 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
       }
     }
   }, [paymentForm.toCompany, suppliers]);
-  const refresh = /* @__PURE__ */ __name(async () => {
+  const refresh = useCallback(async () => {
     setIsRefreshing(true);
     const ACCOUNTS_STATUSES = ["GRN Variance", "GRN Fulfilled", "Ready for Payment", "PO Closed"];
     try {
@@ -211,7 +217,7 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
       toast.error("Failed to load accounts data. Please check your connection.");
     }
     setIsRefreshing(false);
-  }, "refresh");
+  }, [fetchResource, user?.id]);
   useEffect(() => {
     // Bust stale api.js cache so Super Admin permission changes reflect immediately
     bustCache("role-permissions");
@@ -379,7 +385,7 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
 
   // Returns the latest GRN that has not yet been linked to a payment installment.
   // Needed because a PO can have multiple GRN batches (multiple shipments).
-  const getCurrentGRN = /* @__PURE__ */ __name((po, grns) => {
+  const getCurrentGRN = useCallback((po, grns) => {
     const poGRNs = (grns || []).filter(g => g.poId === po.id);
     if (!poGRNs.length) return null;
     if (poGRNs.length === 1) return poGRNs[0];
@@ -388,22 +394,15 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
     );
     const paidGRNIds = new Set((po.paymentHistory || []).map(ph => ph.grnId).filter(Boolean));
     return sorted.find(g => !paidGRNIds.has(g.id)) || sorted[0];
-  }, "getCurrentGRN");
+  }, []);
 
   // List view: always show PO Grand Total so user sees the full contract amount.
   // Cycle-specific payable (per GRN batch) is shown inside the drawer.
-  const getPayableAmount = /* @__PURE__ */ __name((po) => {
+  const getPayableAmount = useCallback((po) => {
     if ((po.accountStatus || "").toLowerCase() === "paid")
       return po.totalPaid || po.totalValue || 0;
     return po.totalValue || 0;
-  }, "getPayableAmount");
-  const getSupplierName = /* @__PURE__ */ __name((supplierIdOption) => {
-    if (!supplierIdOption) return "Unknown Vendor";
-    const s = suppliers.find(
-      (sup) => sup.id === supplierIdOption || sup._id === supplierIdOption || (sup.companyName || "").toLowerCase() === supplierIdOption.toLowerCase() || (sup.name || "").toLowerCase() === supplierIdOption.toLowerCase()
-    );
-    return s?.companyName || supplierIdOption;
-  }, "getSupplierName");
+  }, []);
 
   // O(1) GRN lookup by PO id — avoids O(n*m) scans in metrics + filteredPOs
   const grnsByPoId = useMemo(() => {
@@ -425,92 +424,112 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
     return map;
   }, [suppliers]);
 
+  // O(1) id lookup via map; falls back to linear scan for name-based lookups
+  const getSupplierName = useCallback((supplierIdOption) => {
+    if (!supplierIdOption) return "Unknown Vendor";
+    const fromMap = supplierNameMap.get(supplierIdOption);
+    if (fromMap) return fromMap;
+    const s = suppliers.find(
+      (sup) => (sup.companyName || "").toLowerCase() === supplierIdOption.toLowerCase() || (sup.name || "").toLowerCase() === supplierIdOption.toLowerCase()
+    );
+    return s?.companyName || supplierIdOption;
+  }, [supplierNameMap, suppliers]);
+
   const metrics = useMemo(() => {
-    const all = localPos;
-    const pendingPaymentPOs = all.filter((p) => ["payment_pending", "payment_initiated", "physical_check"].includes((p.accountStatus || "").toLowerCase()));
-    const pendingPayment = pendingPaymentPOs.length;
-    const totalPendingAmount = pendingPaymentPOs.reduce((sum, p) => sum + Math.max(0, (p.totalValue || 0) - (p.totalPaid || 0)), 0);
-    const pendingVerify = all.filter((p) => {
-      const accStatus = (p.accountStatus || "").toLowerCase();
-      const advanced = ["bill_verified", "bill_approved", "payment_pending", "payment_initiated", "physical_check", "paid", "rejected"];
-      if (advanced.includes(accStatus)) return false;
-      if (accStatus === "partial_paid") {
-        const totalPd = p.totalPaid || p.payment?.amountPaid || 0;
-        const poTotalVal = p.totalValue || 0;
-        if (totalPd >= poTotalVal - 0.5) return false;
-      }
-      return true;
-    }).length;
-    const pendingVerified = all.filter((p) => {
+    // Single pass over localPos — replaces 8 separate .filter() iterations
+    const now = new Date();
+    const nowMonth = now.getMonth();
+    const nowYear = now.getFullYear();
+    // Hoist permission checks: called once instead of once per PO
+    const hasAGM = hasPermission("APPROVE_PAYMENT_AGM");
+    const hasDIR = hasPermission("APPROVE_PAYMENT_DIRECTOR");
+    const acc = {
+      pendingPayment: 0, totalPendingAmount: 0,
+      pendingVerify: 0, pendingVerified: 0, pendingApproved: 0,
+      l2DirectorCount: 0, myApprovalsCount: 0,
+      paidCount: 0, totalPaidAmount: 0, rejectedCount: 0,
+    };
+    for (const p of localPos) {
       const st = (p.accountStatus || "").toLowerCase();
-      if (["bill_approved", "payment_pending", "payment_initiated", "physical_check", "paid", "rejected"].includes(st)) return false;
-      return st === "bill_verified" || (grnsByPoId.get(p.id) || []).some(g => (g.paymentStatus || "").toLowerCase() === "bill_verified");
-    }).length;
-    // pendingApproved: bill_approved + old payment_initiated where L1 is done
-    const pendingApproved = all.filter((p) => {
-      const st = (p.accountStatus || "").toLowerCase();
-      if (["payment_pending", "physical_check", "paid", "rejected"].includes(st)) return false;
-      if (st === "bill_approved" || Boolean(p.billApprovedBy) || Boolean(p.billApprovedDate)) return true;
-      if (st === "payment_initiated") {
-        const approvals = p.paymentApprovals || [];
-        const l1 = approvals.find(a => a.level === 1);
-        return l1?.status === "Approved";
+      const grns = grnsByPoId.get(p.id) || [];
+
+      // pendingPayment + totalPendingAmount
+      if (st === "payment_pending" || st === "payment_initiated" || st === "physical_check") {
+        acc.pendingPayment++;
+        acc.totalPendingAmount += Math.max(0, (p.totalValue || 0) - (p.totalPaid || 0));
       }
-      return (grnsByPoId.get(p.id) || []).some(g => (g.paymentStatus || "").toLowerCase() === "bill_approved");
-    }).length;
-    const l2DirectorCount = all.filter((p) => {
-      const st = (p.accountStatus || "").toLowerCase();
-      if (["payment_pending", "physical_check", "paid", "rejected"].includes(st)) return false;
-      if (st === "bill_approved" || Boolean(p.billApprovedBy) || Boolean(p.billApprovedDate)) return true;
-      if (st === "payment_initiated") {
-        const approvals = p.paymentApprovals || [];
-        const l1 = approvals.find(a => a.level === 1);
-        const l3 = approvals.find(a => a.level === 3);
-        return l1?.status === "Approved" && (!l3 || l3.status !== "Approved");
+
+      // pendingVerify
+      const isAdvanced = st === "bill_verified" || st === "bill_approved" || st === "payment_pending" || st === "payment_initiated" || st === "physical_check" || st === "paid" || st === "rejected";
+      if (!isAdvanced) {
+        if (st === "partial_paid") {
+          const totalPd = p.totalPaid || p.payment?.amountPaid || 0;
+          if (totalPd < (p.totalValue || 0) - 0.5) acc.pendingVerify++;
+        } else {
+          acc.pendingVerify++;
+        }
       }
-      return (grnsByPoId.get(p.id) || []).some(g => (g.paymentStatus || "").toLowerCase() === "bill_approved");
-    }).length;
-    const myApprovalsCount = all.filter((p) => {
-      const st = (p.accountStatus || "").toLowerCase();
-      if (["payment_pending", "physical_check", "paid", "rejected"].includes(st)) return false;
-      if (hasPermission("APPROVE_PAYMENT_AGM")) {
-        const isVerified = st === "bill_verified" || Boolean(p.billVerifiedBy) || Boolean(p.billVerifiedDate) ||
-          (grnsByPoId.get(p.id) || []).some(g => (g.paymentStatus || "").toLowerCase() === "bill_verified");
-        if (isVerified && st !== "bill_approved") return true;
+
+      // pendingVerified
+      if (st !== "bill_approved" && st !== "payment_pending" && st !== "payment_initiated" && st !== "physical_check" && st !== "paid" && st !== "rejected") {
+        if (st === "bill_verified" || grns.some(g => (g.paymentStatus || "").toLowerCase() === "bill_verified"))
+          acc.pendingVerified++;
       }
-      if (hasPermission("APPROVE_PAYMENT_DIRECTOR")) {
-        const isBillApproved = st === "bill_approved" || Boolean(p.billApprovedBy) || Boolean(p.billApprovedDate) ||
-          (grnsByPoId.get(p.id) || []).some(g => (g.paymentStatus || "").toLowerCase() === "bill_approved");
-        if (isBillApproved) return true;
-        if (st === "payment_initiated") {
+
+      // pendingApproved + l2DirectorCount (share the same skip set)
+      if (st !== "payment_pending" && st !== "physical_check" && st !== "paid" && st !== "rejected") {
+        const isBillApproved = st === "bill_approved" || Boolean(p.billApprovedBy) || Boolean(p.billApprovedDate);
+        if (isBillApproved) {
+          acc.pendingApproved++;
+          acc.l2DirectorCount++;
+        } else if (st === "payment_initiated") {
           const approvals = p.paymentApprovals || [];
           const l1 = approvals.find(a => a.level === 1);
           const l3 = approvals.find(a => a.level === 3);
-          if (l1?.status === "Approved" && (!l3 || l3.status !== "Approved")) return true;
+          if (l1?.status === "Approved") acc.pendingApproved++;
+          if (l1?.status === "Approved" && (!l3 || l3.status !== "Approved")) acc.l2DirectorCount++;
+        } else {
+          const hasApprovedGRN = grns.some(g => (g.paymentStatus || "").toLowerCase() === "bill_approved");
+          if (hasApprovedGRN) { acc.pendingApproved++; acc.l2DirectorCount++; }
         }
       }
-      return false;
-    }).length;
-    const paidThisMonth = all.filter((p) => {
-      const accStatus = (p.accountStatus || "").toLowerCase();
-      if (accStatus !== "paid" || !p.payment?.date) return false;
-      const d = new Date(p.payment.date);
-      const now = new Date();
-      return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
-    });
-    const totalPaidAmount = paidThisMonth.reduce((sum, p) => sum + (p.payment?.amountPaid || 0), 0);
-    return {
-      pendingPayment,
-      totalPendingAmount,
-      pendingVerify,
-      pendingVerified,
-      pendingApproved,
-      l2DirectorCount,
-      myApprovalsCount,
-      paidCount: paidThisMonth.length,
-      totalPaidAmount,
-      rejectedCount: all.filter((p) => (p.accountStatus || "").toLowerCase() === "rejected").length
-    };
+
+      // myApprovalsCount
+      if (st !== "payment_pending" && st !== "physical_check" && st !== "paid" && st !== "rejected") {
+        let myMatch = false;
+        if (hasAGM) {
+          const isVerified = st === "bill_verified" || Boolean(p.billVerifiedBy) || Boolean(p.billVerifiedDate) ||
+            grns.some(g => (g.paymentStatus || "").toLowerCase() === "bill_verified");
+          if (isVerified && st !== "bill_approved") myMatch = true;
+        }
+        if (!myMatch && hasDIR) {
+          const isBillApproved = st === "bill_approved" || Boolean(p.billApprovedBy) || Boolean(p.billApprovedDate) ||
+            grns.some(g => (g.paymentStatus || "").toLowerCase() === "bill_approved");
+          if (isBillApproved) {
+            myMatch = true;
+          } else if (st === "payment_initiated") {
+            const approvals = p.paymentApprovals || [];
+            const l1 = approvals.find(a => a.level === 1);
+            const l3 = approvals.find(a => a.level === 3);
+            if (l1?.status === "Approved" && (!l3 || l3.status !== "Approved")) myMatch = true;
+          }
+        }
+        if (myMatch) acc.myApprovalsCount++;
+      }
+
+      // paidThisMonth + totalPaidAmount
+      if (st === "paid" && p.payment?.date) {
+        const d = new Date(p.payment.date);
+        if (d.getMonth() === nowMonth && d.getFullYear() === nowYear) {
+          acc.paidCount++;
+          acc.totalPaidAmount += p.payment?.amountPaid || 0;
+        }
+      }
+
+      // rejectedCount
+      if (st === "rejected") acc.rejectedCount++;
+    }
+    return acc;
   }, [localPos, grnsByPoId]);
   const vendorOptions = useMemo(
     () => suppliers.map((s) => ({ label: s.companyName || s.name || s.id, value: s.id || s._id })),

@@ -160,6 +160,7 @@ export function POViewModal({ po, onClose, onApproveL1, onApproveL2, onApproveL3
 
   const poMR = (materialRequirements || []).find(m => m.id === po.mrId || m.mrNumber === po.mrId);
   const mrLocation = poMR ? (poMR.location || poMR.site || poMR.address || "") : "";
+  const mrPurpose = poMR?.purpose || "";
 
   const _normId = (str) => (str || "").replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
   const _poSupLower = (po.supplier || "").trim().toLowerCase();
@@ -368,7 +369,9 @@ export function POViewModal({ po, onClose, onApproveL1, onApproveL2, onApproveL3
               ["Company address", po.companyAddress || "Gwalior MP", "leading-tight"],
               ["Internal mr no.", <span className="flex items-center gap-2 text-indigo-600 dark:text-blue-400">{po.mrId || "—"}{po.mrId && <button onClick={() => { const mr = (materialRequirements || []).find(m => m.id === po.mrId || m.mrNumber === po.mrId); mr ? setViewingMR(mr) : toast.error("MR not found"); }} className="flex items-center gap-1 text-[9px] font-black text-blue-600 bg-blue-50 dark:bg-blue-500/10 px-2 py-0.5 rounded border border-blue-100 dark:border-blue-500/20 hover:bg-blue-100 dark:hover:bg-blue-500/20 transition-colors"><Eye className="w-3 h-3" /> View MR</button>}</span>, ""],
               ...(mrLocation ? [["MR location", mrLocation, "text-amber-600 dark:text-amber-400"]] : []),
-              ["Site/location", po.project || po.location || "—"],
+              ...(mrPurpose ? [["MR purpose", mrPurpose, "leading-tight"]] : []),
+              ...(po.project ? [["Project", po.project, "font-bold text-gray-800 dark:text-gray-200"]] : []),
+              ["Site/location", po.location || po.site || "—"],
               ["Date of issue", formatPrettyDate(po.date)],
             ].map(([label, value, extra = ""]) => (
               <div key={label} className="grid grid-cols-12 min-h-[35px]">
@@ -452,9 +455,18 @@ export function POViewModal({ po, onClose, onApproveL1, onApproveL2, onApproveL3
               </tbody>
               <tfoot>
                 {(() => {
-                  const itemsGstInclusive = (displayItems[0]?.gstType || "Exclusive") === "Inclusive";
+                  const itemsSubtotal = displayItems.reduce((s, it) => s + calcItemBase(it), 0);
+                  const chargesTotal =
+                    calcChargeTotal(po.freightAmount || 0, po.freightGstPct || 0, po.freightGstType || "Exclusive") +
+                    calcChargeTotal(po.loadingAmount || 0, po.loadingGstPct || 0, po.loadingGstType || "Exclusive") +
+                    calcChargeTotal(po.unloadingAmount || 0, po.unloadingGstPct || 0, po.unloadingGstType || "Exclusive");
+                  // Explicit Inclusive wins; otherwise infer from totalValue vs subtotal
+                  // (Mongoose returns default "Exclusive" for old POs, so || won't work — always infer)
+                  const itemsGstInclusive =
+                    displayItems[0]?.gstType === "Inclusive" ||
+                    (itemsSubtotal > 0 && (po.totalValue || 0) <= itemsSubtotal + chargesTotal + 0.5);
                   return [
-                    ["Items Subtotal (Rs)", displayItems.reduce((s, it) => s + calcItemBase(it), 0), false],
+                    ["Items Subtotal (Rs)", itemsSubtotal, false],
                     [`Gst ${displayItems[0]?.gstPct || 18}% (Items)`, displayItems.reduce((s, it) => s + calcItemGST(it), 0), itemsGstInclusive],
                     [`Freight Charges (${po.freightGstPct ?? 18}% GST · ${po.freightGstType || "Exclusive"})`, calcChargeTotal(po.freightAmount || 0, po.freightGstPct || 0, po.freightGstType || "Exclusive"), false],
                     [`Loading Charges (${po.loadingGstPct ?? 18}% GST · ${po.loadingGstType || "Exclusive"})`, calcChargeTotal(po.loadingAmount || 0, po.loadingGstPct || 0, po.loadingGstType || "Exclusive"), false],

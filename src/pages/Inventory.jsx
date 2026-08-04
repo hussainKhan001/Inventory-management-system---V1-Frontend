@@ -242,16 +242,22 @@ const SearchControls = memo(({
   setFilterCategory,
   filterStore,
   setFilterStore,
-  storeOptions
+  storeOptions,
+  stockMin,
+  setStockMin,
+  stockMax,
+  setStockMax,
 }) => {
   const { settings } = useAppStore();
   const { projects: PROJECTS, categories: CATEGORIES } = settings;
-  const showClear = !!(search || filterProject || filterCategory || filterStore);
+  const showClear = !!(search || filterProject || filterCategory || filterStore || stockMin !== "" || stockMax !== "");
   return <FilterRow showClear={showClear} onClearAll={() => {
     setSearch("");
     setFilterProject("");
     setFilterCategory("");
     setFilterStore("");
+    setStockMin("");
+    setStockMax("");
   }}>
       <SearchFilter
     value={search}
@@ -277,6 +283,26 @@ const SearchControls = memo(({
     options={storeOptions}
     placeholder="All Godowns / Sites"
   />
+      <div className="flex items-center gap-1.5 h-9 px-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-[13px] shrink-0">
+        <span className="text-gray-400 dark:text-gray-500 whitespace-nowrap text-[11px] font-medium">Stock</span>
+        <input
+          type="number"
+          min="0"
+          value={stockMin}
+          onChange={e => setStockMin(e.target.value)}
+          placeholder="Min"
+          className="w-14 bg-transparent outline-none text-gray-700 dark:text-gray-200 placeholder-gray-300 dark:placeholder-gray-600 text-[12px] text-center tabular-nums"
+        />
+        <span className="text-gray-300 dark:text-gray-600">–</span>
+        <input
+          type="number"
+          min="0"
+          value={stockMax}
+          onChange={e => setStockMax(e.target.value)}
+          placeholder="Max"
+          className="w-14 bg-transparent outline-none text-gray-700 dark:text-gray-200 placeholder-gray-300 dark:placeholder-gray-600 text-[12px] text-center tabular-nums"
+        />
+      </div>
     </FilterRow>;
 });
 import { TableVirtuoso } from "react-virtuoso";
@@ -337,6 +363,8 @@ const Inventory = /* @__PURE__ */ __name(() => {
   const [filterProject, setFilterProject] = useState("");
   const [filterCategory, setFilterCategory] = useState("");
   const [filterStore, setFilterStore] = useState("");
+  const [stockMin, setStockMin] = useState("");
+  const [stockMax, setStockMax] = useState("");
   const [newItem, setNewItem] = useState(INITIAL_ITEM);
   const [errors, setErrors] = useState({});
   useEffect(() => {
@@ -376,7 +404,7 @@ const Inventory = /* @__PURE__ */ __name(() => {
   const observerRef = useRef(null);
   useEffect(() => {
     setPage(1);
-  }, [debouncedSearch, filterProject, filterCategory, filterStore]);
+  }, [debouncedSearch, filterProject, filterCategory, filterStore, stockMin, stockMax]);
   useEffect(() => {
     const isInitialLoad = inventory.length === 0;
     const filter = {};
@@ -386,6 +414,23 @@ const Inventory = /* @__PURE__ */ __name(() => {
     fetchResource("catalogue", 1, 1e3);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [debouncedSearch, filterProject, filterCategory, page]);
+
+  // Safe qty — uses ?? so stock=0 is never treated as "no value"
+  const getItemQty = useCallback((item, store) => {
+    if (store) {
+      const site = item.sites?.find(s => s.siteName === store);
+      return site != null
+        ? Number(site.liveStock ?? 0)
+        : Number(item.locationStock?.[store] ?? 0);
+    }
+    if (item.sites && item.sites.length > 0)
+      return item.sites.reduce((sum, s) => sum + (Number(s.liveStock) || 0), 0);
+    const locVals = Object.values(item.locationStock || {});
+    return locVals.length > 0
+      ? locVals.reduce((sum, q) => sum + Number(q), 0)
+      : Number(item.liveStock || 0);
+  }, []);
+
   const filteredInventory = useMemo(() => {
     // Deduplicate by SKU — merge quantities from duplicate MongoDB documents
     const skuMap = new Map();
@@ -447,8 +492,17 @@ const Inventory = /* @__PURE__ */ __name(() => {
       });
     }
 
+    if (stockMin !== "" || stockMax !== "") {
+      const min = stockMin !== "" ? Number(stockMin) : -Infinity;
+      const max = stockMax !== "" ? Number(stockMax) : Infinity;
+      result = result.filter((item) => {
+        const qty = getItemQty(item, filterStore);
+        return qty >= min && qty <= max;
+      });
+    }
+
     return result;
-  }, [inventory, filterStore]);
+  }, [inventory, filterStore, stockMin, stockMax, getItemQty]);
 
   const computeItemTotal = (item) => {
     if (item.sites && item.sites.length > 0)
@@ -460,22 +514,12 @@ const Inventory = /* @__PURE__ */ __name(() => {
   };
 
   const totalStockUnits = useMemo(() => {
-    return filteredInventory.reduce((acc, item) => {
-      const qty = filterStore
-        ? Number(item.sites?.find(s => s.siteName === filterStore)?.liveStock || item.locationStock?.[filterStore] || 0)
-        : computeItemTotal(item);
-      return acc + qty;
-    }, 0);
-  }, [filteredInventory, filterStore]);
+    return filteredInventory.reduce((acc, item) => acc + getItemQty(item, filterStore), 0);
+  }, [filteredInventory, filterStore, getItemQty]);
 
   const outOfStockCount = useMemo(() => {
-    return filteredInventory.filter((item) => {
-      const qty = filterStore
-        ? Number(item.sites?.find(s => s.siteName === filterStore)?.liveStock || item.locationStock?.[filterStore] || 0)
-        : computeItemTotal(item);
-      return qty === 0;
-    }).length;
-  }, [filteredInventory, filterStore]);
+    return filteredInventory.filter((item) => getItemQty(item, filterStore) === 0).length;
+  }, [filteredInventory, filterStore, getItemQty]);
 
 
   const loadMore = useCallback(() => {
@@ -688,6 +732,10 @@ const Inventory = /* @__PURE__ */ __name(() => {
     filterStore={filterStore}
     setFilterStore={setFilterStore}
     storeOptions={COMBINED_STORES}
+    stockMin={stockMin}
+    setStockMin={setStockMin}
+    stockMax={stockMax}
+    setStockMax={setStockMax}
   />
       </div>
 

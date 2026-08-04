@@ -74,7 +74,9 @@ export function POFormModal({
   addItem, updateItem, removeItem, linkToInventory, quickAddToInventory,
   companyOptions, mrOptions, vendorOptions, COMPANIES, CATEGORIES, UNITS,
 }) {
-  const { suppliers, actionLoading, fetchResource, gstRates } = useAppStore();
+  const { suppliers, actionLoading, fetchResource, gstRates, materialRequirements } = useAppStore();
+  const cleanMrId = po.mrId?.split("|")[0] || "";
+  const mrPurpose = (materialRequirements || []).find(m => m.id === cleanMrId || m.mrNumber === cleanMrId)?.purpose || "";
   const gstOptions = gstRates.length
     ? gstRates.map((r) => ({ value: r.rate ?? 0, label: r.label || `${r.rate}%`, key: r._id }))
     : [0, 5, 12, 18, 28].map((v) => ({ value: v, label: `${v}%`, key: v }));
@@ -264,6 +266,12 @@ export function POFormModal({
                   disabled={autoLinking}
                 />
               )},
+              ...(mrPurpose ? [{ label: "MR Purpose", content: (
+                <span className="text-[12px] text-gray-600 dark:text-gray-300 leading-snug">{mrPurpose}</span>
+              )}] : []),
+              ...(po.project ? [{ label: "Project", content: (
+                <span className="text-[13px] font-bold text-gray-700 dark:text-gray-300">{po.project}</span>
+              )}] : []),
               { label: "Site/Location", content: (
                 <input className="w-full bg-transparent outline-none text-[13px] font-bold text-gray-700 dark:text-gray-300"
                   value={po.location || ""} onChange={(e) => set({ location: e.target.value })} placeholder="Enter Site/Location" />
@@ -707,17 +715,20 @@ export function POFormModal({
                       return (
                         <>
                           <tr>
-                            <td colSpan={5} className="px-3 py-1.5 text-right text-[10px] font-bold text-gray-400 tracking-widest uppercase">Items Base Amount (Excl. GST)</td>
+                            <td colSpan={3} />
+                            <td colSpan={3} className="px-3 py-1.5 text-right text-[10px] font-bold text-gray-400 tracking-widest uppercase">Items Base Amount (Excl. GST)</td>
                             <td className="px-3 py-1.5 text-right text-[12px] font-bold text-gray-600 dark:text-gray-400">{fmtCur(itemsBase)}</td>
                             <td />
                           </tr>
                           <tr>
-                            <td colSpan={5} className="px-3 py-1.5 text-right text-[10px] font-bold text-gray-400 tracking-widest uppercase">GST Amount</td>
+                            <td colSpan={3} />
+                            <td colSpan={3} className="px-3 py-1.5 text-right text-[10px] font-bold text-gray-400 tracking-widest uppercase">GST Amount</td>
                             <td className="px-3 py-1.5 text-right text-[12px] font-bold text-emerald-600 dark:text-emerald-400">{fmtCur(itemsGst)}</td>
                             <td />
                           </tr>
                           <tr className="border-t border-gray-200 dark:border-gray-700">
-                            <td colSpan={5} className="px-3 py-2 text-right text-[10px] font-bold text-gray-500 tracking-widest uppercase">Items Subtotal (Incl. GST)</td>
+                            <td colSpan={3} />
+                            <td colSpan={3} className="px-3 py-2 text-right text-[10px] font-bold text-gray-500 tracking-widest uppercase">Items Subtotal (Incl. GST)</td>
                             <td className="px-3 py-2 text-right text-[13px] font-bold text-gray-700 dark:text-gray-300">{fmtCur(itemsWithGst)}</td>
                             <td />
                           </tr>
@@ -730,7 +741,8 @@ export function POFormModal({
                       ["Unloading", po.unloadingAmount, po.unloadingGstPct, po.unloadingGstType],
                     ].filter(([, amt]) => (amt || 0) > 0).map(([name, amt, pct, type]) => (
                       <tr key={name}>
-                        <td colSpan={5} className="px-3 py-1.5 text-right text-[10px] font-bold text-gray-400">
+                        <td colSpan={3} />
+                        <td colSpan={3} className="px-3 py-1.5 text-right text-[10px] font-bold text-gray-400">
                           {name} Charges ({pct || 18}% GST · {type || "Exclusive"})
                         </td>
                         <td className="px-3 py-1.5 text-right text-[12px] font-bold text-gray-600 dark:text-gray-400">
@@ -740,7 +752,8 @@ export function POFormModal({
                       </tr>
                     ))}
                     <tr className="border-t border-gray-200 dark:border-gray-700">
-                      <td colSpan={5} className="px-3 py-3 text-right text-[11px] font-black text-gray-600 dark:text-gray-300 tracking-widest uppercase">Grand Total (Incl. GST + Charges)</td>
+                      <td colSpan={3} />
+                      <td colSpan={3} className="px-3 py-3 text-right text-[11px] font-black text-gray-600 dark:text-gray-300 tracking-widest uppercase">Grand Total (Incl. GST + Charges)</td>
                       <td className="px-3 py-3 text-right text-[16px] font-black text-orange-600 dark:text-orange-400">{fmtCur(grandTotal)}</td>
                       <td />
                     </tr>

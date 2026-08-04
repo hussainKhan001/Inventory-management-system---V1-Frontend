@@ -1,6 +1,6 @@
 var __defProp = Object.defineProperty;
 var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
-import React, { useState, useCallback, useEffect, useRef } from "react";
+import React, { useState, useCallback, useEffect, useRef, useMemo } from "react";
 import { useAppStore } from "../store";
 import {
   PageHeader,
@@ -81,6 +81,31 @@ const GRNPage = /* @__PURE__ */ __name(() => {
     { label: "GRN Variance", value: "Partial" },
     { label: "Over-Received", value: "Over-Received" },
   ], []);
+  const mergedGrns = useMemo(() => {
+    if (!grns || !grns.length) return [];
+    const grouped = new Map();
+    const order = [];
+    for (const g of grns) {
+      const k = g.poId || `__${g.id}`;
+      if (!grouped.has(k)) { grouped.set(k, []); order.push(k); }
+      grouped.get(k).push(g);
+    }
+    return order.map(k => {
+      const list = grouped.get(k);
+      const primary = list[0];
+      if (list.length === 1) return primary;
+      const statuses = list.map(grnEffectiveStatus);
+      return {
+        ...primary,
+        __isGroup: true,
+        __group: list,
+        __grnIds: list.map(g => g.id),
+        __challans: list.map(g => g.challan).filter(Boolean),
+        __mrNos: [...new Set(list.map(g => g.mrNo).filter(Boolean))],
+        __combinedStatus: statuses.includes("Partial") ? "Partial" : statuses.every(s => s === "Confirmed") ? "Confirmed" : "Partial",
+      };
+    });
+  }, [grns]);
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedSearch(search), 500);
     return () => clearTimeout(timer);
@@ -206,14 +231,21 @@ const GRNPage = /* @__PURE__ */ __name(() => {
     return s;
   }, [grns]);
 
+  const poIdsWithConfirmedGRN = React.useMemo(() => {
+    const s = new Set();
+    grns.forEach((g) => { if (g.status === "Confirmed" || g.status === "Over-Received") s.add(g.poId); });
+    return s;
+  }, [grns]);
+
   const availablePOs = React.useMemo(
     () => pos.filter((p) =>
       !PO_CLOSED_STATUSES.has(p.status) &&
+      !poIdsWithConfirmedGRN.has(p.id) &&
       (p.status === "GRN Pending" ||
       p.status === "GRN Variance" ||
       poIdsWithPartialGRN.has(p.id))
     ),
-    [pos, poIdsWithPartialGRN]
+    [pos, poIdsWithPartialGRN, poIdsWithConfirmedGRN]
   );
 
   // Helper: sum received qty per SKU across all GRNs for a given PO (excluding a specific GRN id)
@@ -561,7 +593,7 @@ const GRNPage = /* @__PURE__ */ __name(() => {
       <Card className="p-0 overflow-hidden border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 flex-1 min-h-[400px]">
         <TableVirtuoso
     style={{ height: "calc(100vh - 350px)", minHeight: "400px" }}
-    data={grns || []}
+    data={mergedGrns}
     endReached={() => {
       if (grnsPagination && page < grnsPagination.pages && !loading) {
         setPage((prev) => prev + 1);
@@ -596,12 +628,15 @@ const GRNPage = /* @__PURE__ */ __name(() => {
                 </th>
               </tr>;
     }}
-    itemContent={(_index, grn) => <>
+    itemContent={(_index, grn) => {
+      const isGroup = grn.__isGroup;
+      return <>
               <Td className="md:px-4 md:py-3 py-2">
                 <div className="flex md:flex-col items-center md:items-start justify-between md:justify-start gap-2">
-                  <div className="flex flex-col">
+                  <div className="flex flex-col gap-0.5">
                     <span className="text-[13px] font-bold text-gray-900 dark:text-white md:font-medium">{safeStr(grn.id)}</span>
-                    <span className="text-[11px] text-gray-500">MR: {safeStr(grn.mrNo)}</span>
+                    <span className="text-[11px] text-gray-500">MR: {isGroup ? grn.__mrNos.join(", ") : safeStr(grn.mrNo)}</span>
+                    {isGroup && <span className="mt-0.5 inline-flex items-center text-[9px] font-bold text-orange-600 dark:text-orange-400 bg-orange-100 dark:bg-orange-900/30 px-1.5 py-0.5 rounded-md w-fit">{grn.__grnIds.length} GRNs merged</span>}
                   </div>
                   <div className="md:hidden">
                     <StatusBadge status={grnEffectiveStatus(grn)} />
@@ -651,11 +686,11 @@ const GRNPage = /* @__PURE__ */ __name(() => {
               </Td>
               <Td className="hidden md:table-cell px-3 py-2.5 overflow-hidden">
                 <div className="flex flex-col min-w-0">
-                  <p className="block truncate text-[13px] text-gray-600 dark:text-gray-400" title={`Inv: ${safeStr(grn.challan)}`}>
-                    Inv: {safeStr(grn.challan)}
+                  <p className="block truncate text-[13px] text-gray-600 dark:text-gray-400">
+                    Inv: {isGroup ? grn.__challans.join(", ") : safeStr(grn.challan)}
                   </p>
-                  <p className="block truncate text-[11px] text-gray-500" title={`MR: ${safeStr(grn.mrNo)}`}>
-                    MR: {safeStr(grn.mrNo)}
+                  <p className="block truncate text-[11px] text-gray-500">
+                    MR: {isGroup ? grn.__mrNos.join(", ") : safeStr(grn.mrNo)}
                   </p>
                 </div>
               </Td>
@@ -678,13 +713,13 @@ const GRNPage = /* @__PURE__ */ __name(() => {
                 </div>
               </Td>
               <Td className="hidden md:table-cell px-4 py-3">
-                <StatusBadge status={grnEffectiveStatus(grn)} />
+                <StatusBadge status={isGroup ? grn.__combinedStatus : grnEffectiveStatus(grn)} />
               </Td>
               <Td className="md:px-4 md:py-3 py-2 text-right" onClick={(e) => e.stopPropagation()}>
                 <div className="flex items-center justify-end gap-1.5">
                   <button
       title="View Details"
-      onClick={(e) => { e.stopPropagation(); setSelectedGRN(grn); setViewModal(true); }}
+      onClick={(e) => { e.stopPropagation(); setSelectedGRN(grn.__isGroup ? grn.__group[0] : grn); setViewModal(true); }}
       className="p-2 rounded-lg text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
     >
                     <Eye className="w-4 h-4" />
@@ -730,16 +765,16 @@ const GRNPage = /* @__PURE__ */ __name(() => {
                     </button>}
                 </div>
               </Td>
-            </>}
+            </>; }}
     components={{
       Table: /* @__PURE__ */ __name((props) => <table {...props} className="w-full text-left border-collapse table-fixed min-w-full md:min-w-[1000px] lg:min-w-[1100px]" />, "Table"),
       TableBody: React.forwardRef((props, ref) => <tbody {...props} ref={ref} className="divide-y divide-[#E8ECF0] dark:divide-gray-800" />),
       TableRow: (props) => {
-        const grn = (grns || [])[props["data-index"]];
+        const grn = mergedGrns[props["data-index"]];
         return (
           <tr
             {...props}
-            onClick={() => { if (grn) { setSelectedGRN(grn); setViewModal(true); } }}
+            onClick={() => { if (grn) { setSelectedGRN(grn.__isGroup ? grn.__group[0] : grn); setViewModal(true); } }}
             className={cn("cursor-pointer hover:bg-gray-50/60 dark:hover:bg-gray-800/40 transition-colors", props.className)}
           />
         );
