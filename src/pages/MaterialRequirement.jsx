@@ -182,6 +182,7 @@ export function MaterialRequirementPage() {
   // GRN Allocation Modal
   const [grnAllocModal, setGrnAllocModal] = useState(null); // { mr, receivedQtyBySku, receivedQtyByName }
   const [grnAllocStore, setGrnAllocStore] = useState("");
+  const [openingAllocModal, setOpeningAllocModal] = useState(null); // mrId being loaded
 
   const getStoreStock = (inv, store) => {
     if (!store || !inv) return Number(inv?.liveStock || 0);
@@ -924,10 +925,23 @@ export function MaterialRequirementPage() {
                     <div className="flex items-center gap-2 shrink-0">
                       {(hasPermission("ALLOCATE_MR") || hasPermission("MANAGE_INVENTORY")) && (
                         <button
-                          className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg text-[11px] font-bold transition-all shadow-sm shadow-emerald-500/20"
-                          onClick={e => { e.stopPropagation(); fetchResource("inventory", 1, 2000, true, "", null, false, false, "", "", true); fetchResource("mr-allocations", 1, 2000, true, "", null, false, false, "", "", true); setGrnAllocModal({ mr, receivedQtyBySku, receivedQtyByName }); setGrnAllocStore(""); }}
+                          disabled={openingAllocModal === mr.id}
+                          className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-500 hover:bg-emerald-600 disabled:opacity-60 text-white rounded-lg text-[11px] font-bold transition-all shadow-sm shadow-emerald-500/20"
+                          onClick={async e => {
+                            e.stopPropagation();
+                            setOpeningAllocModal(mr.id);
+                            await Promise.all([
+                              fetchResource("inventory", 1, 2000, true, "", null, false, false, "", "", true),
+                              fetchResource("mr-allocations", 1, 2000, true, "", null, false, false, "", "", true),
+                            ]);
+                            setOpeningAllocModal(null);
+                            setGrnAllocModal({ mr, receivedQtyBySku, receivedQtyByName });
+                            setGrnAllocStore("");
+                          }}
                         >
-                          <Check className="w-3.5 h-3.5" />
+                          {openingAllocModal === mr.id
+                            ? <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                            : <Check className="w-3.5 h-3.5" />}
                           <span>Allocate</span>
                         </button>
                       )}
