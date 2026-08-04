@@ -92,13 +92,13 @@ export function MaterialRequirementPage() {
   const [stableMRs, setStableMRs] = useState([]);
   const grnFullFetched = useRef(false);
 
-  // True while the allocations fetch is in-flight (silent=true so global loading stays false)
-  const [allocLoading, setAllocLoading] = useState(false);
+  // True while the allocations tab fetch is in-flight (silent=true so global loading stays false)
+  const [allocTabLoading, setAllocTabLoading] = useState(false);
   useEffect(() => {
-    if (activeTab === "allocations") setAllocLoading(true);
+    if (activeTab === "allocations") setAllocTabLoading(true);
   }, [activeTab]);
   useEffect(() => {
-    if (allocLoading) setAllocLoading(false);
+    if (allocTabLoading) setAllocTabLoading(false);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mrAllocations]);
 
@@ -1005,13 +1005,13 @@ export function MaterialRequirementPage() {
               );
             })()}
             <div className="flex-1 overflow-auto">
-              {allocLoading && (
+              {allocTabLoading && (
                 <div className="flex items-center justify-center h-full text-gray-400 text-[13px] gap-2">
                   <svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
                   Loading allocations…
                 </div>
               )}
-              {!allocLoading && derivedAllocations.length === 0 && !loading && (
+              {!allocTabLoading && derivedAllocations.length === 0 && !loading && (
                 <div className="flex flex-col items-center justify-center h-full gap-2 text-gray-400">
                   <svg className="w-10 h-10 opacity-30" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0H4m8-7v7"/></svg>
                   <p className="text-[13px] font-medium">No allocations found.</p>
