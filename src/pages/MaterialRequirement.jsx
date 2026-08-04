@@ -1334,7 +1334,9 @@ export function MaterialRequirementPage() {
                       const res = await api.post("material-requirements/allocate", { mrId: mr.id, items });
                       if (res.success) {
                         toast.success(`${items.length} item(s) allocated from ${grnAllocStore}!`);
-                        fetchResource("material-requirements");
+                        fetchResource("material-requirements", 1, 2000, true, "", null, false, false, "", "", true);
+                        fetchResource("mr-allocations", 1, 2000, true, "", null, false, false, "", "", true);
+                        fetchResource("inventory", 1, 100, true, "", null, false, false, "", "", true);
                         setGrnAllocModal(null);
                       }
                     } catch (err) { toast.error("Failed: " + err.message); }
@@ -1457,7 +1459,9 @@ export function MaterialRequirementPage() {
                               });
                               if (res.success) {
                                 toast.success(`${item.materialName} — ${qty} ${item.unit} allocated!`);
-                                fetchResource("material-requirements");
+                                fetchResource("material-requirements", 1, 2000, true, "", null, false, false, "", "", true);
+                                fetchResource("mr-allocations", 1, 2000, true, "", null, false, false, "", "", true);
+                                fetchResource("inventory", 1, 100, true, "", null, false, false, "", "", true);
                                 setGrnAllocModal(null);
                               }
                             } catch (err) { toast.error("Failed: " + err.message); }
