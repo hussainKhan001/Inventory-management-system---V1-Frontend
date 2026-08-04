@@ -19,6 +19,7 @@ import {
   Settings,
   BarChart2,
   GitBranch,
+  Building2,
 } from "lucide-react";
 const ALL_ROLES = [
   "Super Admin",
@@ -33,7 +34,8 @@ const ALL_ROLES = [
   "Accountant",
   "admin",
   "manager",
-  "staff"
+  "staff",
+  "DRI"
 ];
 const ROUTES = [
   {
@@ -203,6 +205,12 @@ const ROUTES = [
     icon: TrendingUp,
     roles: ALL_ROLES,
     permission: "VIEW_MATERIAL_REQUIREMENT"
+  },
+  {
+    id: "dri-portal",
+    label: "DRI Portal",
+    icon: Building2,
+    roles: ["DRI", "Super Admin"]
   },
   {
     id: "profile",

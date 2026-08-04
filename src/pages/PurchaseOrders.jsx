@@ -244,6 +244,7 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
   );
 
   const isPOLocked = /* @__PURE__ */ __name((po) => {
+    if (po.isLocked) return true;
     const hasPayment =
       (po.payment?.amountPaid || 0) > 0 ||
       po.accountStatus === "paid" ||
@@ -1904,11 +1905,13 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
                           }}
                           className="p-1.5 text-gray-400 hover:text-blue-500 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-md transition-all disabled:opacity-30 disabled:cursor-not-allowed"
                           title={
-                            isPOLocked(po)
+                            po.isLocked
+                              ? "Locked: MR closed — all materials issued"
+                              : isPOLocked(po)
                               ? "Warning: Edit will reset approval status"
                               : "Edit"
                           }
-                          disabled={false}
+                          disabled={isPOLocked(po) && role !== "Super Admin"}
                         >
                           {" "}
                           <Pencil className="w-4 h-4" />{" "}
@@ -1920,7 +1923,11 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
                           }}
                           className="p-1.5 text-red-300 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-md transition-all disabled:opacity-30 disabled:cursor-not-allowed"
                           title={
-                            isPOLocked(po)
+                            po.isLocked
+                              ? role === "Super Admin"
+                                ? "Delete (Super Admin override)"
+                                : "Locked: MR closed — all materials issued"
+                              : isPOLocked(po)
                               ? role === "Super Admin"
                                 ? "Delete (Super Admin override)"
                                 : "Locked: Payment processed"

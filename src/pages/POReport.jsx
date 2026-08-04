@@ -5,9 +5,11 @@ import { useAppStore } from "../store";
 import { PageHeader, Card, KPICard, StatusBadge } from "../components/ui";
 import { TrendingUp, Package, CheckCircle, Clock, XCircle, IndianRupee, FileText, Printer } from "lucide-react";
 import { fmtCur, formatDate } from "../utils";
-import { SelectFilter, FilterRow, SearchFilter, DateRangePicker } from "../components/ui/Filters";
+import { FilterRow, SearchFilter, DateRangePicker, SelectFilter } from "../components/ui/Filters";
+import { POViewModal } from "./po/POViewModal";
 const POReport = /* @__PURE__ */ __name(() => {
   const { pos, fetchResource, settings, suppliers } = useAppStore();
+  const [selectedPO, setSelectedPO] = React.useState(null);
   const PROJECTS = settings.projects || [];
   const COMPANIES = settings.companies?.length ? settings.companies : [
     { name: "GLR Real Estate Private Limited" },
@@ -24,7 +26,6 @@ const POReport = /* @__PURE__ */ __name(() => {
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [filterProject, setFilterProject] = useState("");
-  const [filterCompany, setFilterCompany] = useState("");
   const [filterSupplier, setFilterSupplier] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
   useEffect(() => {
@@ -74,19 +75,25 @@ const POReport = /* @__PURE__ */ __name(() => {
         if (d > e + 864e5) return false;
       }
       if (filterProject && po.project !== filterProject) return false;
-      if (filterCompany && po.companyName !== filterCompany) return false;
       if (filterSupplier && po.supplier !== filterSupplier) return false;
       if (filterStatus && po.status !== filterStatus) return false;
       if (debouncedSearch) {
         const term = debouncedSearch.trim().toLowerCase();
-        const sName = suppliers.find((s) => s.id === po.supplier || s._id === po.supplier);
-        const supplierName = sName ? sName.companyName || sName.name || sName.supplierName || "" : po.supplierName || po.vendorName || po.vendorBankDetails?.accountHolder || po.vendor || po.supplier || "";
-        const match = (po.id || "").toLowerCase().includes(term) || (po.project || "").toLowerCase().includes(term) || supplierName.toLowerCase().includes(term);
+        const sup = suppliers.find((s) => s.id === po.supplier || s._id === po.supplier);
+        const supplierName = sup ? sup.companyName || sup.name || sup.supplierName || "" : po.supplierName || po.vendorName || po.vendorBankDetails?.accountHolder || po.vendor || po.supplier || "";
+        const match =
+          (po.id || "").toLowerCase().includes(term) ||
+          (po.mrId || "").toLowerCase().includes(term) ||
+          (po.project || "").toLowerCase().includes(term) ||
+          (po.status || "").toLowerCase().includes(term) ||
+          (po.supplier || "").toLowerCase().includes(term) ||
+          supplierName.toLowerCase().includes(term) ||
+          (po.items || []).some((item) => (item.itemName || item.name || "").toLowerCase().includes(term));
         if (!match) return false;
       }
       return true;
     });
-  }, [pos, startDate, endDate, filterProject, filterCompany, filterSupplier, filterStatus, debouncedSearch, suppliers]);
+  }, [pos, startDate, endDate, filterProject, filterSupplier, filterStatus, debouncedSearch, suppliers]);
   const summary = React.useMemo(() => {
     const count = filtered.length;
     const total = filtered.reduce((s, p) => s + (p.totalValue || 0), 0);
@@ -161,13 +168,12 @@ const POReport = /* @__PURE__ */ __name(() => {
   }
       <div className="print:hidden">
         <FilterRow
-    showClear={!!(search || startDate || endDate || filterProject || filterCompany || filterSupplier || filterStatus)}
+    showClear={!!(search || startDate || endDate || filterProject || filterSupplier || filterStatus)}
     onClearAll={() => {
       setSearch("");
       setStartDate("");
       setEndDate("");
       setFilterProject("");
-      setFilterCompany("");
       setFilterSupplier("");
       setFilterStatus("");
     }}
@@ -177,24 +183,12 @@ const POReport = /* @__PURE__ */ __name(() => {
     setStartDate(v.start);
     setEndDate(v.end);
   }} />
-          <SelectFilter value={filterProject} onChange={setFilterProject} options={PROJECTS} placeholder="All Projects" />
-          <SelectFilter value={filterCompany} onChange={setFilterCompany} options={companyOptions} placeholder="All Companies" />
-          <SelectFilter value={filterSupplier} onChange={setFilterSupplier} options={supplierOptions} placeholder="All Suppliers" />
+          <SelectFilter value={filterProject} onChange={setFilterProject} options={PROJECTS} placeholder="All Projects" searchable={true} />
+          <SelectFilter value={filterSupplier} onChange={setFilterSupplier} options={supplierOptions} placeholder="All Suppliers" searchable={true} />
           <SelectFilter value={filterStatus} onChange={setFilterStatus} options={statusOptions} placeholder="All Statuses" />
         </FilterRow>
       </div>
 
-      {
-    /* Summary Cards (screen only) */
-  }
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 print:hidden">
-        <KPICard label="Total POs" value={summary.count} icon={Package} color="blue" sub="Total number of POs" />
-        <KPICard label="Total Value" value={fmtCur(summary.total)} icon={IndianRupee} color="gray" sub="Overall PO value" />
-        <KPICard label="Approved" value={fmtCur(summary.approved)} icon={CheckCircle} color="green" sub="Value of approved POs" />
-        <KPICard label="Pending" value={fmtCur(summary.pending)} icon={Clock} color="orange" sub="Value awaiting approval" />
-        <KPICard label="Cancelled" value={fmtCur(summary.cancelled)} icon={XCircle} color="red" sub="Value of cancelled POs" />
-        <KPICard label="Avg / PO" value={fmtCur(summary.avg)} icon={TrendingUp} color="purple" sub="Average value per PO" />
-      </div>
 
       {
     /* ════════════════════════════════════════════
@@ -256,11 +250,11 @@ const POReport = /* @__PURE__ */ __name(() => {
               <table className="w-full text-left border-collapse">
                 <thead className="sticky top-0 z-10">
                   <tr className="bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-800">
-                    <th className="px-5 py-3.5 text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">#</th>
                     <th className="px-5 py-3.5 text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">PO No.</th>
+                    <th className="px-4 py-3.5 text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">MR No.</th>
                     <th className="px-4 py-3.5 text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Date</th>
-                    <th className="px-4 py-3.5 text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Supplier</th>
                     <th className="px-4 py-3.5 text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Project</th>
+                    <th className="px-4 py-3.5 text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Supplier</th>
                     <th className="px-4 py-3.5 text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider text-right">Value</th>
                     <th className="px-5 py-3.5 text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Status</th>
                   </tr>
@@ -269,12 +263,12 @@ const POReport = /* @__PURE__ */ __name(() => {
                   {filtered.map((po, i) => {
     const supplier = suppliers.find((s) => s.id === po.supplier || s._id === po.supplier);
     const sName = supplier ? supplier.companyName || supplier.name || supplier.supplierName : po.supplierName || po.vendorName || po.vendorBankDetails?.accountHolder || po.vendor || po.supplier || "NA";
-    return <tr key={i} className="hover:bg-gray-50/50 dark:hover:bg-gray-800/30 transition-colors">
-                        <td className="px-5 py-3 text-[12px] text-gray-400">{i + 1}</td>
+    return <tr key={i} className="cursor-pointer hover:bg-gray-50/50 dark:hover:bg-gray-800/30 transition-colors" onClick={() => setSelectedPO(po)}>
                         <td className="px-5 py-3 text-[13px] font-semibold text-gray-900 dark:text-white">{po.id}</td>
+                        <td className="px-4 py-3 text-[13px] text-gray-600 dark:text-gray-300">{po.mrId || "—"}</td>
                         <td className="px-4 py-3 text-[13px] text-gray-600 dark:text-gray-300">{formatDate(po.date)}</td>
+                        <td className="px-4 py-3 text-[13px] text-gray-600 dark:text-gray-300 capitalize truncate max-w-[150px]" title={po.project}>{po.project || "—"}</td>
                         <td className="px-4 py-3 text-[13px] text-gray-600 dark:text-gray-300 truncate max-w-[200px]" title={sName}>{sName}</td>
-                        <td className="px-4 py-3 text-[13px] text-gray-600 dark:text-gray-300 capitalize truncate max-w-[150px]" title={po.project}>{po.project}</td>
                         <td className="px-4 py-3 text-[13px] font-medium text-gray-900 dark:text-white text-right">{fmtCur(po.totalValue || 0)}</td>
                         <td className="px-5 py-3"><StatusBadge status={po.status} accountStatus={po.accountStatus} /></td>
                       </tr>;
@@ -292,11 +286,11 @@ const POReport = /* @__PURE__ */ __name(() => {
         <table className="po-print-table hidden print:table" style={{ fontFamily: "'Poppins', sans-serif", color: "#000" }}>
           <thead>
             <tr>
-              <th style={{ width: "28px", textAlign: "center", color: "#000" }}>#</th>
               <th style={{ width: "105px", color: "#000" }}>PO No.</th>
+              <th style={{ width: "90px", color: "#000" }}>MR No.</th>
               <th style={{ width: "75px", color: "#000" }}>Date</th>
-              <th style={{ color: "#000" }}>Supplier</th>
               <th style={{ color: "#000" }}>Project</th>
+              <th style={{ color: "#000" }}>Supplier</th>
               <th style={{ width: "85px", textAlign: "right", color: "#000" }}>Value (₹)</th>
               <th style={{ width: "95px", color: "#000" }}>Status</th>
             </tr>
@@ -306,11 +300,11 @@ const POReport = /* @__PURE__ */ __name(() => {
     const supplier = suppliers.find((s) => s.id === po.supplier || s._id === po.supplier);
     const sName = supplier ? supplier.companyName || supplier.name : po.supplier || "NA";
     return <tr key={i}>
-                  <td style={{ textAlign: "center", color: "#000" }}>{i + 1}</td>
                   <td style={{ fontWeight: "600", color: "#000" }}>{po.id}</td>
+                  <td style={{ color: "#000" }}>{po.mrId || "—"}</td>
                   <td style={{ color: "#000" }}>{formatDate(po.date)}</td>
+                  <td style={{ color: "#000" }}>{po.project || "—"}</td>
                   <td style={{ color: "#000" }}>{sName}</td>
-                  <td style={{ color: "#000" }}>{po.project || "\u2014"}</td>
                   <td style={{ textAlign: "right", color: "#000" }}>{fmtCur(po.totalValue || 0)}</td>
                   <td style={{ color: "#000" }}>{po.status || "\u2014"}</td>
                 </tr>;
@@ -329,6 +323,7 @@ const POReport = /* @__PURE__ */ __name(() => {
       </div>{
     /* end #po-report-print-area */
   }
+      {selectedPO && <POViewModal po={selectedPO} onClose={() => setSelectedPO(null)} />}
     </div>;
 }, "POReport");
 export {

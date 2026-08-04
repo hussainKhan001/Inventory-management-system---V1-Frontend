@@ -40,6 +40,7 @@ const TrackingPage = lazy(() => import("./pages/Tracking").then((m) => ({ defaul
 const SettingsPage = lazy(() => import("./pages/Settings").then((m) => ({ default: m.SettingsPage })));
 const POReport = lazy(() => import("./pages/POReport").then((m) => ({ default: m.POReport })));
 const ProcurementTracker = lazy(() => import("./pages/ProcurementTracker").then((m) => ({ default: m.ProcurementTracker })));
+const DRIPortal = lazy(() => import("./pages/DRIPortal").then((m) => ({ default: m.DRIPortal })));
 const PageLoader = /* @__PURE__ */ __name(() => (
   <div className="p-6 space-y-6 w-full animate-pulse">
     <div className="flex flex-col lg:flex-row justify-between gap-4">
@@ -108,8 +109,9 @@ const AppContent = /* @__PURE__ */ __name(() => {
     if (!isAuthLoading && isAuthenticated) {
       const currentHash = getHash();
       if (!currentHash || currentHash === "" || currentHash === "login") {
-        window.location.hash = "dashboard";
-        setHash("dashboard");
+        const landing = role === "DRI" ? "dri-portal" : "dashboard";
+        window.location.hash = landing;
+        setHash(landing);
       } else if (!currentHash.startsWith("public-")) {
         const currentRoute = ROUTES.find((r) => r.id === currentHash);
         if (currentRoute) {
@@ -187,6 +189,7 @@ const AppContent = /* @__PURE__ */ __name(() => {
     { id: "settings",             el: <SettingsPage /> },
     { id: "archive",              el: <Archive /> },
     { id: "ledger-search",        el: <LedgerSearch /> },
+    { id: "dri-portal",           el: <DRIPortal /> },
   ];
 
   const effectiveHash = PAGE_ELEMENTS.find(p => p.id === hash) || hash === "tracking" ? hash : "dashboard";

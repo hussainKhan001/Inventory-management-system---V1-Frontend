@@ -107,7 +107,7 @@ const GRNPage = /* @__PURE__ */ __name(() => {
     });
   }, [grns]);
   useEffect(() => {
-    const timer = setTimeout(() => setDebouncedSearch(search), 500);
+    const timer = setTimeout(() => setDebouncedSearch(search.trim()), 500);
     return () => clearTimeout(timer);
   }, [search]);
   const [page, setPage] = useState(1);
@@ -239,6 +239,7 @@ const GRNPage = /* @__PURE__ */ __name(() => {
 
   const availablePOs = React.useMemo(
     () => pos.filter((p) =>
+      !p.isLocked &&
       !PO_CLOSED_STATUSES.has(p.status) &&
       !poIdsWithConfirmedGRN.has(p.id) &&
       (p.status === "GRN Pending" ||
@@ -725,7 +726,7 @@ const GRNPage = /* @__PURE__ */ __name(() => {
                     <Eye className="w-4 h-4" />
                   </button>
 
-                  {grnEffectiveStatus(grn) === "Partial" && hasPermission("CREATE_GRN") && <button
+                  {grnEffectiveStatus(grn) === "Partial" && !grn.isLocked && hasPermission("CREATE_GRN") && <button
       title="Receive Remaining Material"
       onClick={(e) => { e.stopPropagation();
         const po = pos.find((p) => p.id === grn.poId);
@@ -749,17 +750,19 @@ const GRNPage = /* @__PURE__ */ __name(() => {
                       <PackagePlus className="w-4 h-4" />
                     </button>}
                   {hasPermission("EDIT_GRN") && <button
-      title="Edit GRN"
+      title={grn.isLocked && role !== "Super Admin" ? "Locked: MR closed — all materials issued" : "Edit GRN"}
       onClick={(e) => { e.stopPropagation(); setNewGRN(grn); setIsEditing(true); setModal(true); }}
-      className="p-2 rounded-lg text-orange-500 hover:bg-orange-50 dark:hover:bg-orange-900/20 transition-colors"
+      className="p-2 rounded-lg text-orange-500 hover:bg-orange-50 dark:hover:bg-orange-900/20 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+      disabled={grn.isLocked && role !== "Super Admin"}
     >
                       <Pencil className="w-4 h-4" />
                     </button>}
 
                   {hasPermission("DELETE_GRN") && <button
-      title="Delete GRN"
+      title={grn.isLocked && role !== "Super Admin" ? "Locked: MR closed — all materials issued" : "Delete GRN"}
       onClick={(e) => { e.stopPropagation(); setDeleteConfirm(grn.id); }}
-      className="p-2 rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+      className="p-2 rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+      disabled={grn.isLocked && role !== "Super Admin"}
     >
                       <Trash2 className="w-4 h-4" />
                     </button>}

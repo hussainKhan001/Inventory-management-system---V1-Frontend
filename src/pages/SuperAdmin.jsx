@@ -304,7 +304,8 @@ const SuperAdmin = /* @__PURE__ */ __name(() => {
     phone: "",
     designation: "",
     department: "",
-    employeeId: ""
+    employeeId: "",
+    assignedProjects: []
   });
   useEffect(() => {
     if (tab === "users" && hasPermission("MANAGE_USERS")) {
@@ -352,7 +353,7 @@ const SuperAdmin = /* @__PURE__ */ __name(() => {
     try {
       await addUser(newUser);
       setShowAddModal(false);
-      setNewUser({ name: "", email: "", password: "", role: "staff", phone: "", designation: "", department: "", employeeId: "" });
+      setNewUser({ name: "", email: "", password: "", role: "staff", phone: "", designation: "", department: "", employeeId: "", assignedProjects: [] });
     } catch (err) {
     }
   }, "handleAddUser");
@@ -366,7 +367,8 @@ const SuperAdmin = /* @__PURE__ */ __name(() => {
         phone: selectedUser.phone || "",
         designation: selectedUser.designation || "",
         department: selectedUser.department || "",
-        employeeId: selectedUser.employeeId || ""
+        employeeId: selectedUser.employeeId || "",
+        assignedProjects: selectedUser.assignedProjects || []
       };
       if (editPassword) {
         updateData.password = editPassword;
@@ -743,6 +745,32 @@ const SuperAdmin = /* @__PURE__ */ __name(() => {
                   </select>
                 </div>
               </div>
+
+              {selectedUser.role === "DRI" && (
+                <div className="space-y-2 pt-2 border-t border-gray-100 dark:border-gray-800">
+                  <label className="text-[11px] font-bold text-gray-400 dark:text-gray-500 tracking-widest ml-1">Assigned Projects (DRI access)</label>
+                  <div className="flex flex-wrap gap-2 min-h-[36px] p-2 bg-gray-50/50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-xl">
+                    {(selectedUser.assignedProjects || []).map((p) => (
+                      <span key={p} className="flex items-center gap-1 px-2.5 py-1 bg-primary/10 text-primary text-[11px] font-semibold rounded-full">
+                        {p}
+                        <button type="button" onClick={() => setSelectedUser({ ...selectedUser, assignedProjects: selectedUser.assignedProjects.filter((x) => x !== p) })}><CloseIcon className="w-3 h-3" /></button>
+                      </span>
+                    ))}
+                    {(selectedUser.assignedProjects || []).length === 0 && <span className="text-[11px] text-gray-400 italic">No projects assigned</span>}
+                  </div>
+                  <select
+                    className="w-full bg-gray-50/50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-xl px-4 py-3 text-[13px] outline-none focus:ring-2 focus:ring-primary/20 transition-all font-medium [color-scheme:light] dark:[color-scheme:dark]"
+                    value=""
+                    onChange={(e) => {
+                      if (e.target.value && !(selectedUser.assignedProjects || []).includes(e.target.value))
+                        setSelectedUser({ ...selectedUser, assignedProjects: [...(selectedUser.assignedProjects || []), e.target.value] });
+                    }}
+                  >
+                    <option value="">+ Add project...</option>
+                    {(settings?.projects || []).filter((p) => !(selectedUser.assignedProjects || []).includes(p)).map((p) => <option key={p} value={p}>{p}</option>)}
+                  </select>
+                </div>
+              )}
 
               {
       /* Password section */
@@ -1471,6 +1499,30 @@ const SuperAdmin = /* @__PURE__ */ __name(() => {
                 </select>
               </div>
             </div>
+            {newUser.role === "DRI" && (
+              <div className="space-y-2">
+                <label className="text-[11px] font-bold text-gray-500">Assigned Projects (DRI access)</label>
+                <div className="flex flex-wrap gap-2 min-h-[36px] p-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg">
+                  {(newUser.assignedProjects || []).map((p) => (
+                    <span key={p} className="flex items-center gap-1 px-2.5 py-1 bg-primary/10 text-primary text-[11px] font-semibold rounded-full">
+                      {p}
+                      <button type="button" onClick={() => setNewUser({ ...newUser, assignedProjects: newUser.assignedProjects.filter((x) => x !== p) })}><CloseIcon className="w-3 h-3" /></button>
+                    </span>
+                  ))}
+                </div>
+                <select
+                  className="w-full bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg px-4 py-2.5 text-[13px] outline-none focus:ring-2 focus:ring-primary/20 [color-scheme:light] dark:[color-scheme:dark]"
+                  value=""
+                  onChange={(e) => {
+                    if (e.target.value && !(newUser.assignedProjects || []).includes(e.target.value))
+                      setNewUser({ ...newUser, assignedProjects: [...(newUser.assignedProjects || []), e.target.value] });
+                  }}
+                >
+                  <option value="">+ Add project...</option>
+                  {(settings?.projects || []).filter((p) => !(newUser.assignedProjects || []).includes(p)).map((p) => <option key={p} value={p}>{p}</option>)}
+                </select>
+              </div>
+            )}
           </form>
         </Modal>}
 
