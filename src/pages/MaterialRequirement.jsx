@@ -930,6 +930,9 @@ export function MaterialRequirementPage() {
                           onClick={async e => {
                             e.stopPropagation();
                             setOpeningAllocModal(mr.id);
+                            // Bust api.js 30-second GET cache so force-fetch hits the network
+                            api.invalidate("inventory");
+                            api.invalidate("mr-allocations");
                             await Promise.all([
                               fetchResource("inventory", 1, 2000, true, "", null, false, false, "", "", true),
                               fetchResource("mr-allocations", 1, 2000, true, "", null, false, false, "", "", true),
