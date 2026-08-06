@@ -546,7 +546,9 @@ const AppProvider = /* @__PURE__ */ __name(({ children }) => {
                     ? prev.sites
                     : (serverData.stores || prev.stores || []).map((n) => ({ siteName: n, siteCode: "" })),
                 gstRates: serverData.gstRates?.length ? serverData.gstRates : prev.gstRates?.length ? prev.gstRates : ["0%","5%","12%","18%","28%"],
-                slaConfig: serverData.slaConfig ?? prev.slaConfig ?? null
+                slaConfig: serverData.slaConfig ?? prev.slaConfig ?? null,
+                mrReportConfig: serverData.mrReportConfig ?? prev.mrReportConfig ?? {},
+                reportAutomations: Array.isArray(serverData.reportAutomations) ? serverData.reportAutomations : prev.reportAutomations ?? [],
               };
               const isEmpty = !serverData.projects?.length && !serverData.requesters?.length && !serverData.categories?.length && !serverData.units?.length && !serverData.workTypes?.length && !serverData.companies?.length;
               if (resource === "settings" && isEmpty) {

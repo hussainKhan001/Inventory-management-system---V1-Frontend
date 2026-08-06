@@ -26,6 +26,8 @@ import {
   Clock,
   AlarmClock,
   CreditCard,
+  Send,
+  Zap,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 const ListManager = /* @__PURE__ */ __name(({
@@ -186,10 +188,107 @@ const SettingsPage = /* @__PURE__ */ __name(() => {
     escalateTo: "Super Admin"
   };
   const [slaForm, setSlaForm] = useState(() => ({ ...defaultSlaConfig, ...(settings.slaConfig || {}) }));
+  const REPORT_MODULES = [
+    { value: "MR",           label: "Material Requirement", cls: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400" },
+    { value: "PO",           label: "Purchase Order",       cls: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" },
+    { value: "GRN",          label: "GRN",                  cls: "bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400" },
+    { value: "Inventory",    label: "Inventory",            cls: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400" },
+    { value: "Inward",       label: "Inward",               cls: "bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-400" },
+    { value: "Quotation",    label: "Quotations",           cls: "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400" },
+    { value: "PO-Report",    label: "PO Report",            cls: "bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400" },
+    { value: "Accounts",     label: "Accounts",             cls: "bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400" },
+    { value: "MaterialPlan", label: "Material Plan",        cls: "bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400" },
+    { value: "Suppliers",    label: "Suppliers",            cls: "bg-lime-100 text-lime-700 dark:bg-lime-900/30 dark:text-lime-400" },
+    { value: "Catalogue",    label: "Catalogue",            cls: "bg-pink-100 text-pink-700 dark:bg-pink-900/30 dark:text-pink-400" },
+    { value: "AuditLog",     label: "Audit Logs",           cls: "bg-slate-100 text-slate-700 dark:bg-slate-800/60 dark:text-slate-400" },
+  ];
+  const RANGE_LABELS = { today: "Today only", last7: "Last 7 Days", last30: "Last 30 Days" };
+
+  const [automations, setAutomations] = useState(() => settings.reportAutomations || []);
+  useEffect(() => { setAutomations(settings.reportAutomations || []); }, [settings.reportAutomations]);
+  const [newAuto, setNewAuto] = useState({ module: "MR", scheduleTime: "20:00", dataRange: "today", slackIds: [], enabled: true });
+  const [slackIdInput, setSlackIdInput] = useState("");
+  const mergeNewAuto = patch => setNewAuto(prev => ({ ...prev, ...patch }));
+  const [triggeringId, setTriggeringId] = useState(null);
+  const [editingSlackId, setEditingSlackId] = useState(null); // automation id being edited
+  const [editSlackInput, setEditSlackInput] = useState("");
+  const [editingAutoId, setEditingAutoId] = useState(null);
+  const [editAutoForm, setEditAutoForm] = useState({});
+  const mergeEditAuto = patch => setEditAutoForm(prev => ({ ...prev, ...patch }));
+  const saveEditAuto = async () => {
+    const list = automations.map(a => a.id === editingAutoId ? { ...a, ...editAutoForm } : a);
+    setAutomations(list);
+    try { await _saveAutos(list); toast.success("Automation updated"); setEditingAutoId(null); }
+    catch (err) { toast.error(err.message); }
+  };
+  const addSlackIdToAuto = async (autoId, newId) => {
+    const val = newId.trim();
+    if (!val) return;
+    const list = automations.map(a => a.id === autoId && !a.slackIds?.includes(val)
+      ? { ...a, slackIds: [...(a.slackIds || []), val] } : a);
+    setAutomations(list);
+    try { await _saveAutos(list); } catch {}
+  };
+  const removeSlackIdFromAuto = async (autoId, slackId) => {
+    const list = automations.map(a => a.id === autoId
+      ? { ...a, slackIds: (a.slackIds || []).filter(s => s !== slackId) } : a);
+    setAutomations(list);
+    try { await _saveAutos(list); } catch {}
+  };
+
+  const _saveAutos = async (list) => { await saveSettings({ reportAutomations: list }); };
+
+  const addAutomation = async () => {
+    if (!newAuto.module) { toast.error("Select a module"); return; }
+    // Auto-include any ID still typed in the input (user forgot to press Add)
+    const pendingIds = slackIdInput.trim()
+      ? [...new Set([...newAuto.slackIds, slackIdInput.trim()])]
+      : newAuto.slackIds;
+    const item = { ...newAuto, slackIds: pendingIds, id: Date.now().toString() };
+    const list = [...automations, item];
+    setAutomations(list);
+    try {
+      await _saveAutos(list);
+      toast.success("Automation added");
+      setNewAuto({ module: "MR", scheduleTime: "20:00", dataRange: "today", slackIds: [], enabled: true });
+      setSlackIdInput("");
+    } catch (err) { toast.error(err.message); }
+  };
+  const removeAutomation = async (id) => {
+    const list = automations.filter(a => a.id !== id);
+    setAutomations(list);
+    try { await _saveAutos(list); } catch {}
+  };
+  const toggleAutomation = async (id) => {
+    const list = automations.map(a => a.id === id ? { ...a, enabled: !a.enabled } : a);
+    setAutomations(list);
+    try { await _saveAutos(list); } catch {}
+  };
+  const triggerAutomation = async (auto) => {
+    setTriggeringId(auto.id);
+    try {
+      const token = localStorage.getItem("token");
+      const base = (import.meta.env.VITE_API_BASE_URL || "/api").replace(/\/api$/, "");
+      const res = await fetch(`${base}/api/webhook/trigger-mr-report?module=${auto.module}&dataRange=${auto.dataRange || "today"}`, {
+        method: "POST", credentials: "include",
+        headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify({ slackIds: auto.slackIds || [] }),
+      });
+      const data = await res.json();
+      if (data.success) toast.success(`${auto.module} report sent to Slack`);
+      else toast.error(data.message || "Failed to send");
+    } catch { toast.error("Failed to trigger report"); }
+    finally { setTriggeringId(null); }
+  };
+  const fmtTime = (t) => {
+    const [h, m] = (t || "20:00").split(":").map(Number);
+    const ap = h >= 12 ? "PM" : "AM";
+    return `${String(h % 12 || 12).padStart(2, "0")}:${String(m).padStart(2, "0")} ${ap}`;
+  };
   const mergeSlaForm = (patch) => setSlaForm((prev) => ({ ...prev, ...patch }));
 
   useEffect(() => {
-    if (activeTab === "approvers" && !users.length) fetchUsers();
+    if ((activeTab === "approvers" || activeTab === "mr-report") && !users.length) fetchUsers();
   }, [activeTab]);
   const toggleWorkingDay = (day) => setSlaForm((prev) => ({
     ...prev,
@@ -339,7 +438,7 @@ const SettingsPage = /* @__PURE__ */ __name(() => {
       {
     /* Tabs list */
   }
-      <div className="flex gap-1 bg-gray-100/60 dark:bg-gray-800/40 p-1.5 rounded-xl border border-gray-100 dark:border-gray-800/60 overflow-x-auto no-scrollbar">
+      <div className="flex gap-1 bg-gray-100/60 dark:bg-gray-800/40 p-1.5 rounded-xl border border-gray-100 dark:border-gray-800/60 overflow-x-auto">
         {[
     { id: "branding", label: "Branding & Theme", icon: Palette },
     { id: "companies", label: "My Companies", icon: Building },
@@ -348,6 +447,7 @@ const SettingsPage = /* @__PURE__ */ __name(() => {
     { id: "master-data", label: "Master Data Databases", icon: DatabaseIcon },
     { id: "sla", label: "SLA & Tasks", icon: Clock },
     { id: "form-builder", label: "Form Builder", icon: Layout },
+    { id: "mr-report", label: "Report Automation", icon: FileText },
   ].map((t) => <button
     key={t.id}
     onClick={() => setActiveTab(t.id)}
@@ -1355,6 +1455,211 @@ const SettingsPage = /* @__PURE__ */ __name(() => {
 
       {activeTab === "form-builder" && <div className="animate-in fade-in slide-in-from-bottom-4 duration-300">
         <FormBuilder />
+      </div>}
+
+      {activeTab === "mr-report" && <div className="animate-in fade-in slide-in-from-bottom-4 duration-300 space-y-6">
+
+        {/* ── Add New Automation ── */}
+        <Card className="p-6 space-y-5">
+          <h3 className="text-sm font-bold tracking-wider text-gray-400 flex items-center gap-2 border-b border-gray-100 dark:border-gray-800 pb-3">
+            <Zap className="w-4 h-4 text-primary" /> New Report Automation
+          </h3>
+
+          {/* Module + Schedule + Range */}
+          <div className="grid grid-cols-3 gap-4">
+            <div className="space-y-1.5">
+              <label className="block text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Module</label>
+              <CustomDropdown
+                options={REPORT_MODULES.map(m => ({ value: m.value, label: m.label }))}
+                value={newAuto.module}
+                onChange={v => mergeNewAuto({ module: v })}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="block text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Schedule Time (IST)</label>
+              {(() => {
+                const [rawH, rawM] = (newAuto.scheduleTime || "20:00").split(":").map(Number);
+                const ampm = rawH >= 12 ? "PM" : "AM";
+                const h12 = String(rawH % 12 || 12).padStart(2, "0");
+                const min = String(rawM || 0).padStart(2, "0");
+                const upd = (nh, nm, na) => { let h = Number(nh); if (na === "PM" && h !== 12) h += 12; if (na === "AM" && h === 12) h = 0; mergeNewAuto({ scheduleTime: `${String(h).padStart(2,"0")}:${nm}` }); };
+                const hrs = Array.from({ length: 12 }, (_, i) => ({ value: String(i+1).padStart(2,"0"), label: String(i+1).padStart(2,"0") }));
+                const mns = ["00","05","10","15","20","25","30","35","40","45","50","55"].map(m => ({ value: m, label: m }));
+                return <div className="flex gap-1"><CustomDropdown options={hrs} value={h12} onChange={v => upd(v,min,ampm)} /><CustomDropdown options={mns} value={min} onChange={v => upd(h12,v,ampm)} /><CustomDropdown options={[{value:"AM",label:"AM"},{value:"PM",label:"PM"}]} value={ampm} onChange={v => upd(h12,min,v)} /></div>;
+              })()}
+            </div>
+            <div className="space-y-1.5">
+              <label className="block text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Data Range</label>
+              <CustomDropdown
+                options={[{value:"today",label:"Today only"},{value:"last7",label:"Last 7 Days"},{value:"last30",label:"Last 30 Days"}]}
+                value={newAuto.dataRange}
+                onChange={v => mergeNewAuto({ dataRange: v })}
+              />
+            </div>
+          </div>
+
+          {/* Slack Recipients */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <label className="block text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Slack Recipient IDs</label>
+              {newAuto.slackIds.length > 0 && (
+                <span className="text-[10px] font-semibold text-primary bg-primary/10 px-2 py-0.5 rounded-full">{newAuto.slackIds.length} added</span>
+              )}
+            </div>
+            <p className="text-[11px] text-gray-400">Enter a Slack user ID (e.g. <span className="font-mono text-gray-500">U0123456789</span>) or channel ID (e.g. <span className="font-mono text-gray-500">C0123456789</span>)</p>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={slackIdInput}
+                onChange={e => setSlackIdInput(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    const val = slackIdInput.trim();
+                    if (val && !newAuto.slackIds.includes(val)) mergeNewAuto({ slackIds: [...newAuto.slackIds, val] });
+                    setSlackIdInput("");
+                  }
+                }}
+                placeholder="U0123456789"
+                className="flex-1 px-3 py-2 text-[13px] rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:border-primary"
+              />
+              <button
+                onClick={() => {
+                  const val = slackIdInput.trim();
+                  if (val && !newAuto.slackIds.includes(val)) mergeNewAuto({ slackIds: [...newAuto.slackIds, val] });
+                  setSlackIdInput("");
+                }}
+                className="px-3 py-2 text-[12px] font-semibold bg-primary/10 text-primary border border-primary/30 rounded-lg hover:bg-primary/20 transition-colors"
+              >Add</button>
+            </div>
+            {newAuto.slackIds.length > 0 && (
+              <div className="flex flex-wrap gap-2 pt-1">
+                {newAuto.slackIds.map(id => (
+                  <span key={id} className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 text-[12px] font-mono rounded-lg">
+                    {id}
+                    <button onClick={() => mergeNewAuto({ slackIds: newAuto.slackIds.filter(s => s !== id) })} className="text-gray-400 hover:text-red-500 transition-colors leading-none">×</button>
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <Btn label="Add Automation" icon={Plus} onClick={addAutomation} />
+        </Card>
+
+        {/* ── Active Automations ── */}
+        <Card className="p-6 space-y-4">
+          <h3 className="text-sm font-bold tracking-wider text-gray-400 flex items-center gap-2 border-b border-gray-100 dark:border-gray-800 pb-3">
+            <AlarmClock className="w-4 h-4 text-primary" />
+            Active Automations
+            {automations.length > 0 && <span className="ml-1 text-[11px] font-semibold text-primary bg-primary/10 px-2 py-0.5 rounded-full">{automations.length}</span>}
+          </h3>
+
+          {automations.length === 0
+            ? <p className="text-[13px] text-gray-400 text-center py-6">No automations yet — add one above.</p>
+            : automations.map(auto => {
+                const mod = REPORT_MODULES.find(m => m.value === auto.module) || REPORT_MODULES[0];
+                const recipCount = (auto.slackIds || []).length;
+                const isTriggering = triggeringId === auto.id;
+                return (
+                  <div key={auto.id} className="p-4 border border-gray-200 dark:border-gray-700 rounded-xl bg-gray-50/50 dark:bg-gray-800/30 space-y-3">
+                    <div className="flex items-center gap-3">
+                      {/* Module badge */}
+                      <span className={`text-[11px] font-bold px-2.5 py-1 rounded-lg shrink-0 ${mod.cls}`}>{auto.module}</span>
+
+                      {/* Info or Edit form */}
+                      {editingAutoId === auto.id
+                        ? <div className="flex-1 min-w-0 flex flex-wrap gap-2">
+                            {/* Module */}
+                            <div className="w-40">
+                              <CustomDropdown options={REPORT_MODULES.map(m => ({ value: m.value, label: m.label }))} value={editAutoForm.module} onChange={v => mergeEditAuto({ module: v })} />
+                            </div>
+                            {/* Time */}
+                            {(() => {
+                              const [rawH, rawM] = (editAutoForm.scheduleTime || "20:00").split(":").map(Number);
+                              const ampm = rawH >= 12 ? "PM" : "AM";
+                              const h12 = String(rawH % 12 || 12).padStart(2, "0");
+                              const min = String(rawM || 0).padStart(2, "0");
+                              const upd = (nh, nm, na) => { let h = Number(nh); if (na === "PM" && h !== 12) h += 12; if (na === "AM" && h === 12) h = 0; mergeEditAuto({ scheduleTime: `${String(h).padStart(2,"0")}:${nm}` }); };
+                              const hrs = Array.from({ length: 12 }, (_, i) => ({ value: String(i+1).padStart(2,"0"), label: String(i+1).padStart(2,"0") }));
+                              const mns = ["00","05","10","15","20","25","30","35","40","45","50","55"].map(m => ({ value: m, label: m }));
+                              return <div className="flex gap-1"><CustomDropdown options={hrs} value={h12} onChange={v => upd(v,min,ampm)} /><CustomDropdown options={mns} value={min} onChange={v => upd(h12,v,ampm)} /><CustomDropdown options={[{value:"AM",label:"AM"},{value:"PM",label:"PM"}]} value={ampm} onChange={v => upd(h12,min,v)} /></div>;
+                            })()}
+                            {/* Range */}
+                            <div className="w-36">
+                              <CustomDropdown options={[{value:"today",label:"Today only"},{value:"last7",label:"Last 7 Days"},{value:"last30",label:"Last 30 Days"}]} value={editAutoForm.dataRange} onChange={v => mergeEditAuto({ dataRange: v })} />
+                            </div>
+                          </div>
+                        : <div className="flex-1 min-w-0">
+                            <p className="text-[13px] font-semibold text-gray-900 dark:text-white">{mod.label}</p>
+                            <p className="text-[11px] text-gray-400 mt-0.5">
+                              Daily @ {fmtTime(auto.scheduleTime)} &nbsp;·&nbsp; {RANGE_LABELS[auto.dataRange] || auto.dataRange}
+                            </p>
+                          </div>
+                      }
+
+                      {/* Enable toggle */}
+                      {editingAutoId !== auto.id && (
+                        <button onClick={() => toggleAutomation(auto.id)}
+                          className={`relative w-9 h-5 rounded-full transition-colors duration-200 focus:outline-none shrink-0 ${auto.enabled ? "bg-primary" : "bg-gray-300 dark:bg-gray-600"}`}>
+                          <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform duration-200 ${auto.enabled ? "translate-x-4" : "translate-x-0"}`} />
+                        </button>
+                      )}
+
+                      {/* Action buttons */}
+                      {editingAutoId === auto.id
+                        ? <>
+                            <button onClick={saveEditAuto} className="px-3 py-1.5 text-[11px] font-semibold bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors shrink-0">Save</button>
+                            <button onClick={() => setEditingAutoId(null)} className="px-3 py-1.5 text-[11px] font-semibold border border-gray-200 dark:border-gray-600 rounded-lg text-gray-500 hover:text-gray-700 transition-colors shrink-0">Cancel</button>
+                          </>
+                        : <>
+                            {/* Trigger */}
+                            <button onClick={() => triggerAutomation(auto)} disabled={isTriggering} title="Send now"
+                              className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-semibold border border-gray-200 dark:border-gray-600 rounded-lg text-gray-600 dark:text-gray-300 hover:border-primary hover:text-primary transition-colors disabled:opacity-50 shrink-0">
+                              {isTriggering
+                                ? <svg className="animate-spin w-3 h-3" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" className="opacity-25"/><path fill="currentColor" d="M4 12a8 8 0 018-8v8z" className="opacity-75"/></svg>
+                                : <Send className="w-3 h-3" />}
+                              {isTriggering ? "Sending…" : "Send Now"}
+                            </button>
+                            {/* Edit */}
+                            <button onClick={() => { setEditingAutoId(auto.id); setEditAutoForm({ module: auto.module, scheduleTime: auto.scheduleTime, dataRange: auto.dataRange }); }}
+                              title="Edit" className="p-1.5 text-gray-400 hover:text-primary transition-colors rounded-lg hover:bg-primary/10 shrink-0">
+                              <Pencil className="w-4 h-4" />
+                            </button>
+                            {/* Delete */}
+                            <button onClick={() => removeAutomation(auto.id)} title="Delete"
+                              className="p-1.5 text-gray-400 hover:text-red-500 transition-colors rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 shrink-0">
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </>
+                      }
+                    </div>
+
+                    {/* Slack IDs inline editor (always visible) */}
+                    <div className="flex flex-wrap items-center gap-1 pl-1">
+                      {(auto.slackIds || []).map(sid => (
+                        <span key={sid} className="inline-flex items-center gap-1 px-2 py-0.5 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 text-[11px] font-mono rounded">
+                          {sid}
+                          <button onClick={() => removeSlackIdFromAuto(auto.id, sid)} className="text-gray-400 hover:text-red-500 transition-colors leading-none ml-0.5">×</button>
+                        </span>
+                      ))}
+                      {editingSlackId === auto.id
+                        ? <span className="inline-flex items-center gap-1">
+                            <input autoFocus value={editSlackInput} onChange={e => setEditSlackInput(e.target.value)}
+                              onKeyDown={e => { if (e.key === "Enter") { addSlackIdToAuto(auto.id, editSlackInput); setEditSlackInput(""); setEditingSlackId(null); } if (e.key === "Escape") { setEditingSlackId(null); setEditSlackInput(""); } }}
+                              placeholder="Slack ID" className="w-32 px-2 py-0.5 text-[11px] font-mono rounded border border-primary bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none" />
+                            <button onClick={() => { addSlackIdToAuto(auto.id, editSlackInput); setEditSlackInput(""); setEditingSlackId(null); }} className="text-[11px] text-primary font-semibold">Add</button>
+                            <button onClick={() => { setEditingSlackId(null); setEditSlackInput(""); }} className="text-[11px] text-gray-400">Cancel</button>
+                          </span>
+                        : <button onClick={() => { setEditingSlackId(auto.id); setEditSlackInput(""); }}
+                            className="text-[11px] text-primary hover:underline">+ Add ID</button>
+                      }
+                    </div>
+                  </div>
+                );
+              })
+          }
+        </Card>
       </div>}
     </div>;
 }, "SettingsPage");

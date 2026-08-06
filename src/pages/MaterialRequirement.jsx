@@ -7,7 +7,7 @@ import {
 import {
   Plus, Eye, Pencil, Trash2, User, MapPin, Building, Package,
   Check, Link2, CheckCircle, TrendingUp, AlertTriangle, FileText,
-  LayoutList, Table as TableIcon, Search,
+  LayoutList, Table as TableIcon, Search, Download,
 } from "lucide-react";
 import { formatDateTime, safeStr, isNewItem } from "../utils";
 import { toast } from "react-hot-toast";
@@ -356,14 +356,50 @@ export function MaterialRequirementPage() {
     );
   }, [stableMRs, materialRequirements, debouncedSearch]);
 
+  const handleDownloadReport = async () => {
+    try {
+      const base = import.meta.env.VITE_API_BASE_URL || "/api";
+      const token = localStorage.getItem("token");
+      const params = new URLSearchParams();
+      if (startDate) params.set("startDate", startDate);
+      if (endDate) params.set("endDate", endDate);
+      if (filterProject) params.set("project", filterProject);
+      if (filterRequester) params.set("requesterName", filterRequester);
+      if (filterStatus) params.set("status", filterStatus);
+      if (debouncedSearch) params.set("search", debouncedSearch);
+      // if no date filter at all, default to today
+      if (!startDate && !endDate) params.set("startDate", new Date().toISOString().slice(0, 10));
+      const res = await fetch(`${base}/material-requirements/export?${params}`, {
+        credentials: "include",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!res.ok) throw new Error("Download failed");
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      const dateTag = startDate || new Date().toISOString().slice(0, 10);
+      a.download = `MR-Report-${dateTag}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      toast.error("Failed to download report");
+    }
+  };
+
   return (
     <div className="space-y-6">
       <PageHeader
         title="Material Requirements"
         sub="Manage and track material requests from sites"
-        actions={hasPermission("CREATE_MATERIAL_REQUIREMENT") && (
-          <Btn label="New Requirement" icon={Plus} onClick={() => { setIsEditing(false); setSelectedRequirement(null); setModal(true); }} />
-        )}
+        actions={
+          <div className="flex gap-2">
+            <Btn label="Download Report" icon={Download} outline onClick={handleDownloadReport} />
+            {hasPermission("CREATE_MATERIAL_REQUIREMENT") && (
+              <Btn label="New Requirement" icon={Plus} onClick={() => { setIsEditing(false); setSelectedRequirement(null); setModal(true); }} />
+            )}
+          </div>
+        }
       />
 
       <div className="mb-6 space-y-3">

@@ -333,6 +333,14 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
     activeTab,
   ]);
 
+  // Re-fetch occupied-mrs whenever quotations or pos update via WebSocket
+  // so mrOptions always reflects the latest linked/released state without a page refresh
+  const _occupiedFetchedOnce = React.useRef(false);
+  useEffect(() => {
+    if (!_occupiedFetchedOnce.current) { _occupiedFetchedOnce.current = true; return; }
+    api.get("pos/occupied-mrs").then(r => setOccupiedQuoteIds(r.data || [])).catch(() => {});
+  }, [quotations, pos]);
+
   const loadMore = useCallback(() => {
     if (posPagination && page < posPagination.pages && !loading) {
       setPage((prev) => prev + 1);

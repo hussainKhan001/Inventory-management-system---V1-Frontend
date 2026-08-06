@@ -138,6 +138,10 @@ export function MRFormModal({ open, isEditing, initialData, onClose, onSuccess }
     if (data.requesterName === "Other" && !otherRequester) errs.otherRequester = "Required";
     if (!data.project) errs.project = "Required";
     if (data.project === "Other" && !otherProject) errs.otherProject = "Required";
+    if (!data.workType) errs.workType = "Required";
+    if (!data.requirementDate) errs.requirementDate = "Required";
+    if (!data.location?.trim()) errs.location = "Required";
+    if (!data.purpose?.trim()) errs.purpose = "Required";
     if (!data.items?.length) {
       errs.items = "At least one item is required";
     } else {
@@ -393,6 +397,7 @@ export function MRFormModal({ open, isEditing, initialData, onClose, onSuccess }
               onChange={e => setForm(f => ({ ...f, workType: e.target.value }))}
               options={workTypes}
               error={errors.workType}
+              required
             />
           </div>
           <div className="space-y-1">
@@ -402,6 +407,7 @@ export function MRFormModal({ open, isEditing, initialData, onClose, onSuccess }
               value={form.requirementDate}
               onChange={e => setForm(f => ({ ...f, requirementDate: e.target.value }))}
               error={errors.requirementDate}
+              required
             />
           </div>
           <div className="md:col-span-2">
@@ -411,17 +417,19 @@ export function MRFormModal({ open, isEditing, initialData, onClose, onSuccess }
               value={form.location}
               onChange={e => setForm(f => ({ ...f, location: e.target.value }))}
               error={errors.location}
+              required
             />
           </div>
           <div className="md:col-span-2">
-            <label className="block text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1.5">Purpose</label>
+            <label className="block text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1.5">Purpose <span className="text-red-500">*</span></label>
             <textarea
               rows={3}
               placeholder="Describe the purpose or reason for this material requirement..."
               value={form.purpose || ""}
               onChange={e => setForm(f => ({ ...f, purpose: e.target.value }))}
-              className="w-full px-3 py-2.5 border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-xl text-[13px] text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-600 focus:outline-none focus:border-primary resize-none"
+              className={`w-full px-3 py-2.5 border bg-white dark:bg-gray-800 rounded-xl text-[13px] text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-600 focus:outline-none focus:border-primary resize-none ${errors.purpose ? "border-red-400 dark:border-red-500" : "border-gray-200 dark:border-gray-700"}`}
             />
+            {errors.purpose && <p className="text-[11px] text-red-500 mt-1">{errors.purpose}</p>}
           </div>
         </div>
 

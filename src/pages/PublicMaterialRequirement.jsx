@@ -44,6 +44,10 @@ const PublicMaterialRequirement = /* @__PURE__ */ __name(() => {
     if (form.requesterName === "Other" && !otherRequester) newErrors.otherRequester = "Required";
     if (!form.project) newErrors.project = "Required";
     if (form.project === "Other" && !otherProject) newErrors.otherProject = "Required";
+    if (!form.workType) newErrors.workType = "Required";
+    if (!form.requirementDate) newErrors.requirementDate = "Required";
+    if (!form.location?.trim()) newErrors.location = "Required";
+    if (!form.purpose?.trim()) newErrors.purpose = "Required";
     if (!form.items || form.items.length === 0) {
       newErrors.items = "At least one item is required";
     } else {
@@ -253,6 +257,7 @@ const PublicMaterialRequirement = /* @__PURE__ */ __name(() => {
     onChange={(e) => setForm({ ...form, workType: e.target.value })}
     options={WORK_TYPES}
     error={errors.workType}
+    required
   />
               </div>
 
@@ -263,6 +268,7 @@ const PublicMaterialRequirement = /* @__PURE__ */ __name(() => {
     value={form.requirementDate}
     onChange={(e) => setForm({ ...form, requirementDate: e.target.value })}
     error={errors.requirementDate}
+    required
   />
               </div>
 
@@ -273,18 +279,20 @@ const PublicMaterialRequirement = /* @__PURE__ */ __name(() => {
     value={form.location}
     onChange={(e) => setForm({ ...form, location: e.target.value })}
     error={errors.location}
+    required
   />
               </div>
 
               <div className="md:col-span-2">
-                <label className="block text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1.5">Purpose</label>
+                <label className="block text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1.5">Purpose <span className="text-red-500">*</span></label>
                 <textarea
                   rows={3}
                   placeholder="Describe the purpose or reason for this material requirement..."
                   value={form.purpose || ""}
                   onChange={(e) => setForm({ ...form, purpose: e.target.value })}
-                  className="w-full px-3 py-2.5 border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-xl text-[13px] text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-600 focus:outline-none focus:border-primary resize-none"
+                  className={`w-full px-3 py-2.5 border bg-white dark:bg-gray-800 rounded-xl text-[13px] text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-600 focus:outline-none focus:border-primary resize-none ${errors.purpose ? "border-red-400 dark:border-red-500" : "border-gray-200 dark:border-gray-700"}`}
                 />
+                {errors.purpose && <p className="text-[11px] text-red-500 mt-1">{errors.purpose}</p>}
               </div>
             </div>
 
