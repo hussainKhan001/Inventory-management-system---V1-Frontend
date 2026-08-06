@@ -87,10 +87,6 @@ const POPreviewModal = /* @__PURE__ */ __name(({
               <div className="col-span-8 p-2 font-bold text-[11px] text-gray-700 dark:text-gray-300">{po.phase || po.milestone || "NA"}</div>
             </div>
             <div className="grid grid-cols-12 min-h-[35px]">
-              <div className="col-span-4 bg-[#1A365D]/5 dark:bg-[#1A365D]/20 p-2 font-bold text-[9px] text-gray-500 border-r border-[#1A365D] flex items-center">Site/Location</div>
-              <div className="col-span-8 p-2 font-bold text-[11px] ">{po.project || po.location || "NA"}</div>
-            </div>
-            <div className="grid grid-cols-12 min-h-[35px]">
               <div className="col-span-4 bg-[#1A365D]/5 dark:bg-[#1A365D]/20 p-2 font-bold text-[9px] text-gray-500 border-r border-[#1A365D] flex items-center">Date Of Issue</div>
               <div className="col-span-8 p-2 font-bold text-[11px] ">{formatPrettyDate(po.date)}</div>
             </div>

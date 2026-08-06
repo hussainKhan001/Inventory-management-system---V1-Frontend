@@ -371,7 +371,6 @@ export function POViewModal({ po, onClose, onApproveL1, onApproveL2, onApproveL3
               ...(mrLocation ? [["MR location", mrLocation, "text-amber-600 dark:text-amber-400"]] : []),
               ...(mrPurpose ? [["MR purpose", mrPurpose, "leading-tight"]] : []),
               ...(po.project ? [["Project", po.project, "font-bold text-gray-800 dark:text-gray-200"]] : []),
-              ["Site/location", po.location || po.site || "—"],
               ["Date of issue", formatPrettyDate(po.date)],
             ].map(([label, value, extra = ""]) => (
               <div key={label} className="grid grid-cols-12 min-h-[35px]">
