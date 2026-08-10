@@ -3,7 +3,7 @@ import { useAppStore } from "../store";
 import {
   PageHeader, Card, Btn, ConfirmModal, Skeleton, CustomDropdown
 } from "../components/ui";
-import { SearchFilter, DateRangePicker, FilterRow } from "../components/ui/Filters";
+import { SearchFilter, DateRangePicker } from "../components/ui/Filters";
 import { toast } from "react-hot-toast";
 import { Fuel, Download, Trash2, User, Truck, MapPin, Gauge, Plus, X } from "lucide-react";
 
@@ -203,16 +203,12 @@ export function DieselConsumption() {
               </div>
               <div>
                 <label className={labelCls}>Site / Project *</label>
-                {PROJECTS.length > 0 ? (
-                  <select className={inputCls + " [color-scheme:light] dark:[color-scheme:dark]"}
-                    value={form.site} onChange={e => setForm(f => ({ ...f, site: e.target.value }))} required>
-                    <option value="">Select site...</option>
-                    {PROJECTS.map(p => <option key={p} value={p}>{p}</option>)}
-                  </select>
-                ) : (
-                  <input className={inputCls} placeholder="Site / project"
-                    value={form.site} onChange={e => setForm(f => ({ ...f, site: e.target.value }))} required />
-                )}
+                <CustomDropdown
+                  value={form.site}
+                  onChange={v => setForm(f => ({ ...f, site: v }))}
+                  options={[{ value: "", label: "Select site..." }, ...PROJECTS.map(p => ({ value: p, label: p }))]}
+                  placeholder="Select site..."
+                />
               </div>
               <div>
                 <label className={labelCls}>Qty Used (Litres) *</label>
@@ -284,29 +280,30 @@ export function DieselConsumption() {
         </Card>
       )}
 
-      {/* Filters */}
-      <FilterRow
-        showClear={!!(search || startDate || endDate || filterSite)}
-        onClearAll={() => { setSearch(""); setStartDate(""); setEndDate(""); setFilterSite(""); }}
-      >
+      {/* Filters — mobile: stacked, desktop: single row */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:flex-nowrap">
+        {/* Search — full width on mobile, grows on desktop */}
         <SearchFilter
           value={search}
           onChange={setSearch}
           placeholder="Search driver, equipment, site, ID…"
-          className="flex-1 min-w-[240px]"
+          className="w-full sm:flex-1"
         />
-        <DateRangePicker
-          value={{ start: startDate, end: endDate }}
-          onChange={v => { setStartDate(v.start); setEndDate(v.end); }}
-        />
-        <CustomDropdown
-          value={filterSite}
-          onChange={setFilterSite}
-          options={siteOptions}
-          placeholder="All Projects"
-          className="min-w-[180px]"
-        />
-      </FilterRow>
+        {/* Date + Project — side-by-side on mobile, fixed on desktop */}
+        <div className="flex gap-3 items-center">
+          <DateRangePicker
+            value={{ start: startDate, end: endDate }}
+            onChange={v => { setStartDate(v.start); setEndDate(v.end); }}
+          />
+          <CustomDropdown
+            value={filterSite}
+            onChange={setFilterSite}
+            options={siteOptions}
+            placeholder="All Projects"
+            className="w-[160px] sm:w-[180px]"
+          />
+        </div>
+      </div>
 
       {/* Table */}
       <Card className="p-0 overflow-hidden border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900">
