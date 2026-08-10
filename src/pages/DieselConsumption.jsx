@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { useAppStore } from "../store";
 import {
-  PageHeader, Card, Btn, ConfirmModal, Skeleton, CustomDropdown
+  PageHeader, Card, Btn, Modal, ConfirmModal, Skeleton, CustomDropdown
 } from "../components/ui";
 import { SearchFilter, DateRangePicker } from "../components/ui/Filters";
 import { toast } from "react-hot-toast";
@@ -204,72 +204,69 @@ export function DieselConsumption() {
           <>
             <Btn label="Export CSV" icon={Download} outline onClick={handleExport} />
             {isSuperAdmin && (
-              <Btn
-                label={showForm ? "Cancel" : "Add Entry"}
-                icon={showForm ? X : Plus}
-                onClick={() => setShowForm(v => !v)}
-              />
+              <Btn label="Add Entry" icon={Plus} onClick={() => setShowForm(true)} />
             )}
           </>
         }
       />
 
-      {/* Add Entry Form */}
+      {/* Add Entry Drawer */}
       {showForm && (
-        <Card className="overflow-hidden">
-          <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-700/50">
-            <h3 className="text-[14px] font-bold text-gray-900 dark:text-white flex items-center gap-2">
-              <Fuel className="w-4 h-4 text-amber-500" /> Log Diesel Consumption
-            </h3>
+        <Modal
+          title="Log Diesel Consumption"
+          subtitle="Record fuel usage for a site or equipment"
+          icon={Fuel}
+          onClose={() => { setShowForm(false); setForm({ ...EMPTY_FORM }); }}
+          wide
+          footer={
+            <div className="flex justify-end gap-2">
+              <Btn label="Cancel" outline onClick={() => { setShowForm(false); setForm({ ...EMPTY_FORM }); }} />
+              <Btn label={submitting ? "Saving..." : "Log Consumption"} icon={Fuel} onClick={handleSubmit} disabled={submitting} loading={submitting} />
+            </div>
+          }
+        >
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className={labelCls}>Date *</label>
+              <input type="date" className={inputCls + " [color-scheme:light] dark:[color-scheme:dark]"}
+                value={form.date} onChange={e => setForm(f => ({ ...f, date: e.target.value }))} required />
+            </div>
+            <div>
+              <label className={labelCls}>Driver / Operator *</label>
+              <input className={inputCls} placeholder="Driver name"
+                value={form.driverName} onChange={e => setForm(f => ({ ...f, driverName: e.target.value }))} />
+            </div>
+            <div>
+              <label className={labelCls}>Equipment / Vehicle *</label>
+              <input className={inputCls} placeholder="e.g. JCB, DG Set, Truck HR-26-1234"
+                value={form.equipment} onChange={e => setForm(f => ({ ...f, equipment: e.target.value }))} />
+            </div>
+            <div>
+              <label className={labelCls}>Site / Project *</label>
+              <CustomDropdown
+                value={form.site}
+                onChange={v => setForm(f => ({ ...f, site: v }))}
+                options={[{ value: "", label: "Select site..." }, ...PROJECTS.map(p => ({ value: p, label: p }))]}
+                placeholder="Select site..."
+              />
+            </div>
+            <div>
+              <label className={labelCls}>Qty Used (Litres) *</label>
+              <input type="number" min="0.1" step="0.1" className={inputCls} placeholder="0.0"
+                value={form.qtyUsed} onChange={e => setForm(f => ({ ...f, qtyUsed: e.target.value }))} />
+            </div>
+            <div>
+              <label className={labelCls}>Meter / Odometer Reading</label>
+              <input className={inputCls} placeholder="e.g. 12450 hrs / km (optional)"
+                value={form.meterReading} onChange={e => setForm(f => ({ ...f, meterReading: e.target.value }))} />
+            </div>
+            <div className="sm:col-span-2">
+              <label className={labelCls}>Remarks</label>
+              <input className={inputCls} placeholder="Any notes (optional)"
+                value={form.remarks} onChange={e => setForm(f => ({ ...f, remarks: e.target.value }))} />
+            </div>
           </div>
-          <form onSubmit={handleSubmit}>
-            <div className="p-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              <div>
-                <label className={labelCls}>Date *</label>
-                <input type="date" className={inputCls + " [color-scheme:light] dark:[color-scheme:dark]"}
-                  value={form.date} onChange={e => setForm(f => ({ ...f, date: e.target.value }))} required />
-              </div>
-              <div>
-                <label className={labelCls}>Driver / Operator *</label>
-                <input className={inputCls} placeholder="Driver name"
-                  value={form.driverName} onChange={e => setForm(f => ({ ...f, driverName: e.target.value }))} required />
-              </div>
-              <div>
-                <label className={labelCls}>Equipment / Vehicle *</label>
-                <input className={inputCls} placeholder="e.g. JCB, DG Set, Truck HR-26-1234"
-                  value={form.equipment} onChange={e => setForm(f => ({ ...f, equipment: e.target.value }))} required />
-              </div>
-              <div>
-                <label className={labelCls}>Site / Project *</label>
-                <CustomDropdown
-                  value={form.site}
-                  onChange={v => setForm(f => ({ ...f, site: v }))}
-                  options={[{ value: "", label: "Select site..." }, ...PROJECTS.map(p => ({ value: p, label: p }))]}
-                  placeholder="Select site..."
-                />
-              </div>
-              <div>
-                <label className={labelCls}>Qty Used (Litres) *</label>
-                <input type="number" min="0.1" step="0.1" className={inputCls} placeholder="0.0"
-                  value={form.qtyUsed} onChange={e => setForm(f => ({ ...f, qtyUsed: e.target.value }))} required />
-              </div>
-              <div>
-                <label className={labelCls}>Meter / Odometer Reading</label>
-                <input className={inputCls} placeholder="e.g. 12450 hrs / km (optional)"
-                  value={form.meterReading} onChange={e => setForm(f => ({ ...f, meterReading: e.target.value }))} />
-              </div>
-              <div className="sm:col-span-2 lg:col-span-3">
-                <label className={labelCls}>Remarks</label>
-                <input className={inputCls} placeholder="Any notes (optional)"
-                  value={form.remarks} onChange={e => setForm(f => ({ ...f, remarks: e.target.value }))} />
-              </div>
-            </div>
-            <div className="px-5 py-4 border-t border-gray-100 dark:border-gray-700/50 bg-gray-50/50 dark:bg-gray-800/30 flex justify-end gap-2">
-              <Btn label="Cancel" outline onClick={() => setShowForm(false)} />
-              <Btn label={submitting ? "Saving..." : "Log Consumption"} icon={Fuel} type="submit" disabled={submitting} loading={submitting} />
-            </div>
-          </form>
-        </Card>
+        </Modal>
       )}
 
       {/* Stats */}
@@ -435,68 +432,63 @@ export function DieselConsumption() {
         )}
       </Card>
 
-      {/* Edit Modal */}
+      {/* Edit Drawer */}
       {editEntry && (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setEditEntry(null)} />
-          <div className="relative w-full max-w-2xl bg-white dark:bg-gray-900 rounded-xl shadow-2xl overflow-hidden">
-            <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-700/50 flex items-center justify-between">
-              <h3 className="text-[14px] font-bold text-gray-900 dark:text-white flex items-center gap-2">
-                <Pencil className="w-4 h-4 text-primary" /> Edit Entry — <span className="font-mono text-gray-400">{editEntry.id}</span>
-              </h3>
-              <button onClick={() => setEditEntry(null)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors">
-                <X className="w-4 h-4" />
-              </button>
+        <Modal
+          title="Edit Entry"
+          subtitle={editEntry.id}
+          icon={Pencil}
+          onClose={() => setEditEntry(null)}
+          wide
+          footer={
+            <div className="flex justify-end gap-2">
+              <Btn label="Cancel" outline onClick={() => setEditEntry(null)} />
+              <Btn label={saving ? "Saving..." : "Save Changes"} icon={Pencil} onClick={handleSaveEdit} disabled={saving} loading={saving} />
             </div>
-            <form onSubmit={handleSaveEdit}>
-              <div className="p-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                <div>
-                  <label className={labelCls}>Date *</label>
-                  <input type="date" className={inputCls + " [color-scheme:light] dark:[color-scheme:dark]"}
-                    value={editForm.date} onChange={e => setEditForm(f => ({ ...f, date: e.target.value }))} required />
-                </div>
-                <div>
-                  <label className={labelCls}>Driver / Operator *</label>
-                  <input className={inputCls} placeholder="Driver name"
-                    value={editForm.driverName} onChange={e => setEditForm(f => ({ ...f, driverName: e.target.value }))} required />
-                </div>
-                <div>
-                  <label className={labelCls}>Equipment / Vehicle *</label>
-                  <input className={inputCls} placeholder="e.g. JCB, DG Set"
-                    value={editForm.equipment} onChange={e => setEditForm(f => ({ ...f, equipment: e.target.value }))} required />
-                </div>
-                <div>
-                  <label className={labelCls}>Site / Project *</label>
-                  <CustomDropdown
-                    value={editForm.site}
-                    onChange={v => setEditForm(f => ({ ...f, site: v }))}
-                    options={[{ value: "", label: "Select site..." }, ...PROJECTS.map(p => ({ value: p, label: p }))]}
-                    placeholder="Select site..."
-                  />
-                </div>
-                <div>
-                  <label className={labelCls}>Qty Used (Litres) *</label>
-                  <input type="number" min="0.1" step="0.1" className={inputCls} placeholder="0.0"
-                    value={editForm.qtyUsed} onChange={e => setEditForm(f => ({ ...f, qtyUsed: e.target.value }))} required />
-                </div>
-                <div>
-                  <label className={labelCls}>Meter / Odometer Reading</label>
-                  <input className={inputCls} placeholder="e.g. 12450 hrs / km"
-                    value={editForm.meterReading} onChange={e => setEditForm(f => ({ ...f, meterReading: e.target.value }))} />
-                </div>
-                <div className="sm:col-span-2 lg:col-span-3">
-                  <label className={labelCls}>Remarks</label>
-                  <input className={inputCls} placeholder="Any notes (optional)"
-                    value={editForm.remarks} onChange={e => setEditForm(f => ({ ...f, remarks: e.target.value }))} />
-                </div>
-              </div>
-              <div className="px-5 py-4 border-t border-gray-100 dark:border-gray-700/50 bg-gray-50/50 dark:bg-gray-800/30 flex justify-end gap-2">
-                <Btn label="Cancel" outline onClick={() => setEditEntry(null)} />
-                <Btn label={saving ? "Saving..." : "Save Changes"} icon={Pencil} type="submit" disabled={saving} loading={saving} />
-              </div>
-            </form>
+          }
+        >
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className={labelCls}>Date *</label>
+              <input type="date" className={inputCls + " [color-scheme:light] dark:[color-scheme:dark]"}
+                value={editForm.date} onChange={e => setEditForm(f => ({ ...f, date: e.target.value }))} />
+            </div>
+            <div>
+              <label className={labelCls}>Driver / Operator *</label>
+              <input className={inputCls} placeholder="Driver name"
+                value={editForm.driverName} onChange={e => setEditForm(f => ({ ...f, driverName: e.target.value }))} />
+            </div>
+            <div>
+              <label className={labelCls}>Equipment / Vehicle *</label>
+              <input className={inputCls} placeholder="e.g. JCB, DG Set"
+                value={editForm.equipment} onChange={e => setEditForm(f => ({ ...f, equipment: e.target.value }))} />
+            </div>
+            <div>
+              <label className={labelCls}>Site / Project *</label>
+              <CustomDropdown
+                value={editForm.site}
+                onChange={v => setEditForm(f => ({ ...f, site: v }))}
+                options={[{ value: "", label: "Select site..." }, ...PROJECTS.map(p => ({ value: p, label: p }))]}
+                placeholder="Select site..."
+              />
+            </div>
+            <div>
+              <label className={labelCls}>Qty Used (Litres) *</label>
+              <input type="number" min="0.1" step="0.1" className={inputCls} placeholder="0.0"
+                value={editForm.qtyUsed} onChange={e => setEditForm(f => ({ ...f, qtyUsed: e.target.value }))} />
+            </div>
+            <div>
+              <label className={labelCls}>Meter / Odometer Reading</label>
+              <input className={inputCls} placeholder="e.g. 12450 hrs / km"
+                value={editForm.meterReading} onChange={e => setEditForm(f => ({ ...f, meterReading: e.target.value }))} />
+            </div>
+            <div className="sm:col-span-2">
+              <label className={labelCls}>Remarks</label>
+              <input className={inputCls} placeholder="Any notes (optional)"
+                value={editForm.remarks} onChange={e => setEditForm(f => ({ ...f, remarks: e.target.value }))} />
+            </div>
           </div>
-        </div>
+        </Modal>
       )}
 
       {/* Delete confirmation */}
