@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { useAppStore } from "../store";
 import {
-  PageHeader, Card, Btn, ConfirmModal, Skeleton
+  PageHeader, Card, Btn, ConfirmModal, Skeleton, CustomDropdown
 } from "../components/ui";
-import { SearchFilter, SelectFilter, DateRangePicker, FilterRow } from "../components/ui/Filters";
+import { SearchFilter, DateRangePicker, FilterRow } from "../components/ui/Filters";
 import { toast } from "react-hot-toast";
 import { Fuel, Download, Trash2, User, Truck, MapPin, Gauge, Plus, X } from "lucide-react";
 
@@ -91,10 +91,12 @@ export function DieselConsumption() {
     return Object.entries(m).sort((a, b) => b[1] - a[1]);
   }, [filtered]);
 
-  const siteOptions = useMemo(() =>
-    (PROJECTS.length ? PROJECTS : [...new Set(entries.map(e => e.site).filter(Boolean))].sort())
-      .map(s => ({ label: s, value: s }))
-  , [PROJECTS, entries]);
+  const siteOptions = useMemo(() => {
+    const list = PROJECTS.length
+      ? PROJECTS
+      : [...new Set(entries.map(e => e.site).filter(Boolean))].sort();
+    return [{ value: "", label: "All Projects" }, ...list.map(s => ({ label: s, value: s }))];
+  }, [PROJECTS, entries]);
 
   async function handleSubmit(ev) {
     ev.preventDefault();
@@ -297,11 +299,12 @@ export function DieselConsumption() {
           value={{ start: startDate, end: endDate }}
           onChange={v => { setStartDate(v.start); setEndDate(v.end); }}
         />
-        <SelectFilter
+        <CustomDropdown
           value={filterSite}
           onChange={setFilterSite}
           options={siteOptions}
-          placeholder="All Sites"
+          placeholder="All Projects"
+          className="min-w-[180px]"
         />
       </FilterRow>
 
