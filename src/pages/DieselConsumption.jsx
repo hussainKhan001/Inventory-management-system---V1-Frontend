@@ -5,7 +5,7 @@ import {
 } from "../components/ui";
 import { SearchFilter, DateRangePicker } from "../components/ui/Filters";
 import { toast } from "react-hot-toast";
-import { Fuel, Download, Trash2, User, Truck, MapPin, Gauge, Plus, X } from "lucide-react";
+import { Fuel, Download, Trash2, Pencil, User, Truck, MapPin, Gauge, Plus, X } from "lucide-react";
 
 
 const EMPTY_FORM = {
@@ -39,6 +39,9 @@ export function DieselConsumption() {
   const [submitting, setSubmitting]       = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [deleting, setDeleting]           = useState(false);
+  const [editEntry, setEditEntry]         = useState(null); // entry being edited
+  const [editForm, setEditForm]           = useState({});
+  const [saving, setSaving]              = useState(false);
 
   const [search, setSearch]               = useState("");
   const [filterSite, setFilterSite]       = useState("");
@@ -151,6 +154,41 @@ export function DieselConsumption() {
     a.download = `diesel-consumption-${new Date().toISOString().slice(0, 10)}.csv`;
     a.click();
     URL.revokeObjectURL(url);
+  }
+
+  function openEdit(entry) {
+    setEditEntry(entry);
+    setEditForm({
+      date:          entry.date || "",
+      driverName:    entry.driverName || "",
+      equipment:     entry.equipment || "",
+      site:          entry.site || "",
+      qtyUsed:       entry.qtyUsed ?? "",
+      meterReading:  entry.meterReading || "",
+      remarks:       entry.remarks || "",
+    });
+  }
+
+  async function handleSaveEdit(ev) {
+    ev.preventDefault();
+    const { date, driverName, equipment, site, qtyUsed } = editForm;
+    if (!date || !driverName.trim() || !equipment.trim() || !site.trim() || !qtyUsed) {
+      toast.error("Fill all required fields"); return;
+    }
+    setSaving(true);
+    try {
+      const base = import.meta.env.VITE_API_BASE_URL || "/api";
+      const token = localStorage.getItem("token");
+      const r = await fetch(`${base}/diesel-consumption/${editEntry.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ ...editForm, qtyUsed: Number(editForm.qtyUsed) }),
+      });
+      const data = await r.json();
+      if (data.success) { toast.success("Entry updated"); setEditEntry(null); fetchEntries(); }
+      else toast.error(data.message || "Update failed");
+    } catch { toast.error("Update failed"); }
+    finally { setSaving(false); }
   }
 
   const colCount = isSuperAdmin ? 10 : 9;
@@ -368,8 +406,9 @@ export function DieselConsumption() {
                         <span className="block truncate text-[12px] text-[#6B7280] dark:text-gray-400">{entry.submittedBy || "—"}</span>
                       </td>
                       {isSuperAdmin && (
-                        <td className="px-3 py-2.5 text-right">
-                          <div className="opacity-0 group-hover:opacity-100 transition-opacity">
+                        <td className="px-3 py-2.5">
+                          <div className="flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <Btn icon={Pencil} small outline onClick={() => openEdit(entry)} />
                             <Btn icon={Trash2} small outline color="red" onClick={() => setDeleteConfirm(entry.id)} />
                           </div>
                         </td>
@@ -395,6 +434,70 @@ export function DieselConsumption() {
           </div>
         )}
       </Card>
+
+      {/* Edit Modal */}
+      {editEntry && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setEditEntry(null)} />
+          <div className="relative w-full max-w-2xl bg-white dark:bg-gray-900 rounded-xl shadow-2xl overflow-hidden">
+            <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-700/50 flex items-center justify-between">
+              <h3 className="text-[14px] font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                <Pencil className="w-4 h-4 text-primary" /> Edit Entry — <span className="font-mono text-gray-400">{editEntry.id}</span>
+              </h3>
+              <button onClick={() => setEditEntry(null)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <form onSubmit={handleSaveEdit}>
+              <div className="p-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div>
+                  <label className={labelCls}>Date *</label>
+                  <input type="date" className={inputCls + " [color-scheme:light] dark:[color-scheme:dark]"}
+                    value={editForm.date} onChange={e => setEditForm(f => ({ ...f, date: e.target.value }))} required />
+                </div>
+                <div>
+                  <label className={labelCls}>Driver / Operator *</label>
+                  <input className={inputCls} placeholder="Driver name"
+                    value={editForm.driverName} onChange={e => setEditForm(f => ({ ...f, driverName: e.target.value }))} required />
+                </div>
+                <div>
+                  <label className={labelCls}>Equipment / Vehicle *</label>
+                  <input className={inputCls} placeholder="e.g. JCB, DG Set"
+                    value={editForm.equipment} onChange={e => setEditForm(f => ({ ...f, equipment: e.target.value }))} required />
+                </div>
+                <div>
+                  <label className={labelCls}>Site / Project *</label>
+                  <CustomDropdown
+                    value={editForm.site}
+                    onChange={v => setEditForm(f => ({ ...f, site: v }))}
+                    options={[{ value: "", label: "Select site..." }, ...PROJECTS.map(p => ({ value: p, label: p }))]}
+                    placeholder="Select site..."
+                  />
+                </div>
+                <div>
+                  <label className={labelCls}>Qty Used (Litres) *</label>
+                  <input type="number" min="0.1" step="0.1" className={inputCls} placeholder="0.0"
+                    value={editForm.qtyUsed} onChange={e => setEditForm(f => ({ ...f, qtyUsed: e.target.value }))} required />
+                </div>
+                <div>
+                  <label className={labelCls}>Meter / Odometer Reading</label>
+                  <input className={inputCls} placeholder="e.g. 12450 hrs / km"
+                    value={editForm.meterReading} onChange={e => setEditForm(f => ({ ...f, meterReading: e.target.value }))} />
+                </div>
+                <div className="sm:col-span-2 lg:col-span-3">
+                  <label className={labelCls}>Remarks</label>
+                  <input className={inputCls} placeholder="Any notes (optional)"
+                    value={editForm.remarks} onChange={e => setEditForm(f => ({ ...f, remarks: e.target.value }))} />
+                </div>
+              </div>
+              <div className="px-5 py-4 border-t border-gray-100 dark:border-gray-700/50 bg-gray-50/50 dark:bg-gray-800/30 flex justify-end gap-2">
+                <Btn label="Cancel" outline onClick={() => setEditEntry(null)} />
+                <Btn label={saving ? "Saving..." : "Save Changes"} icon={Pencil} type="submit" disabled={saving} loading={saving} />
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* Delete confirmation */}
       {deleteConfirm && (
