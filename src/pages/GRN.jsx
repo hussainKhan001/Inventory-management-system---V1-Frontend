@@ -682,7 +682,6 @@ const GRNPage = /* @__PURE__ */ __name(() => {
                         {grn.receipts.length + 1} shipments
                       </span>
                     )}
-                    {isGroup && <span className="mt-0.5 inline-flex items-center text-[9px] font-bold text-orange-600 dark:text-orange-400 bg-orange-100 dark:bg-orange-900/30 px-1.5 py-0.5 rounded-md w-fit">{grn.__grnIds.length} GRNs merged</span>}
                   </div>
                   <div className="md:hidden">
                     <StatusBadge status={grnEffectiveStatus(grn)} />
