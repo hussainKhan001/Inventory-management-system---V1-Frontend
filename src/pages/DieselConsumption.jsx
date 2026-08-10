@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { useAppStore } from "../store";
 import {
-  PageHeader, Card, KPICard, Btn, ConfirmModal, Skeleton
+  PageHeader, Card, Btn, ConfirmModal, Skeleton
 } from "../components/ui";
 import { SearchFilter, SelectFilter, DateRangePicker, FilterRow } from "../components/ui/Filters";
 import { toast } from "react-hot-toast";
@@ -235,22 +235,27 @@ export function DieselConsumption() {
         </Card>
       )}
 
-      {/* KPI Stats */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <KPICard label="Total Consumed" value={`${totalLitres.toFixed(1)} L`} icon={Fuel} color="orange" />
-        <KPICard label="Total Entries"  value={filtered.length} color="blue" />
-        <KPICard
-          label="Top Site"
-          value={bySite[0]?.[0] || "—"}
-          sub={bySite[0] ? `${bySite[0][1].toFixed(1)} L` : undefined}
-          color="green"
-        />
-        <KPICard
-          label="Top Equipment"
-          value={byEquipment[0]?.[0] || "—"}
-          sub={byEquipment[0] ? `${byEquipment[0][1].toFixed(1)} L` : undefined}
-          color="purple"
-        />
+      {/* Stats */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        {[
+          { label: "Total Consumed", value: `${totalLitres.toFixed(1)} L`, icon: Fuel,   cls: "text-orange-500 dark:text-orange-400", bg: "bg-orange-50 dark:bg-orange-500/10" },
+          { label: "Total Entries",  value: filtered.length,               icon: null,    cls: "text-blue-500 dark:text-blue-400",   bg: "bg-blue-50 dark:bg-blue-500/10" },
+          { label: "Top Site",       value: bySite[0]?.[0] || "—",         sub: bySite[0] ? `${bySite[0][1].toFixed(1)} L` : null, cls: "text-emerald-600 dark:text-emerald-400", bg: "bg-emerald-50 dark:bg-emerald-500/10" },
+          { label: "Top Equipment",  value: byEquipment[0]?.[0] || "—",    sub: byEquipment[0] ? `${byEquipment[0][1].toFixed(1)} L` : null, cls: "text-violet-600 dark:text-violet-400", bg: "bg-violet-50 dark:bg-violet-500/10" },
+        ].map(({ label, value, sub, icon: Icon, cls, bg }) => (
+          <div key={label} className="bg-white dark:bg-gray-800/80 rounded-xl border border-gray-100 dark:border-gray-700/50 shadow-sm px-4 py-3 flex items-center gap-3">
+            {Icon && (
+              <div className={`w-8 h-8 rounded-lg ${bg} flex items-center justify-center shrink-0`}>
+                <Icon className={`w-4 h-4 ${cls}`} />
+              </div>
+            )}
+            <div className="min-w-0">
+              <p className="text-[11px] font-medium text-gray-500 dark:text-gray-400 truncate">{label}</p>
+              <p className={`text-[15px] font-bold truncate ${cls}`}>{value}</p>
+              {sub && <p className="text-[10px] text-gray-400 dark:text-gray-500 font-mono tabular-nums">{sub}</p>}
+            </div>
+          </div>
+        ))}
       </div>
 
       {/* Site breakdown */}
