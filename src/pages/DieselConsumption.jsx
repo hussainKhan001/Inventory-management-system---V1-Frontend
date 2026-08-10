@@ -92,8 +92,9 @@ export function DieselConsumption() {
   }, [filtered]);
 
   const siteOptions = useMemo(() =>
-    [...new Set(entries.map(e => e.site).filter(Boolean))].sort().map(s => ({ label: s, value: s }))
-  , [entries]);
+    (PROJECTS.length ? PROJECTS : [...new Set(entries.map(e => e.site).filter(Boolean))].sort())
+      .map(s => ({ label: s, value: s }))
+  , [PROJECTS, entries]);
 
   async function handleSubmit(ev) {
     ev.preventDefault();
