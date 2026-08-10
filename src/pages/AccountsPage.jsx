@@ -1046,6 +1046,27 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
     } catch (err) { toast.error(err?.message || "Failed to revert."); }
     finally { setIsSubmitting(false); }
   }, "handleGRNVerifyRevert");
+  const handleGRNShipmentReject = /* @__PURE__ */ __name(async (grnId, receiptIdx = null, reason = "") => {
+    if (!hasPermission("VERIFY_BILL")) { toast.error("Unauthorized: Access to reject bills is restricted."); return; }
+    setIsSubmitting(true);
+    try {
+      const path = receiptIdx !== null
+        ? `grn/${grnId}/receipt/${receiptIdx}/bill-reject`
+        : `grn/${grnId}/bill-reject`;
+      const res = await api.putSimple(path, { reason });
+      if (!res.success) throw new Error(res.message);
+      const rejectedFields = { paymentStatus: "bill_rejected", rejectedBy: user?.name, rejectedAt: new Date().toISOString(), rejectReason: reason };
+      setAllGrns(prev => prev.map(g => {
+        if (g.id !== grnId) return g;
+        if (receiptIdx === null) return { ...g, ...rejectedFields };
+        return { ...g, receipts: (g.receipts || []).map((r, i) =>
+          i === receiptIdx ? { ...r, ...rejectedFields } : r
+        )};
+      }));
+      toast.success("Shipment bill rejected.");
+    } catch (err) { toast.error(err?.message || "Failed to reject shipment."); }
+    finally { setIsSubmitting(false); }
+  }, "handleGRNShipmentReject");
   const handleGRNMarkPaid = /* @__PURE__ */ __name(async (grnId, receiptIdx = null, formData = {}) => {
     if (!hasPermission("MAKE_PAYMENT")) { toast.error("Unauthorized"); return; }
     setIsSubmitting(true);
@@ -1231,11 +1252,14 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
       };
       await updatePO(poId, {
         accountStatus: "rejected",
+        status: "Blocked",
+        rejectedByName: user?.name || "Accounts",
+        rejectedAt: new Date().toISOString(),
         rejectionReason,
         auditTrail: [...po?.auditTrail || [], audit]
       });
-      setLocalPos(prev => prev.map(p => p.id === poId ? { ...p, accountStatus: "rejected", rejectionReason } : p));
-      toast.success("Bill has been rejected.");
+      setLocalPos(prev => prev.map(p => p.id === poId ? { ...p, accountStatus: "rejected", status: "Blocked", rejectedByName: user?.name, rejectionReason } : p));
+      toast.success("Bill rejected. PO sent back for revision.");
       setShowRejectForm(false);
       setRejectionReason("");
       setSelectedPO(null);
@@ -2041,13 +2065,13 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
                       })()))
                     ? "L2 Pending" : "L1 Pending"
                   )
+                : po.accountStatus === "rejected" ? "Rejected"
                 : (["payment_pending", "payment_initiated", "physical_check"].includes(po.accountStatus)) ? "Pending Payment"
                 : po.accountStatus === "paid" ? "Paid"
                 : (po.accountStatus === "bill_approved" || hasApprovedGRN) ? "L1 Approved"
                 : (po.accountStatus === "bill_verified" || hasVerifiedGRN || filter === "Verified") ? "Verified"
                 : po.accountStatus === "partial_paid" && (po.status || "").toLowerCase() === "grn fulfilled" ? "Draft"
                 : po.accountStatus === "partial_paid" ? "Partial Paid"
-                : po.accountStatus === "rejected" ? "Rejected"
                 : "Draft";
 
               const activeLevelL = PAYMENT_APPROVAL_LEVELS.find(l => filter.includes(l.label) || filter.includes(l.role));
@@ -2750,6 +2774,7 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
             onPhysicalCheckPaid={handlePhysicalCheckPaid}
             onGRNL2Approve={handleL2GRNApprove}
             onGRNL2Reject={handleL2GRNReject}
+            onGRNShipmentReject={handleGRNShipmentReject}
             hasPermission={hasPermission}
             tabAllowsVerify={tabAllowsVerify}
             tabAllowsApprove={tabAllowsApprove}
@@ -2794,11 +2819,12 @@ const GRN_STATUS_CONFIG = {
   unpaid:          { label: "Needs Verification", dot: "bg-blue-400",    badge: "text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-500/10 border-blue-100 dark:border-blue-500/20" },
   bill_verified:   { label: "Verified",           dot: "bg-emerald-400", badge: "text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 border-emerald-100 dark:border-emerald-500/20" },
   bill_approved:   { label: "L1 Approved",        dot: "bg-teal-400",    badge: "text-teal-700 dark:text-teal-300 bg-teal-50 dark:bg-teal-500/10 border-teal-100 dark:border-teal-500/20" },
+  bill_rejected:   { label: "Rejected",           dot: "bg-red-400",     badge: "text-red-700 dark:text-red-300 bg-red-50 dark:bg-red-500/10 border-red-100 dark:border-red-500/20" },
   payment_pending: { label: "Pending Payment",    dot: "bg-amber-400",   badge: "text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-500/10 border-amber-100 dark:border-amber-500/20" },
   paid:            { label: "Paid",               dot: "bg-emerald-500", badge: "text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-500/10 border-emerald-200 dark:border-emerald-500/30" },
 };
 
-const GRNShipmentCard = /* @__PURE__ */ __name(({ shipment, po, isSubmitting, onVerify, onApprove, onL2Approve, onL2Reject, onPaymentSubmit, onMarkPaid, onVerifyRevert, onPaymentEdit, onPaymentDelete, onPaymentApprove, onPaymentReject, onPhysicalCheckPaid, paymentForm, setPaymentForm, fileInputRef, handleFileChange, hasPermission: hp, defaultExpanded, tabAllowsVerify = true, tabAllowsApprove = true, tabAllowsL2Approve = true }) => {
+const GRNShipmentCard = /* @__PURE__ */ __name(({ shipment, po, isSubmitting, onVerify, onApprove, onL2Approve, onL2Reject, onReject, onPaymentSubmit, onMarkPaid, onVerifyRevert, onPaymentEdit, onPaymentDelete, onPaymentApprove, onPaymentReject, onPhysicalCheckPaid, paymentForm, setPaymentForm, fileInputRef, handleFileChange, hasPermission: hp, defaultExpanded, tabAllowsVerify = true, tabAllowsApprove = true, tabAllowsL2Approve = true }) => {
   const [physicalCheckList, setPhysicalCheckList] = useState({});
   const [viewerImages, setViewerImages] = useState(null);
   // Use identical logic as the items table render so grnValue always matches the displayed totals
@@ -2944,10 +2970,51 @@ const GRNShipmentCard = /* @__PURE__ */ __name(({ shipment, po, isSubmitting, on
                   </div>
                 );
               }
+              if (showRejectForm) {
+                return (
+                  <div className="space-y-2 w-full">
+                    <textarea
+                      value={rejectionReason}
+                      onChange={e => setRejectionReason(e.target.value)}
+                      placeholder="Rejection reason (required)..."
+                      rows={2}
+                      className="w-full text-[12px] border border-gray-200 dark:border-gray-700 rounded-xl px-3 py-2 bg-white dark:bg-gray-800 text-gray-900 dark:text-white resize-none focus:outline-none focus:ring-2 focus:ring-red-400"
+                    />
+                    <div className="flex justify-end gap-2">
+                      <Btn label="Cancel" outline onClick={() => { setShowRejectForm(false); setRejectionReason(""); }} />
+                      <Btn label="Confirm Reject" color="red" loading={isSubmitting} disabled={!rejectionReason.trim() || isSubmitting} onClick={() => {
+                        onReject && onReject(shipment.grnId, shipment.receiptIdx ?? null, rejectionReason.trim());
+                        setShowRejectForm(false);
+                        setRejectionReason("");
+                      }} />
+                    </div>
+                  </div>
+                );
+              }
               return (
-                <div className="flex justify-end w-full">
+                <div className="flex justify-end gap-2 w-full">
+                  <button
+                    onClick={() => setShowRejectForm(true)}
+                    disabled={isSubmitting}
+                    className="bg-white dark:bg-[#0F172A] hover:bg-red-50 dark:hover:bg-red-900/10 border border-gray-200 dark:border-[#334155] hover:border-red-200 dark:hover:border-red-900/30 text-gray-700 dark:text-gray-300 hover:text-red-600 dark:hover:text-red-400 disabled:opacity-50 py-2 px-5 rounded-xl text-[12px] font-bold shadow-sm transition-all"
+                  >
+                    Reject
+                  </button>
                   <button onClick={() => setShowVerifyForm(true)} className="text-[12px] font-black bg-emerald-500 hover:bg-emerald-600 text-white px-5 py-2 rounded-xl shadow-sm shadow-emerald-500/20 transition-all flex items-center gap-2">
                     <Check className="w-3.5 h-3.5" /> Verify Bill
+                  </button>
+                </div>
+              );
+            }
+            if (status === "bill_rejected" && hp("VERIFY_BILL") && tabAllowsVerify) {
+              return (
+                <div className="flex justify-end w-full">
+                  <button
+                    onClick={() => onVerifyRevert && onVerifyRevert(shipment.grnId, shipment.receiptIdx ?? null)}
+                    disabled={isSubmitting}
+                    className="bg-white dark:bg-[#0F172A] hover:bg-blue-50 dark:hover:bg-blue-900/10 border border-gray-200 dark:border-[#334155] hover:border-blue-200 dark:hover:border-blue-900/30 text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 disabled:opacity-50 py-2 px-5 rounded-xl text-[12px] font-bold shadow-sm transition-all"
+                  >
+                    Reset to Needs Verification
                   </button>
                 </div>
               );
@@ -3647,6 +3714,7 @@ const DetailPanel = /* @__PURE__ */ __name(({
   onPhysicalCheckPaid,
   onGRNL2Approve,
   onGRNL2Reject,
+  onGRNShipmentReject,
   hasPermission: hp,
   tabAllowsVerify = true,
   tabAllowsApprove = true,
@@ -4065,6 +4133,7 @@ const DetailPanel = /* @__PURE__ */ __name(({
               onPaymentSubmit={onGRNPaymentSubmit}
               onMarkPaid={onGRNMarkPaid}
               onVerifyRevert={onGRNVerifyRevert}
+              onReject={onGRNShipmentReject}
               onPaymentEdit={onGRNPaymentEdit}
               onPaymentDelete={onGRNPaymentDelete}
               onPaymentApprove={onPaymentApprove}

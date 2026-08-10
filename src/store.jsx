@@ -549,6 +549,8 @@ const AppProvider = /* @__PURE__ */ __name(({ children }) => {
                 slaConfig: serverData.slaConfig ?? prev.slaConfig ?? null,
                 mrReportConfig: serverData.mrReportConfig ?? prev.mrReportConfig ?? {},
                 reportAutomations: Array.isArray(serverData.reportAutomations) ? serverData.reportAutomations : prev.reportAutomations ?? [],
+                companyApprovers: Array.isArray(serverData.companyApprovers) ? serverData.companyApprovers : prev.companyApprovers ?? [],
+                companyBankDetails: serverData.companyBankDetails ?? prev.companyBankDetails ?? {},
               };
               const isEmpty = !serverData.projects?.length && !serverData.requesters?.length && !serverData.categories?.length && !serverData.units?.length && !serverData.workTypes?.length && !serverData.companies?.length;
               if (resource === "settings" && isEmpty) {
@@ -1550,8 +1552,9 @@ const AppProvider = /* @__PURE__ */ __name(({ children }) => {
           const data = JSON.parse(event.data);
           if (data.type === "DATA_UPDATED") {
             const isAuth = authRef.current;
-            console.log("Data updated remotely, refreshing...", data.path);
             if (data.path === "all") {
+              // Bust all common caches before refreshing
+              ["inventory", "pos", "material-requirements", "grn", "inward", "outward", "transactions", "settings"].forEach(p => bustCache(p));
               if (isAuth) refreshDataRef.current();
               if (inventoryRef.current.length > 0) fetchResourceRef.current(isAuth ? "inventory" : "public/inventory", 1, 1e3, true);
               if (isAuth && posRef.current.length > 0) fetchResourceRef.current("pos", 1, 100, true);
@@ -1562,12 +1565,16 @@ const AppProvider = /* @__PURE__ */ __name(({ children }) => {
                 "outwards": "outward",
                 "materialRequirements": "material-requirements",
                 "stockCheckReports": "stock-check-reports",
-                "stock-check": "stock-check-reports"
+                "stock-check": "stock-check-reports",
+                "purchase-orders": "pos",
               };
               const resourceName = resourceMap[data.path] || data.path;
               const finalResourceName = !isAuth && resourceName === "settings" ? "public-settings" : resourceName;
               const defaultLimit = ["inventory", "catalogue", "quotations", "material-requirements"].includes(finalResourceName) ? 1e3 : 100;
               const isInv = isAuth && resourceName === "inventory";
+              // Bust API-level cache so the refetch goes to the network, not the 30s cache
+              bustCache(data.path);
+              bustCache(finalResourceName);
               setTimeout(() => {
                 const lp = lastResourceParams.current[finalResourceName] || {};
                 fetchResourceRef.current(finalResourceName, 1, lp.limit || defaultLimit, true, lp.search || "", lp.filter || null, false, false, lp.startDate || "", lp.endDate || "", true);
@@ -1578,7 +1585,7 @@ const AppProvider = /* @__PURE__ */ __name(({ children }) => {
             if (!authRef.current) return;
             const { message, severity, path, senderId, id: notifId } = data;
             const newNotification = {
-              id: notifId || `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+              id: notifId || `${Date.now()}-${Math.random().toString(36).substring(2, 11)}`,
               message,
               severity: severity || "info",
               timestamp: (/* @__PURE__ */ new Date()).toISOString(),

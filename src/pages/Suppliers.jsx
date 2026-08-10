@@ -16,7 +16,7 @@ import {
   ImageUpload,
   Skeleton
 } from "../components/ui";
-import { Plus, CheckCircle2, AlertCircle, Eye, Pencil, Trash2, Search, Building2, Banknote } from "lucide-react";
+import { Plus, CheckCircle2, AlertCircle, Eye, Pencil, Trash2, Search, Building2, Banknote, FileDown } from "lucide-react";
 import { scrollToError, formatAccountNo, safeStr } from "../utils";
 import { TableVirtuoso } from "react-virtuoso";
 import { cn } from "../lib/utils";
@@ -49,6 +49,27 @@ const Suppliers = /* @__PURE__ */ __name(() => {
     fetchResource("suppliers", 1, 50, false, debouncedSearch);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [debouncedSearch]);
+  const [pdfLoading, setPdfLoading] = useState(false);
+  const downloadPDF = async () => {
+    try {
+      setPdfLoading(true);
+      const base = import.meta.env.VITE_API_BASE_URL || "/api";
+      const params = debouncedSearch ? `?search=${encodeURIComponent(debouncedSearch)}` : "";
+      const res = await fetch(`${base}/suppliers/pdf${params}`, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to generate PDF");
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `Suppliers-${new Date().toISOString().slice(0, 10)}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      toast.error("PDF download failed: " + err.message);
+    } finally {
+      setPdfLoading(false);
+    }
+  };
   const [modal, setModal] = useState(false);
   const [viewModal, setViewModal] = useState(false);
   const [selectedSupplier, setSelectedSupplier] = useState(null);
@@ -231,16 +252,27 @@ const Suppliers = /* @__PURE__ */ __name(() => {
       <PageHeader
     title="Supplier Database"
     sub="Manage suppliers and contractors"
-    actions={hasPermission("CREATE_SUPPLIER") && <Btn
-      label="Add Supplier"
-      icon={Plus}
-      onClick={() => {
-        setNewSupplier(initialSupplier);
-        setSection(1);
-        setIsEditing(false);
-        setModal(true);
-      }}
-    />}
+    actions={<div className="flex items-center gap-2">
+      <button
+        onClick={downloadPDF}
+        disabled={pdfLoading}
+        title="Download all suppliers as PDF"
+        className="flex items-center gap-1.5 px-3 py-2 text-[13px] font-medium rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors disabled:opacity-60"
+      >
+        <FileDown className="w-4 h-4" />
+        {pdfLoading ? "Generating…" : "Download PDF"}
+      </button>
+      {hasPermission("CREATE_SUPPLIER") && <Btn
+        label="Add Supplier"
+        icon={Plus}
+        onClick={() => {
+          setNewSupplier(initialSupplier);
+          setSection(1);
+          setIsEditing(false);
+          setModal(true);
+        }}
+      />}
+    </div>}
   />
 
       <div className="relative max-w-md mb-6">

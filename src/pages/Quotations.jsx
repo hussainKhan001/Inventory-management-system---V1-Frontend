@@ -1362,7 +1362,7 @@ const QuotationForm = /* @__PURE__ */ __name(({ initialData, mrData: initialMrDa
                       <td className="px-6 py-6 text-right">
                         <p className="text-[10px] font-medium text-gray-400 tracking-widest mb-0.5 opacity-0 group-hover:opacity-100 transition-opacity">Line total</p>
                         <span className="text-base font-bold text-gray-900 dark:text-white">
-                          ₹ {fmt(total)}
+                          ₹ {fmt(base)}
                         </span>
                       </td>
                     </tr>;

@@ -302,7 +302,12 @@ const generatePOPDF = /* @__PURE__ */ __name((po, supplier, settings = {}, retur
   };
   const _isCompleted = TERMINAL_STATUSES.includes(po.status);
   const approvers = !_isCompleted
-    ? (settings.approvers || {})
+    ? (() => {
+        const companyCA = (settings?.companyApprovers || []).find(ca => ca.companyName === po.companyName);
+        return (companyCA?.l1 || companyCA?.l2 || companyCA?.l3)
+          ? { ...(settings.approvers || {}), ...companyCA }
+          : (settings.approvers || {});
+      })()
     : (po.approverSnapshot || LEGACY_APPROVER_DEFAULTS);
   const isRejected = po.status === "Blocked" || po.status === "rejected";
   const rejectLevel = isRejected

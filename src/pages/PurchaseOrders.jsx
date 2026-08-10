@@ -99,9 +99,20 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
   } = useAppStore();
 
   const uid = user?._id;
-  const isL1Approver = uid && settings?.approvers?.l1Id && uid === settings.approvers.l1Id;
-  const isL2Approver = uid && settings?.approvers?.l2Id && uid === settings.approvers.l2Id;
-  const isL3Approver = uid && settings?.approvers?.l3Id && uid === settings.approvers.l3Id;
+
+  // Global approver flags
+  const isGlobalL1 = !!(uid && settings?.approvers?.l1Id && uid === settings.approvers.l1Id);
+  const isGlobalL2 = !!(uid && settings?.approvers?.l2Id && uid === settings.approvers.l2Id);
+  const isGlobalL3 = !!(uid && settings?.approvers?.l3Id && uid === settings.approvers.l3Id);
+
+  // Company-specific: list of companies where this user is the Lx approver
+  const companyL1 = (settings?.companyApprovers || []).filter(ca => ca.l1Id && ca.l1Id === uid).map(ca => ca.companyName);
+  const companyL2 = (settings?.companyApprovers || []).filter(ca => ca.l2Id && ca.l2Id === uid).map(ca => ca.companyName);
+  const companyL3 = (settings?.companyApprovers || []).filter(ca => ca.l3Id && ca.l3Id === uid).map(ca => ca.companyName);
+
+  const isL1Approver = isGlobalL1 || companyL1.length > 0;
+  const isL2Approver = isGlobalL2 || companyL2.length > 0;
+  const isL3Approver = isGlobalL3 || companyL3.length > 0;
 
   const COMPANIES = settings.companies || [];
 
@@ -109,14 +120,11 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
 
   const [activeTab, setActiveTab] = useState("all");
 
-  // Role-first: AGM=L1, Head=L2, Director=L3; dynamic approver from Settings takes priority
+  // Approval level — based on company-specific or global assignment only (no broad permission fallback)
   const myApprovalStatus =
-    isL3Approver || (role === "Director" && hasPermission("APPROVE_PURCHASE_ORDER_L3")) ? "Pending L3"
-    : isL2Approver || (role === "Head" && hasPermission("APPROVE_PURCHASE_ORDER_L2")) ? "Pending L2"
-    : isL1Approver || (role === "AGM" && hasPermission("APPROVE_PURCHASE_ORDER_L1")) ? "Pending L1"
-    : hasPermission("APPROVE_PURCHASE_ORDER_L3") ? "Pending L3"
-    : hasPermission("APPROVE_PURCHASE_ORDER_L2") ? "Pending L2"
-    : hasPermission("APPROVE_PURCHASE_ORDER_L1") ? "Pending L1"
+    isL3Approver ? "Pending L3"
+    : isL2Approver ? "Pending L2"
+    : isL1Approver ? "Pending L1"
     : null;
 
   const [search, setSearch] = useState("");
@@ -412,9 +420,20 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
   }, [filteredPos, suppliers]);
 
   const myPendingPos = useMemo(() => {
-    if (!myApprovalStatus) return [];
-    return (resolvedFilteredPos || []).filter((po) => po.status === myApprovalStatus);
-  }, [resolvedFilteredPos, myApprovalStatus]);
+    if (!uid) return [];
+    return (resolvedFilteredPos || []).filter((po) => {
+      if (po.status === "Pending L1") {
+        return isGlobalL1 || companyL1.includes(po.companyName);
+      }
+      if (po.status === "Pending L2") {
+        return isGlobalL2 || companyL2.includes(po.companyName);
+      }
+      if (po.status === "Pending L3") {
+        return isGlobalL3 || companyL3.includes(po.companyName);
+      }
+      return false;
+    });
+  }, [resolvedFilteredPos, uid, isGlobalL1, isGlobalL2, isGlobalL3, companyL1, companyL2, companyL3]);
 
   const tableData = activeTab === "my-approvals" ? myPendingPos : resolvedFilteredPos;
 
@@ -1212,6 +1231,8 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
           vendorAddress: newPO.vendorAddress,
           panNo: newPO.panNo,
           gstNo: newPO.gstNo,
+          rejectedByName: null,
+          rejectedAt: null,
         });
         toast.success("Purchase Order updated successfully");
         setModal(false);
@@ -1393,6 +1414,14 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
       setProcessingId(null);
     }
   }, "handleReject");
+
+  const handleRevise = /* @__PURE__ */ __name((po) => {
+    setViewModal(false);
+    setSelectedPO(null);
+    setNewPO(po);
+    setIsEditing(true);
+    setModal(true);
+  }, "handleRevise");
 
   const handleCancelApproved = /* @__PURE__ */ __name((id) => {
     setCancelTargetId(id);
@@ -1854,21 +1883,14 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
                     status={po.status}
                     accountStatus={po.accountStatus}
                   />
-                  {po.status === "Pending L1" && settings?.approvers?.l1 && (
-                    <div className="text-[10px] text-gray-400 dark:text-gray-500 mt-0.5 truncate" title={settings.approvers.l1}>
-                      {settings.approvers.l1}
-                    </div>
-                  )}
-                  {po.status === "Pending L2" && settings?.approvers?.l2 && (
-                    <div className="text-[10px] text-gray-400 dark:text-gray-500 mt-0.5 truncate" title={settings.approvers.l2}>
-                      {settings.approvers.l2}
-                    </div>
-                  )}
-                  {po.status === "Pending L3" && settings?.approvers?.l3 && (
-                    <div className="text-[10px] text-gray-400 dark:text-gray-500 mt-0.5 truncate" title={settings.approvers.l3}>
-                      {settings.approvers.l3}
-                    </div>
-                  )}{" "}
+                  {["Pending L1", "Pending L2", "Pending L3"].includes(po.status) && (() => {
+                    const lvl = po.status === "Pending L1" ? "l1" : po.status === "Pending L2" ? "l2" : "l3";
+                    const ca = (settings?.companyApprovers || []).find(c => c.companyName === po.companyName);
+                    const name = (ca?.[lvl]) || settings?.approvers?.[lvl];
+                    return name ? (
+                      <div className="text-[10px] text-gray-400 dark:text-gray-500 mt-0.5 truncate" title={name}>{name}</div>
+                    ) : null;
+                  })()}{" "}
                 </Td>
                 <Td className="hidden lg:table-cell px-4 py-3">
                   {" "}
@@ -2184,6 +2206,7 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
           onApproveL2={handleApproveL2}
           onApproveL3={handleApproveL3}
           onReject={handleReject}
+          onRevise={handleRevise}
           onCancelApproved={handleCancelApproved}
           onDownloadPDF={downloadPDF}
           processingId={processingId}

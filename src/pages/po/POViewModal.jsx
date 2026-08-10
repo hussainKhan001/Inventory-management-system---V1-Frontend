@@ -55,14 +55,10 @@ function ApprovalStamp({ status, label }) {
 }
 
 
-export function POViewModal({ po, onClose, onApproveL1, onApproveL2, onApproveL3, onReject, onCancelApproved, onDownloadPDF, processingId }) {
+export function POViewModal({ po, onClose, onApproveL1, onApproveL2, onApproveL3, onReject, onCancelApproved, onDownloadPDF, processingId, onRevise }) {
   const { suppliers, settings, role, hasPermission, user, updatePO, patchPoInStore, actionLoading, grns, materialRequirements, catalogue } = useAppStore();
   const getBrand = (item) => item.brand || catalogue.find(c => c.sku === item.sku)?.brand || "";
   const uid = user?._id;
-  const isL1Approver = uid && settings?.approvers?.l1Id && uid === settings.approvers.l1Id;
-  const isL2Approver = uid && settings?.approvers?.l2Id && uid === settings.approvers.l2Id;
-  const isL3Approver = uid && settings?.approvers?.l3Id && uid === settings.approvers.l3Id;
-
   const TERMINAL_STATUSES = ["Approved", "Cancelled", "Blocked", "Rejected", "PO Closed", "GRN Pending", "Pending GRN", "GRN Fulfilled", "GRN Variance", "Ready for Payment", "Fulfilled"];
   const LEGACY_APPROVER_DEFAULTS = {
     purchaseCoord: "Vijay Kushwah", purchaseCoordTitle: "PURCHASE COORDINATOR",
@@ -71,9 +67,30 @@ export function POViewModal({ po, onClose, onApproveL1, onApproveL2, onApproveL3
     l3: "Rahul Gupta", l3Title: "DIRECTOR",
   };
   const isCompleted = TERMINAL_STATUSES.includes(po.status);
-  const approverNames = !isCompleted
-    ? (settings?.approvers || {})
-    : (po.approverSnapshot || LEGACY_APPROVER_DEFAULTS);
+
+  // Resolve effective approvers: company-specific > snapshot > global > legacy
+  const effectiveApprovers = (() => {
+    const companyCA = (settings?.companyApprovers || []).find(ca => ca.companyName === po.companyName);
+    if (!isCompleted) {
+      // Active PO: use current company-specific settings if configured, else global
+      return (companyCA?.l1 || companyCA?.l2 || companyCA?.l3)
+        ? { ...(settings?.approvers || {}), ...companyCA }
+        : (settings?.approvers || {});
+    }
+    // Completed PO: use snapshot (historical record)
+    return po.approverSnapshot || LEGACY_APPROVER_DEFAULTS;
+  })();
+
+  const approverNames = effectiveApprovers;
+
+  // Approver button visibility: check company-specific IDs first, then global
+  const companyCA = (settings?.companyApprovers || []).find(ca => ca.companyName === po.companyName);
+  const activeL1Id = companyCA?.l1Id || settings?.approvers?.l1Id;
+  const activeL2Id = companyCA?.l2Id || settings?.approvers?.l2Id;
+  const activeL3Id = companyCA?.l3Id || settings?.approvers?.l3Id;
+  const isL1Approver = uid && activeL1Id && uid === activeL1Id;
+  const isL2Approver = uid && activeL2Id && uid === activeL2Id;
+  const isL3Approver = uid && activeL3Id && uid === activeL3Id;
 
   const getApproverTitle = (storedTitle, level, fallback) => {
     if (!storedTitle) return fallback;
@@ -270,10 +287,16 @@ export function POViewModal({ po, onClose, onApproveL1, onApproveL2, onApproveL3
       )}
 
       <div className="flex items-center gap-3 flex-wrap ml-auto">
-        {po.status === "Pending L1" && (hasPermission("APPROVE_PURCHASE_ORDER_L1") || isL1Approver) && <Btn label="Approve L1" color="green" disabled={isOnHold} onClick={() => onApproveL1(po.id)} loading={processingId === `approve-${po.id}`} />}
-        {po.status === "Pending L2" && (hasPermission("APPROVE_PURCHASE_ORDER_L2") || isL2Approver) && <Btn label="Approve L2" color="green" disabled={isOnHold} onClick={() => onApproveL2(po.id)} loading={processingId === `approve-${po.id}`} />}
-        {po.status === "Pending L3" && (hasPermission("APPROVE_PURCHASE_ORDER_L3") || isL3Approver) && <Btn label="Approve L3 (Director)" color="green" disabled={isOnHold} onClick={() => onApproveL3(po.id)} loading={processingId === `approve-${po.id}`} />}
-        {["Pending L1", "Pending L2", "Pending L3"].includes(po.status || "") && hasPermission("REJECT_PURCHASE_ORDER") && (
+        {po.status === "Pending L1" && isL1Approver && <Btn label="Approve L1" color="green" disabled={isOnHold} onClick={() => onApproveL1(po.id)} loading={processingId === `approve-${po.id}`} />}
+        {po.status === "Pending L2" && isL2Approver && <Btn label="Approve L2" color="green" disabled={isOnHold} onClick={() => onApproveL2(po.id)} loading={processingId === `approve-${po.id}`} />}
+        {po.status === "Pending L3" && isL3Approver && <Btn label="Approve L3 (Director)" color="green" disabled={isOnHold} onClick={() => onApproveL3(po.id)} loading={processingId === `approve-${po.id}`} />}
+        {po.status === "Pending L1" && isL1Approver && (
+          <Btn label="Reject PO" color="red" disabled={isOnHold} onClick={() => onReject(po.id)} loading={processingId === `reject-${po.id}`} />
+        )}
+        {po.status === "Pending L2" && isL2Approver && (
+          <Btn label="Reject PO" color="red" disabled={isOnHold} onClick={() => onReject(po.id)} loading={processingId === `reject-${po.id}`} />
+        )}
+        {po.status === "Pending L3" && isL3Approver && (
           <Btn label="Reject PO" color="red" disabled={isOnHold} onClick={() => onReject(po.id)} loading={processingId === `reject-${po.id}`} />
         )}
         {po.status === "Approved" && hasPermission("CANCEL_PURCHASE_ORDER") && (
@@ -290,6 +313,9 @@ export function POViewModal({ po, onClose, onApproveL1, onApproveL2, onApproveL3
         )}
         {!isOnHold && !["Cancelled", "Blocked", "PO Closed", "Draft"].includes(localStatus) && hasPermission("HOLD_PURCHASE_ORDER") && (
           <Btn label="Hold PO" icon={Lock} color="amber" onClick={handleHoldPO} loading={holdLoading} />
+        )}
+        {["Blocked", "Rejected", "rejected"].includes(po.status) && onRevise && hasPermission("EDIT_PURCHASE_ORDER") && (
+          <Btn label="Revise PO" color="amber" icon={RotateCcw} onClick={() => onRevise(po)} />
         )}
         <Btn label="Download PO PDF" icon={Download} onClick={() => { if (onDownloadPDF) { onDownloadPDF(po); } else { generatePOPDF({...po, mrLocation}, supplier, settings); } }} className="bg-orange-500 hover:bg-orange-600 text-white border-none shadow-lg shadow-orange-500/20 font-bold" />
         <Btn label="Close" outline onClick={onClose} className="px-8 border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800" />

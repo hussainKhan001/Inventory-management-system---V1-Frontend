@@ -186,7 +186,7 @@ export function MRDetailModal({ requirement, onClose, onRequirementUpdate }) {
           <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 w-full">
             {/* Left: primary actions */}
             <div className="flex flex-wrap items-center gap-2">
-              {hasPermission("SAVE_MR_ITEM") && (
+              {hasPermission("SAVE_MR_ITEM") && req.status === "Store Pending" && (
                 <button
                   disabled={isMRLocked(req.id) || !allItemsMapped}
                   onClick={async () => {
@@ -292,7 +292,7 @@ export function MRDetailModal({ requirement, onClose, onRequirementUpdate }) {
                 const hasPurchaseItems = itemsWithStock.some(i => ["Needs Purchase", "Purchase Required", "Partial"].includes(i.status));
                 const canApprove = allInStock || hasFinalQuotation || someAllocated || hasPurchaseItems;
                 if (
-                  ["Store Pending", "Allocated", "Partially Allocated"].includes(req.status) &&
+                  ["Store Pending", "Allocated", "Partially Allocated", "Rejected"].includes(req.status) &&
                   (hasPermission("APPROVE_MR_STORE") || hasPermission("MANAGE_INVENTORY"))
                 ) {
                   return (
@@ -319,7 +319,7 @@ export function MRDetailModal({ requirement, onClose, onRequirementUpdate }) {
                 }
                 return null;
               })()}
-              {["Quotation Phase", "Approved by AGM"].includes(req.status) &&
+              {["Quotation Phase", "Approved by AGM", "Rejected"].includes(req.status) &&
                 !isMRLocked(req.id) &&
                 (hasPermission("REVISE_MR") || hasPermission("MANAGE_INVENTORY")) && (
                 <button

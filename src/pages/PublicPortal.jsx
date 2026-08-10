@@ -13,7 +13,8 @@ import {
   Package,
   ShieldCheck,
   ShoppingCart,
-  FileText
+  FileText,
+  Fuel
 } from "lucide-react";
 const PortalCard = /* @__PURE__ */ __name(({
   title,
@@ -135,6 +136,13 @@ const PublicPortal = /* @__PURE__ */ __name(() => {
           icon: RotateCw,
           to: "/public-outward-return",
           color: "bg-purple-500"
+        },
+        {
+          title: "Diesel Consumption Log",
+          description: "Record diesel usage for vehicles, DG sets, or any equipment.",
+          icon: Fuel,
+          to: "/public-diesel-form",
+          color: "bg-amber-500"
         }
       ]
     }

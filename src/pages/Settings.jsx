@@ -963,6 +963,83 @@ const SettingsPage = /* @__PURE__ */ __name(() => {
             </div>
           </div>
 
+          {/* ── Company-wise Approvers ─────────────────────────────────────── */}
+          <div className="border-t border-gray-100 dark:border-gray-700/50 pt-5 space-y-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <h4 className="text-[13px] font-black text-gray-800 dark:text-white tracking-tight">Company-wise Approvers</h4>
+                <p className="text-[11px] text-gray-400 mt-0.5">Override L1 / L2 / L3 approvers per company. Falls back to global if not set.</p>
+              </div>
+            </div>
+
+            {(settings.companies || []).length === 0 && (
+              <p className="text-[11px] text-gray-400 italic">No companies configured. Add companies in the Companies tab first.</p>
+            )}
+
+            {(settings.companies || []).map((company) => {
+              const cName = company.name;
+              const ca = (settings.companyApprovers || []).find(x => x.companyName === cName) || {};
+              const updateCA = (patch) => {
+                setSettings(prev => {
+                  const list = [...(prev.companyApprovers || [])];
+                  const idx = list.findIndex(x => x.companyName === cName);
+                  if (idx >= 0) list[idx] = { ...list[idx], ...patch };
+                  else list.push({ companyName: cName, l1: "", l1Id: "", l1Title: "", l2: "", l2Id: "", l2Title: "", l3: "", l3Id: "", l3Title: "", ...patch });
+                  return { ...prev, companyApprovers: list };
+                });
+              };
+              return (
+                <div key={cName} className="rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+                  <div className="px-4 py-2.5 bg-gray-50 dark:bg-gray-800/60 flex items-center gap-2">
+                    <Building className="w-3.5 h-3.5 text-orange-500 shrink-0" />
+                    <span className="text-[12px] font-bold text-gray-800 dark:text-white">{cName}</span>
+                    {(ca.l1 || ca.l2 || ca.l3) && <span className="ml-auto text-[10px] text-emerald-500 font-medium">configured</span>}
+                  </div>
+                  {isSuperAdmin && (
+                    <div className="px-4 py-3 grid grid-cols-1 sm:grid-cols-3 gap-3 bg-white dark:bg-gray-900">
+                      {[
+                        { label: "L1 — AGM Purchase", key: "l1" },
+                        { label: "L2 — Project Head", key: "l2" },
+                        { label: "L3 — Director",     key: "l3" },
+                      ].map(({ label, key }) => (
+                        <div key={key}>
+                          <label className="block text-[10px] font-bold text-gray-400 tracking-widest mb-1">{label}</label>
+                          <CustomDropdown
+                            options={[
+                              { value: "", label: "— Use global default —" },
+                              ...users.filter(u => u.isActive !== false).map(u => ({ value: u._id, label: `${u.name}${u.role ? ` · ${u.role}` : ""}` }))
+                            ]}
+                            value={ca[`${key}Id`] || ""}
+                            placeholder="— Use global default —"
+                            onChange={(selectedId) => {
+                              if (!selectedId) {
+                                updateCA({ [key]: "", [`${key}Id`]: "", [`${key}Title`]: "" });
+                                return;
+                              }
+                              const u = users.find(usr => usr._id === selectedId);
+                              const title = (u?.designation || u?.role || "").toUpperCase();
+                              updateCA({ [key]: u?.name || "", [`${key}Id`]: selectedId, [`${key}Title`]: title });
+                            }}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {!isSuperAdmin && (ca.l1 || ca.l2 || ca.l3) && (
+                    <div className="px-4 py-2 grid grid-cols-3 gap-2 bg-white dark:bg-gray-900">
+                      {["l1", "l2", "l3"].map(k => (
+                        <div key={k} className="text-center">
+                          <p className="text-[9px] font-bold text-gray-400 tracking-widest">{k.toUpperCase()}</p>
+                          <p className="text-[11px] font-semibold text-gray-700 dark:text-gray-300">{ca[k] || "Global"}</p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
           {isSuperAdmin && <div className="pt-4 border-t border-gray-100 dark:border-gray-700/50 flex justify-end">
               <Btn
     label="Save Approvers"

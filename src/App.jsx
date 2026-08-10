@@ -41,6 +41,7 @@ const SettingsPage = lazy(() => import("./pages/Settings").then((m) => ({ defaul
 const POReport = lazy(() => import("./pages/POReport").then((m) => ({ default: m.POReport })));
 const ProcurementTracker = lazy(() => import("./pages/ProcurementTracker").then((m) => ({ default: m.ProcurementTracker })));
 const DRIPortal = lazy(() => import("./pages/DRIPortal").then((m) => ({ default: m.DRIPortal })));
+const PublicDieselForm = lazy(() => import("./pages/PublicDieselForm").then((m) => ({ default: m.PublicDieselForm })));
 const PageLoader = /* @__PURE__ */ __name(() => (
   <div className="p-6 space-y-6 w-full animate-pulse">
     <div className="flex flex-col lg:flex-row justify-between gap-4">
@@ -148,6 +149,7 @@ const AppContent = /* @__PURE__ */ __name(() => {
   if (hash === "public-quotation") return <Suspense fallback={<PageLoader />}><PublicQuotation /></Suspense>;
   if (hash === "public-tracking") return <Suspense fallback={<PageLoader />}><TrackingPage /></Suspense>;
   if (hash === "public-po") return <Suspense fallback={<PageLoader />}><PublicPO /></Suspense>;
+  if (hash === "public-diesel-form") return <Suspense fallback={<PageLoader />}><PublicDieselForm /></Suspense>;
   if (isAuthLoading) {
     return <div className="min-h-screen bg-white dark:bg-[#0F172A] flex items-center justify-center">
         <div className="flex flex-col items-center gap-4">

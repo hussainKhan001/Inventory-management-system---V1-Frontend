@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { useAppStore } from "../store";
 import { toast } from "react-hot-toast";
 import {
@@ -12,6 +12,7 @@ import {
   CheckCircle2,
   Clock,
   TruckIcon,
+  Fuel,
 } from "lucide-react";
 
 // ── helpers ──────────────────────────────────────────────────────────────────
@@ -87,6 +88,8 @@ const EMPTY_ITEM = { itemName: "", unit: "Nos", qty: "", notes: "" };
 const UNITS = ["Nos", "Bags", "Kg", "Mtr", "Ltr", "Sqft", "Truck", "Set", "Rft", "Cum"];
 
 // ── main component ────────────────────────────────────────────────────────────
+const EMPTY_FUEL = { date: new Date().toISOString().slice(0, 10), driverName: "", equipment: "", site: "", qtyUsed: "", meterReading: "", remarks: "" };
+
 export function DRIPortal() {
   const {
     user,
@@ -98,6 +101,7 @@ export function DRIPortal() {
     addMaterialRequirement,
     fetchResource,
     actionLoading,
+    api,
   } = useAppStore();
 
   const [activeTab, setActiveTab] = useState("dashboard");
@@ -113,15 +117,84 @@ export function DRIPortal() {
   });
   const [submitting, setSubmitting] = useState(false);
 
+  // Fuel Log state
+  const [fuelEntries, setFuelEntries] = useState([]);
+  const [fuelLoading, setFuelLoading] = useState(false);
+  const [fuelForm, setFuelForm] = useState({ ...EMPTY_FUEL });
+  const [fuelSubmitting, setFuelSubmitting] = useState(false);
+  const [fuelStartDate, setFuelStartDate] = useState("");
+  const [fuelEndDate, setFuelEndDate] = useState("");
+
   const isSuperAdmin = user?.role === "Super Admin" || user?.role === "superadmin" || user?.role === "admin";
   const myProjects = useMemo(() => user?.assignedProjects || [], [user]);
+
+  // ── Fuel log helpers ─────────────────────────────────────────────────────
+  const fetchFuelEntries = useCallback(async () => {
+    setFuelLoading(true);
+    try {
+      const params = { limit: 200 };
+      if (fuelStartDate) params.startDate = fuelStartDate;
+      if (fuelEndDate) params.endDate = fuelEndDate;
+      if (!isSuperAdmin && myProjects.length > 0) params.site = myProjects[0];
+      const res = await api.get("diesel-consumption", params);
+      if (res.success) setFuelEntries(res.data);
+    } catch { /* silent */ }
+    finally { setFuelLoading(false); }
+  }, [api, isSuperAdmin, myProjects, fuelStartDate, fuelEndDate]);
+
+  useEffect(() => {
+    if (activeTab === "fuel-log") fetchFuelEntries();
+  }, [activeTab, fetchFuelEntries]);
+
+  async function handleFuelSubmit(e) {
+    e.preventDefault();
+    const { date, driverName, equipment, site, qtyUsed } = fuelForm;
+    if (!date || !driverName || !equipment || !site || !qtyUsed) {
+      toast.error("Fill all required fields"); return;
+    }
+    setFuelSubmitting(true);
+    try {
+      const res = await api.post("diesel-consumption", { ...fuelForm, qtyUsed: Number(fuelForm.qtyUsed) });
+      if (!res.success) throw new Error(res.message);
+      toast.success("Fuel entry logged");
+      setFuelForm({ ...EMPTY_FUEL, driverName: user?.name || "", site: myProjects[0] || "" });
+      fetchFuelEntries();
+    } catch (err) {
+      toast.error(err?.message || "Failed to save entry");
+    } finally {
+      setFuelSubmitting(false);
+    }
+  }
+
+  async function handleFuelDelete(id) {
+    if (!window.confirm("Delete this fuel entry?")) return;
+    try {
+      const res = await api.post(`diesel-consumption/${id}/delete`, {});
+      // fallback: use putSimple workaround since api.delete may not exist
+      void res;
+    } catch { /* use fetch directly */ }
+    // use authenticated fetch directly for DELETE
+    try {
+      const token = localStorage.getItem("token");
+      const base = import.meta.env.VITE_API_BASE_URL || "/api";
+      const r = await fetch(`${base}/diesel-consumption/${id}`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } });
+      const data = await r.json();
+      if (data.success) { toast.success("Deleted"); fetchFuelEntries(); }
+      else toast.error(data.message || "Failed to delete");
+    } catch { toast.error("Delete failed"); }
+  }
+
+  const fuelTotal = useMemo(() => fuelEntries.reduce((s, e) => s + (Number(e.qtyUsed) || 0), 0), [fuelEntries]);
 
   // Initialize project in form when myProjects loads
   useEffect(() => {
     if (myProjects.length > 0 && !mrForm.project) {
       setMrForm((f) => ({ ...f, project: myProjects[0] }));
     }
-  }, [myProjects]);
+    if (user?.name && !fuelForm.driverName) {
+      setFuelForm((f) => ({ ...f, driverName: user.name, site: myProjects[0] || f.site }));
+    }
+  }, [myProjects, user]);
 
   // Fetch data on mount
   useEffect(() => {
@@ -284,6 +357,7 @@ export function DRIPortal() {
         {tabBtn("raise-mr", PlusCircle, "Raise MR")}
         {tabBtn("my-mrs", ClipboardList, "My MRs")}
         {tabBtn("allotment", Package, "Allotment")}
+        {tabBtn("fuel-log", Fuel, "Fuel Log")}
       </div>
 
       {/* ── Dashboard ── */}
@@ -570,6 +644,133 @@ export function DRIPortal() {
                 </tbody>
               </table>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Fuel Log ── */}
+      {activeTab === "fuel-log" && (
+        <div className="space-y-4">
+          {/* Entry form */}
+          <div className="bg-white dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden">
+            <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-700">
+              <h3 className="text-[14px] font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                <Fuel className="w-4 h-4 text-amber-500" /> Log Diesel Consumption
+              </h3>
+              <p className="text-[11px] text-gray-500 mt-0.5">Record fuel used each time diesel is consumed</p>
+            </div>
+            <form onSubmit={handleFuelSubmit}>
+              <div className="p-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div className="space-y-1">
+                  <label className={labelCls}>Date *</label>
+                  <input type="date" className={inputCls + " [color-scheme:light] dark:[color-scheme:dark]"} value={fuelForm.date} onChange={(e) => setFuelForm((f) => ({ ...f, date: e.target.value }))} required />
+                </div>
+                <div className="space-y-1">
+                  <label className={labelCls}>Driver / Operator Name *</label>
+                  <input className={inputCls} placeholder="Driver name" value={fuelForm.driverName} onChange={(e) => setFuelForm((f) => ({ ...f, driverName: e.target.value }))} required />
+                </div>
+                <div className="space-y-1">
+                  <label className={labelCls}>Equipment / Vehicle *</label>
+                  <input className={inputCls} placeholder="e.g. JCB, DG Set, Truck HR-26-1234" value={fuelForm.equipment} onChange={(e) => setFuelForm((f) => ({ ...f, equipment: e.target.value }))} required />
+                </div>
+                <div className="space-y-1">
+                  <label className={labelCls}>Site / Project *</label>
+                  {myProjects.length > 0 && !isSuperAdmin ? (
+                    <select className={inputCls + " [color-scheme:light] dark:[color-scheme:dark]"} value={fuelForm.site} onChange={(e) => setFuelForm((f) => ({ ...f, site: e.target.value }))} required>
+                      <option value="">Select site...</option>
+                      {myProjects.map((p) => <option key={p} value={p}>{p}</option>)}
+                    </select>
+                  ) : (
+                    <input className={inputCls} placeholder="Site / project name" value={fuelForm.site} onChange={(e) => setFuelForm((f) => ({ ...f, site: e.target.value }))} required />
+                  )}
+                </div>
+                <div className="space-y-1">
+                  <label className={labelCls}>Diesel Qty Used (Litres) *</label>
+                  <input type="number" min="0.1" step="0.1" className={inputCls} placeholder="0.0" value={fuelForm.qtyUsed} onChange={(e) => setFuelForm((f) => ({ ...f, qtyUsed: e.target.value }))} required />
+                </div>
+                <div className="space-y-1">
+                  <label className={labelCls}>Meter / Odometer Reading</label>
+                  <input className={inputCls} placeholder="e.g. 12450 hrs / km (optional)" value={fuelForm.meterReading} onChange={(e) => setFuelForm((f) => ({ ...f, meterReading: e.target.value }))} />
+                </div>
+                <div className="space-y-1 sm:col-span-2 lg:col-span-3">
+                  <label className={labelCls}>Remarks</label>
+                  <input className={inputCls} placeholder="Any notes (optional)" value={fuelForm.remarks} onChange={(e) => setFuelForm((f) => ({ ...f, remarks: e.target.value }))} />
+                </div>
+              </div>
+              <div className="px-5 py-4 border-t border-gray-100 dark:border-gray-700 bg-gray-50/40 dark:bg-gray-800/30 flex justify-end">
+                <button type="submit" disabled={fuelSubmitting} className="px-5 py-2 text-[13px] font-bold bg-amber-500 hover:bg-amber-600 text-white rounded-lg disabled:opacity-50 transition-colors flex items-center gap-2">
+                  <Fuel className="w-4 h-4" />
+                  {fuelSubmitting ? "Saving..." : "Log Consumption"}
+                </button>
+              </div>
+            </form>
+          </div>
+
+          {/* Summary + filter */}
+          <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-end">
+            <div className="flex gap-3 flex-1">
+              <div className="space-y-1">
+                <label className={labelCls}>From</label>
+                <input type="date" className={inputCls + " w-36 [color-scheme:light] dark:[color-scheme:dark]"} value={fuelStartDate} onChange={(e) => setFuelStartDate(e.target.value)} />
+              </div>
+              <div className="space-y-1">
+                <label className={labelCls}>To</label>
+                <input type="date" className={inputCls + " w-36 [color-scheme:light] dark:[color-scheme:dark]"} value={fuelEndDate} onChange={(e) => setFuelEndDate(e.target.value)} />
+              </div>
+              <div className="flex items-end">
+                <button onClick={fetchFuelEntries} className="px-3 py-2 text-[12px] font-semibold bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors">Filter</button>
+              </div>
+            </div>
+            <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/40 rounded-lg px-4 py-2.5 flex items-center gap-3 shrink-0">
+              <Fuel className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+              <div>
+                <div className="text-[11px] text-amber-600 dark:text-amber-400 font-semibold uppercase tracking-wide">Total Consumed</div>
+                <div className="text-[18px] font-black text-amber-700 dark:text-amber-300 leading-none">{fuelTotal.toFixed(1)} L</div>
+              </div>
+            </div>
+          </div>
+
+          {/* Entries table */}
+          <div className="bg-white dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden">
+            {fuelLoading ? (
+              <div className="py-10 text-center text-[13px] text-gray-400">Loading...</div>
+            ) : fuelEntries.length === 0 ? (
+              <div className="py-10 text-center text-[13px] text-gray-400">No fuel entries yet</div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="bg-gray-50/70 dark:bg-gray-800/70 border-b border-gray-100 dark:border-gray-700">
+                      {["ID", "Date", "Driver", "Equipment", "Site", "Qty (L)", "Meter Reading", "Remarks", "Submitted By", ...(isSuperAdmin ? [""] : [])].map((h) => (
+                        <th key={h} className="px-4 py-2.5 text-left text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap">{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {fuelEntries.map((entry) => (
+                      <tr key={entry.id} className="border-t border-gray-100 dark:border-gray-700/50 hover:bg-gray-50 dark:hover:bg-gray-700/20 transition-colors">
+                        <td className="px-4 py-3 text-[11px] font-mono text-gray-400">{entry.id}</td>
+                        <td className="px-4 py-3 text-[12px] text-gray-700 dark:text-gray-300 whitespace-nowrap">{entry.date ? new Date(entry.date + "T00:00:00").toLocaleDateString("en-IN") : "—"}</td>
+                        <td className="px-4 py-3 text-[12px] font-semibold text-gray-900 dark:text-white whitespace-nowrap">{entry.driverName}</td>
+                        <td className="px-4 py-3 text-[12px] text-gray-600 dark:text-gray-300">{entry.equipment}</td>
+                        <td className="px-4 py-3 text-[12px] text-gray-500 whitespace-nowrap">{entry.site}</td>
+                        <td className="px-4 py-3 text-[13px] font-black text-amber-600 dark:text-amber-400 whitespace-nowrap">{Number(entry.qtyUsed).toFixed(1)}</td>
+                        <td className="px-4 py-3 text-[12px] text-gray-500">{entry.meterReading || "—"}</td>
+                        <td className="px-4 py-3 text-[12px] text-gray-500 max-w-[140px] truncate">{entry.remarks || "—"}</td>
+                        <td className="px-4 py-3 text-[11px] text-gray-400">{entry.submittedBy || "—"}</td>
+                        {isSuperAdmin && (
+                          <td className="px-4 py-3">
+                            <button onClick={() => handleFuelDelete(entry.id)} className="text-gray-300 dark:text-gray-600 hover:text-red-500 transition-colors">
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </td>
+                        )}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         </div>
       )}

@@ -26,6 +26,11 @@ function calcItemTotal(item) {
   return isInclusive ? qty * rate : qty * rate * (1 + gstPct / 100);
 }
 
+// Base amount without GST (for column display only — grand total still uses calcItemTotal)
+function calcItemBase(item) {
+  return (Number(item.qty) || 0) * (Number(item.rate) || 0);
+}
+
 // Shared class for all inline table inputs/selects — solid bg so text is always visible
 const CELL_INPUT = "w-full px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg text-[13px] bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none";
 
@@ -532,8 +537,8 @@ export function POFormModal({
 
                     {/* Total */}
                     <div className="flex justify-between items-center pt-3 border-t border-gray-100 dark:border-gray-800">
-                      <span className="text-[12px] font-bold text-gray-500">Total (Incl. GST)</span>
-                      <span className="text-[15px] font-black text-orange-600 dark:text-orange-400">{fmtCur(calcItemTotal(item))}</span>
+                      <span className="text-[12px] font-bold text-gray-500">Total (Excl. GST)</span>
+                      <span className="text-[15px] font-black text-orange-600 dark:text-orange-400">{fmtCur(calcItemBase(item))}</span>
                     </div>
                   </div>
                 ))}
@@ -694,7 +699,7 @@ export function POFormModal({
 
                         {/* Total */}
                         <td className="px-3 py-3 text-right">
-                          <span className="text-[13px] font-bold text-gray-900 dark:text-white">{fmtCur(calcItemTotal(item))}</span>
+                          <span className="text-[13px] font-bold text-gray-900 dark:text-white">{fmtCur(calcItemBase(item))}</span>
                         </td>
 
                         {/* Remove */}

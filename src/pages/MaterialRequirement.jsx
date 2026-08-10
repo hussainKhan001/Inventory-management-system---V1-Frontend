@@ -95,12 +95,13 @@ export function MaterialRequirementPage() {
   // True while the allocations tab fetch is in-flight (silent=true so global loading stays false)
   const [allocTabLoading, setAllocTabLoading] = useState(false);
   useEffect(() => {
-    if (activeTab === "allocations") setAllocTabLoading(true);
-  }, [activeTab]);
-  useEffect(() => {
-    if (allocTabLoading) setAllocTabLoading(false);
+    if (activeTab !== "allocations") return;
+    if (mrAllocations.length > 0) { setAllocTabLoading(false); return; }
+    setAllocTabLoading(true);
+    const t = setTimeout(() => setAllocTabLoading(false), 2000);
+    return () => clearTimeout(t);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mrAllocations]);
+  }, [activeTab, mrAllocations]);
 
   // Modal state
   const [modal, setModal] = useState(false);
@@ -183,12 +184,13 @@ export function MaterialRequirementPage() {
   const [grnAllocModal, setGrnAllocModal] = useState(null); // { mr, receivedQtyBySku, receivedQtyByName }
   const [grnAllocStore, setGrnAllocStore] = useState("");
   const [openingAllocModal, setOpeningAllocModal] = useState(null); // mrId being loaded
+  const [allocExtraInv, setAllocExtraInv] = useState([]); // inventory items not in 2000-item store
 
   const getStoreStock = (inv, store) => {
     if (!store || !inv) return Number(inv?.liveStock || 0);
-    if (inv.locationStock?.[store] !== undefined) return Number(inv.locationStock[store]) || 0;
     const site = inv.sites?.find(s => s.siteName === store || s.name === store);
     if (site) return Number(site.liveStock) || 0;
+    if (inv.locationStock?.[store] !== undefined) return Number(inv.locationStock[store]) || 0;
     return 0;
   };
 
@@ -249,10 +251,12 @@ export function MaterialRequirementPage() {
       // Only pass search to server; client handles the rest.
       fetchResource("mr-allocations", 1, 2000, true, debouncedSearch, null, false, false, startDate, endDate);
     }
-    fetchResource("pos", 1, 2000, false);
-    fetchResource("quotations", 1, 2000, false);
-    fetchResource("grn", 1, 2000, false);
-    if (inventory.length < 500) fetchResource("inventory", 1, 2000, true);
+    if (activeTab !== "allocations") {
+      fetchResource("pos", 1, 2000, false);
+      fetchResource("quotations", 1, 2000, false);
+      fetchResource("grn", 1, 2000, false);
+      if (inventory.length < 500) fetchResource("inventory", 1, 2000, true);
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [debouncedSearch, activeTab, startDate, endDate, filterProject, filterRequester, filterStatus]);
 
@@ -288,14 +292,13 @@ export function MaterialRequirementPage() {
   const mrIdsWithGRN = new Set(
     pos.filter(p => poIdsWithGRN.has(p.id) && p.mrId).map(p => p.mrId)
   );
-  const grnReadyMRs = materialRequirements.filter(mr => {
+  const grnReadyMRs = useMemo(() => materialRequirements.filter(mr => {
     if (!mrIdsWithGRN.has(mr.id) && !mrIdsWithGRN.has(mr.mrNumber)) return false;
-    // Remove MRs that are fully issued — nothing left to allocate/issue
-    if (mr.status === "Closed" || mr.status === "Fulfilled") return false;
-    // Also remove if all MRAllocations for this MR are fully issued (remainingQty = 0)
-    // This handles MRs that were issued before the auto-close fix landed
-    const mrAllocs = mrAllocations.filter(a => a.mrId === mr.id || a.mrId === mr.mrNumber);
-    if (mrAllocs.length > 0 && mrAllocs.every(a => (a.remainingQty || 0) === 0)) return false;
+    // Remove MRs that are fully allocated or issued — nothing left to do
+    if (["Closed", "Fulfilled", "Allocated", "Issued"].includes(mr.status)) return false;
+    // Use derivedAllocations so remainingQty is correctly computed (raw mrAllocations lacks this field)
+    const mrAllocs = derivedAllocations.filter(a => a.mrId === mr.id || a.mrId === mr.mrNumber);
+    if (mrAllocs.length > 0 && mrAllocs.every(a => a.remainingQty === 0)) return false;
     if (filterProject && mr.project !== filterProject) return false;
     if (filterRequester && mr.requesterName !== filterRequester) return false;
     if (filterStatus && mr.status !== filterStatus) return false;
@@ -309,7 +312,7 @@ export function MaterialRequirementPage() {
       if (!inHeader && !inItems) return false;
     }
     return true;
-  });
+  }), [materialRequirements, grns, pos, derivedAllocations, filterProject, filterRequester, filterStatus, startDate, endDate, debouncedSearch]);
 
   // Items from approved MRs that don't yet have a PO — shown in Procurement Pending tab
   const procurementPendingItems = React.useMemo(() => {
@@ -688,6 +691,12 @@ export function MaterialRequirementPage() {
                                         const res = await api.post("material-requirements/allocate", { mrId: req.id, items: allocItems });
                                         if (res.success) {
                                           toast.success(`${allocItems.length} items allocated!`);
+                                          api.invalidate("mr-allocations");
+                                          api.invalidate("material-requirements");
+                                          api.invalidate("inventory");
+                                          fetchResource("mr-allocations", 1, 2000, true, "", null, false, false, "", "", true);
+                                          fetchResource("material-requirements", 1, 100, true, "", null, false, false, "", "", true);
+                                          fetchResource("inventory", 1, 100, true, "", null, false, false, "", "", true);
                                         }
                                       } catch (err) { toast.error("Allocation failed: " + err.message); }
                                     }}
@@ -966,13 +975,17 @@ export function MaterialRequirementPage() {
                           onClick={async e => {
                             e.stopPropagation();
                             setOpeningAllocModal(mr.id);
-                            // Bust api.js 30-second GET cache so force-fetch hits the network
-                            api.invalidate("inventory");
                             api.invalidate("mr-allocations");
-                            await Promise.all([
-                              fetchResource("inventory", 1, 2000, true, "", null, false, false, "", "", true),
+                            // Collect unique non-N/A SKUs from this MR
+                            const mrSKUs = [...new Set(
+                              mr.items.map(i => (i.sku || "").trim()).filter(s => s && s.toUpperCase() !== "N/A")
+                            )];
+                            // Fetch mr-allocations + targeted inventory items in parallel — no full 2000-item scan needed
+                            const [, ...invResults] = await Promise.all([
                               fetchResource("mr-allocations", 1, 2000, true, "", null, false, false, "", "", true),
+                              ...mrSKUs.map(s => api.get(`inventory?search=${encodeURIComponent(s)}&limit=5&page=1`).catch(() => null)),
                             ]);
+                            setAllocExtraInv(invResults.flatMap(r => r?.data || []).filter(Boolean));
                             setOpeningAllocModal(null);
                             setGrnAllocModal({ mr, receivedQtyBySku, receivedQtyByName });
                             setGrnAllocStore("");
@@ -1252,8 +1265,11 @@ export function MaterialRequirementPage() {
             const alc = derivedAllocations.find(a => a.id === deleteAllocConfirm);
             if (!alc) { setDeleteAllocConfirm(null); return; }
             try {
-              await api.delete(`material-requirements/${alc.mrId}/items/${encodeURIComponent(alc.sku)}/allocation`);
+              await api.deleteSimple(`material-requirements/${alc.mrId}/allocation?sku=${encodeURIComponent(alc.sku)}`);
               toast.success("Allocation removed");
+              api.invalidate("mr-allocations");
+              api.invalidate("material-requirements");
+              api.invalidate("inventory");
               fetchResource("mr-allocations", 1, 2000, true, "", null, false, false, "", "", true);
               fetchResource("material-requirements", 1, 100, true, "", null, false, false, "", "", true);
               fetchResource("inventory", 1, 100, true, "", null, false, false, "", "", true);
@@ -1288,8 +1304,11 @@ export function MaterialRequirementPage() {
                   try {
                     const { sku } = editAllocModal.alc;
                     const mrNum = editAllocModal.alc.mrNumber || editAllocModal.alc.mrId;
-                    await api.putSimple(`material-requirements/${mrNum}/items/${encodeURIComponent(sku)}/allocation`, { allocatedQty: qty });
+                    await api.putSimple(`material-requirements/${mrNum}/allocation?sku=${encodeURIComponent(sku)}`, { allocatedQty: qty });
                     toast.success("Allocation updated");
+                    api.invalidate("mr-allocations");
+                    api.invalidate("material-requirements");
+                    api.invalidate("inventory");
                     fetchResource("mr-allocations", 1, 2000, true, "", null, false, false, "", "", true);
                     fetchResource("material-requirements", 1, 100, true, "", null, false, false, "", "", true);
                     fetchResource("inventory", 1, 100, true, "", null, false, false, "", "", true);
@@ -1355,7 +1374,7 @@ export function MaterialRequirementPage() {
         return (
           <Modal
             title={`Allocate Stock — ${mr.mrNumber || mr.id}`}
-            onClose={() => setGrnAllocModal(null)}
+            onClose={() => { setGrnAllocModal(null); setAllocExtraInv([]); }}
             wide
             footer={
               <div className="flex items-center justify-between gap-3 w-full">
@@ -1420,7 +1439,7 @@ export function MaterialRequirementPage() {
                       mr.items.forEach(item => {
                         const sku = (item.sku || "").trim();
                         if (!sku || sku.toUpperCase() === "N/A") return;
-                        const invItem = inventory.find(i => i.sku === sku);
+                        const invItem = allocExtraInv.find(i => i.sku === sku) || inventory.find(i => i.sku === sku);
                         const storeStock = getStoreStock(invItem, site);
                         const received = getRcv(sku, item.materialName);
                         const maxQ = Math.max(0, received - (item.allocatedQty || 0));
@@ -1455,7 +1474,7 @@ export function MaterialRequirementPage() {
                 const received = getRcv(sku, item.materialName);
                 const alreadyAllocated = item.allocatedQty || 0;
                 const maxQty = Math.max(0, received - alreadyAllocated);
-                const invItem = inventory.find(i => i.sku === sku);
+                const invItem = allocExtraInv.find(i => i.sku === sku) || inventory.find(i => i.sku === sku);
                 const storeStock = grnAllocStore ? getStoreStock(invItem, grnAllocStore) : null;
                 const curVal = allocQtys[mr.id]?.[sku] ?? maxQty;
                 const loadKey = `${mr.id}:${sku}`;
