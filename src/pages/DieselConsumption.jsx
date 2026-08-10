@@ -3,9 +3,10 @@ import { useAppStore } from "../store";
 import {
   PageHeader, Card, KPICard, Btn, ConfirmModal, Skeleton
 } from "../components/ui";
-import { SearchFilter, SelectFilter, DateFilter, FilterRow } from "../components/ui/Filters";
+import { SearchFilter, SelectFilter, DateRangePicker, FilterRow } from "../components/ui/Filters";
 import { toast } from "react-hot-toast";
 import { Fuel, Download, Trash2, User, Truck, MapPin, Gauge, Plus, X } from "lucide-react";
+
 
 const EMPTY_FORM = {
   date: new Date().toISOString().slice(0, 10),
@@ -149,7 +150,6 @@ export function DieselConsumption() {
     URL.revokeObjectURL(url);
   }
 
-  const hasFilters = filterSite || startDate || endDate;
   const colCount = isSuperAdmin ? 10 : 9;
 
   return (
@@ -277,24 +277,26 @@ export function DieselConsumption() {
       )}
 
       {/* Filters */}
-      <FilterRow>
+      <FilterRow
+        showClear={!!(search || startDate || endDate || filterSite)}
+        onClearAll={() => { setSearch(""); setStartDate(""); setEndDate(""); setFilterSite(""); }}
+      >
         <SearchFilter
           value={search}
           onChange={setSearch}
           placeholder="Search driver, equipment, site, ID…"
+          className="flex-1 min-w-[240px]"
+        />
+        <DateRangePicker
+          value={{ start: startDate, end: endDate }}
+          onChange={v => { setStartDate(v.start); setEndDate(v.end); }}
         />
         <SelectFilter
           value={filterSite}
           onChange={setFilterSite}
           options={siteOptions}
           placeholder="All Sites"
-          className="min-w-[160px] flex-none"
         />
-        <DateFilter value={startDate} onChange={setStartDate} placeholder="From date" className="flex-none w-[160px]" />
-        <DateFilter value={endDate}   onChange={setEndDate}   placeholder="To date"   className="flex-none w-[160px]" />
-        {hasFilters && (
-          <Btn label="Clear" icon={X} small outline onClick={() => { setFilterSite(""); setStartDate(""); setEndDate(""); }} />
-        )}
       </FilterRow>
 
       {/* Table */}
