@@ -793,35 +793,6 @@ const GRNPage = /* @__PURE__ */ __name(() => {
     >
                       <PackagePlus className="w-4 h-4" />
                     </button>}
-                  {role === "Super Admin" && !isGroup && grn.poId && (
-                    <button
-                      title={`Check & merge duplicate GRNs for ${grn.poId}`}
-                      onClick={async (e) => {
-                        e.stopPropagation();
-                        try {
-                          // Fetch ALL active GRNs for this PO from server — not just what's loaded in the filtered list
-                          const res = await api.get("grn", { filter: JSON.stringify({ poId: grn.poId }), limit: 50, showMerged: "0" });
-                          const allForPO = (res?.data || []).filter(g => g.status !== "Merged" && g.isActive !== false);
-                          if (allForPO.length <= 1) {
-                            toast("No duplicate GRNs found for " + grn.poId, { icon: "✅" });
-                            return;
-                          }
-                          // Oldest (lowest sequence number) becomes the target
-                          const sorted = [...allForPO].sort((a, b) => {
-                            const na = parseInt(a.id?.split("-").pop() || "0");
-                            const nb = parseInt(b.id?.split("-").pop() || "0");
-                            return na - nb;
-                          });
-                          setMergeModal({ target: sorted[0], sources: sorted.slice(1) });
-                        } catch (err) {
-                          toast.error("Could not load GRNs for this PO: " + err.message);
-                        }
-                      }}
-                      className="p-2 rounded-lg text-purple-600 hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors"
-                    >
-                      <GitMerge className="w-4 h-4" />
-                    </button>
-                  )}
                   {hasPermission("EDIT_GRN") && <button
       title={grn.isLocked && role !== "Super Admin" ? "Locked: MR closed — all materials issued" : "Edit GRN"}
       onClick={(e) => { e.stopPropagation(); setNewGRN(grn); setIsEditing(true); setModal(true); }}
