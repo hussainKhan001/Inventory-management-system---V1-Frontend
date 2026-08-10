@@ -20,6 +20,7 @@ import {
   BarChart2,
   GitBranch,
   Building2,
+  Fuel,
 } from "lucide-react";
 const ALL_ROLES = [
   "Super Admin",
@@ -205,6 +206,12 @@ const ROUTES = [
     icon: TrendingUp,
     roles: ALL_ROLES,
     permission: "VIEW_MATERIAL_REQUIREMENT"
+  },
+  {
+    id: "diesel-consumption",
+    label: "Diesel Consumption",
+    icon: Fuel,
+    roles: ["Super Admin", "Director", "AGM", "Head", "Project Manager", "Site Engineer", "Store Incharge", "DRI"]
   },
   {
     id: "dri-portal",
