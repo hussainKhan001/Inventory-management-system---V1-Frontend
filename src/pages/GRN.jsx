@@ -15,7 +15,7 @@ import {
   Field,
   Td
 } from "../components/ui";
-import { Plus, X, Eye, Pencil, Trash2, Download, Package, PackagePlus, AlertTriangle, Calendar, Building2 } from "lucide-react";
+import { Plus, X, Eye, Pencil, Trash2, Download, Package, PackagePlus, AlertTriangle, Calendar, Building2, GitMerge, ChevronRight } from "lucide-react";
 import { TableVirtuoso } from "react-virtuoso";
 import { SearchFilter, DateRangePicker, SelectFilter, FilterRow } from "../components/ui/Filters";
 import { genId, scrollToError, formatDateTime, safeStr } from "../utils";
@@ -81,11 +81,22 @@ const GRNPage = /* @__PURE__ */ __name(() => {
     { label: "GRN Variance", value: "Partial" },
     { label: "Over-Received", value: "Over-Received" },
   ], []);
+  // Exclude merged/inactive GRNs from all client-side computations
+  const activeGrns = useMemo(() =>
+    (grns || []).filter(g => g.status !== "Merged" && g.isActive !== false)
+  , [grns]);
+
   const mergedGrns = useMemo(() => {
-    if (!grns || !grns.length) return [];
+    if (!activeGrns.length) return [];
+    // Client-side exact filter when search looks like a full GRN ID (GRN-YYYY-NNN)
+    const s = debouncedSearch.trim();
+    const isFullGrnId = /^GRN-\d{4}-\d+$/i.test(s);
+    const visibleGrns = isFullGrnId
+      ? activeGrns.filter(g => g.id?.toLowerCase() === s.toLowerCase())
+      : activeGrns;
     const grouped = new Map();
     const order = [];
-    for (const g of grns) {
+    for (const g of visibleGrns) {
       const k = g.poId || `__${g.id}`;
       if (!grouped.has(k)) { grouped.set(k, []); order.push(k); }
       grouped.get(k).push(g);
@@ -105,7 +116,7 @@ const GRNPage = /* @__PURE__ */ __name(() => {
         __combinedStatus: statuses.includes("Partial") ? "Partial" : statuses.every(s => s === "Confirmed") ? "Confirmed" : "Partial",
       };
     });
-  }, [grns]);
+  }, [grns, debouncedSearch]);
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedSearch(search.trim()), 500);
     return () => clearTimeout(timer);
@@ -153,6 +164,28 @@ const GRNPage = /* @__PURE__ */ __name(() => {
   const [modal, setModal] = useState(false);
   const [viewModal, setViewModal] = useState(false);
   const [selectedGRN, setSelectedGRN] = useState(null);
+  const [mergeModal, setMergeModal] = useState(null); // { target: grn, sources: [grn, ...] }
+  const [merging, setMerging] = useState(false);
+
+  const handleMerge = useCallback(async () => {
+    if (!mergeModal) return;
+    const { target, sources } = mergeModal;
+    setMerging(true);
+    try {
+      const res = await api.post(`grn/${target.id}/merge`, { grnIds: sources.map(s => s.id) });
+      if (!res.success) throw new Error(res.message || "Merge failed");
+      toast.success(`Merged ${sources.length} GRN(s) into ${target.id} — ${res.data?.shipmentsAdded} shipment(s) consolidated`);
+      setMergeModal(null);
+      api.invalidate("grn");
+      api.invalidate("pos");
+      fetchResource("grn", 1, 50, false);
+      fetchResource("pos", 1, 500, true);
+    } catch (err) {
+      toast.error(`Merge failed: ${err.message}`);
+    } finally {
+      setMerging(false);
+    }
+  }, [mergeModal, fetchResource]);
 
   useEffect(() => {
     const handler = async ({ detail }) => {
@@ -227,15 +260,15 @@ const GRNPage = /* @__PURE__ */ __name(() => {
   // POs eligible for a new GRN: "GRN Pending" (never received) OR has a Partial GRN (partially received)
   const poIdsWithPartialGRN = React.useMemo(() => {
     const s = new Set();
-    grns.forEach((g) => { if (g.status === "Partial") s.add(g.poId); });
+    activeGrns.forEach((g) => { if (g.status === "Partial") s.add(g.poId); });
     return s;
-  }, [grns]);
+  }, [activeGrns]);
 
   const poIdsWithConfirmedGRN = React.useMemo(() => {
     const s = new Set();
-    grns.forEach((g) => { if (g.status === "Confirmed" || g.status === "Over-Received") s.add(g.poId); });
+    activeGrns.forEach((g) => { if (g.status === "Confirmed" || g.status === "Over-Received") s.add(g.poId); });
     return s;
-  }, [grns]);
+  }, [activeGrns]);
 
   const availablePOs = React.useMemo(
     () => pos.filter((p) =>
@@ -252,7 +285,7 @@ const GRNPage = /* @__PURE__ */ __name(() => {
   // Helper: sum received qty per SKU across all GRNs for a given PO (excluding a specific GRN id)
   const getPreviouslyReceived = (poId, excludeGrnId = null) => {
     const map = {};
-    grns
+    activeGrns
       .filter((g) => g.poId === poId && g.id !== excludeGrnId)
       .forEach((g) => {
         (g.items || []).forEach((it) => {
@@ -450,6 +483,13 @@ const GRNPage = /* @__PURE__ */ __name(() => {
       });
       setErrors({});
     } catch (error) {
+      // Server says an active GRN already exists for this PO — auto-route to addGRNReceipt
+      if (error?.response?.status === 409 && error?.response?.data?.existingGrnId) {
+        const existingId = error.response.data.existingGrnId;
+        toast(`Active GRN ${existingId} already exists for this PO — adding as a new shipment instead.`, { icon: "ℹ️" });
+        setTargetGRNId(existingId);
+        return;
+      }
       toast.error(`Failed to create GRN: ${error.message}`);
     }
   }, "handleCreate");
@@ -637,6 +677,11 @@ const GRNPage = /* @__PURE__ */ __name(() => {
                   <div className="flex flex-col gap-0.5">
                     <span className="text-[13px] font-bold text-gray-900 dark:text-white md:font-medium">{safeStr(grn.id)}</span>
                     <span className="text-[11px] text-gray-500">MR: {isGroup ? grn.__mrNos.join(", ") : safeStr(grn.mrNo)}</span>
+                    {!isGroup && (grn.receipts?.length > 0) && (
+                      <span className="mt-0.5 inline-flex items-center text-[9px] font-bold text-blue-600 dark:text-blue-400 bg-blue-100 dark:bg-blue-900/30 px-1.5 py-0.5 rounded-md w-fit">
+                        {grn.receipts.length + 1} shipments
+                      </span>
+                    )}
                     {isGroup && <span className="mt-0.5 inline-flex items-center text-[9px] font-bold text-orange-600 dark:text-orange-400 bg-orange-100 dark:bg-orange-900/30 px-1.5 py-0.5 rounded-md w-fit">{grn.__grnIds.length} GRNs merged</span>}
                   </div>
                   <div className="md:hidden">
@@ -749,6 +794,35 @@ const GRNPage = /* @__PURE__ */ __name(() => {
     >
                       <PackagePlus className="w-4 h-4" />
                     </button>}
+                  {role === "Super Admin" && !isGroup && grn.poId && (
+                    <button
+                      title={`Check & merge duplicate GRNs for ${grn.poId}`}
+                      onClick={async (e) => {
+                        e.stopPropagation();
+                        try {
+                          // Fetch ALL active GRNs for this PO from server — not just what's loaded in the filtered list
+                          const res = await api.get("grn", { filter: JSON.stringify({ poId: grn.poId }), limit: 50, showMerged: "0" });
+                          const allForPO = (res?.data || []).filter(g => g.status !== "Merged" && g.isActive !== false);
+                          if (allForPO.length <= 1) {
+                            toast("No duplicate GRNs found for " + grn.poId, { icon: "✅" });
+                            return;
+                          }
+                          // Oldest (lowest sequence number) becomes the target
+                          const sorted = [...allForPO].sort((a, b) => {
+                            const na = parseInt(a.id?.split("-").pop() || "0");
+                            const nb = parseInt(b.id?.split("-").pop() || "0");
+                            return na - nb;
+                          });
+                          setMergeModal({ target: sorted[0], sources: sorted.slice(1) });
+                        } catch (err) {
+                          toast.error("Could not load GRNs for this PO: " + err.message);
+                        }
+                      }}
+                      className="p-2 rounded-lg text-purple-600 hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors"
+                    >
+                      <GitMerge className="w-4 h-4" />
+                    </button>
+                  )}
                   {hasPermission("EDIT_GRN") && <button
       title={grn.isLocked && role !== "Super Admin" ? "Locked: MR closed — all materials issued" : "Edit GRN"}
       onClick={(e) => { e.stopPropagation(); setNewGRN(grn); setIsEditing(true); setModal(true); }}
@@ -1203,6 +1277,93 @@ const GRNPage = /* @__PURE__ */ __name(() => {
     onCancel={() => setDeleteConfirm(null)}
     loading={actionLoading}
   />}
+
+      {/* ── Merge GRNs Confirmation Modal ─────────────────────────────────── */}
+      {mergeModal && (
+        <Modal
+          title="Merge Duplicate GRNs"
+          onClose={() => { if (!merging) setMergeModal(null); }}
+          footer={
+            <div className="flex items-center justify-end gap-3 w-full">
+              <button
+                onClick={() => setMergeModal(null)}
+                disabled={merging}
+                className="px-5 py-2.5 rounded-xl text-xs font-black tracking-wider border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-all disabled:opacity-40 cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleMerge}
+                disabled={merging}
+                className="flex items-center gap-2 px-5 py-2.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-black tracking-wider shadow-lg shadow-purple-600/20 transition-all disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
+              >
+                {merging ? (
+                  <><div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />Merging…</>
+                ) : (
+                  <><GitMerge className="w-3.5 h-3.5" />Confirm Merge</>
+                )}
+              </button>
+            </div>
+          }
+        >
+          <div className="space-y-5 py-1">
+            <div className="p-3.5 bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800/50 rounded-2xl text-[13px] text-purple-800 dark:text-purple-300 leading-relaxed">
+              <strong>What this does:</strong> The source GRNs below will be folded into the target as additional shipments.
+              Source GRNs are <em>not deleted</em> — they are marked "Merged" and hidden from the list.
+              <br />
+              <span className="font-bold text-amber-600 dark:text-amber-400 mt-1 block">Inventory quantities are NOT changed — stock was already recorded when each GRN was created.</span>
+            </div>
+
+            {/* Target */}
+            <div>
+              <p className="text-[11px] font-bold tracking-widest text-gray-400 uppercase mb-2">Target (keeps this ID)</p>
+              <div className="flex items-center gap-3 p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800/50 rounded-xl">
+                <div className="w-2 h-2 rounded-full bg-green-500 shrink-0" />
+                <div>
+                  <span className="text-[13px] font-bold text-gray-900 dark:text-white">{mergeModal.target.id}</span>
+                  <span className="ml-2 text-[11px] text-gray-500">{mergeModal.target.date ? formatDateTime(mergeModal.target.date) : "—"}</span>
+                  <span className="ml-2 text-[11px] text-gray-500">Challan: {mergeModal.target.challan || "—"}</span>
+                  <span className="ml-2 text-[11px] text-gray-500">{(mergeModal.target.receipts?.length || 0) + 1} shipment(s)</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Arrow */}
+            <div className="flex items-center gap-2 text-[11px] text-gray-400 pl-1">
+              <ChevronRight className="w-4 h-4 text-purple-400" />
+              <span>{mergeModal.sources.length} GRN(s) will be folded in as additional shipments</span>
+            </div>
+
+            {/* Sources */}
+            <div>
+              <p className="text-[11px] font-bold tracking-widest text-gray-400 uppercase mb-2">Source GRNs (will be marked Merged)</p>
+              <div className="space-y-2">
+                {mergeModal.sources.map(src => (
+                  <div key={src.id} className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-xl">
+                    <div className="w-2 h-2 rounded-full bg-gray-400 shrink-0" />
+                    <div>
+                      <span className="text-[13px] font-bold text-gray-700 dark:text-gray-300">{src.id}</span>
+                      <span className="ml-2 text-[11px] text-gray-500">{src.date ? formatDateTime(src.date) : "—"}</span>
+                      <span className="ml-2 text-[11px] text-gray-500">Challan: {src.challan || "—"}</span>
+                      <span className="ml-2 text-[11px]">
+                        <span className={cn("px-1.5 py-0.5 rounded text-[10px] font-bold",
+                          src.status === "Partial" ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400" :
+                          "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
+                        )}>{src.status}</span>
+                      </span>
+                      {src.receipts?.length > 0 && <span className="ml-2 text-[11px] text-blue-500">+{src.receipts.length} receipt(s)</span>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="p-3 bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-800/40 rounded-xl text-[12px] text-amber-700 dark:text-amber-400">
+              ⚠️ This action cannot be undone via the UI. Contact your admin if you need to revert.
+            </div>
+          </div>
+        </Modal>
+      )}
 
       {/* Shipment Edit Drawer — removed, now reuses the main GRN modal */}
       {false && (

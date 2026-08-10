@@ -185,22 +185,24 @@ export function GRNDetailModal({ grn, grns, onClose, onEditReceipt }) {
                 images: item.images || [],
               });
             });
+            // items[].received is already the running total across all shipments.
+            // Only add receipt SKUs that are genuinely absent from root items[] (edge case).
             (grnDoc.receipts || []).forEach(receipt => {
               (receipt.items || []).forEach(item => {
                 const key = item.sku || item.itemName || item.name || "";
-                if (itemMap.has(key)) {
-                  itemMap.get(key).received += (item.received || 0);
-                } else {
-                  const name = item.itemName || item.name || item.material || "Unknown Item";
+                if (itemMap.has(key)) return; // already counted in items[].received — skip
+                const name = item.itemName || item.name || item.material || "Unknown Item";
+                if (!itemMap.has(key)) {
                   itemMap.set(key, {
                     itemName: name,
                     sku: item.sku,
                     unit: item.unit || (grnDoc.items || []).find(gi => gi.sku === item.sku)?.unit || "",
                     ordered: getOrdered(item.sku, name),
-                    received: item.received || 0,
+                    received: 0,
                     images: item.images || [],
                   });
                 }
+                itemMap.get(key).received += (item.received || 0);
               });
             });
             const allItems = Array.from(itemMap.values());
