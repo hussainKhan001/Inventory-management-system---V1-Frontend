@@ -496,52 +496,6 @@ export function ProcessCoordinatorPage() {
         ))}
       </div>
 
-      {/* ── Bottleneck cards ── */}
-      <div>
-        <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest px-0.5 mb-2.5">
-          Bottleneck Alerts — tap to filter
-        </p>
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-          {BOTTLENECK_CARDS.map(({stage,title,desc,icon:Icon,days,hex})=>{
-            const count   = bottlenecks[stage]||0;
-            const isActive= filterStage===stage;
-            return (
-              <button key={stage} onClick={()=>setFilterStage(isActive?"":stage)}
-                className={cn(
-                  "text-left rounded-xl border p-0 flex overflow-hidden transition-all shadow-sm",
-                  "bg-white dark:bg-gray-800/80",
-                  isActive  ? "ring-2 ring-primary border-primary"
-                  : count>0 ? "border-red-200/70 dark:border-red-800/30 hover:shadow-md hover:-translate-y-0.5"
-                            : "border-gray-200/60 dark:border-gray-700/50 hover:shadow-md hover:-translate-y-0.5"
-                )}
-              >
-                {/* Stage color strip */}
-                <div className="w-1 shrink-0" style={{backgroundColor:count>0?"#ef4444":hex}}/>
-                <div className="flex-1 p-3.5">
-                  <div className="flex items-start justify-between gap-2 mb-1">
-                    <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
-                      style={{backgroundColor: count>0?"#FEF2F2":"#F8FAFC"}}>
-                      <Icon className={cn("w-4 h-4",count>0?"text-red-500":"text-gray-400")}/>
-                    </div>
-                    {count>0 && <span className="text-[9px] font-bold text-red-400 uppercase tracking-wide">!</span>}
-                  </div>
-                  <p className="text-[11px] font-bold text-gray-900 dark:text-white leading-tight mt-1">{title}</p>
-                  <p className="text-[10px] text-gray-400 leading-tight mt-0.5">{desc} &gt;{days}d</p>
-                  <div className="flex items-baseline gap-1 mt-2">
-                    <span className={cn("text-[26px] font-black tabular-nums leading-none",count>0?"text-red-500":"text-gray-700 dark:text-gray-300")}>
-                      {count}
-                    </span>
-                    <span className={cn("text-[10px] font-medium",count>0?"text-red-400":"text-gray-400")}>
-                      {count===1?"MR stuck":count>1?"MRs stuck":"all clear"}
-                    </span>
-                  </div>
-                </div>
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
       {/* ── Filter row ── */}
       <Card className="px-4 py-3.5">
         <FilterRow showClear={hasFilters} onClearAll={clearAll}>
