@@ -58,7 +58,7 @@ import {
   isNewItem,
 } from "../utils";
 
-import { generatePOPDF, generatePOPDFBlob } from "../utils/pdfGenerator";
+import { generatePOPDFBlob } from "../utils/pdfGenerator";
 
 import { cn } from "../lib/utils";
 
@@ -1517,7 +1517,18 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
     });
     const poMR = (materialRequirements || []).find(m => m.id === po.mrId || m.mrNumber === po.mrId);
     const mrLocation = poMR ? (poMR.location || poMR.site || poMR.address || "") : "";
-    generatePOPDF({...getEffectivePO(po), mrLocation}, supplier, settings);
+    const blob = generatePOPDFBlob({...getEffectivePO(po), mrLocation}, supplier, settings);
+    const url = URL.createObjectURL(blob);
+    const win = window.open(url, "_blank");
+    if (!win) {
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${po.id}_PO.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    }
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
   }, "downloadPDF");
 
   const addItem = /* @__PURE__ */ __name((invItem) => {
