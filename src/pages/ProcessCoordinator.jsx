@@ -8,6 +8,7 @@ import { cn } from "../lib/utils";
 import {
   Layers, AlertTriangle, FileText, ShoppingCart, Package,
   IndianRupee, RefreshCw, CheckCircle2, Clock, TrendingUp,
+  LayoutGrid, List,
 } from "lucide-react";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -369,6 +370,7 @@ export function ProcessCoordinatorPage() {
   const [filterStage, setFilterStage] = useState("");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
+  const [viewMode, setViewMode] = useState("cards");
 
   const hasFilters = !!(search || startDate || endDate || filterProject || filterStage);
 
@@ -685,7 +687,7 @@ export function ProcessCoordinatorPage() {
         </div>
       </div>
 
-      {/* ── Filter row ── */}
+      {/* ── Filter row + View toggle ── */}
       <Card className="px-4 py-3.5">
         <FilterRow showClear={hasFilters} onClearAll={clearAll}>
           <SearchFilter
@@ -714,6 +716,33 @@ export function ProcessCoordinatorPage() {
             options={stageOptions}
             placeholder="All Stages"
           />
+          {/* View toggle — desktop only */}
+          <div className="hidden lg:flex items-center rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden shrink-0">
+            <button
+              onClick={() => setViewMode("cards")}
+              title="Card view"
+              className={cn(
+                "p-2 transition-colors",
+                viewMode === "cards"
+                  ? "bg-primary text-white"
+                  : "bg-white dark:bg-gray-800 text-gray-500 hover:bg-gray-50 dark:hover:bg-gray-700"
+              )}
+            >
+              <LayoutGrid className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => setViewMode("table")}
+              title="Table view"
+              className={cn(
+                "p-2 transition-colors",
+                viewMode === "table"
+                  ? "bg-primary text-white"
+                  : "bg-white dark:bg-gray-800 text-gray-500 hover:bg-gray-50 dark:hover:bg-gray-700"
+              )}
+            >
+              <List className="w-4 h-4" />
+            </button>
+          </div>
         </FilterRow>
       </Card>
 
@@ -765,8 +794,39 @@ export function ProcessCoordinatorPage() {
             />
           </div>
 
-          {/* ── Desktop table (≥ lg) ── */}
-          <Card className="hidden lg:block p-0 overflow-hidden border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900">
+          {/* ── Desktop card grid (≥ lg, card mode) ── */}
+          {viewMode === "cards" && (
+            <div className="hidden lg:block">
+              <Virtuoso
+                style={{ height: "calc(100vh - 460px)", minHeight: "360px" }}
+                data={filteredRows}
+                itemContent={(_, row) => (
+                  <div className="pb-3">
+                    <MRCard row={row} grnsByPoId={grnsByPoId} />
+                  </div>
+                )}
+                components={{
+                  List: React.forwardRef(({ style, children }, ref) => (
+                    <div
+                      ref={ref}
+                      style={style}
+                      className="grid grid-cols-2 xl:grid-cols-3 gap-3"
+                    >
+                      {children}
+                    </div>
+                  )),
+                  Item: ({ children, ...props }) => (
+                    <div {...props} className="min-w-0">
+                      {children}
+                    </div>
+                  ),
+                }}
+              />
+            </div>
+          )}
+
+          {/* ── Desktop table (≥ lg, table mode) ── */}
+          <Card className={cn("p-0 overflow-hidden border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900", viewMode === "table" ? "hidden lg:block" : "hidden")}>
             <TableVirtuoso
               style={{ height: "calc(100vh - 460px)", minHeight: "360px" }}
               data={filteredRows}
