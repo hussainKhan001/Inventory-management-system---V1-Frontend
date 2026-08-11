@@ -544,6 +544,38 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
     }
     return acc;
   }, [localPos, grnsByPoId]);
+  // Precompute total shipment value per partial_paid PO — stable between keystrokes
+  const shipmentValueByPoId = useMemo(() => {
+    const map = new Map();
+    for (const p of localPos) {
+      if ((p.accountStatus || "").toLowerCase() !== "partial_paid") continue;
+      const cardGRNs = grnsByPoId.get(p.id) || [];
+      const cardShipments = cardGRNs.flatMap(g => normalizeShipments(g));
+      const total = cardShipments.reduce((sum, sh) => {
+        if (sh.invoiceAmount) return sum + sh.invoiceAmount;
+        if (sh.paymentStatus === "paid" && sh.payment?.amount) return sum + sh.payment.amount;
+        return sum + (sh.items || []).reduce((itemSum, gi) => {
+          const rcv = gi.received ?? gi.qty ?? 0;
+          const poItem = (p.items || []).find(pi =>
+            (pi.sku && gi.sku && pi.sku === gi.sku) ||
+            (pi.itemName || "").toLowerCase() === (gi.itemName || "").toLowerCase()
+          );
+          const rootItem = (sh.rootItems || []).find(ri =>
+            (ri.sku && gi.sku && ri.sku === gi.sku) ||
+            (ri.itemName || "").toLowerCase() === (gi.itemName || "").toLowerCase()
+          );
+          const rate = gi.rate || rootItem?.rate || poItem?.rate || 0;
+          const gstPct = gi.gstPct ?? rootItem?.gstPct ?? poItem?.gstPct ?? 0;
+          const rawGstType = gi.gstType || rootItem?.gstType || poItem?.gstType || "Exclusive";
+          const gstType = typeof rawGstType === "string" && rawGstType.toLowerCase().includes("inclus") ? rawGstType : "Exclusive";
+          return itemSum + calcChargeTotal(rcv * rate, gstPct, gstType);
+        }, 0);
+      }, 0);
+      map.set(p.id, total);
+    }
+    return map;
+  }, [localPos, grnsByPoId]);
+
   const vendorOptions = useMemo(
     () => suppliers.map((s) => ({ label: s.companyName || s.name || s.id, value: s.id || s._id })),
     [suppliers]
@@ -692,38 +724,6 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
     }
     return map;
   }, [grnsByPoId]);
-
-  // Precompute total shipment value per partial_paid PO — localPos + grnsByPoId are both stable between keystrokes
-  const shipmentValueByPoId = useMemo(() => {
-    const map = new Map();
-    for (const p of localPos) {
-      if ((p.accountStatus || "").toLowerCase() !== "partial_paid") continue;
-      const cardGRNs = grnsByPoId.get(p.id) || [];
-      const cardShipments = cardGRNs.flatMap(g => normalizeShipments(g));
-      const total = cardShipments.reduce((sum, sh) => {
-        if (sh.invoiceAmount) return sum + sh.invoiceAmount;
-        if (sh.paymentStatus === "paid" && sh.payment?.amount) return sum + sh.payment.amount;
-        return sum + (sh.items || []).reduce((itemSum, gi) => {
-          const rcv = gi.received ?? gi.qty ?? 0;
-          const poItem = (p.items || []).find(pi =>
-            (pi.sku && gi.sku && pi.sku === gi.sku) ||
-            (pi.itemName || "").toLowerCase() === (gi.itemName || "").toLowerCase()
-          );
-          const rootItem = (sh.rootItems || []).find(ri =>
-            (ri.sku && gi.sku && ri.sku === gi.sku) ||
-            (ri.itemName || "").toLowerCase() === (gi.itemName || "").toLowerCase()
-          );
-          const rate = gi.rate || rootItem?.rate || poItem?.rate || 0;
-          const gstPct = gi.gstPct ?? rootItem?.gstPct ?? poItem?.gstPct ?? 0;
-          const rawGstType = gi.gstType || rootItem?.gstType || poItem?.gstType || "Exclusive";
-          const gstType = typeof rawGstType === "string" && rawGstType.toLowerCase().includes("inclus") ? rawGstType : "Exclusive";
-          return itemSum + calcChargeTotal(rcv * rate, gstPct, gstType);
-        }, 0);
-      }, 0);
-      map.set(p.id, total);
-    }
-    return map;
-  }, [localPos, grnsByPoId]);
 
   const handleBillVerify = /* @__PURE__ */ __name(async (poId, remark) => {
     if (!hasPermission("VERIFY_BILL")) {
