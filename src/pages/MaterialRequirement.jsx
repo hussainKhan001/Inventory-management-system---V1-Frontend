@@ -360,6 +360,9 @@ export function MaterialRequirementPage() {
   }, [stableMRs, materialRequirements, debouncedSearch]);
 
   const handleDownloadReport = async () => {
+    // Open the window synchronously (in the user-gesture frame) so iOS doesn't block it
+    const win = window.open("", "_blank");
+    if (win) win.document.write("<p style='font-family:sans-serif;padding:2rem;color:#555'>Loading MR Report…</p>");
     try {
       const base = import.meta.env.VITE_API_BASE_URL || "/api";
       const token = localStorage.getItem("token");
@@ -370,7 +373,6 @@ export function MaterialRequirementPage() {
       if (filterRequester) params.set("requesterName", filterRequester);
       if (filterStatus) params.set("status", filterStatus);
       if (debouncedSearch) params.set("search", debouncedSearch);
-      // if no date filter at all, default to today
       if (!startDate && !endDate) params.set("startDate", new Date().toISOString().slice(0, 10));
       const res = await fetch(`${base}/material-requirements/export?${params}`, {
         credentials: "include",
@@ -379,13 +381,20 @@ export function MaterialRequirementPage() {
       if (!res.ok) throw new Error("Download failed");
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      const dateTag = startDate || new Date().toISOString().slice(0, 10);
-      a.download = `MR-Report-${dateTag}.pdf`;
-      a.click();
-      URL.revokeObjectURL(url);
+      if (win) {
+        win.location.href = url;
+      } else {
+        // Fallback if popup was blocked
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `MR-Report-${startDate || new Date().toISOString().slice(0, 10)}.pdf`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+      }
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
     } catch {
+      if (win) win.close();
       toast.error("Failed to download report");
     }
   };
