@@ -184,32 +184,44 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
   const refresh = useCallback(async () => {
     setIsRefreshing(true);
     const ACCOUNTS_STATUSES = ["GRN Variance", "GRN Fulfilled", "Ready for Payment", "PO Closed"];
+    const poFilter = JSON.stringify({ status: { $in: ACCOUNTS_STATUSES } });
     try {
-      // Suppliers can load silently in background — they're already in store most of the time
       const suppliersPromise = fetchResource("suppliers", 1, 5000, true);
 
-      // Fetch accounts-eligible POs directly — independent of global pos state
-      const posRes = await api.get("pos", {
-        limit: 1000,
-        filter: JSON.stringify({ status: { $in: ACCOUNTS_STATUSES } }),
-      });
-      const rows = posRes?.success && posRes.data ? posRes.data : [];
-      setLocalPos(rows);
+      // Stage 1 — fetch first 50 POs fast for immediate first paint
+      const fastRes = await api.get("pos", { limit: 50, filter: poFilter });
+      const fastRows = fastRes?.success ? (fastRes.data || []) : [];
+      if (fastRows.length) {
+        setLocalPos(fastRows);
+        setIsRefreshing(false); // unlock table immediately with preview data
+      }
 
-      // Fetch GRNs (needs PO IDs) and suppliers in parallel
-      const poIds = rows.map((p) => p.id).filter(Boolean);
-      const [grnRes] = await Promise.all([
-        poIds.length
-          ? api.get("grn", { limit: 1000, slim: "1", filter: JSON.stringify({ poId: { $in: poIds } }) }).catch(() => ({ success: false }))
-          : Promise.resolve({ success: true, data: [] }),
+      // Stage 1b + Stage 2 — fetch fast GRNs and full PO list in parallel
+      const fastPoIds = fastRows.map(p => p.id).filter(Boolean);
+      const [fastGrnRes, fullRes] = await Promise.all([
+        fastPoIds.length
+          ? api.get("grn", { limit: 100, slim: "1", filter: JSON.stringify({ poId: { $in: fastPoIds } }) }).catch(() => null)
+          : Promise.resolve(null),
+        api.get("pos", { limit: 1000, filter: poFilter }),
         suppliersPromise,
       ]);
+
+      // Show GRNs for the visible 50 rows right away
+      if (fastGrnRes?.success && fastGrnRes.data?.length) setAllGrns(fastGrnRes.data);
+
+      const allRows = fullRes?.success ? (fullRes.data || []) : fastRows;
+      setLocalPos(allRows);
+
+      // Full GRN fetch for all POs (background — user already sees data)
+      const allPoIds = allRows.map(p => p.id).filter(Boolean);
+      const grnRes = allPoIds.length
+        ? await api.get("grn", { limit: 1000, slim: "1", filter: JSON.stringify({ poId: { $in: allPoIds } }) }).catch(() => null)
+        : null;
       if (grnRes?.success && grnRes.data) {
         setAllGrns(grnRes.data);
-        // Cache for instant display on next visit
         try {
           const ck = `accounts_cache_v4_${user?.id || ""}`;
-          localStorage.setItem(ck, JSON.stringify({ pos: rows, grns: grnRes.data, ts: Date.now() }));
+          localStorage.setItem(ck, JSON.stringify({ pos: allRows, grns: grnRes.data, ts: Date.now() }));
         } catch {}
       }
     } catch (err) {
@@ -285,10 +297,11 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
 
     setAllGrns(prev => {
       const prevMap = new Map(prev.map(g => [g.id, g]));
+      const storeMap = new Map(storeGrns.map(g => [g.id, g]));
       let changed = false;
 
       const merged = prev.map(g => {
-        const sg = storeGrns.find(s => s.id === g.id);
+        const sg = storeMap.get(g.id);
         if (!sg) return g;
 
         // Check if any payment field changed
@@ -558,32 +571,8 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
       }
       if (accStatus === "partial_paid") {
         const totalPd = p.totalPaid || p.payment?.amountPaid || 0;
-        // Sum value across ALL GRN batches for this PO
-        const cardGRNs = grnsByPoId.get(p.id) || [];
-        const cardShipments = cardGRNs.flatMap(g => normalizeShipments(g));
-        const totalShipmentValue = cardShipments.reduce((sum, sh) => {
-          if (sh.invoiceAmount) return sum + sh.invoiceAmount;
-          if (sh.paymentStatus === "paid" && sh.payment?.amount) return sum + sh.payment.amount;
-          return sum + (sh.items || []).reduce((itemSum, gi) => {
-            const rcv = gi.received ?? gi.qty ?? 0;
-            const poItem = (p.items || []).find(pi =>
-              (pi.sku && gi.sku && pi.sku === gi.sku) ||
-              (pi.itemName || "").toLowerCase() === (gi.itemName || "").toLowerCase()
-            );
-            const rootItem = (sh.rootItems || []).find(ri =>
-              (ri.sku && gi.sku && ri.sku === gi.sku) ||
-              (ri.itemName || "").toLowerCase() === (gi.itemName || "").toLowerCase()
-            );
-            const rate = gi.rate || rootItem?.rate || poItem?.rate || 0;
-            const gstPct = gi.gstPct ?? rootItem?.gstPct ?? poItem?.gstPct ?? 0;
-            const rawGstType = gi.gstType || rootItem?.gstType || poItem?.gstType || "Exclusive";
-            const isInclusive = typeof rawGstType === "string" && rawGstType.toLowerCase().includes("inclus");
-            const gstType = isInclusive ? rawGstType : "Exclusive";
-            return itemSum + calcChargeTotal(rcv * rate, gstPct, gstType);
-          }, 0);
-        }, 0);
-
-        const poTotalVal = totalShipmentValue > 0 ? totalShipmentValue : (p.totalValue || 0);
+        const precomputed = shipmentValueByPoId.get(p.id);
+        const poTotalVal = (precomputed && precomputed > 0) ? precomputed : (p.totalValue || 0);
         if (totalPd >= poTotalVal - 0.5) status = "paid";
       }
 
@@ -676,10 +665,7 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
         if (startDate && d < new Date(startDate)) return false;
         if (endDate && d > new Date(endDate + "T23:59:59")) return false;
       }
-      if (filterVendor) {
-        const sup = suppliers.find((s) => s.id === p.supplier || s._id === p.supplier);
-        if ((sup?.id || sup?._id) !== filterVendor && p.supplier !== filterVendor) return false;
-      }
+      if (filterVendor && p.supplier !== filterVendor) return false;
       if (filterProject && (p.project || p.location) !== filterProject) return false;
       if (filterCompany && p.companyName !== filterCompany) return false;
       return true;
@@ -688,7 +674,7 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
       const db = new Date(b.createdAt || b.date || 0).getTime();
       return db - da;
     });
-  }, [localPos, grnsByPoId, supplierNameMap, filter, approvalSubFilter, search, startDate, endDate, filterVendor, filterProject, filterCompany]);
+  }, [localPos, grnsByPoId, supplierNameMap, shipmentValueByPoId, filter, approvalSubFilter, search, startDate, endDate, filterVendor, filterProject, filterCompany]);
 
   // Precompute per-PO shipment stats once — itemContent reads this map with O(1) lookup
   const shipmentStatsByPoId = useMemo(() => {
@@ -706,6 +692,38 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
     }
     return map;
   }, [grnsByPoId]);
+
+  // Precompute total shipment value per partial_paid PO — localPos + grnsByPoId are both stable between keystrokes
+  const shipmentValueByPoId = useMemo(() => {
+    const map = new Map();
+    for (const p of localPos) {
+      if ((p.accountStatus || "").toLowerCase() !== "partial_paid") continue;
+      const cardGRNs = grnsByPoId.get(p.id) || [];
+      const cardShipments = cardGRNs.flatMap(g => normalizeShipments(g));
+      const total = cardShipments.reduce((sum, sh) => {
+        if (sh.invoiceAmount) return sum + sh.invoiceAmount;
+        if (sh.paymentStatus === "paid" && sh.payment?.amount) return sum + sh.payment.amount;
+        return sum + (sh.items || []).reduce((itemSum, gi) => {
+          const rcv = gi.received ?? gi.qty ?? 0;
+          const poItem = (p.items || []).find(pi =>
+            (pi.sku && gi.sku && pi.sku === gi.sku) ||
+            (pi.itemName || "").toLowerCase() === (gi.itemName || "").toLowerCase()
+          );
+          const rootItem = (sh.rootItems || []).find(ri =>
+            (ri.sku && gi.sku && ri.sku === gi.sku) ||
+            (ri.itemName || "").toLowerCase() === (gi.itemName || "").toLowerCase()
+          );
+          const rate = gi.rate || rootItem?.rate || poItem?.rate || 0;
+          const gstPct = gi.gstPct ?? rootItem?.gstPct ?? poItem?.gstPct ?? 0;
+          const rawGstType = gi.gstType || rootItem?.gstType || poItem?.gstType || "Exclusive";
+          const gstType = typeof rawGstType === "string" && rawGstType.toLowerCase().includes("inclus") ? rawGstType : "Exclusive";
+          return itemSum + calcChargeTotal(rcv * rate, gstPct, gstType);
+        }, 0);
+      }, 0);
+      map.set(p.id, total);
+    }
+    return map;
+  }, [localPos, grnsByPoId]);
 
   const handleBillVerify = /* @__PURE__ */ __name(async (poId, remark) => {
     if (!hasPermission("VERIFY_BILL")) {
@@ -2097,7 +2115,20 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
                 setShowRejectForm(false);
                 setShowVerifyRemark(false);
                 setVerifyRemark("");
-                setRealGRN(null);
+
+                // Show drawer immediately using cached GRN data — no spinner wait
+                const cachedGRNs = grnsByPoId.get(po.id) || [];
+                const paidGRNIdsCached = new Set((po.paymentHistory || []).map(ph => ph.grnId).filter(Boolean));
+                if (cachedGRNs.length) {
+                  const sortedCached = [...cachedGRNs].sort((a, b) =>
+                    new Date(b.createdAt || b.date || 0) - new Date(a.createdAt || a.date || 0)
+                  );
+                  setRealGRN(sortedCached.find(g => !paidGRNIdsCached.has(g.id)) || sortedCached[0]);
+                } else {
+                  setRealGRN(null);
+                }
+
+                // Background refresh — updates realGRN silently if server has newer data
                 try {
                   const grnRes = await api.get("grn", { filter: JSON.stringify({ poId: po.id }), limit: 100 });
                   if (grnRes.success && grnRes.data?.length > 0) {
