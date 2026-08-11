@@ -21,6 +21,7 @@ import {
   GitBranch,
   Building2,
   Fuel,
+  Layers,
 } from "lucide-react";
 const ALL_ROLES = [
   "Super Admin",
@@ -33,6 +34,7 @@ const ALL_ROLES = [
   "Site Engineer",
   "Store Incharge",
   "Accountant",
+  "Process Coordinator",
   "admin",
   "manager",
   "staff",
@@ -266,6 +268,12 @@ const ROUTES = [
     icon: TrendingUp,
     roles: ["Super Admin", "Director", "AGM", "manager"],
     permission: "VIEW_REPORTS"
+  },
+  {
+    id: "process-coordinator",
+    label: "Process Coordinator",
+    icon: Layers,
+    roles: ["Process Coordinator", "Super Admin", "Director", "AGM"],
   }
 ];
 export {
