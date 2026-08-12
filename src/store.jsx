@@ -837,12 +837,14 @@ const AppProvider = /* @__PURE__ */ __name(({ children }) => {
   const deletePO = /* @__PURE__ */ __name(async (id) => {
     const previousPOs = [...pos];
     setPos((prev) => prev.filter((item) => item.id !== id));
+    setQuotations((prev) => prev.map((q) => q.linkedPoId === id ? { ...q, linkedPoId: undefined } : q));
     setActionLoading(true);
     try {
       await api.delete("pos", id);
       toast.success("Purchase Order deleted");
       fetchResource("pos", 1, 100, false);
       fetchResource("material-requirements", 1, 100, false, "", null, false, true);
+      fetchResource("quotations", 1, 1000, false);
     } catch (error) {
       setPos(previousPOs);
       toast.error(error.message || "Failed to delete PO");

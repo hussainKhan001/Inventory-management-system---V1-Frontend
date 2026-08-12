@@ -162,8 +162,8 @@ const Quotations = /* @__PURE__ */ __name(() => {
     // Primary check: quotation has been directly linked to a PO by the backend
     if (quote.linkedPoId) {
       const linkedPo = pos.find(p => p.id === quote.linkedPoId);
-      // Linked PO may not be in paginated store yet — treat as locked if ID exists
-      if (!linkedPo) return true;
+      // Linked PO not found in loaded store — if PO was deleted, treat quotation as unlocked
+      if (!linkedPo) return false;
       return !["Rejected", "Cancelled", "Blocked"].includes(linkedPo.status);
     }
     // Fallback for legacy quotations without linkedPoId: check by supplier+mrId+category
