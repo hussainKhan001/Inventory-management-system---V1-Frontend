@@ -568,7 +568,7 @@ const PublicQuotation = /* @__PURE__ */ __name(() => {
                           {items.length > 1 && <button
     type="button"
     onClick={() => handleRemoveItem(idx)}
-    className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
+    className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
     title="Remove item"
   >
                               <X className="w-4 h-4" />

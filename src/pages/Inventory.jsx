@@ -20,6 +20,8 @@ import { scrollToError, safeStr } from "../utils";
 import toast from "react-hot-toast";
 import { cn } from "../lib/utils";
 import * as XLSX from "xlsx";
+import { SearchFilter, SelectFilter, FilterRow } from "../components/ui/Filters";
+import { TableVirtuoso } from "react-virtuoso";
 const InventoryRow = memo(
   ({
     item,
@@ -232,7 +234,6 @@ const INITIAL_ITEM = {
   sourceSite: "",
   lastProject: ""
 };
-import { SearchFilter, SelectFilter, FilterRow } from "../components/ui/Filters";
 const SearchControls = memo(({
   search,
   setSearch,
@@ -305,7 +306,6 @@ const SearchControls = memo(({
       </div>
     </FilterRow>;
 });
-import { TableVirtuoso } from "react-virtuoso";
 const Inventory = /* @__PURE__ */ __name(() => {
   const {
     inventory,
