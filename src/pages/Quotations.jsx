@@ -28,10 +28,12 @@ import {
   LayoutList,
   Table as TableIcon,
   Search,
-  RefreshCw
+  RefreshCw,
+  Download
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { formatDate, fmt, safeStr, isNewItem } from "../utils";
+import { generateQuotationComparisonPDF } from "../utils/pdfGenerator";
 import { toast } from "react-hot-toast";
 import { cn } from "../lib/utils";
 import { Virtuoso } from "react-virtuoso";
@@ -462,11 +464,23 @@ const Quotations = /* @__PURE__ */ __name(() => {
                       </div>
                     </div>
                     
-                    <div className="flex items-center justify-between sm:justify-end gap-4 border-t sm:border-0 border-gray-50 dark:border-gray-800 pt-3 sm:pt-0">
+                    <div className="flex items-center justify-between sm:justify-end gap-3 sm:gap-4 border-t sm:border-0 border-gray-50 dark:border-gray-800 pt-3 sm:pt-0">
                       <div className="text-left sm:text-right">
                         <p className="text-[9px] sm:text-[10px] tracking-widest font-black text-gray-400 leading-none">Lowest quote {category ? `(${category})` : ""}</p>
                         <p className="text-sm sm:text-base font-black text-green-500 mt-1">₹ {fmt(bestPrice)}</p>
                       </div>
+
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          generateQuotationComparisonPDF(mrId, category, mr, mrQuotations);
+                        }}
+                        className="w-10 h-10 rounded-xl sm:rounded-2xl bg-orange-50 hover:bg-orange-100 dark:bg-orange-500/10 dark:hover:bg-orange-500/20 text-orange-600 dark:text-orange-400 border border-orange-200/60 dark:border-orange-500/20 flex items-center justify-center transition-all shrink-0 active:scale-95"
+                        title="Download Quotation Comparison PDF"
+                      >
+                        <Download className="w-5 h-5" />
+                      </button>
+
                       <div className="p-2 hover:bg-gray-50 dark:hover:bg-gray-800 rounded-xl transition-colors">
                         {isExpanded ? <ChevronUp className="w-5 h-5 sm:w-6 sm:h-6 text-gray-400" /> : <ChevronDown className="w-5 h-5 sm:w-6 sm:h-6 text-gray-400" />}
                       </div>
@@ -484,7 +498,22 @@ const Quotations = /* @__PURE__ */ __name(() => {
         transition={{ duration: 0.4, ease: [0.04, 0.62, 0.23, 0.98] }}
         className="overflow-hidden"
       >
-                        <div className="px-4 md:px-6 pb-6 pt-2 bg-gray-50/80 dark:bg-gray-900/40 border-t border-gray-100 dark:border-gray-800">
+                        <div className="px-4 md:px-6 pb-6 pt-4 bg-gray-50/80 dark:bg-gray-900/40 border-t border-gray-100 dark:border-gray-800">
+                          <div className="flex flex-wrap items-center justify-between gap-3 mb-2 pb-2 border-b border-gray-200/60 dark:border-gray-800/60">
+                            <span className="text-xs font-bold text-gray-500 dark:text-gray-400">
+                              Comparing {mrQuotations.length} Quotations for MR: <strong className="text-gray-900 dark:text-white">{mrId}</strong> {category ? `(${category})` : ""}
+                            </span>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                generateQuotationComparisonPDF(mrId, category, mr, mrQuotations);
+                              }}
+                              className="w-9 h-9 rounded-xl bg-orange-50 hover:bg-orange-100 dark:bg-orange-500/10 dark:hover:bg-orange-500/20 text-orange-600 dark:text-orange-400 border border-orange-200/60 dark:border-orange-500/20 flex items-center justify-center transition-all active:scale-95"
+                              title="Download Quotation Comparison PDF"
+                            >
+                              <Download className="w-4 h-4" />
+                            </button>
+                          </div>
                           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-5 mt-4">
                             {mrQuotations.map((q, idx) => <motion.div
         key={q.id}

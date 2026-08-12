@@ -957,10 +957,189 @@ const generateGRNPDF = /* @__PURE__ */ __name((grn, supplier) => {
   doc.save(`${grn.id}_GRN.pdf`);
 }, "generateGRNPDF");
 
+const generateQuotationComparisonPDF = /* @__PURE__ */ __name((mrId, category, mr, mrQuotations = []) => {
+  const doc = new jsPDF({ orientation: "p", unit: "mm", format: "a4" });
+  
+  const formatPrettyDate = (d) => {
+    if (!d) return "N/A";
+    const date = new Date(d);
+    return isNaN(date.getTime()) ? safeStr(d) : date.toLocaleDateString("en-GB", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric"
+    });
+  };
+
+  const fmtRs = (n) => (Number(n) || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+  let y = 8;
+  const checkPage = (h) => {
+    if (y + h > 285) {
+      doc.addPage();
+      y = 8;
+      return true;
+    }
+    return false;
+  };
+
+  const primaryColor = [26, 54, 93];
+  
+  // Title Banner
+  doc.setFillColor(primaryColor[0], primaryColor[1], primaryColor[2]);
+  doc.rect(10, y, 190, 10, "F");
+  doc.setTextColor(255);
+  doc.setFontSize(12);
+  doc.setFont("helvetica", "bold");
+  doc.text("QUOTATION COMPARISON REPORT", 105, y + 6.8, { align: "center" });
+  y += 12;
+
+  // Metadata Grid
+  const rowH = 7;
+  const c1 = 10, c2 = 52, c3 = 110, c4 = 152;
+  const drawRow = (l1, v1, l2, v2) => {
+    checkPage(rowH);
+    doc.setFillColor(248, 250, 252);
+    doc.rect(c1, y, 42, rowH, "FD");
+    doc.rect(c2, y, 58, rowH, "D");
+    doc.rect(c3, y, 42, rowH, "FD");
+    doc.rect(c4, y, 48, rowH, "D");
+    doc.setFontSize(8);
+    doc.setTextColor(50);
+    doc.setFont("helvetica", "bold");
+    doc.text(String(l1).toUpperCase(), c1 + 2, y + 4.8);
+    doc.setTextColor(0);
+    doc.setFont("helvetica", "normal");
+    doc.text(safeStr(v1), c2 + 2, y + 4.8, { maxWidth: 54 });
+    doc.setTextColor(50);
+    doc.setFont("helvetica", "bold");
+    doc.text(String(l2).toUpperCase(), c3 + 2, y + 4.8);
+    doc.setTextColor(0);
+    doc.text(safeStr(v2), c4 + 2, y + 4.8, { maxWidth: 44 });
+    y += rowH;
+  };
+
+  const nonZeroAmounts = mrQuotations.map((q) => q.totalAmount || 0).filter((a) => a > 0);
+  const bestPrice = nonZeroAmounts.length > 0 ? Math.min(...nonZeroAmounts) : 0;
+
+  drawRow("MR Reference", mrId || "N/A", "Project", mr?.project || "N/A");
+  drawRow("Category", category || "General", "Quotations Received", `${mrQuotations.length} Received`);
+  drawRow("Generated Date", formatPrettyDate(new Date()), "Lowest Quote", `Rs. ${fmtRs(bestPrice)}`);
+
+  y += 5;
+
+  // 1. Supplier Summary Table
+  checkPage(14);
+  doc.setFillColor(primaryColor[0], primaryColor[1], primaryColor[2]);
+  doc.rect(10, y, 190, 8, "F");
+  doc.setTextColor(255);
+  doc.setFontSize(9.5);
+  doc.setFont("helvetica", "bold");
+  doc.text("SUPPLIER QUOTATION SUMMARY", 105, y + 5.5, { align: "center" });
+  y += 8;
+
+  autoTable(doc, {
+    startY: y,
+    margin: { left: 10, right: 10 },
+    head: [["#", "SUPPLIER NAME", "QUOTATION ID", "DELIVERY DATE", "TOTAL AMOUNT (RS)", "STATUS"]],
+    body: mrQuotations.map((q, idx) => {
+      const isLowest = q.totalAmount > 0 && q.totalAmount === bestPrice;
+      const statusLabel = q.status + (isLowest ? " (Lowest)" : "");
+      return [
+        idx + 1,
+        safeStr(q.supplierName || q.supplier || "N/A"),
+        safeStr(q.id),
+        formatPrettyDate(q.deliveryDate),
+        fmtRs(q.totalAmount || 0),
+        statusLabel
+      ];
+    }),
+    styles: { fontSize: 8.5, cellPadding: 2, lineColor: [220, 220, 220], lineWidth: 0.1 },
+    headStyles: { fillColor: [primaryColor[0], primaryColor[1], primaryColor[2]], textColor: 255, fontStyle: "bold" },
+    columnStyles: {
+      0: { cellWidth: 10, halign: "center" },
+      3: { cellWidth: 30, halign: "center" },
+      4: { cellWidth: 35, halign: "right", fontStyle: "bold" },
+      5: { cellWidth: 30, halign: "center" }
+    }
+  });
+
+  y = doc.lastAutoTable.finalY + 6;
+
+  // 2. Side-by-Side Item Comparison Table (if item details available)
+  const vendorNames = mrQuotations.map(q => safeStr(q.supplierName || q.supplier || "Vendor").toUpperCase());
+  
+  const allItemNames = Array.from(new Set(
+    mrQuotations.flatMap(q => (q.items || []).map(i => safeStr(i.materialName || i.itemName || i.name)))
+  )).filter(Boolean);
+
+  if (allItemNames.length > 0) {
+    checkPage(14);
+    doc.setFillColor(primaryColor[0], primaryColor[1], primaryColor[2]);
+    doc.rect(10, y, 190, 8, "F");
+    doc.setTextColor(255);
+    doc.setFontSize(9.5);
+    doc.setFont("helvetica", "bold");
+    doc.text("ITEM-BY-ITEM PRICE COMPARISON", 105, y + 5.5, { align: "center" });
+    y += 8;
+
+    const tableHead = [["SR.", "MATERIAL DESCRIPTION", "UOM", "QTY", ...vendorNames]];
+    const tableBody = allItemNames.map((name, i) => {
+      let refUnit = "NOS";
+      let refQty = "-";
+
+      const rates = mrQuotations.map(q => {
+        const matchingItem = (q.items || []).find(it => safeStr(it.materialName || it.itemName || it.name) === name);
+        if (matchingItem) {
+          if (matchingItem.unit) refUnit = matchingItem.unit;
+          if (matchingItem.qty) refQty = matchingItem.qty;
+          const rate = matchingItem.rate || matchingItem.unitPrice || 0;
+          return rate > 0 ? fmtRs(rate) : "-";
+        }
+        return "-";
+      });
+
+      return [i + 1, name, refUnit, refQty, ...rates];
+    });
+
+    // Add Total Row
+    const totalRow = ["", "TOTAL AMOUNT", "", "", ...mrQuotations.map(q => fmtRs(q.totalAmount || 0))];
+    tableBody.push(totalRow);
+
+    autoTable(doc, {
+      startY: y,
+      margin: { left: 10, right: 10 },
+      head: tableHead,
+      body: tableBody,
+      styles: { fontSize: 8, cellPadding: 1.8, lineColor: [220, 220, 220], lineWidth: 0.1 },
+      headStyles: { fillColor: [240, 240, 240], textColor: 20, fontStyle: "bold" },
+      didParseCell: (data) => {
+        if (data.row.index === tableBody.length - 1) {
+          data.cell.styles.fontStyle = "bold";
+          data.cell.styles.fillColor = [245, 247, 250];
+        }
+      }
+    });
+
+    y = doc.lastAutoTable.finalY + 6;
+  }
+
+  // Footer / Remarks
+  checkPage(15);
+  doc.setFontSize(8);
+  doc.setFont("helvetica", "bold");
+  doc.setTextColor(80);
+  doc.text("REMARKS / NOTES:", 10, y);
+  doc.setFont("helvetica", "normal");
+  doc.text("Price comparison generated automatically. All prices are in INR.", 10, y + 4);
+
+  doc.save(`${mrId}_Quotation_Comparison.pdf`);
+}, "generateQuotationComparisonPDF");
+
 export {
   generatePOPDF,
   generatePOPDFBlob,
   generateGRNPDF,
   generateGRNReportPDF,
   generateTransactionDetailPDF,
+  generateQuotationComparisonPDF,
 };
