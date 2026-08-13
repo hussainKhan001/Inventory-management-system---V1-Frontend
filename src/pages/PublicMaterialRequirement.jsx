@@ -48,6 +48,7 @@ const PublicMaterialRequirement = /* @__PURE__ */ __name(() => {
     if (!form.requirementDate) newErrors.requirementDate = "Required";
     if (!form.location?.trim()) newErrors.location = "Required";
     if (!form.purpose?.trim()) newErrors.purpose = "Required";
+    else if (form.purpose.trim().length < 15) newErrors.purpose = "Minimum 15 characters required";
     if (!form.items || form.items.length === 0) {
       newErrors.items = "At least one item is required";
     } else {
@@ -292,7 +293,10 @@ const PublicMaterialRequirement = /* @__PURE__ */ __name(() => {
                   onChange={(e) => setForm({ ...form, purpose: e.target.value })}
                   className={`w-full px-3 py-2.5 border bg-white dark:bg-gray-800 rounded-xl text-[13px] text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-600 focus:outline-none focus:border-primary resize-none ${errors.purpose ? "border-red-400 dark:border-red-500" : "border-gray-200 dark:border-gray-700"}`}
                 />
-                {errors.purpose && <p className="text-[11px] text-red-500 mt-1">{errors.purpose}</p>}
+                <div className="flex items-center justify-between mt-1">
+                  {errors.purpose ? <p className="text-[11px] text-red-500">{errors.purpose}</p> : <span />}
+                  <span className={`text-[10px] font-mono ${(form.purpose?.trim().length || 0) < 15 ? "text-gray-400" : "text-emerald-500"}`}>{form.purpose?.trim().length || 0}/15 min</span>
+                </div>
               </div>
             </div>
 

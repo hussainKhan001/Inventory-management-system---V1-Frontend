@@ -142,6 +142,7 @@ export function MRFormModal({ open, isEditing, initialData, onClose, onSuccess }
     if (!data.requirementDate) errs.requirementDate = "Required";
     if (!data.location?.trim()) errs.location = "Required";
     if (!data.purpose?.trim()) errs.purpose = "Required";
+    else if (data.purpose.trim().length < 15) errs.purpose = "Minimum 15 characters required";
     if (!data.items?.length) {
       errs.items = "At least one item is required";
     } else {
@@ -429,7 +430,10 @@ export function MRFormModal({ open, isEditing, initialData, onClose, onSuccess }
               onChange={e => setForm(f => ({ ...f, purpose: e.target.value }))}
               className={`w-full px-3 py-2.5 border bg-white dark:bg-gray-800 rounded-xl text-[13px] text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-600 focus:outline-none focus:border-primary resize-none ${errors.purpose ? "border-red-400 dark:border-red-500" : "border-gray-200 dark:border-gray-700"}`}
             />
-            {errors.purpose && <p className="text-[11px] text-red-500 mt-1">{errors.purpose}</p>}
+            <div className="flex items-center justify-between mt-1">
+              {errors.purpose ? <p className="text-[11px] text-red-500">{errors.purpose}</p> : <span />}
+              <span className={`text-[10px] font-mono ${(form.purpose?.trim().length || 0) < 15 ? "text-gray-400" : "text-emerald-500"}`}>{form.purpose?.trim().length || 0}/15 min</span>
+            </div>
           </div>
         </div>
 
