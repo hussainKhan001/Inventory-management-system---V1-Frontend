@@ -11,6 +11,14 @@ class ErrorBoundary extends Component {
   }
   componentDidCatch(error, info) {
     console.error("[ErrorBoundary]", error, info.componentStack);
+    // Auto-reload once on chunk load failures caused by new deployments
+    const isChunkError = error?.message?.includes("Failed to fetch dynamically imported module") ||
+      error?.message?.includes("Loading chunk") ||
+      error?.name === "ChunkLoadError";
+    if (isChunkError && !sessionStorage.getItem("chunk_reload")) {
+      sessionStorage.setItem("chunk_reload", "1");
+      window.location.reload();
+    }
   }
   render() {
     if (this.state.hasError) {
@@ -22,7 +30,7 @@ class ErrorBoundary extends Component {
               {this.state.error?.message || "An unexpected error occurred."}
             </p>
             <button
-        onClick={() => window.location.reload()}
+        onClick={() => { sessionStorage.removeItem("chunk_reload"); window.location.reload(); }}
         className="px-6 py-2 bg-orange-500 hover:bg-orange-600 rounded-lg text-sm font-semibold transition-colors"
       >
               Reload page
