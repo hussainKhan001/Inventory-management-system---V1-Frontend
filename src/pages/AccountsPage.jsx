@@ -2546,36 +2546,12 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
             </div>
           </div>
         ) : usesGRNPayments ? (
-          showRejectForm ? (
-            <div className="flex flex-col sm:flex-row gap-3 items-end w-full">
-              <div className="flex-1">
-                <label className="text-[10px] font-black text-red-500 dark:text-red-400 mb-1 block">Rejection reason *</label>
-                <input
-                  type="text"
-                  value={rejectionReason}
-                  onChange={(e) => setRejectionReason(e.target.value)}
-                  placeholder="e.g. Price mismatch, quantity error..."
-                  className="w-full bg-white dark:bg-[#0F172A] border border-red-200 dark:border-red-900/40 p-3 rounded-xl text-sm outline-none focus:ring-4 ring-red-500/10 font-bold text-gray-900 dark:text-[#F1F5F9] transition-all"
-                />
-              </div>
-              <div className="flex gap-2 shrink-0">
-                <Btn label="Cancel" outline onClick={() => { setShowRejectForm(false); setRejectionReason(""); }} />
-                <Btn label="Confirm reject" color="red" onClick={() => handleBillReject(selectedPO.id)} loading={isSubmitting} disabled={!rejectionReason.trim() || isSubmitting} />
-              </div>
+          resolvedStatus === "paid" ? (
+            <div className="flex justify-end gap-2 w-full">
+              <Btn label="Download PDF" icon={Download} outline onClick={() => handlePrintTransactionDetail(selectedPO, realGRN)} />
+              <Btn label="Download Payment Advice" icon={Download} onClick={() => handlePrintPaymentAdvice(selectedPO)} className="bg-orange-500 hover:bg-orange-600 text-white border-none shadow-lg shadow-orange-500/20 font-bold" />
             </div>
-          ) : (
-            <div className="flex justify-between gap-3 w-full flex-wrap">
-              <div className="flex gap-2">
-                <Btn label="Download PDF" icon={Download} outline onClick={() => handlePrintTransactionDetail(selectedPO, realGRN)} />
-                {resolvedStatus !== "paid" && hasPermission("VERIFY_BILL") && (
-                  <Btn label="Reject" color="red" onClick={() => setShowRejectForm(true)} />
-                )}
-              </div>
-              {resolvedStatus === "paid" && (
-                <Btn label="Download Payment Advice" icon={Download} onClick={() => handlePrintPaymentAdvice(selectedPO)} className="bg-orange-500 hover:bg-orange-600 text-white border-none shadow-lg shadow-orange-500/20 font-bold" />
-              )}
-            </div>
-          )
+          ) : null
         ) : resolvedStatus === "bill_verify" ? (
           drawerPayableAmount <= 0 ? (
             <div className="flex items-center gap-2 px-4 py-2.5 bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20 rounded-xl">
