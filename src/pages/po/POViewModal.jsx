@@ -88,9 +88,10 @@ export function POViewModal({ po, onClose, onApproveL1, onApproveL2, onApproveL3
   const activeL1Id = companyCA?.l1Id || settings?.approvers?.l1Id;
   const activeL2Id = companyCA?.l2Id || settings?.approvers?.l2Id;
   const activeL3Id = companyCA?.l3Id || settings?.approvers?.l3Id;
-  const isL1Approver = uid && activeL1Id && uid === activeL1Id;
-  const isL2Approver = uid && activeL2Id && uid === activeL2Id;
-  const isL3Approver = uid && activeL3Id && uid === activeL3Id;
+  const isSuperAdmin = role === "Super Admin";
+  const isL1Approver = isSuperAdmin || (uid && activeL1Id && uid === activeL1Id);
+  const isL2Approver = isSuperAdmin || (uid && activeL2Id && uid === activeL2Id);
+  const isL3Approver = isSuperAdmin || (uid && activeL3Id && uid === activeL3Id);
 
   const getApproverTitle = (storedTitle, level, fallback) => {
     if (!storedTitle) return fallback;
