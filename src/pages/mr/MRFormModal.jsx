@@ -222,7 +222,11 @@ export function MRFormModal({ open, isEditing, initialData, onClose, onSuccess }
     }));
 
   const handleSubmit = async () => {
-    if (!validateForm(form)) return;
+    if (!validateForm(form)) {
+      if (form.purpose?.trim().length < 15) toast.error("Purpose must be at least 15 characters");
+      else toast.error("Please fill all required fields");
+      return;
+    }
     toast.loading("Checking inventory availability...", { id: "check-inv" });
     const checkedItems = await checkInventory(form.items);
     toast.dismiss("check-inv");

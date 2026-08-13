@@ -62,7 +62,12 @@ const PublicMaterialRequirement = /* @__PURE__ */ __name(() => {
     return Object.keys(newErrors).length === 0;
   }, "validateForm");
   const handleSubmit = /* @__PURE__ */ __name(async () => {
-    if (!validateForm()) return;
+    if (!validateForm()) {
+      const newErrors = {};
+      if (form.purpose?.trim().length < 15) toast.error("Purpose must be at least 15 characters");
+      else toast.error("Please fill all required fields");
+      return;
+    }
     toast.loading("Checking inventory availability...", { id: "check-inv" });
     const checkedItems = await Promise.all(
       (form.items || []).map(async (item) => {
