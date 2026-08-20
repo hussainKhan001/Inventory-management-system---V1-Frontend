@@ -19,14 +19,14 @@ function calcItemBase(item) {
   return (Number(item.qty) || 0) * (Number(item.rate) || 0);
 }
 
-// GST portion only:
-// Exclusive → base × gstPct/100
-// Inclusive → base × gstPct/(100+gstPct)  [extract embedded GST]
+// GST portion only (matches PDF):
+// Exclusive → base × gstPct/100  (GST is an additional charge on top of base price)
+// Inclusive → 0  (GST is already embedded in the rate; no extra charge shown)
 function calcItemGST(item) {
+  if ((item.gstType || "Exclusive") === "Inclusive") return 0;
   const base = calcItemBase(item);
   const gstPct = Number(item.gstPct) || 0;
-  const isInclusive = (item.gstType || "Exclusive") === "Inclusive";
-  return isInclusive ? base * gstPct / (100 + gstPct) : base * gstPct / 100;
+  return base * gstPct / 100;
 }
 
 // Total including GST (used for grand total only)
@@ -55,7 +55,7 @@ function ApprovalStamp({ status, label }) {
 }
 
 
-export function POViewModal({ po, onClose, onApproveL1, onApproveL2, onApproveL3, onReject, onCancelApproved, onDownloadPDF, processingId, onRevise }) {
+export function POViewModal({ po, onClose, onApproveL1, onApproveL2, onApproveL3, onApproveRevision, onRejectRevision, onReject, onCancelApproved, onDownloadPDF, processingId, onRevise }) {
   const { suppliers, settings, role, hasPermission, user, updatePO, patchPoInStore, actionLoading, grns, materialRequirements, catalogue } = useAppStore();
   const getBrand = (item) => item.brand || catalogue.find(c => c.sku === item.sku)?.brand || "";
   const uid = user?._id;
@@ -92,6 +92,7 @@ export function POViewModal({ po, onClose, onApproveL1, onApproveL2, onApproveL3
   const isL1Approver = isSuperAdmin || (uid && activeL1Id && uid === activeL1Id);
   const isL2Approver = isSuperAdmin || (uid && activeL2Id && uid === activeL2Id);
   const isL3Approver = isSuperAdmin || (uid && activeL3Id && uid === activeL3Id);
+  const isRevisionApprover = hasPermission("APPROVE_PO_REVISION");
 
   const getApproverTitle = (storedTitle, level, fallback) => {
     if (!storedTitle) return fallback;
@@ -104,6 +105,8 @@ export function POViewModal({ po, onClose, onApproveL1, onApproveL2, onApproveL3
   const [closingItems, setClosingItems] = useState([]);
   const [holdLoading, setHoldLoading] = useState(false);
   const [localStatus, setLocalStatus] = useState(po.status || "");
+  const [showRejectRevisionForm, setShowRejectRevisionForm] = useState(false);
+  const [rejectRevisionReason, setRejectRevisionReason] = useState("");
   // Defer heavy sections (price comparison, timelines) until after first paint
   const [heavyReady, setHeavyReady] = useState(false);
 
@@ -288,13 +291,20 @@ export function POViewModal({ po, onClose, onApproveL1, onApproveL2, onApproveL3
       )}
 
       <div className="flex items-center gap-3 flex-wrap ml-auto">
-        {po.status === "Pending L1" && isL1Approver && <Btn label="Approve L1" color="green" disabled={isOnHold} onClick={() => onApproveL1(po.id)} loading={processingId === `approve-${po.id}`} />}
-        {po.status === "Pending L2" && isL2Approver && <Btn label="Approve L2" color="green" disabled={isOnHold} onClick={() => onApproveL2(po.id)} loading={processingId === `approve-${po.id}`} />}
+        {po.status === "Pending L1" && isL1Approver && !po.revisionSubmittedAt && <Btn label="Approve L1" color="green" disabled={isOnHold} onClick={() => onApproveL1(po.id)} loading={processingId === `approve-${po.id}`} />}
+        {/* Revision approval/rejection for L2 */}
+        {po.status === "Pending L2" && isL2Approver && !po.revisionSubmittedAt && <Btn label="Approve L2" color="green" disabled={isOnHold} onClick={() => onApproveL2(po.id)} loading={processingId === `approve-${po.id}`} />}
+        {(po.status === "Pending L1" || po.status === "Pending L2" || po.status === "Ready for Payment") && !!po.revisionSubmittedAt && !po.revisionApprovedAt && isRevisionApprover && onApproveRevision && (
+          <Btn label="Approve Revision ✓" color="green" disabled={isOnHold} onClick={() => onApproveRevision(po.id)} loading={processingId === `approve-${po.id}`} />
+        )}
+        {(po.status === "Pending L1" || po.status === "Pending L2" || po.status === "Ready for Payment") && !!po.revisionSubmittedAt && !po.revisionApprovedAt && isRevisionApprover && onRejectRevision && !showRejectRevisionForm && (
+          <Btn label="Reject Revision" color="red" disabled={isOnHold} onClick={() => setShowRejectRevisionForm(true)} />
+        )}
         {po.status === "Pending L3" && isL3Approver && <Btn label="Approve L3 (Director)" color="green" disabled={isOnHold} onClick={() => onApproveL3(po.id)} loading={processingId === `approve-${po.id}`} />}
         {po.status === "Pending L1" && isL1Approver && (
           <Btn label="Reject PO" color="red" disabled={isOnHold} onClick={() => onReject(po.id)} loading={processingId === `reject-${po.id}`} />
         )}
-        {po.status === "Pending L2" && isL2Approver && (
+        {po.status === "Pending L2" && isL2Approver && !po.revisionSubmittedAt && (
           <Btn label="Reject PO" color="red" disabled={isOnHold} onClick={() => onReject(po.id)} loading={processingId === `reject-${po.id}`} />
         )}
         {po.status === "Pending L3" && isL3Approver && (
@@ -318,9 +328,34 @@ export function POViewModal({ po, onClose, onApproveL1, onApproveL2, onApproveL3
         {["Blocked", "Rejected", "rejected"].includes(po.status) && onRevise && hasPermission("EDIT_PURCHASE_ORDER") && (
           <Btn label="Revise PO" color="amber" icon={RotateCcw} onClick={() => onRevise(po)} />
         )}
+        {po.status === "Pending Revision" && onRevise && hasPermission("EDIT_PURCHASE_ORDER") && (
+          <Btn label="Revise & Submit" color="amber" icon={RotateCcw} onClick={() => onRevise(po)} />
+        )}
         <Btn label="Download PO PDF" icon={Download} onClick={() => { if (onDownloadPDF) { onDownloadPDF(po); } else { generatePOPDF({...po, mrLocation}, supplier, settings); } }} className="bg-orange-500 hover:bg-orange-600 text-white border-none shadow-lg shadow-orange-500/20 font-bold" />
         <Btn label="Close" outline onClick={onClose} className="px-8 border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800" />
       </div>
+      {showRejectRevisionForm && (
+        <div className="w-full mt-3 p-3 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-700 rounded-xl flex flex-col gap-2">
+          <p className="text-xs font-bold text-red-700 dark:text-red-400">Rejection reason (will be shown to PO owner)</p>
+          <textarea
+            className="w-full text-xs border border-red-200 dark:border-red-700 rounded-lg p-2 bg-white dark:bg-gray-900 text-gray-800 dark:text-gray-200 resize-none focus:outline-none focus:ring-1 focus:ring-red-400"
+            rows={2}
+            placeholder="What needs to be changed in the revised PO?"
+            value={rejectRevisionReason}
+            onChange={e => setRejectRevisionReason(e.target.value)}
+          />
+          <div className="flex gap-2 justify-end">
+            <button onClick={() => { setShowRejectRevisionForm(false); setRejectRevisionReason(""); }} className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800">Cancel</button>
+            <button
+              disabled={!rejectRevisionReason.trim() || processingId === `reject-revision-${po.id}`}
+              onClick={() => { onRejectRevision(po.id, rejectRevisionReason); setShowRejectRevisionForm(false); setRejectRevisionReason(""); }}
+              className="text-xs px-3 py-1.5 rounded-lg bg-red-600 hover:bg-red-700 text-white font-bold disabled:opacity-50"
+            >
+              {processingId === `reject-revision-${po.id}` ? "Rejecting…" : "Confirm Reject"}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 
@@ -383,6 +418,53 @@ export function POViewModal({ po, onClose, onApproveL1, onApproveL2, onApproveL3
                 </p>
               )}
               <p className="text-[11px] text-red-500 mt-1 opacity-70">The linked Quotation has been reset to Pending — suppliers may re-submit quotes.</p>
+            </div>
+          </div>
+        )}
+
+        {po.status === "Pending Revision" && (
+          <div className="no-print mb-5 p-4 bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-700 rounded-xl flex items-start gap-3">
+            <AlertTriangle className="w-5 h-5 text-amber-500 mt-0.5 flex-shrink-0" />
+            <div className="flex-1">
+              <p className="text-sm font-bold text-amber-700 dark:text-amber-400">Revision Required — Action Needed</p>
+              {po.revisionReason && (
+                <p className="text-xs text-amber-600 dark:text-amber-500 mt-1">
+                  <span className="font-semibold">Reason: </span>{po.revisionReason}
+                </p>
+              )}
+              {(po.revisionRequestedBy || po.revisionRequestedAt) && (
+                <p className="text-[11px] text-amber-500 mt-1 opacity-80">
+                  Requested{po.revisionRequestedBy ? ` by ${po.revisionRequestedBy}` : ""}{po.revisionRequestedAt ? ` on ${formatDateTime(po.revisionRequestedAt)}` : ""}
+                </p>
+              )}
+              <p className="text-[11px] text-amber-600 dark:text-amber-500 mt-1.5 font-medium">
+                Please update the PO details and resubmit — it will go to AGM for approval.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {(po.status === "Pending L1" || po.status === "Pending L2") && !!po.revisionSubmittedAt && (
+          <div className="no-print mb-5 p-4 bg-blue-50 dark:bg-blue-950/40 border border-blue-300 dark:border-blue-700 rounded-xl flex items-start gap-3">
+            <AlertTriangle className="w-5 h-5 text-blue-500 mt-0.5 flex-shrink-0" />
+            <div className="flex-1">
+              <p className="text-sm font-bold text-blue-700 dark:text-blue-400">Revised PO — Awaiting L2 Approval</p>
+              {po.revisionRejectedReason && (
+                <p className="text-xs text-red-600 dark:text-red-400 mt-1">
+                  <span className="font-semibold">Previous rejection: </span>{po.revisionRejectedReason}
+                  {po.revisionRejectedBy && <span className="opacity-70"> — {po.revisionRejectedBy}</span>}
+                </p>
+              )}
+              {po.revisionReason && (
+                <p className="text-xs text-blue-600 dark:text-blue-500 mt-1">
+                  <span className="font-semibold">Revision reason: </span>{po.revisionReason}
+                </p>
+              )}
+              {po.revisionSubmittedBy && (
+                <p className="text-[11px] text-blue-500 mt-1 opacity-80">
+                  Submitted by {po.revisionSubmittedBy}{po.revisionSubmittedAt ? ` on ${formatDateTime(po.revisionSubmittedAt)}` : ""}
+                </p>
+              )}
             </div>
           </div>
         )}
@@ -687,6 +769,46 @@ export function POViewModal({ po, onClose, onApproveL1, onApproveL2, onApproveL3
                 ))}
               </div>
             </div>
+
+            {/* Revision info — shown when a revision was submitted */}
+            {!!po.revisionSubmittedAt && (
+              <div className="border border-[#1A365D] dark:border-blue-800 rounded-lg overflow-hidden mt-4 mb-4 shadow-sm">
+                <div className="bg-[#1A365D] dark:bg-blue-900 h-8 flex items-center justify-center">
+                  <p className="text-white font-black text-[10px] tracking-widest">Revision Submitted</p>
+                </div>
+                <div className="px-4 py-3 bg-white dark:bg-gray-900/50 flex flex-wrap gap-x-6 gap-y-1 text-[10px]">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-gray-500 dark:text-gray-400">By:</span>
+                    <span className="font-bold uppercase text-[#1A365D] dark:text-blue-300">{po.revisionSubmittedBy || "—"}</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-gray-500 dark:text-gray-400">On:</span>
+                    <span className="font-mono font-bold text-[#1A365D] dark:text-blue-300">{formatPrettyDate(po.revisionSubmittedAt)}</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-gray-500 dark:text-gray-400">Status:</span>
+                    {po.revisionApprovedAt
+                      ? <span className="font-bold text-emerald-600 dark:text-emerald-400">✓ Approved</span>
+                      : <span className="font-bold text-amber-600 dark:text-amber-400">⏳ Accounts approval pending</span>
+                    }
+                  </div>
+                  {po.revisionApprovedBy && (
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-gray-500 dark:text-gray-400">Approved by:</span>
+                      <span className="font-bold uppercase text-emerald-700 dark:text-emerald-400">{po.revisionApprovedBy}</span>
+                      {po.revisionApprovedAt && (
+                        <span className="font-mono text-emerald-600 dark:text-emerald-400">{formatPrettyDate(po.revisionApprovedAt)}</span>
+                      )}
+                    </div>
+                  )}
+                  {!po.revisionApprovedAt && isRevisionApprover && onApproveRevision && (
+                    <div className="w-full mt-2 pt-2 border-t border-[#1A365D]/20 dark:border-blue-800/40">
+                      <Btn label="Approve Revision ✓" color="green" onClick={() => onApproveRevision(po.id)} loading={processingId === `approve-${po.id}`} />
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
 
             <div className="border border-[#1A365D] flex rounded-lg overflow-hidden bg-white dark:bg-gray-900">
               <div className="bg-gray-100 dark:bg-gray-800 p-3 border-r border-[#1A365D] font-black text-[10px] w-28 flex items-center tracking-widest">Office remark:</div>

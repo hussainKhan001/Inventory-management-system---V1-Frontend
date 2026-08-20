@@ -38,6 +38,7 @@ import {
   BarChart2,
   Settings,
   BookOpen,
+  Loader2,
 } from "lucide-react";
 import { fmtCur, formatDate, calculatePriceComparison, isNewItem } from "../utils";
 import { normalizeShipments } from "../utils/normalizeShipments";
@@ -224,6 +225,49 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
           localStorage.setItem(ck, JSON.stringify({ pos: allRows, grns: grnRes.data, ts: Date.now() }));
         } catch {}
       }
+
+      // Also fetch Approved POs that have a revision submitted — Doer needs to re-verify them
+      const revisedFilter = JSON.stringify({ status: "Approved", revisionSubmittedAt: { $exists: true } });
+      const revisedRes = await api.get("pos", { limit: 200, filter: revisedFilter }).catch(() => null);
+      if (revisedRes?.success && revisedRes.data?.length) {
+        const revisedPOs = revisedRes.data.filter(p => p.revisionSubmittedAt);
+        if (revisedPOs.length) {
+          setLocalPos(prev => {
+            const ids = new Set(prev.map(p => p.id));
+            const toAdd = revisedPOs.filter(p => !ids.has(p.id));
+            return toAdd.length ? [...toAdd, ...prev] : prev;
+          });
+          const revisedPoIds = revisedPOs.map(p => p.id).filter(Boolean);
+          const rGrnRes = await api.get("grn", { limit: 500, slim: "1", filter: JSON.stringify({ poId: { $in: revisedPoIds } }) }).catch(() => null);
+          if (rGrnRes?.success && rGrnRes.data?.length) {
+            setAllGrns(prev => {
+              const ids = new Set(prev.map(g => g.id));
+              const fresh = rGrnRes.data.filter(g => !ids.has(g.id));
+              return fresh.length ? [...prev, ...fresh] : prev;
+            });
+          }
+        }
+      }
+
+      // Also fetch "Pending Revision" POs — Doer sent bill back requesting PO correction
+      const pendingRevFilter = JSON.stringify({ status: "Pending Revision" });
+      const pendingRevRes = await api.get("pos", { limit: 200, filter: pendingRevFilter }).catch(() => null);
+      if (pendingRevRes?.success && pendingRevRes.data?.length) {
+        setLocalPos(prev => {
+          const ids = new Set(prev.map(p => p.id));
+          const toAdd = pendingRevRes.data.filter(p => !ids.has(p.id));
+          return toAdd.length ? [...toAdd, ...prev] : prev;
+        });
+        const prPoIds = pendingRevRes.data.map(p => p.id).filter(Boolean);
+        const prGrnRes = await api.get("grn", { limit: 500, slim: "1", filter: JSON.stringify({ poId: { $in: prPoIds } }) }).catch(() => null);
+        if (prGrnRes?.success && prGrnRes.data?.length) {
+          setAllGrns(prev => {
+            const ids = new Set(prev.map(g => g.id));
+            const fresh = prGrnRes.data.filter(g => !ids.has(g.id));
+            return fresh.length ? [...prev, ...fresh] : prev;
+          });
+        }
+      }
     } catch (err) {
       console.error(err);
       toast.error("Failed to load accounts data. Please check your connection.");
@@ -363,10 +407,11 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
   useEffect(() => {
     if (!pos?.length) return;
     const GRN_STATUSES = ["GRN Variance", "GRN Fulfilled", "Ready for Payment", "PO Closed"];
+    const isAccountsEligible = p => GRN_STATUSES.includes(p.status) || (p.status === "Approved" && !!p.revisionSubmittedAt) || p.status === "Pending Revision";
     setLocalPos(prev => {
       // If localPos is empty (e.g. user landed directly on Accounts), initialise from pos
       if (!prev.length) {
-        const init = pos.filter(p => GRN_STATUSES.includes(p.status));
+        const init = pos.filter(isAccountsEligible);
         return init.length ? init : prev;
       }
 
@@ -385,10 +430,8 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
         return { ...lp, ...sp };
       });
 
-      // POs that just became accounts-eligible (GRN created → status updated)
-      const toAdd = pos.filter(
-        p => !localPoMap.has(p.id) && GRN_STATUSES.includes(p.status)
-      );
+      // POs that just became accounts-eligible (GRN created → status updated, or revision submitted)
+      const toAdd = pos.filter(p => !localPoMap.has(p.id) && isAccountsEligible(p));
       if (toAdd.length) changed = true;
 
       if (!changed) return prev;
@@ -460,7 +503,7 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
       pendingPayment: 0, totalPendingAmount: 0,
       pendingVerify: 0, pendingVerified: 0, pendingApproved: 0,
       l2DirectorCount: 0, myApprovalsCount: 0,
-      paidCount: 0, totalPaidAmount: 0, rejectedCount: 0,
+      paidCount: 0, totalPaidAmount: 0, rejectedCount: 0, revisedPoCount: 0, pendingRevisionCount: 0,
     };
     for (const p of localPos) {
       const st = (p.accountStatus || "").toLowerCase();
@@ -539,8 +582,30 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
         }
       }
 
-      // rejectedCount
-      if (st === "rejected") acc.rejectedCount++;
+      if (p.status === "Pending Revision") {
+        acc.pendingRevisionCount++;
+      }
+      if (!!p.revisionSubmittedAt && (
+        p.status !== "Approved" ||
+        grns.some(g =>
+          (g.paymentStatus || "unpaid") === "unpaid" ||
+          (g.receipts || []).some(r => (r.paymentStatus || "unpaid") === "unpaid")
+        )
+      )) {
+        acc.revisedPoCount++;
+      }
+      if (p.status !== "Pending Revision" && !p.revisionSubmittedAt) {
+        const hasRevisionGRN = grns.some(g =>
+          (g.rejectReason || "").startsWith("PO revision requested by Doer") ||
+          (g.receipts || []).some(r => (r.rejectReason || "").startsWith("PO revision requested by Doer"))
+        );
+        if (!hasRevisionGRN && (st === "rejected" || grns.some(g =>
+          (g.paymentStatus || "").toLowerCase() === "bill_rejected" ||
+          (g.receipts || []).some(r => (r.paymentStatus || "").toLowerCase() === "bill_rejected")
+        ))) {
+          acc.rejectedCount++;
+        }
+      }
     }
     return acc;
   }, [localPos, grnsByPoId]);
@@ -594,6 +659,9 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
   const filteredPOs = useMemo(() => {
     const all = localPos;
     return all.filter((p) => {
+      // "Approved" POs without a revision are not accounts-relevant — skip them
+      if (p.status === "Approved" && !p.revisionSubmittedAt) return false;
+
       const accStatus = (p.accountStatus || "").toLowerCase();
       const poStatus = (p.status || "").toLowerCase();
       let status = accStatus;
@@ -650,6 +718,7 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
           const isVerified = st === "bill_verified" || Boolean(p.billVerifiedBy) || Boolean(p.billVerifiedDate) ||
             (grnsByPoId.get(p.id) || []).some(g => (g.paymentStatus || "").toLowerCase() === "bill_verified");
           if (isVerified && st !== "bill_approved") match = true;
+          if (!match && (p.status === "Pending L1" || p.status === "Pending L2") && !!p.revisionSubmittedAt) match = true;
         }
         if (!match && hasPermission("APPROVE_PAYMENT_DIRECTOR")) {
           const isBillApproved = st === "bill_approved" || Boolean(p.billApprovedBy) || Boolean(p.billApprovedDate) ||
@@ -679,7 +748,36 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
         if (!isBillApproved && !isPaymentL2Pending) return false;
       }
       if (filter === "Paid" && status !== "paid") return false;
-      if (filter === "Rejected" && status !== "rejected") return false;
+      if (filter === "Pending Revision") {
+        return p.status === "Pending Revision";
+      }
+      if (filter === "Revised PO") {
+        if (!p.revisionSubmittedAt) return false;
+        // Show if awaiting accounts approval (bill_rejected GRN, not yet Approved)
+        if (p.status !== "Approved") return true;
+        // Also show while Doer still needs to re-verify (has unpaid GRN after approval)
+        const rGrns = grnsByPoId.get(p.id) || [];
+        return rGrns.some(g =>
+          (g.paymentStatus || "unpaid") === "unpaid" ||
+          (g.receipts || []).some(r => (r.paymentStatus || "unpaid") === "unpaid")
+        );
+      }
+      if (filter === "Rejected") {
+        // POs actively in revision process are NOT rejected — exclude them
+        const poGRNs = grnsByPoId.get(p.id) || [];
+        const isRevisionInProgress = p.status === "Pending Revision" ||
+          ((p.status === "Pending L1" || p.status === "Pending L2") && !!p.revisionSubmittedAt) ||
+          poGRNs.some(g =>
+            (g.rejectReason || "").startsWith("PO revision requested by Doer") ||
+            (g.receipts || []).some(r => (r.rejectReason || "").startsWith("PO revision requested by Doer"))
+          );
+        if (isRevisionInProgress) return false;
+        const hasRejectedShipment = poGRNs.some(g =>
+          (g.paymentStatus || "").toLowerCase() === "bill_rejected" ||
+          (g.receipts || []).some(r => (r.paymentStatus || "").toLowerCase() === "bill_rejected")
+        );
+        if (status !== "rejected" && !hasRejectedShipment) return false;
+      }
       if (search) {
         const q = search.trim().toLowerCase();
         const matchesPO = p.id?.toLowerCase().includes(q);
@@ -764,7 +862,15 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
         return api.putSimple(`grn/${g.id}/bill-verify`, { remark, invoiceNo: g.invoiceNo });
       }));
       setLocalPos(prev => prev.map(p => p.id === poId ? { ...p, accountStatus: "bill_verified", verifiedBy: user?.name || "Accounts Team", verifiedAt: timestamp, verifyRemark: remark || null } : p));
-      setAllGrns(prev => prev.map(g => g.poId === poId ? { ...g, paymentStatus: "bill_verified", verifiedBy: user?.name, verifiedAt: timestamp } : g));
+      setAllGrns(prev => prev.map(g => {
+        if (g.poId !== poId) return g;
+        const vBy = user?.name || "Accounts Team";
+        if (g.receipts?.length) {
+          return { ...g, paymentStatus: "bill_verified", verifiedBy: vBy, verifiedAt: timestamp, verifyRemark: remark || null,
+            receipts: g.receipts.map(r => ({ ...r, paymentStatus: "bill_verified", verifiedBy: vBy, verifiedAt: timestamp, verifyRemark: remark || null })) };
+        }
+        return { ...g, paymentStatus: "bill_verified", verifiedBy: vBy, verifiedAt: timestamp, verifyRemark: remark || null };
+      }));
       toast.success("Bill verified! Moved to Verified tab for approval.");
       setSelectedPO(null);
       setShowVerifyRemark(false);
@@ -944,17 +1050,28 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
       const timestamp = new Date().toISOString();
       const grn = allGrns.find(g => g.id === grnId);
       const poId = grn?.poId;
-      const l2Fields = { paymentStatus: "payment_pending" };
+      if (!poId) throw new Error("GRN not linked to a PO.");
+
+      // L2 Director approval = final step — mark payment done directly
+      const amount = receiptIdx !== null
+        ? (grn?.receipts?.[receiptIdx]?.invoiceAmount || 0)
+        : (grn?.invoiceAmount || 0);
+      const payPath = receiptIdx !== null ? `grn/${grnId}/receipt/${receiptIdx}/payment` : `grn/${grnId}/payment`;
+      const payData = { amountPaid: amount, date: timestamp.split("T")[0], mode: "NEFT", utr: "", ref: "", paidBy: user?.name || "", l2Remark: remark };
+      const payRes = await api.putSimple(payPath, payData);
+      if (!payRes.success) throw new Error(payRes.message);
+
+      const paidPayment = { amount, date: payData.date, mode: payData.mode, paidBy: payData.paidBy };
+      const l2Patch = { accountStatus: "paid", l2ApprovedBy: user?.name, l2ApprovedAt: timestamp, l2Remark: remark };
       setAllGrns(prev => prev.map(g => {
         if (g.id !== grnId) return g;
-        if (receiptIdx === null) return { ...g, ...l2Fields };
-        return { ...g, receipts: (g.receipts || []).map((r, i) => i === receiptIdx ? { ...r, ...l2Fields } : r) };
+        if (receiptIdx === null) return { ...g, paymentStatus: "paid", payment: paidPayment };
+        return { ...g, receipts: (g.receipts || []).map((r, i) => i === receiptIdx ? { ...r, paymentStatus: "paid", payment: paidPayment } : r) };
       }));
-      if (poId) {
-        await updatePO(poId, { accountStatus: "payment_pending", l2ApprovedBy: user?.name, l2ApprovedAt: timestamp, l2Remark: remark });
-        setLocalPos(prev => prev.map(p => p.id === poId ? { ...p, accountStatus: "payment_pending", l2ApprovedBy: user?.name, l2ApprovedAt: timestamp, l2Remark: remark } : p));
-      }
-      toast.success("L2 Director approved! Ready for payment.");
+      await updatePO(poId, l2Patch);
+      setLocalPos(prev => prev.map(p => p.id === poId ? { ...p, ...l2Patch } : p));
+      setSelectedPO(null);
+      toast.success("L2 Director approved! Payment marked complete.");
     } catch (err) { toast.error(err?.message || "Failed."); }
     finally { setIsSubmitting(false); }
   }, "handleL2GRNApprove");
@@ -1033,21 +1150,22 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
     finally { setIsSubmitting(false); }
   }, "handleGRNPaymentSubmit");
 
-  const handleGRNVerifyRevert = /* @__PURE__ */ __name(async (grnId, receiptIdx = null) => {
-    if (!hasPermission("REVERT_VERIFY")) { toast.error("Unauthorized: Access to revert verification is restricted."); return; }
+  const handleGRNVerifyRevert = /* @__PURE__ */ __name(async (grnId, receiptIdx = null, isReVerifyApproval = false) => {
+    const requiredPerm = isReVerifyApproval ? "APPROVE_REVERIFY" : "REVERT_VERIFY";
+    if (!hasPermission(requiredPerm)) { toast.error("Unauthorized"); return; }
     setIsSubmitting(true);
     try {
       const path = receiptIdx !== null
         ? `grn/${grnId}/receipt/${receiptIdx}/bill-verify-revert`
         : `grn/${grnId}/bill-verify-revert`;
-      const res = await api.putSimple(path, {});
+      const res = await api.putSimple(path, isReVerifyApproval ? { approveReVerify: true } : {});
       if (!res.success) throw new Error(res.message);
       const revertedFields = { paymentStatus: "unpaid", verifiedBy: null, verifiedAt: null, verifyRemark: null, approvedBy: null, approvedAt: null };
       setAllGrns(prev => prev.map(g => {
         if (g.id !== grnId) return g;
-        if (receiptIdx === null) return { ...g, ...revertedFields };
+        if (receiptIdx === null) return { ...g, ...revertedFields, ...(isReVerifyApproval ? { reVerifyApprovedBy: "approved" } : {}) };
         return { ...g, receipts: (g.receipts || []).map((r, i) =>
-          i === receiptIdx ? { ...r, ...revertedFields } : r
+          i === receiptIdx ? { ...r, ...revertedFields, ...(isReVerifyApproval ? { reVerifyApprovedBy: "approved" } : {}) } : r
         )};
       }));
       // Revert PO back to bill_verify so it returns to Draft tab
@@ -1060,7 +1178,7 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
           : p
         ));
       }
-      toast.success("Verification reverted. Moved back to Draft tab.");
+      toast.success(isReVerifyApproval ? "Re-verification approved — Doer can now re-verify without amount cap." : "Verification reverted. Moved back to Draft tab.");
     } catch (err) { toast.error(err?.message || "Failed to revert."); }
     finally { setIsSubmitting(false); }
   }, "handleGRNVerifyRevert");
@@ -1085,6 +1203,110 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
     } catch (err) { toast.error(err?.message || "Failed to reject shipment."); }
     finally { setIsSubmitting(false); }
   }, "handleGRNShipmentReject");
+
+  const handleGRNFlagMismatch = /* @__PURE__ */ __name(async (grnId, receiptIdx = null, reason = "") => {
+    setIsSubmitting(true);
+    try {
+      const path = receiptIdx !== null
+        ? `grn/${grnId}/receipt/${receiptIdx}/flag-mismatch`
+        : `grn/${grnId}/flag-mismatch`;
+      const res = await api.putSimple(path, { reason });
+      if (!res.success) throw new Error(res.message);
+      const fields = { paymentStatus: "mismatch_pending", mismatchReason: reason, mismatchFlaggedBy: user?.name, mismatchFlaggedAt: new Date().toISOString() };
+      setAllGrns(prev => prev.map(g => {
+        if (g.id !== grnId) return g;
+        if (receiptIdx === null) return { ...g, ...fields };
+        return { ...g, receipts: (g.receipts || []).map((r, i) => i === receiptIdx ? { ...r, ...fields } : r) };
+      }));
+      toast.success("Mismatch flagged — AGM notified for review.");
+    } catch (err) { toast.error(err?.message || "Failed to flag mismatch."); }
+    finally { setIsSubmitting(false); }
+  }, "handleGRNFlagMismatch");
+
+  const handleGRNMismatchApprove = /* @__PURE__ */ __name(async (grnId, receiptIdx = null) => {
+    setIsSubmitting(true);
+    try {
+      const path = receiptIdx !== null
+        ? `grn/${grnId}/receipt/${receiptIdx}/mismatch-approve`
+        : `grn/${grnId}/mismatch-approve`;
+      const res = await api.putSimple(path, {});
+      if (!res.success) throw new Error(res.message);
+      const fields = { paymentStatus: "bill_verified", approvedBy: user?.name, approvedAt: new Date().toISOString() };
+      setAllGrns(prev => prev.map(g => {
+        if (g.id !== grnId) return g;
+        if (receiptIdx === null) return { ...g, ...fields };
+        return { ...g, receipts: (g.receipts || []).map((r, i) => i === receiptIdx ? { ...r, ...fields } : r) };
+      }));
+      toast.success("Mismatch approved — shipment moved to Verified.");
+    } catch (err) { toast.error(err?.message || "Failed to approve mismatch."); }
+    finally { setIsSubmitting(false); }
+  }, "handleGRNMismatchApprove");
+
+  const handleGRNMismatchRevise = /* @__PURE__ */ __name(async (grnId, receiptIdx = null) => {
+    setIsSubmitting(true);
+    try {
+      const path = receiptIdx !== null
+        ? `grn/${grnId}/receipt/${receiptIdx}/mismatch-revise`
+        : `grn/${grnId}/mismatch-revise`;
+      const res = await api.putSimple(path, {});
+      if (!res.success) throw new Error(res.message);
+      toast.success("PO sent for revision.");
+      setAllGrns(prev => prev.map(g => {
+        if (g.id !== grnId) return g;
+        if (receiptIdx === null) return { ...g, paymentStatus: "bill_rejected" };
+        return { ...g, receipts: (g.receipts || []).map((r, i) => i === receiptIdx ? { ...r, paymentStatus: "bill_rejected" } : r) };
+      }));
+    } catch (err) { toast.error(err?.message || "Failed to send for revision."); }
+    finally { setIsSubmitting(false); }
+  }, "handleGRNMismatchRevise");
+  const handleGRNDoerSendRevision = /* @__PURE__ */ __name(async (grnId, receiptIdx = null, reason = "") => {
+    setIsSubmitting(true);
+    try {
+      const path = receiptIdx !== null
+        ? `grn/${grnId}/receipt/${receiptIdx}/doer-send-revision`
+        : `grn/${grnId}/doer-send-revision`;
+      const res = await api.putSimple(path, { reason });
+      if (!res.success) throw new Error(res.message);
+      toast.success("PO sent for revision — PO owner will be notified.");
+      // Update GRN local state
+      const grn = allGrns.find(g => g.id === grnId);
+      setAllGrns(prev => prev.map(g => {
+        if (g.id !== grnId) return g;
+        if (receiptIdx === null) return { ...g, paymentStatus: "bill_rejected", rejectReason: `PO revision requested by Doer: ${reason}` };
+        return { ...g, receipts: (g.receipts || []).map((r, i) => i === receiptIdx ? { ...r, paymentStatus: "bill_rejected", rejectReason: `PO revision requested by Doer: ${reason}` } : r) };
+      }));
+      // Update PO local state so isRevisionInProgress is immediately true
+      if (grn?.poId) {
+        setLocalPos(prev => prev.map(p => p.id === grn.poId
+          ? { ...p, status: "Pending Revision", revisionReason: reason, revisionRequestedBy: user?.name || "" }
+          : p
+        ));
+      }
+    } catch (err) { toast.error(err?.message || "Failed to send for revision."); }
+    finally { setIsSubmitting(false); }
+  }, "handleGRNDoerSendRevision");
+
+  const handleApproveRevisionReset = /* @__PURE__ */ __name(async (poId) => {
+    try {
+      const res = await api.post(`pos/${poId}/approve-revision`, {});
+      if (!res.success) throw new Error(res.message);
+      // Reset bill_rejected GRNs to unpaid locally
+      setAllGrns(prev => prev.map(g => {
+        if (g.poId !== poId) return g;
+        const upd = {};
+        if (g.paymentStatus === "bill_rejected") upd.paymentStatus = "unpaid";
+        const updReceipts = (g.receipts || []).map(r => r.paymentStatus === "bill_rejected" ? { ...r, paymentStatus: "unpaid", rejectReason: "" } : r);
+        return { ...g, ...upd, rejectReason: "", receipts: updReceipts };
+      }));
+      // Mark PO as Approved locally so isRevisedPO triggers immediately for Doer re-verify
+      setLocalPos(prev => prev.map(p => p.id === poId
+        ? { ...p, status: "Approved", approvalL1: "Approved", approvalL2: "Approved", approvalL3: "Approved" }
+        : p
+      ));
+      toast.success("Revision approved — Doer can now re-verify the bill");
+    } catch (err) { toast.error(err?.message || "Failed to approve revision"); }
+  }, "handleApproveRevisionReset");
+
   const handleGRNMarkPaid = /* @__PURE__ */ __name(async (grnId, receiptIdx = null, formData = {}) => {
     if (!hasPermission("MAKE_PAYMENT")) { toast.error("Unauthorized"); return; }
     setIsSubmitting(true);
@@ -1967,8 +2189,10 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
             ["Pending Payment", "Pending Payment", metrics.pendingPayment, "VIEW_ACCOUNTS_PENDING_PAYMENT"],
             ["L2 Director", "L2 Director", metrics.l2DirectorCount, "VIEW_ACCOUNTS_L2_DIRECTOR"],
             ["Paid", "Paid", metrics.paidCount, "VIEW_ACCOUNTS_PAID"],
+            ["Pending Revision", "Pending Revision", metrics.pendingRevisionCount, "VIEW_ACCOUNTS_PENDING_REVISION", "bg-amber-500"],
+            ["Revised PO", "Revised PO", metrics.revisedPoCount, "VIEW_ACCOUNTS_REVISED_PO", "bg-blue-500"],
             ["Rejected", "Rejected", metrics.rejectedCount, "VIEW_ACCOUNTS_REJECTED"],
-          ].filter(([,, , perm]) => canAccessTab(perm)).map(([tab, label, count]) => (
+          ].filter(([,, , perm]) => canAccessTab(perm)).map(([tab, label, count, , badgeColor]) => (
             <button
               key={tab}
               onClick={() => setFilter(tab)}
@@ -1980,7 +2204,7 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
             >
               {label}
               {count > 0 && (
-                <span className="px-1.5 py-0.5 bg-emerald-500 text-white rounded-full text-[9px] font-black leading-none">{count}</span>
+                <span className={`px-1.5 py-0.5 ${badgeColor || "bg-emerald-500"} text-white rounded-full text-[9px] font-black leading-none`}>{count}</span>
               )}
             </button>
           ))}
@@ -2073,7 +2297,17 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
               const stats = shipmentStatsByPoId.get(po.id) || {};
               const { paidCount = 0, pendingCount = 0, verifiedCount = 0, unpaidCount = 0, totalPaidCard = 0, hasVerifiedGRN = false, hasApprovedGRN = false } = stats;
               
-              let accStatusLabel = filter === "Approved" ? "L1 Pending"
+              const hasRejectedShipmentCard = cardGRNs.some(g =>
+                (g.paymentStatus || "").toLowerCase() === "bill_rejected" ||
+                (g.receipts || []).some(r => (r.paymentStatus || "").toLowerCase() === "bill_rejected")
+              );
+              const hasReverifyShipment = cardGRNs.some(g =>
+                ((g.paymentStatus || "").toLowerCase() === "unpaid" && !!g.rejectReason) ||
+                (g.receipts || []).some(r => (r.paymentStatus || "").toLowerCase() === "unpaid" && !!r.rejectReason)
+              );
+              let accStatusLabel = (filter === "Rejected" && hasRejectedShipmentCard) ? "Rejected"
+                : hasReverifyShipment ? "Re-verify Required"
+                : filter === "Approved" ? "L1 Pending"
                 : filter === "L2 Director" ? "L2 Pending"
                 : filter === "My Approvals" ? (
                     (po.accountStatus === "bill_approved" || Boolean(po.billApprovedBy) ||
@@ -2199,7 +2433,13 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
                     {fmtCur(po.totalValue || 0)}
                   </Td>
                   <Td className="px-3 py-2.5 overflow-hidden">
-                    <StatusBadge status={accStatusLabel} />
+                    {accStatusLabel === "Re-verify Required" ? (
+                      <span className="inline-flex items-center gap-1 text-[10px] font-black px-2 py-0.5 rounded-full border bg-red-50 dark:bg-red-500/10 text-red-700 dark:text-red-400 border-red-200 dark:border-red-500/25 animate-pulse">
+                        ⚡ Re-verify Required
+                      </span>
+                    ) : (
+                      <StatusBadge status={accStatusLabel} />
+                    )}
                   </Td>
                   <Td className="px-3 py-2.5">
                     <div className="flex items-center justify-end gap-1.5">
@@ -2210,7 +2450,7 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
                       >
                         <Eye className="w-3.5 h-3.5" />
                       </button>
-                      {["paid", "partial_paid"].includes(po.accountStatus) && (
+                      {["paid", "partial_paid"].includes(po.accountStatus) && hasPermission("EDIT_PAYMENT_ENTRY") && (
                         <button
                           onClick={(e) => handleEditPayment(e, po)}
                           className="p-1.5 rounded-lg bg-orange-500/10 text-orange-500 hover:bg-orange-500/20 transition-colors"
@@ -2219,7 +2459,7 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
                           <Pencil className="w-3.5 h-3.5" />
                         </button>
                       )}
-                      {["paid", "partial_paid"].includes(po.accountStatus) && (
+                      {["paid", "partial_paid"].includes(po.accountStatus) && hasPermission("EDIT_PAYMENT_ENTRY") && (
                         <button
                           onClick={(e) => { e.stopPropagation(); setDeleteConfirmPO(po); }}
                           className="p-1.5 rounded-lg bg-red-500/10 text-red-500 hover:bg-red-500/20 transition-colors"
@@ -2410,9 +2650,9 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
 
         // Tab-context gates: each action is allowed from its own tab, All tab, or SuperAdmin
         const TAB_LEVEL_MAP = { 2: "L2 Approval (AGM)", 3: "L3 Approval (GM)", 4: "L4 Approval (Director)" };
-        const tabAllowsVerify    = isSuperAdmin || filter === "Verify Bills"   || filter === "All";
+        const tabAllowsVerify    = isSuperAdmin || filter === "Verify Bills"   || filter === "All" || filter === "Rejected" || filter === "My Approvals" || filter === "Revised PO";
         const tabAllowsApprove   = isSuperAdmin || filter === "Verified"       || filter === "Approved" || filter === "My Approvals" || filter === "All";
-        const tabAllowsL2Approve = isSuperAdmin || filter === "Approved"       || filter === "L2 Director" || filter === "My Approvals" || filter === "All";
+        const tabAllowsL2Approve = isSuperAdmin || filter === "Approved"       || filter === "L2 Director" || filter === "My Approvals" || filter === "All" || filter === "Pending Payment";
         const tabAllowsInitiate  = isSuperAdmin || filter === "Approved"       || filter === "All";
         const tabAllowsLevel     = (lvl) => isSuperAdmin || filter === TAB_LEVEL_MAP[lvl] || filter === "All";
 
@@ -2782,6 +3022,13 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
             onGRNL2Approve={handleL2GRNApprove}
             onGRNL2Reject={handleL2GRNReject}
             onGRNShipmentReject={handleGRNShipmentReject}
+            onGRNFlagMismatch={handleGRNFlagMismatch}
+            onGRNMismatchApprove={handleGRNMismatchApprove}
+            onGRNMismatchRevise={handleGRNMismatchRevise}
+            onGRNDoerSendRevision={handleGRNDoerSendRevision}
+            onApproveRevision={handleApproveRevisionReset}
+            currentUserId={user?._id}
+            shipmentStatusFilter={filter}
             hasPermission={hasPermission}
             tabAllowsVerify={tabAllowsVerify}
             tabAllowsApprove={tabAllowsApprove}
@@ -2823,15 +3070,16 @@ const GRNInfoRow = /* @__PURE__ */ __name(({ label, value, orange, mono }) => (
 ), "GRNInfoRow");
 
 const GRN_STATUS_CONFIG = {
-  unpaid:          { label: "Needs Verification", dot: "bg-blue-400",    badge: "text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-500/10 border-blue-100 dark:border-blue-500/20" },
-  bill_verified:   { label: "Verified",           dot: "bg-emerald-400", badge: "text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 border-emerald-100 dark:border-emerald-500/20" },
-  bill_approved:   { label: "L1 Approved",        dot: "bg-teal-400",    badge: "text-teal-700 dark:text-teal-300 bg-teal-50 dark:bg-teal-500/10 border-teal-100 dark:border-teal-500/20" },
-  bill_rejected:   { label: "Rejected",           dot: "bg-red-400",     badge: "text-red-700 dark:text-red-300 bg-red-50 dark:bg-red-500/10 border-red-100 dark:border-red-500/20" },
+  unpaid:           { label: "Needs Verification", dot: "bg-blue-400",    badge: "text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-500/10 border-blue-100 dark:border-blue-500/20" },
+  bill_verified:    { label: "Verified",           dot: "bg-emerald-400", badge: "text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 border-emerald-100 dark:border-emerald-500/20" },
+  bill_approved:    { label: "L1 Approved",        dot: "bg-teal-400",    badge: "text-teal-700 dark:text-teal-300 bg-teal-50 dark:bg-teal-500/10 border-teal-100 dark:border-teal-500/20" },
+  bill_rejected:    { label: "Rejected",           dot: "bg-red-400",     badge: "text-red-700 dark:text-red-300 bg-red-50 dark:bg-red-500/10 border-red-100 dark:border-red-500/20" },
+  mismatch_pending: { label: "Mismatch — AGM Review", dot: "bg-orange-400", badge: "text-orange-700 dark:text-orange-300 bg-orange-50 dark:bg-orange-500/10 border-orange-100 dark:border-orange-500/20" },
   payment_pending: { label: "Pending Payment",    dot: "bg-amber-400",   badge: "text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-500/10 border-amber-100 dark:border-amber-500/20" },
   paid:            { label: "Paid",               dot: "bg-emerald-500", badge: "text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-500/10 border-emerald-200 dark:border-emerald-500/30" },
 };
 
-const GRNShipmentCard = /* @__PURE__ */ __name(({ shipment, po, isSubmitting, onVerify, onApprove, onL2Approve, onL2Reject, onReject, onPaymentSubmit, onMarkPaid, onVerifyRevert, onPaymentEdit, onPaymentDelete, onPaymentApprove, onPaymentReject, onPhysicalCheckPaid, paymentForm, setPaymentForm, fileInputRef, handleFileChange, hasPermission: hp, defaultExpanded, tabAllowsVerify = true, tabAllowsApprove = true, tabAllowsL2Approve = true }) => {
+const GRNShipmentCard = /* @__PURE__ */ __name(({ shipment, po, isSubmitting, onVerify, onApprove, onL2Approve, onL2Reject, onReject, onPaymentSubmit, onMarkPaid, onVerifyRevert, onPaymentEdit, onPaymentDelete, onPaymentApprove, onPaymentReject, onPhysicalCheckPaid, onFlagMismatch, onMismatchApprove, onMismatchRevise, onDoerSendRevision, currentUserId, paymentForm, setPaymentForm, fileInputRef, handleFileChange, hasPermission: hp, defaultExpanded, tabAllowsVerify = true, tabAllowsApprove = true, tabAllowsL2Approve = true }) => {
   const [physicalCheckList, setPhysicalCheckList] = useState({});
   const [viewerImages, setViewerImages] = useState(null);
   // Use identical logic as the items table render so grnValue always matches the displayed totals
@@ -2875,6 +3123,10 @@ const GRNShipmentCard = /* @__PURE__ */ __name(({ shipment, po, isSubmitting, on
   const [isDragging, setIsDragging] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showEditPayForm, setShowEditPayForm] = useState(false);
+  const [showMismatchForm, setShowMismatchForm] = useState(false);
+  const [mismatchReason, setMismatchReason] = useState("");
+  const [showRevisionForm, setShowRevisionForm] = useState(false);
+  const [revisionReason, setRevisionReason] = useState("");
   const [editPay, setEditPay] = useState({
     amountPaid: shipment.payment?.amount || 0,
     date: shipment.payment?.date || new Date().toISOString().split("T")[0],
@@ -2888,7 +3140,22 @@ const GRNShipmentCard = /* @__PURE__ */ __name(({ shipment, po, isSubmitting, on
   });
 
   const status = shipment.paymentStatus || "unpaid";
-  const sc = GRN_STATUS_CONFIG[status] || GRN_STATUS_CONFIG.unpaid;
+  const isRevisionInProgress = status === "bill_rejected" && (
+    po.status === "Pending Revision" ||
+    ((po.status === "Pending L1" || po.status === "Pending L2" || po.status === "Ready for Payment") && !!po.revisionSubmittedAt) ||
+    (shipment.rejectReason || "").startsWith("PO revision requested by Doer")
+  );
+  // PO approved but GRN wasn't reset (stale data) — treat same as re-verify
+  const isRevisionApprovedStale = isRevisionInProgress && po.status === "Approved";
+  const isRevisedPO = status === "unpaid" && po.status === "Approved" && !!po.revisionSubmittedAt;
+  const VIOLET_BADGE = { label: "Re-verify — PO Revised", dot: "bg-violet-400", badge: "text-violet-700 dark:text-violet-300 bg-violet-50 dark:bg-violet-500/10 border-violet-200 dark:border-violet-500/30" };
+  const sc = isRevisionApprovedStale
+    ? VIOLET_BADGE
+    : isRevisionInProgress
+      ? { label: po.status === "Pending Revision" ? "PO Revision Pending" : "Revised — Awaiting Approval", dot: "bg-amber-400", badge: "text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-500/10 border-amber-200 dark:border-amber-500/30" }
+      : isRevisedPO
+        ? VIOLET_BADGE
+        : GRN_STATUS_CONFIG[status] || GRN_STATUS_CONFIG.unpaid;
   const isLocked = status === "paid";
 
   useEffect(() => {
@@ -2918,15 +3185,31 @@ const GRNShipmentCard = /* @__PURE__ */ __name(({ shipment, po, isSubmitting, on
                 {sc.label}
               </span>
 
+              {/* Re-verify badge — returned by AGM after rejection */}
+              {(status === "unpaid" && !!shipment.rejectReason && hp("VERIFY_BILL")) && (
+                <span className="text-[9.5px] font-black px-2 py-0.5 rounded-md border flex items-center gap-1 bg-red-500 text-white border-red-600 shadow-xs animate-pulse">
+                  ⚡ Re-verify Required
+                </span>
+              )}
               {/* Action-required badge for L1/L2 pending */}
               {(status === "bill_verified" && hp("APPROVE_PAYMENT_AGM")) && (
                 <span className="text-[9.5px] font-black px-2 py-0.5 rounded-md border flex items-center gap-1 bg-amber-500 text-white border-amber-600 shadow-xs animate-pulse">
                   ⚡ Action Required (L1 AGM)
                 </span>
               )}
-              {(status === "bill_approved" && hp("APPROVE_PAYMENT_DIRECTOR")) && (
+              {((status === "bill_approved" || (status === "payment_pending" && !po.l2ApprovedBy)) && hp("APPROVE_PAYMENT_DIRECTOR")) && (
                 <span className="text-[9.5px] font-black px-2 py-0.5 rounded-md border flex items-center gap-1 bg-teal-500 text-white border-teal-600 shadow-xs animate-pulse">
                   ⚡ Action Required (L2 Director)
+                </span>
+              )}
+              {(status === "bill_rejected" && !isRevisionInProgress && hp("APPROVE_PAYMENT_AGM")) && (
+                <span className="text-[9.5px] font-black px-2 py-0.5 rounded-md border flex items-center gap-1 bg-red-500 text-white border-red-600 shadow-xs animate-pulse">
+                  ⚡ Action Required (AGM)
+                </span>
+              )}
+              {(status === "mismatch_pending" && hp("APPROVE_PAYMENT_AGM")) && (
+                <span className="text-[9.5px] font-black px-2 py-0.5 rounded-md border flex items-center gap-1 bg-orange-500 text-white border-orange-600 shadow-xs animate-pulse">
+                  ⚠ Mismatch — AGM Review
                 </span>
               )}
             </div>
@@ -2998,31 +3281,211 @@ const GRNShipmentCard = /* @__PURE__ */ __name(({ shipment, po, isSubmitting, on
                   </div>
                 );
               }
+              if (showRevisionForm) {
+                return (
+                  <div className="space-y-2 w-full">
+                    <p className="text-[11px] font-bold text-amber-600 dark:text-amber-400">Describe the PO issue (wrong company, bank details, vendor mismatch, etc.)</p>
+                    <textarea
+                      value={revisionReason}
+                      onChange={e => setRevisionReason(e.target.value)}
+                      placeholder="Revision reason (required)..."
+                      rows={2}
+                      className="w-full text-[12px] border border-amber-200 dark:border-amber-700 rounded-xl px-3 py-2 bg-white dark:bg-gray-800 text-gray-900 dark:text-white resize-none focus:outline-none focus:ring-2 focus:ring-amber-400"
+                    />
+                    <div className="flex justify-end gap-2">
+                      <Btn label="Cancel" outline onClick={() => { setShowRevisionForm(false); setRevisionReason(""); }} />
+                      <button
+                        disabled={!revisionReason.trim() || isSubmitting}
+                        onClick={() => {
+                          onDoerSendRevision && onDoerSendRevision(shipment.grnId, shipment.receiptIdx ?? null, revisionReason.trim());
+                          setShowRevisionForm(false);
+                          setRevisionReason("");
+                        }}
+                        className="inline-flex items-center justify-center font-bold rounded-xl transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed active:scale-95 px-5 py-2 text-[12px] bg-amber-500 hover:bg-amber-600 text-white shadow-sm shadow-amber-500/20"
+                      >
+                        {isSubmitting ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-2" /> : null}
+                        Send PO for Revision
+                      </button>
+                    </div>
+                  </div>
+                );
+              }
               return (
-                <div className="flex justify-end gap-2 w-full">
-                  <button
-                    onClick={() => setShowRejectForm(true)}
-                    disabled={isSubmitting}
-                    className="bg-white dark:bg-[#0F172A] hover:bg-red-50 dark:hover:bg-red-900/10 border border-gray-200 dark:border-[#334155] hover:border-red-200 dark:hover:border-red-900/30 text-gray-700 dark:text-gray-300 hover:text-red-600 dark:hover:text-red-400 disabled:opacity-50 py-2 px-5 rounded-xl text-[12px] font-bold shadow-sm transition-all"
-                  >
-                    Reject
-                  </button>
-                  <button onClick={() => setShowVerifyForm(true)} className="text-[12px] font-black bg-emerald-500 hover:bg-emerald-600 text-white px-5 py-2 rounded-xl shadow-sm shadow-emerald-500/20 transition-all flex items-center gap-2">
-                    <Check className="w-3.5 h-3.5" /> Verify Bill
-                  </button>
+                <div className="flex flex-col gap-2 w-full">
+                  {isRevisedPO && (
+                    <div className="flex items-center gap-2 px-3 py-2 bg-violet-50 dark:bg-violet-950/30 border border-violet-200 dark:border-violet-700 rounded-xl text-[11px] text-violet-700 dark:text-violet-400 font-semibold">
+                      ↩ PO has been revised — please verify bill against the updated PO
+                    </div>
+                  )}
+                  <div className="flex justify-end gap-2">
+                    <button
+                      onClick={() => setShowRejectForm(true)}
+                      disabled={isSubmitting}
+                      className="bg-white dark:bg-[#0F172A] hover:bg-red-50 dark:hover:bg-red-900/10 border border-gray-200 dark:border-[#334155] hover:border-red-200 dark:hover:border-red-900/30 text-gray-700 dark:text-gray-300 hover:text-red-600 dark:hover:text-red-400 disabled:opacity-50 py-2 px-5 rounded-xl text-[12px] font-bold shadow-sm transition-all"
+                    >
+                      Reject
+                    </button>
+                    {hp("SEND_PO_FOR_REVISION") && (
+                      <button
+                        onClick={() => setShowRevisionForm(true)}
+                        disabled={isSubmitting}
+                        className="bg-white dark:bg-[#0F172A] hover:bg-amber-50 dark:hover:bg-amber-900/10 border border-gray-200 dark:border-[#334155] hover:border-amber-200 dark:hover:border-amber-900/30 text-gray-700 dark:text-gray-300 hover:text-amber-600 dark:hover:text-amber-400 disabled:opacity-50 py-2 px-5 rounded-xl text-[12px] font-bold shadow-sm transition-all"
+                      >
+                        Send PO for Revision
+                      </button>
+                    )}
+                    <button onClick={() => setShowVerifyForm(true)} className="text-[12px] font-black bg-emerald-500 hover:bg-emerald-600 text-white px-5 py-2 rounded-xl shadow-sm shadow-emerald-500/20 transition-all flex items-center gap-2">
+                      <Check className="w-3.5 h-3.5" /> Verify Bill
+                    </button>
+                  </div>
                 </div>
               );
             }
-            if (status === "bill_rejected" && hp("VERIFY_BILL") && tabAllowsVerify) {
+            if (status === "bill_rejected" && tabAllowsVerify) {
+              if (isRevisionApprovedStale) {
+                return (
+                  <div className="flex items-start gap-2 w-full bg-violet-50 dark:bg-violet-500/10 border border-violet-200 dark:border-violet-500/20 rounded-xl px-3 py-2.5">
+                    <span className="text-violet-500 mt-0.5 shrink-0">✅</span>
+                    <div className="flex-1">
+                      <p className="text-[12px] font-black text-violet-700 dark:text-violet-400">PO Revised &amp; Approved — GRN reset needed</p>
+                      <p className="text-[11px] text-violet-600 dark:text-violet-500 mt-0.5">PO revision is complete. Click below to reset this GRN so Doer can re-verify.</p>
+                      {(hp("APPROVE_PO_REVISION") || hp("APPROVE_PURCHASE_ORDER_L2")) && (
+                        <button
+                          onClick={() => onApproveRevision && onApproveRevision(po.id)}
+                          className="mt-2 text-[11px] font-bold bg-violet-600 hover:bg-violet-700 text-white px-4 py-1.5 rounded-lg transition-colors"
+                        >
+                          Reset GRN → Re-verify
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              }
+              if (isRevisionInProgress) {
+                const revisionSubmitted = !!po.revisionSubmittedAt && po.status !== "Pending Revision";
+                return (
+                  <div className="flex items-start gap-2 w-full bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20 rounded-xl px-3 py-2.5">
+                    <span className="text-amber-500 mt-0.5 shrink-0">⏳</span>
+                    <div className="flex-1">
+                      <p className="text-[12px] font-black text-amber-700 dark:text-amber-400">
+                        {po.status === "Pending Revision" ? "PO Revision Pending — awaiting PO owner" : "Revised PO — awaiting accounts approval"}
+                      </p>
+                      {shipment.rejectReason && (
+                        <p className="text-[11px] text-amber-600 dark:text-amber-500 mt-0.5">{shipment.rejectReason}</p>
+                      )}
+                      {revisionSubmitted && po.revisionSubmittedBy && (
+                        <p className="text-[10px] text-amber-500 dark:text-amber-600 mt-0.5">
+                          Submitted by {po.revisionSubmittedBy}
+                        </p>
+                      )}
+                      {revisionSubmitted && (hp("APPROVE_PO_REVISION") || hp("APPROVE_PURCHASE_ORDER_L2")) && (
+                        <button
+                          onClick={() => onApproveRevision && onApproveRevision(po.id)}
+                          className="mt-2 text-[11px] font-bold bg-amber-600 hover:bg-amber-700 text-white px-4 py-1.5 rounded-lg transition-colors"
+                        >
+                          Approve Revision → Reset GRN for Re-verify
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              }
+              const isDoer = shipment.verifiedById && currentUserId && String(shipment.verifiedById) === String(currentUserId);
+              const isAGM  = hp("APPROVE_PAYMENT_AGM") || hp("APPROVE_REVERIFY");
+              if (!isDoer && !isAGM) return null;
+              // Doer: can flag mismatch only
+              if (isDoer && !isAGM) {
+                if (showMismatchForm) {
+                  return (
+                    <div className="space-y-2 w-full">
+                      <p className="text-[11px] font-bold text-orange-600 dark:text-orange-400">Describe the mismatch (company name, bank details, vendor issue, etc.)</p>
+                      <textarea
+                        value={mismatchReason}
+                        onChange={e => setMismatchReason(e.target.value)}
+                        placeholder="Mismatch reason (required)..."
+                        rows={2}
+                        className="w-full text-[12px] border border-orange-200 dark:border-orange-700 rounded-xl px-3 py-2 bg-white dark:bg-gray-800 text-gray-900 dark:text-white resize-none focus:outline-none focus:ring-2 focus:ring-orange-400"
+                      />
+                      <div className="flex justify-end gap-2">
+                        <Btn label="Cancel" outline onClick={() => { setShowMismatchForm(false); setMismatchReason(""); }} />
+                        <button
+                          disabled={!mismatchReason.trim() || isSubmitting}
+                          onClick={() => {
+                            onFlagMismatch && onFlagMismatch(shipment.grnId, shipment.receiptIdx ?? null, mismatchReason.trim());
+                            setShowMismatchForm(false);
+                            setMismatchReason("");
+                          }}
+                          className="inline-flex items-center justify-center font-bold rounded-md transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed active:scale-95 px-6 py-2 h-[40px] text-[13px] bg-orange-500 text-white hover:bg-orange-600 shadow-md shadow-orange-500/20"
+                        >
+                          {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+                          Flag Mismatch → AGM
+                        </button>
+                      </div>
+                    </div>
+                  );
+                }
+                return (
+                  <div className="flex justify-end gap-2 w-full">
+                    <button
+                      onClick={() => setShowMismatchForm(true)}
+                      disabled={isSubmitting}
+                      className="bg-white dark:bg-[#0F172A] hover:bg-orange-50 dark:hover:bg-orange-900/10 border border-gray-200 dark:border-[#334155] hover:border-orange-200 dark:hover:border-orange-900/30 text-gray-700 dark:text-gray-300 hover:text-orange-600 dark:hover:text-orange-400 disabled:opacity-50 py-2 px-5 rounded-xl text-[12px] font-bold shadow-sm transition-all"
+                    >
+                      Report Mismatch
+                    </button>
+                  </div>
+                );
+              }
+              // AGM: sees rejection reason + can approve re-verification only
               return (
-                <div className="flex justify-end w-full">
-                  <button
-                    onClick={() => onVerifyRevert && onVerifyRevert(shipment.grnId, shipment.receiptIdx ?? null)}
-                    disabled={isSubmitting}
-                    className="bg-white dark:bg-[#0F172A] hover:bg-blue-50 dark:hover:bg-blue-900/10 border border-gray-200 dark:border-[#334155] hover:border-blue-200 dark:hover:border-blue-900/30 text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 disabled:opacity-50 py-2 px-5 rounded-xl text-[12px] font-bold shadow-sm transition-all"
-                  >
-                    Reset to Needs Verification
-                  </button>
+                <div className="space-y-3 w-full">
+                  {shipment.rejectReason && (
+                    <div className="text-[12px] text-red-700 dark:text-red-300 bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20 rounded-xl px-3 py-2 leading-relaxed">
+                      <span className="font-black">Rejection reason:</span> {shipment.rejectReason}
+                      {shipment.rejectedBy && <span className="ml-2 text-red-500 dark:text-red-400 font-bold">— by {shipment.rejectedBy}</span>}
+                    </div>
+                  )}
+                  {hp("APPROVE_REVERIFY") && (
+                    <div className="flex justify-end gap-2 w-full">
+                      <button
+                        onClick={() => onVerifyRevert && onVerifyRevert(shipment.grnId, shipment.receiptIdx ?? null, true)}
+                        disabled={isSubmitting}
+                        className="inline-flex items-center justify-center font-bold rounded-xl transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed active:scale-95 px-5 py-2 text-[12px] bg-blue-500 hover:bg-blue-600 text-white shadow-sm shadow-blue-500/20"
+                      >
+                        {isSubmitting ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-2" /> : null}
+                        Approve Re-verification ↩
+                      </button>
+                    </div>
+                  )}
+                </div>
+              );
+            }
+            if (status === "mismatch_pending" && hp("APPROVE_PAYMENT_AGM")) {
+              return (
+                <div className="space-y-3 w-full">
+                  {shipment.mismatchReason && (
+                    <div className="text-[12px] text-orange-700 dark:text-orange-300 bg-orange-50 dark:bg-orange-500/10 border border-orange-200 dark:border-orange-500/20 rounded-xl px-3 py-2 leading-relaxed">
+                      <span className="font-black">Mismatch:</span> {shipment.mismatchReason}
+                      {shipment.mismatchFlaggedBy && <span className="ml-2 text-orange-500 dark:text-orange-400 font-bold">— flagged by {shipment.mismatchFlaggedBy}</span>}
+                    </div>
+                  )}
+                  <div className="flex justify-end gap-2">
+                    <button
+                      onClick={() => onMismatchRevise && onMismatchRevise(shipment.grnId, shipment.receiptIdx ?? null)}
+                      disabled={isSubmitting}
+                      className="bg-white dark:bg-[#0F172A] hover:bg-amber-50 dark:hover:bg-amber-900/10 border border-gray-200 dark:border-[#334155] hover:border-amber-200 dark:hover:border-amber-900/30 text-gray-700 dark:text-gray-300 hover:text-amber-600 dark:hover:text-amber-400 disabled:opacity-50 py-2 px-5 rounded-xl text-[12px] font-bold shadow-sm transition-all"
+                    >
+                      Send PO for Revision
+                    </button>
+                    <button
+                      onClick={() => onMismatchApprove && onMismatchApprove(shipment.grnId, shipment.receiptIdx ?? null)}
+                      disabled={isSubmitting}
+                      className="inline-flex items-center justify-center font-bold rounded-xl transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed active:scale-95 px-5 py-2 text-[12px] bg-emerald-500 hover:bg-emerald-600 text-white shadow-sm shadow-emerald-500/20"
+                    >
+                      {isSubmitting ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-2" /> : null}
+                      Approve Mismatch ✓
+                    </button>
+                  </div>
                 </div>
               );
             }
@@ -3112,22 +3575,93 @@ const GRNShipmentCard = /* @__PURE__ */ __name(({ shipment, po, isSubmitting, on
                 </div>
               );
             }
-            if (status === "payment_pending" && hp("MAKE_PAYMENT")) {
-              return (
-                <div className="flex justify-end w-full">
-                  <button
-                    onClick={() => setShowPaymentModal(v => !v)}
-                    className="bg-[#F97316] hover:bg-[#EA580C] text-white py-2 px-5 rounded-xl text-[12px] font-black shadow-sm shadow-orange-500/20 transition-all active:scale-[0.98]"
-                  >
-                    {showPaymentModal ? "Cancel" : "Record Payment"}
-                  </button>
-                </div>
-              );
+            if (status === "payment_pending") {
+              const l2Approved = !!po.l2ApprovedBy;
+              // L2 not yet approved — show Director approve/reject buttons
+              if (!l2Approved && hp("APPROVE_PAYMENT_DIRECTOR") && tabAllowsL2Approve) {
+                if (showRejectForm) {
+                  return (
+                    <div className="space-y-2 w-full">
+                      <textarea
+                        value={rejectionReason}
+                        onChange={e => setRejectionReason(e.target.value)}
+                        placeholder="Rejection reason (required)..."
+                        rows={2}
+                        className="w-full text-[12px] border border-gray-200 dark:border-gray-700 rounded-xl px-3 py-2 bg-white dark:bg-gray-800 text-gray-900 dark:text-white resize-none focus:outline-none focus:ring-2 focus:ring-red-400"
+                      />
+                      <div className="flex justify-end gap-2">
+                        <Btn label="Cancel" outline onClick={() => { setShowRejectForm(false); setRejectionReason(""); }} />
+                        <Btn label="Confirm Reject" color="red" loading={isSubmitting} disabled={!rejectionReason.trim() || isSubmitting} onClick={() => {
+                          onL2Reject && onL2Reject(shipment.grnId, shipment.receiptIdx ?? null, rejectionReason.trim());
+                          setShowRejectForm(false);
+                          setRejectionReason("");
+                        }} />
+                      </div>
+                    </div>
+                  );
+                }
+                if (showApproveForm) {
+                  return (
+                    <div className="space-y-2 w-full">
+                      <textarea
+                        value={approveRemark}
+                        onChange={e => { setApproveRemark(e.target.value); setApproveRemarkError(false); }}
+                        placeholder="L2 approval remark (required)..."
+                        rows={2}
+                        className={`w-full text-[12px] border rounded-xl px-3 py-2 bg-white dark:bg-gray-800 text-gray-900 dark:text-white resize-none focus:outline-none focus:ring-2 focus:ring-emerald-400 ${approveRemarkError ? "border-red-400" : "border-gray-200 dark:border-gray-700"}`}
+                      />
+                      <div className="flex justify-end gap-2">
+                        <Btn label="Cancel" outline onClick={() => { setShowApproveForm(false); setApproveRemark(""); setApproveRemarkError(false); }} />
+                        <Btn label="Confirm L2 Approve" color="green" loading={isSubmitting} disabled={isSubmitting} onClick={() => {
+                          if (!approveRemark.trim()) { setApproveRemarkError(true); return; }
+                          onL2Approve && onL2Approve(shipment.grnId, shipment.receiptIdx ?? null, approveRemark.trim());
+                          setShowApproveForm(false);
+                          setApproveRemark("");
+                        }} />
+                      </div>
+                    </div>
+                  );
+                }
+                return (
+                  <div className="flex justify-end gap-2 w-full">
+                    <button
+                      onClick={() => setShowRejectForm(true)}
+                      disabled={isSubmitting}
+                      className="bg-white dark:bg-[#0F172A] hover:bg-red-50 dark:hover:bg-red-900/10 border border-gray-200 dark:border-[#334155] hover:border-red-200 dark:hover:border-red-900/30 text-gray-700 dark:text-gray-300 hover:text-red-600 dark:hover:text-red-400 disabled:opacity-50 py-2 px-5 rounded-xl text-[12px] font-bold shadow-sm transition-all"
+                    >
+                      Reject (L2)
+                    </button>
+                    <button
+                      onClick={() => setShowApproveForm(true)}
+                      disabled={isSubmitting}
+                      className="bg-emerald-500 hover:bg-emerald-600 text-white py-2 px-5 rounded-xl text-[12px] font-black shadow-sm shadow-emerald-500/20 transition-all active:scale-[0.98]"
+                    >
+                      L2 Approve (Director) ✓
+                    </button>
+                  </div>
+                );
+              }
+              return null;
             }
             return null;
           })()}
         >
         <div className="space-y-4">
+          {/* Returned-for-re-verification banner — shown to Doer when AGM approved re-verify after rejection */}
+          {status === "unpaid" && !!shipment.rejectReason && (
+            <div className="flex items-start gap-3 bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/25 rounded-xl px-4 py-3">
+              <AlertCircle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
+              <div className="min-w-0">
+                <p className="text-[12px] font-black text-red-700 dark:text-red-400">Returned for Re-verification</p>
+                <p className="text-[11px] text-red-600 dark:text-red-300 mt-0.5">
+                  <span className="font-bold">Rejection reason:</span> {shipment.rejectReason}
+                </p>
+                {shipment.rejectedBy && (
+                  <p className="text-[10px] text-red-400 dark:text-red-500 mt-0.5">Rejected by {shipment.rejectedBy}{shipment.rejectedAt ? ` · ${formatDate(shipment.rejectedAt)}` : ""}</p>
+                )}
+              </div>
+            </div>
+          )}
           {/* Progress chain: GRN → Verify → L1 AGM → L2 Director → Paid */}
           {(() => {
             const isVerifyDone = ["bill_verified", "bill_approved", "payment_pending", "paid"].includes(status);
@@ -3330,10 +3864,10 @@ const GRNShipmentCard = /* @__PURE__ */ __name(({ shipment, po, isSubmitting, on
                     <span className="text-[11px] font-bold text-orange-500">{fmtCur(shipment.invoiceAmount)}</span>
                   </div>
                 )}
-                {shipment.verifyRemark && (
+                {(shipment.verifyRemark || po.verifyRemark) && (
                   <div className="pt-1.5 mt-0.5 border-t border-emerald-100 dark:border-emerald-900/40">
                     <span className="text-[10px] text-gray-400 block mb-0.5">Remark</span>
-                    <p className="text-[11px] text-gray-600 dark:text-gray-300 italic">"{shipment.verifyRemark}"</p>
+                    <p className="text-[11px] text-gray-600 dark:text-gray-300 italic">"{shipment.verifyRemark || po.verifyRemark}"</p>
                   </div>
                 )}
               </div>
@@ -3500,50 +4034,6 @@ const GRNShipmentCard = /* @__PURE__ */ __name(({ shipment, po, isSubmitting, on
                         <p className="text-[11px] text-gray-600 dark:text-gray-300 italic">"{shipment.approveRemark}"</p>
                       </div>
                     )}
-                  </div>
-                </div>
-              )}
-              {showPaymentModal && (
-                <div className="rounded-xl border border-orange-200 dark:border-orange-800/50 bg-orange-50/40 dark:bg-orange-900/10 p-4 space-y-3">
-                  <p className="text-[11px] font-black text-orange-700 dark:text-orange-400 uppercase tracking-wider">Record Payment · {fmtCur(suggestedAmount)}</p>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="text-[10px] font-black text-gray-400 mb-1 block">Payment Date *</label>
-                      <DatePicker value={simplePayForm.date} onChange={e => setSimplePayForm(p => ({...p, date: e.target.value}))} />
-                    </div>
-                    <div>
-                      <label className="text-[10px] font-black text-gray-400 mb-1 block">Payment Mode *</label>
-                      <select value={simplePayForm.mode} onChange={e => setSimplePayForm(p => ({...p, mode: e.target.value}))} className="w-full bg-white dark:bg-[#0F172A] border border-gray-200 dark:border-[#334155] p-2.5 rounded-xl text-[12px] outline-none font-bold text-gray-900 dark:text-[#F1F5F9]">
-                        <option>NEFT</option><option>RTGS</option><option>UPI</option><option>Cheque</option><option>Cash</option>
-                      </select>
-                    </div>
-                  </div>
-                  {(simplePayForm.mode === "NEFT" || simplePayForm.mode === "RTGS" || simplePayForm.mode === "UPI") && (
-                    <div>
-                      <label className="text-[10px] font-black text-gray-400 mb-1 block">UTR / Transaction ID *</label>
-                      <input type="text" value={simplePayForm.utr} onChange={e => setSimplePayForm(p => ({...p, utr: e.target.value}))} className="w-full bg-white dark:bg-[#0F172A] border border-gray-200 dark:border-[#334155] p-2.5 rounded-xl text-[12px] outline-none font-bold text-gray-900 dark:text-[#F1F5F9]" placeholder="Transaction ID / UTR" />
-                    </div>
-                  )}
-                  {simplePayForm.mode === "Cheque" && (
-                    <div>
-                      <label className="text-[10px] font-black text-gray-400 mb-1 block">Cheque No. *</label>
-                      <input type="text" value={simplePayForm.ref} onChange={e => setSimplePayForm(p => ({...p, ref: e.target.value}))} className="w-full bg-white dark:bg-[#0F172A] border border-gray-200 dark:border-[#334155] p-2.5 rounded-xl text-[12px] outline-none font-bold text-gray-900 dark:text-[#F1F5F9]" placeholder="Cheque number" />
-                    </div>
-                  )}
-                  <div className="flex justify-end gap-2 pt-1">
-                    <Btn label="Cancel" outline onClick={() => setShowPaymentModal(false)} />
-                    <button
-                      onClick={() => {
-                        if (!simplePayForm.date) { toast.error("Enter payment date."); return; }
-                        if ((simplePayForm.mode === "NEFT" || simplePayForm.mode === "RTGS" || simplePayForm.mode === "UPI") && !simplePayForm.utr) { toast.error("Enter UTR / Transaction ID."); return; }
-                        if (simplePayForm.mode === "Cheque" && !simplePayForm.ref) { toast.error("Enter cheque number."); return; }
-                        onMarkPaid(shipment.grnId, shipment.receiptIdx, { ...simplePayForm, amount: suggestedAmount });
-                      }}
-                      disabled={isSubmitting}
-                      className="bg-[#F97316] hover:bg-[#EA580C] disabled:opacity-50 text-white py-2 px-5 rounded-xl text-[12px] font-black shadow-sm shadow-orange-500/20 transition-all active:scale-[0.98]"
-                    >
-                      {isSubmitting ? "Processing..." : "Mark Payment Complete ✓"}
-                    </button>
                   </div>
                 </div>
               )}
@@ -3722,6 +4212,13 @@ const DetailPanel = /* @__PURE__ */ __name(({
   onGRNL2Approve,
   onGRNL2Reject,
   onGRNShipmentReject,
+  onGRNFlagMismatch,
+  onGRNMismatchApprove,
+  onGRNMismatchRevise,
+  onGRNDoerSendRevision,
+  onApproveRevision,
+  currentUserId,
+  shipmentStatusFilter,
   hasPermission: hp,
   tabAllowsVerify = true,
   tabAllowsApprove = true,
@@ -3996,8 +4493,10 @@ const DetailPanel = /* @__PURE__ */ __name(({
   ) : null;
 
   if (usesGRNPaymentFlow) {
-    const allShipments   = grnShipments;
-    const paidShipments  = allShipments.filter(s => s.paymentStatus === "paid");
+    const allShipments   = shipmentStatusFilter === "Rejected"
+      ? grnShipments.filter(s => (s.paymentStatus || "").toLowerCase() === "bill_rejected")
+      : grnShipments;
+    const paidShipments  = grnShipments.filter(s => s.paymentStatus === "paid");
     const totalPaidAmt   = paidShipments.reduce((s, sh) => s + (sh.payment?.amount || 0), 0);
 
     const shipmentDisplayVal = (sh) => {
@@ -4022,13 +4521,13 @@ const DetailPanel = /* @__PURE__ */ __name(({
       }, 0);
     };
 
-    const totalRcvdAmt = allShipments.reduce((s, sh) => s + shipmentDisplayVal(sh), 0);
+    const totalRcvdAmt = grnShipments.reduce((s, sh) => s + shipmentDisplayVal(sh), 0);
     const yetToPayAmt  = Math.max(0, totalRcvdAmt - totalPaidAmt);
 
     // Aggregate received qty across all shipments per PO item
     const itemSummary = (po.items || []).map(pi => {
       let totalReceived = 0;
-      for (const sh of allShipments) {
+      for (const sh of grnShipments) {
         const gi = (sh.items || []).find(item =>
           (pi.sku && item.sku && pi.sku === item.sku) ||
           (pi.itemName || "").toLowerCase() === (item.itemName || "").toLowerCase()
@@ -4141,6 +4640,11 @@ const DetailPanel = /* @__PURE__ */ __name(({
               onMarkPaid={onGRNMarkPaid}
               onVerifyRevert={onGRNVerifyRevert}
               onReject={onGRNShipmentReject}
+              onFlagMismatch={onGRNFlagMismatch}
+              onMismatchApprove={onGRNMismatchApprove}
+              onMismatchRevise={onGRNMismatchRevise}
+              onDoerSendRevision={onGRNDoerSendRevision}
+              onApproveRevision={onApproveRevision}
               onPaymentEdit={onGRNPaymentEdit}
               onPaymentDelete={onGRNPaymentDelete}
               onPaymentApprove={onPaymentApprove}
@@ -4148,6 +4652,7 @@ const DetailPanel = /* @__PURE__ */ __name(({
               onPhysicalCheckPaid={onPhysicalCheckPaid}
               onL2Approve={onGRNL2Approve}
               onL2Reject={onGRNL2Reject}
+              currentUserId={currentUserId}
               paymentForm={paymentForm}
               setPaymentForm={setPaymentForm}
               fileInputRef={fileInputRef}

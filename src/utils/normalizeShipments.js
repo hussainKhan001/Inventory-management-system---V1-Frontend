@@ -35,6 +35,13 @@ export function normalizeShipments(grn) {
     approvedBy:    grn.approvedBy,
     approvedAt:    grn.approvedAt,
     approveRemark: grn.approveRemark,
+    rejectedBy:    grn.rejectedBy,
+    rejectedAt:    grn.rejectedAt,
+    rejectReason:  grn.rejectReason,
+    verifiedById:  grn.verifiedById,
+    mismatchReason:      grn.mismatchReason,
+    mismatchFlaggedBy:   grn.mismatchFlaggedBy,
+    mismatchFlaggedById: grn.mismatchFlaggedById,
     payment:       grn.payment,
   });
 
@@ -62,6 +69,13 @@ export function normalizeShipments(grn) {
       approvedBy:    r.approvedBy,
       approvedAt:    r.approvedAt,
       approveRemark: r.approveRemark,
+      rejectedBy:    r.rejectedBy,
+      rejectedAt:    r.rejectedAt,
+      rejectReason:  r.rejectReason,
+      verifiedById:  r.verifiedById,
+      mismatchReason:      r.mismatchReason,
+      mismatchFlaggedBy:   r.mismatchFlaggedBy,
+      mismatchFlaggedById: r.mismatchFlaggedById,
       payment:       r.payment,
       // root GRN items needed for unit lookup in receipt rows
       rootItems:     grn.items || [],

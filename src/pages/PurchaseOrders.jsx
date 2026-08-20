@@ -193,6 +193,8 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
       { label: "paid", value: "paid" },
       { label: "rejected", value: "rejected" },
       { label: "On Hold", value: "On Hold" },
+      { label: "Pending Revision", value: "Pending Revision" },
+      { label: "Revised", value: "Revised" },
     ],
     [],
   );
@@ -212,6 +214,8 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
   const [closePOConfirm, setClosePOConfirm] = useState(null);
 
   const [isEditing, setIsEditing] = useState(false);
+
+  const [isRevisionSubmit, setIsRevisionSubmit] = useState(false);
 
   const [processingId, setProcessingId] = useState(null);
 
@@ -289,7 +293,10 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
   // "My Pending Approvals" must fetch scoped to the user's approval-level status
   // regardless of the (unrelated) "All POs" status dropdown, so pagination doesn't
   // hide pending items that aren't on the currently loaded page.
-  const effectiveStatusFilter = activeTab === "my-approvals" ? myApprovalStatus : filterStatus;
+  // On "my-approvals" tab: don't restrict by status at the backend level — fetch all and
+  // filter client-side in myPendingPos so "Pending Revision" POs also surface alongside L1/L2/L3.
+  // "Revised" is a client-side virtual filter (revisionSubmittedAt flag) — don't send to backend
+  const effectiveStatusFilter = activeTab === "my-approvals" ? null : filterStatus === "Revised" ? null : filterStatus;
 
   useEffect(() => {
     setPage(1);
@@ -363,9 +370,12 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
   );
 
   const filteredPos = useMemo(() => {
-    if (!debouncedSearch.trim()) return pos || [];
+    const base = filterStatus === "Revised"
+      ? (pos || []).filter(po => !!po.revisionSubmittedAt)
+      : (pos || []);
+    if (!debouncedSearch.trim()) return base;
     const q = debouncedSearch.toLowerCase().trim();
-    return (pos || []).filter(po => {
+    return base.filter(po => {
       // PO number
       if ((po.id || "").toLowerCase().includes(q)) return true;
       // MR number
@@ -385,7 +395,7 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
       if ((po.items || []).some(item => (item.itemName || item.name || "").toLowerCase().includes(q))) return true;
       return false;
     });
-  }, [pos, suppliers, debouncedSearch]);
+  }, [pos, suppliers, debouncedSearch, filterStatus]);
 
   // Strip non-alphanumeric chars for VND code comparison (handles VND_0220 vs VND0220)
   const normId = (str) => (str || "").replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
@@ -419,11 +429,17 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
     });
   }, [filteredPos, suppliers]);
 
+  const canEditPO = hasPermission("EDIT_PURCHASE_ORDER");
+
   const myPendingPos = useMemo(() => {
     if (!uid) return [];
     return (resolvedFilteredPos || []).filter((po) => {
       if (po.status === "Pending L1") {
         return isGlobalL1 || companyL1.includes(po.companyName);
+      }
+      if ((po.status === "Pending L1" || po.status === "Pending L2") && po.revisionSubmittedAt) {
+        // Revision waiting for L2 sign-off — show to L2 approver of this PO's company
+        return isGlobalL2 || companyL2.includes(po.companyName);
       }
       if (po.status === "Pending L2") {
         return isGlobalL2 || companyL2.includes(po.companyName);
@@ -431,9 +447,17 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
       if (po.status === "Pending L3") {
         return isGlobalL3 || companyL3.includes(po.companyName);
       }
+      // "Pending Revision" — show to users with edit permission so PO owner can see & act
+      if (po.status === "Pending Revision") {
+        return canEditPO;
+      }
+      // Revision submitted, awaiting accounts approval — only L2 approvers (AGM by position) see this
+      if (po.status === "Ready for Payment" && !!po.revisionSubmittedAt) {
+        return isGlobalL2 || companyL2.includes(po.companyName);
+      }
       return false;
     });
-  }, [resolvedFilteredPos, uid, isGlobalL1, isGlobalL2, isGlobalL3, companyL1, companyL2, companyL3]);
+  }, [resolvedFilteredPos, uid, isGlobalL1, isGlobalL2, isGlobalL3, companyL1, companyL2, companyL3, canEditPO]);
 
   const tableData = activeTab === "my-approvals" ? myPendingPos : resolvedFilteredPos;
 
@@ -1216,28 +1240,51 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
 
     if (isEditing && newPO.id) {
       try {
-        await updatePO(newPO.id, {
-          ...newPO,
-          totalValue,
-          status: poStatus,
-          approvalL1: initL1,
-          approvalL2: initL2,
-          approvalL3: initL3,
-          companyName: newPO.companyName,
-          companyGst: newPO.companyGst,
-          companyAddress: newPO.companyAddress,
-          vendorContact: newPO.vendorContact,
-          vendorEmail: newPO.vendorEmail,
-          vendorAddress: newPO.vendorAddress,
-          panNo: newPO.panNo,
-          gstNo: newPO.gstNo,
-          rejectedByName: null,
-          rejectedAt: null,
-        });
-        toast.success("Purchase Order updated successfully");
+        if (isRevisionSubmit) {
+          await api.putSimple(`pos/${newPO.id}/submit-revision`, {
+            supplier:       newPO.supplier,
+            companyName:    newPO.companyName,
+            companyGst:     newPO.companyGst,
+            companyAddress: newPO.companyAddress,
+            vendorBankDetails: newPO.vendorBankDetails,
+            vendorContact:  newPO.vendorContact,
+            vendorEmail:    newPO.vendorEmail,
+            vendorAddress:  newPO.vendorAddress,
+            panNo:          newPO.panNo,
+            gstNo:          newPO.gstNo,
+            items:          newPO.items,
+            totalValue,
+            remark:         newPO.remark,
+          });
+          const revPatch = { status: "Ready for Payment", revisionSubmittedAt: new Date().toISOString() };
+          patchPoInStore(newPO.id, revPatch);
+          if (selectedPO?.id === newPO.id) setSelectedPO(prev => ({ ...prev, ...revPatch }));
+          toast.success("PO revision submitted — awaiting accounts team approval");
+        } else {
+          await updatePO(newPO.id, {
+            ...newPO,
+            totalValue,
+            status: poStatus,
+            approvalL1: initL1,
+            approvalL2: initL2,
+            approvalL3: initL3,
+            companyName: newPO.companyName,
+            companyGst: newPO.companyGst,
+            companyAddress: newPO.companyAddress,
+            vendorContact: newPO.vendorContact,
+            vendorEmail: newPO.vendorEmail,
+            vendorAddress: newPO.vendorAddress,
+            panNo: newPO.panNo,
+            gstNo: newPO.gstNo,
+            rejectedByName: null,
+            rejectedAt: null,
+          });
+          toast.success("Purchase Order updated successfully");
+        }
         setModal(false);
         setNewPO(initialPO);
         setIsEditing(false);
+        setIsRevisionSubmit(false);
         setErrors({});
       } catch (error) {
         toast.error(`Failed to update PO: ${error.message}`);
@@ -1362,6 +1409,35 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
     }
   }, "handleApproveL1");
 
+  const handleApproveRevision = /* @__PURE__ */ __name(async (id) => {
+    setProcessingId(`approve-${id}`);
+    try {
+      await api.post(`pos/${id}/approve-revision`, {});
+      const updateData = { status: "Approved", approvalL1: "Approved", approvalL2: "Approved", approvalL3: "Approved", approvalL2At: new Date().toISOString() };
+      if (selectedPO) setSelectedPO({ ...selectedPO, ...updateData });
+      patchPoInStore(id, updateData);
+      toast.success("Revision approved — Doer can now re-verify the bill");
+    } catch (error) {
+      toast.error(`Approval failed: ${error.message}`);
+    } finally {
+      setProcessingId(null);
+    }
+  }, "handleApproveRevision");
+
+  const handleRejectRevision = /* @__PURE__ */ __name(async (id, reason) => {
+    setProcessingId(`reject-revision-${id}`);
+    try {
+      await api.post(`pos/${id}/reject-revision`, { reason });
+      const updateData = { status: "Pending Revision", revisionSubmittedAt: null, revisionSubmittedBy: null };
+      if (selectedPO) setSelectedPO({ ...selectedPO, ...updateData });
+      toast.success("Revision rejected — PO owner will revise again");
+    } catch (error) {
+      toast.error(`Rejection failed: ${error.message}`);
+    } finally {
+      setProcessingId(null);
+    }
+  }, "handleRejectRevision");
+
   const handleApproveL2 = /* @__PURE__ */ __name(async (id) => {
     setProcessingId(`approve-${id}`);
     try {
@@ -1420,6 +1496,7 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
     setSelectedPO(null);
     setNewPO(po);
     setIsEditing(true);
+    setIsRevisionSubmit(po.status === "Pending Revision");
     setModal(true);
   }, "handleRevise");
 
@@ -1671,6 +1748,7 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
           setErrors({});
           setNewPO(initialPO);
           setIsEditing(false);
+          setIsRevisionSubmit(false);
         }}
         onSubmit={handleCreate}
         onChange={setNewPO}
@@ -1732,14 +1810,14 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
             <span className="px-1.5 py-0.5 bg-emerald-500 text-white rounded-full text-[10px] font-black leading-none">{resolvedFilteredPos.length}</span>
           )}
         </button>
-        {myApprovalStatus && (
+        {(myApprovalStatus || myPendingPos.length > 0) && (
           <button
             onClick={() => setActiveTab("my-approvals")}
             className={`px-4 py-2 text-[13px] font-medium rounded-lg transition-all flex items-center gap-1.5 ${activeTab === "my-approvals" ? "bg-white dark:bg-gray-700 text-primary shadow-sm" : "text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"}`}
           >
-            My Pending Approvals
+            My Approval POs
             {myPendingPos.length > 0 && (
-              <span className="px-1.5 py-0.5 bg-emerald-500 text-white rounded-full text-[10px] font-black leading-none">{myPendingPos.length}</span>
+              <span className="px-1.5 py-0.5 bg-amber-500 text-white rounded-full text-[10px] font-black leading-none">{myPendingPos.length}</span>
             )}
           </button>
         )}
@@ -1890,10 +1968,26 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
                 </Td>
                 <Td className="hidden lg:table-cell px-3 py-2.5">
                   {" "}
-                  <StatusBadge
-                    status={po.status}
-                    accountStatus={po.accountStatus}
-                  />
+                  {po.status === "Pending Revision" ? (
+                    <span className="inline-flex items-center gap-1 text-[10px] font-black px-2 py-0.5 rounded-md border bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-200 dark:border-amber-500/30 animate-pulse">
+                      ⚠ Revision Required
+                    </span>
+                  ) : (po.status === "Pending L1" || po.status === "Pending L2" || po.status === "Ready for Payment") && po.revisionSubmittedAt ? (
+                    <span className="inline-flex items-center gap-1 text-[10px] font-black px-2 py-0.5 rounded-md border bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-500/30">
+                      ↩ Revised — Awaiting Approval
+                    </span>
+                  ) : po.status === "Approved" && po.revisionSubmittedAt ? (
+                    <div className="flex flex-col items-start gap-0.5">
+                      <span className="inline-flex items-center gap-1 text-[9px] font-black px-2 py-0.5 rounded-full border whitespace-nowrap bg-violet-50 dark:bg-violet-500/10 text-violet-600 dark:text-violet-400 border-violet-200 dark:border-violet-500/30">
+                        ↩ Revised ✓
+                      </span>
+                      {po.accountStatus && (
+                        <StatusBadge status={po.accountStatus.replace(/_/g, " ")} />
+                      )}
+                    </div>
+                  ) : (
+                    <StatusBadge status={po.status} accountStatus={po.accountStatus} />
+                  )}
                   {["Pending L1", "Pending L2", "Pending L3"].includes(po.status) && (() => {
                     const lvl = po.status === "Pending L1" ? "l1" : po.status === "Pending L2" ? "l2" : "l3";
                     const ca = (settings?.companyApprovers || []).find(c => c.companyName === po.companyName);
@@ -2216,6 +2310,8 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
           onApproveL1={handleApproveL1}
           onApproveL2={handleApproveL2}
           onApproveL3={handleApproveL3}
+          onApproveRevision={handleApproveRevision}
+          onRejectRevision={handleRejectRevision}
           onReject={handleReject}
           onRevise={handleRevise}
           onCancelApproved={handleCancelApproved}

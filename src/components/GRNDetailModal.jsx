@@ -230,22 +230,31 @@ export function GRNDetailModal({ grn, grns, onClose, onEditReceipt }) {
                           const ordered = item.ordered || 0;
                           const received = item.received || 0;
                           const variance = received - ordered;
+                          const removedFromPO = po && !(po.items || []).some(pi =>
+                            (item.sku && pi.sku && pi.sku === item.sku) ||
+                            (pi.itemName || "").toLowerCase() === (item.itemName || "").toLowerCase()
+                          );
                           return (
-                            <tr key={idx} className="hover:bg-gray-50/30 dark:hover:bg-gray-800/10 transition-colors">
+                            <tr key={idx} className={cn("transition-colors", removedFromPO ? "opacity-45 bg-gray-50/60 dark:bg-gray-800/30" : "hover:bg-gray-50/30 dark:hover:bg-gray-800/10")}>
                               <td className="px-5 py-4">
-                                <div className="flex flex-col">
-                                  <span className="text-[13px] font-semibold text-gray-900 dark:text-white">{item.itemName}</span>
+                                <div className="flex flex-col gap-0.5">
+                                  <span className={cn("text-[13px] font-semibold", removedFromPO ? "line-through text-gray-400 dark:text-gray-500" : "text-gray-900 dark:text-white")}>{item.itemName}</span>
                                   <span className="text-[11px] text-gray-500">{item.sku}</span>
+                                  {removedFromPO && (
+                                    <span className="text-[10px] font-bold text-red-500 dark:text-red-400 bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20 px-1.5 py-0.5 rounded w-fit">Removed from PO</span>
+                                  )}
                                 </div>
                               </td>
-                              <td className="px-5 py-4 text-center text-[13px] text-gray-500">{ordered}</td>
+                              <td className="px-5 py-4 text-center text-[13px] text-gray-500">{removedFromPO ? "—" : ordered}</td>
                               <td className="px-5 py-4 text-center">
                                 <span className="text-[14px] font-bold text-gray-900 dark:text-white">{received}</span>
                               </td>
                               <td className="px-5 py-4 text-center">
-                                <span className={cn("text-[12px] font-bold", variance === 0 ? "text-gray-400" : variance > 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-500 dark:text-red-400")}>
-                                  {variance > 0 ? `+${variance}` : variance}
-                                </span>
+                                {removedFromPO ? <span className="text-[12px] text-gray-400">—</span> : (
+                                  <span className={cn("text-[12px] font-bold", variance === 0 ? "text-gray-400" : variance > 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-500 dark:text-red-400")}>
+                                    {variance > 0 ? `+${variance}` : variance}
+                                  </span>
+                                )}
                               </td>
                               <td className="px-5 py-4 text-center">
                                 <span className="text-[11px] font-medium text-gray-500 bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded">{item.unit}</span>
