@@ -966,7 +966,7 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
   }, "handleRevokeVerify");
 
   // ── GRN-level payment handlers ──────────────────────────────────────────────
-  const handleGRNVerify = /* @__PURE__ */ __name(async (grnId, remark, invoiceNo, invoiceAmount, receiptIdx = null) => {
+  const handleGRNVerify = /* @__PURE__ */ __name(async (grnId, remark, invoiceNo, invoiceAmount, receiptIdx = null, freightAmount = 0, loadingAmount = 0, unloadingAmount = 0) => {
     if (!hasPermission("VERIFY_BILL")) { toast.error("Unauthorized: Access to verify bills is restricted."); return; }
     if (!remark || !remark.trim()) { toast.error("Verification remark is mandatory."); return; }
     setIsSubmitting(true);
@@ -974,7 +974,7 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
       const path = receiptIdx !== null
         ? `grn/${grnId}/receipt/${receiptIdx}/bill-verify`
         : `grn/${grnId}/bill-verify`;
-      const res = await api.putSimple(path, { remark, invoiceNo, invoiceAmount: invoiceAmount ? Number(invoiceAmount) : undefined });
+      const res = await api.putSimple(path, { remark, invoiceNo, invoiceAmount: invoiceAmount ? Number(invoiceAmount) : undefined, freightAmount: freightAmount ? Number(freightAmount) : undefined, loadingAmount: loadingAmount ? Number(loadingAmount) : undefined, unloadingAmount: unloadingAmount ? Number(unloadingAmount) : undefined });
       if (!res.success) throw new Error(res.message);
       const timestamp = new Date().toISOString();
       const verifiedFields = { paymentStatus: "bill_verified", verifiedBy: user?.name, verifiedAt: timestamp, verifyRemark: remark || null };
@@ -3082,6 +3082,15 @@ const GRN_STATUS_CONFIG = {
 const GRNShipmentCard = /* @__PURE__ */ __name(({ shipment, po, isSubmitting, onVerify, onApprove, onL2Approve, onL2Reject, onReject, onPaymentSubmit, onMarkPaid, onVerifyRevert, onPaymentEdit, onPaymentDelete, onPaymentApprove, onPaymentReject, onPhysicalCheckPaid, onFlagMismatch, onMismatchApprove, onMismatchRevise, onDoerSendRevision, currentUserId, paymentForm, setPaymentForm, fileInputRef, handleFileChange, hasPermission: hp, defaultExpanded, tabAllowsVerify = true, tabAllowsApprove = true, tabAllowsL2Approve = true }) => {
   const [physicalCheckList, setPhysicalCheckList] = useState({});
   const [viewerImages, setViewerImages] = useState(null);
+  const poFreight   = Number(po.freightAmount)   || 0;
+  const poLoading   = Number(po.loadingAmount)   || 0;
+  const poUnloading = Number(po.unloadingAmount) || 0;
+  const [freightChecked,   setFreightChecked]   = useState(Number(shipment.freightAmount)   > 0);
+  const [loadingChecked,   setLoadingChecked]   = useState(Number(shipment.loadingAmount)   > 0);
+  const [unloadingChecked, setUnloadingChecked] = useState(Number(shipment.unloadingAmount) > 0);
+  const [freightInput,   setFreightInput]   = useState(Number(shipment.freightAmount)   || poFreight);
+  const [loadingInput,   setLoadingInput]   = useState(Number(shipment.loadingAmount)   || poLoading);
+  const [unloadingInput, setUnloadingInput] = useState(Number(shipment.unloadingAmount) || poUnloading);
   // Use identical logic as the items table render so grnValue always matches the displayed totals
   const { grnValue, grnBaseAmount } = (shipment.items || []).reduce((acc, gi) => {
     const rcv = gi.received ?? gi.qty ?? 0;
@@ -3100,6 +3109,10 @@ const GRNShipmentCard = /* @__PURE__ */ __name(({ shipment, po, isSubmitting, on
   }, { grnValue: 0, grnBaseAmount: 0 });
   const grnGstAmount = grnValue - grnBaseAmount;
   const grnGstPct = grnBaseAmount > 0 ? Math.round(grnGstAmount / grnBaseAmount * 100) : 0;
+  const freightTotal   = freightChecked   ? (Number(freightInput)   || 0) : 0;
+  const loadingTotal   = loadingChecked   ? (Number(loadingInput)   || 0) : 0;
+  const unloadingTotal = unloadingChecked ? (Number(unloadingInput) || 0) : 0;
+  const grnGrandTotal  = grnValue + freightTotal + loadingTotal + unloadingTotal;
   // Prioritize verified invoice amount entered by Maker/Checker if present, else fallback to calculated shipment value
   const verifiedInvoiceAmount = Number(shipment.invoiceAmount) > 0 ? Number(shipment.invoiceAmount) : 0;
   const suggestedAmount = verifiedInvoiceAmount
@@ -3254,7 +3267,7 @@ const GRNShipmentCard = /* @__PURE__ */ __name(({ shipment, po, isSubmitting, on
                         toast.error(`Invoice amount ${fmtCur(amt)} exceeds shipment value ${fmtCur(validationCap)}${grnGstPct > 0 ? ` (Base ${fmtCur(grnBaseAmount)} + GST ${grnGstPct}%)` : ""}.`);
                         return;
                       }
-                      onVerify(shipment.grnId, verifyForm.remark, verifyForm.invoiceNo, verifyForm.invoiceAmount, shipment.receiptIdx);
+                      onVerify(shipment.grnId, verifyForm.remark, verifyForm.invoiceNo, verifyForm.invoiceAmount, shipment.receiptIdx, freightChecked ? freightInput : 0, loadingChecked ? loadingInput : 0, unloadingChecked ? unloadingInput : 0);
                       setShowVerifyForm(false);
                     }} />
                   </div>
@@ -3778,9 +3791,69 @@ const GRNShipmentCard = /* @__PURE__ */ __name(({ shipment, po, isSubmitting, on
                   })}
                 </tbody>
                 <tfoot>
+                  <tr className="border-t border-gray-100 dark:border-gray-800">
+                    <td colSpan={3} className="px-3 py-1.5">
+                      <label className="flex items-center gap-2 cursor-pointer select-none group">
+                        <span
+                          onClick={() => setFreightChecked(v => !v)}
+                          className={`w-4 h-4 rounded flex items-center justify-center border transition-all flex-shrink-0
+                            ${freightChecked
+                              ? "bg-orange-500 border-orange-500"
+                              : "bg-transparent border-gray-400 dark:border-gray-600 group-hover:border-orange-400"
+                            }`}
+                        >
+                          {freightChecked && (
+                            <svg className="w-2.5 h-2.5 text-white" viewBox="0 0 10 8" fill="none">
+                              <path d="M1 4L3.5 6.5L9 1" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+                            </svg>
+                          )}
+                        </span>
+                        <span className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wide" onClick={() => setFreightChecked(v => !v)}>
+                          Freight Charges
+                          {po.freightGstPct > 0 && <span className="text-[9px] font-normal ml-1 text-gray-400">({po.freightGstType || "Excl."} {po.freightGstPct}% GST)</span>}
+                        </span>
+                      </label>
+                    </td>
+                    <td className="px-3 py-1.5 text-right">
+                      <input
+                        type="number" min="0" step="0.01"
+                        value={freightInput || ""}
+                        onChange={e => setFreightInput(e.target.value)}
+                        disabled={!freightChecked}
+                        placeholder="0.00"
+                        className={`w-24 text-right border rounded px-2 py-1 text-[12px] font-bold tabular-nums outline-none transition-colors
+                          ${freightChecked
+                            ? "bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 focus:border-orange-400 dark:focus:border-orange-500"
+                            : "bg-gray-100 dark:bg-gray-900 border-gray-100 dark:border-gray-800 text-gray-300 dark:text-gray-600 cursor-not-allowed"
+                          }`}
+                      />
+                    </td>
+                  </tr>
+                  {[
+                    { label: "Loading Charges",   gstPct: po.loadingGstPct,   gstType: po.loadingGstType,   checked: loadingChecked,   setChecked: setLoadingChecked,   val: loadingInput,   setVal: setLoadingInput },
+                    { label: "Unloading Charges", gstPct: po.unloadingGstPct, gstType: po.unloadingGstType, checked: unloadingChecked, setChecked: setUnloadingChecked, val: unloadingInput, setVal: setUnloadingInput },
+                  ].map(({ label, gstPct, gstType, checked, setChecked, val, setVal }) => (
+                    <tr key={label} className="border-t border-gray-100 dark:border-gray-800">
+                      <td colSpan={3} className="px-3 py-1.5">
+                        <label className="flex items-center gap-2 cursor-pointer select-none group">
+                          <span onClick={() => setChecked(v => !v)} className={`w-4 h-4 rounded flex items-center justify-center border transition-all flex-shrink-0 ${checked ? "bg-orange-500 border-orange-500" : "bg-transparent border-gray-400 dark:border-gray-600 group-hover:border-orange-400"}`}>
+                            {checked && <svg className="w-2.5 h-2.5 text-white" viewBox="0 0 10 8" fill="none"><path d="M1 4L3.5 6.5L9 1" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+                          </span>
+                          <span className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wide" onClick={() => setChecked(v => !v)}>
+                            {label}{gstPct > 0 && <span className="text-[9px] font-normal ml-1 text-gray-400">({gstType || "Excl."} {gstPct}% GST)</span>}
+                          </span>
+                        </label>
+                      </td>
+                      <td className="px-3 py-1.5 text-right">
+                        <input type="number" min="0" step="0.01" value={val || ""} onChange={e => setVal(e.target.value)} disabled={!checked} placeholder="0.00"
+                          className={`w-24 text-right border rounded px-2 py-1 text-[12px] font-bold tabular-nums outline-none transition-colors ${checked ? "bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 focus:border-orange-400" : "bg-gray-100 dark:bg-gray-900 border-gray-100 dark:border-gray-800 text-gray-300 dark:text-gray-600 cursor-not-allowed"}`}
+                        />
+                      </td>
+                    </tr>
+                  ))}
                   <tr className="bg-orange-50/50 dark:bg-orange-900/10 border-t border-orange-100 dark:border-orange-900/20">
-                    <td colSpan={3} className="px-3 py-2.5 text-[10px] font-black text-orange-600 dark:text-orange-400 uppercase tracking-wide">Shipment Total{grnGstAmount > 0.01 ? " (Incl. GST)" : ""}</td>
-                    <td className="px-3 py-2.5 text-right font-black text-[14px] text-orange-500 dark:text-orange-400 tabular-nums">{fmtCur(grnValue)}</td>
+                    <td colSpan={3} className="px-3 py-2.5 text-[10px] font-black text-orange-600 dark:text-orange-400 uppercase tracking-wide">Shipment Total{(grnGstAmount > 0.01 || freightTotal > 0 || loadingTotal > 0 || unloadingTotal > 0) ? " (Incl. GST)" : ""}</td>
+                    <td className="px-3 py-2.5 text-right font-black text-[14px] text-orange-500 dark:text-orange-400 tabular-nums">{fmtCur(grnGrandTotal)}</td>
                   </tr>
                 </tfoot>
               </table>

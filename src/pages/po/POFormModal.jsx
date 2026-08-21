@@ -274,6 +274,9 @@ export function POFormModal({
               ...(mrPurpose ? [{ label: "MR Purpose", content: (
                 <span className="text-[12px] text-gray-600 dark:text-gray-300 leading-snug">{mrPurpose}</span>
               )}] : []),
+              ...(po.planId ? [{ label: "Material Plan", content: (
+                <span className="text-[12px] font-bold text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-900/20 px-2 py-0.5 rounded">{po.planId}</span>
+              )}] : []),
               ...(po.project ? [{ label: "Project", content: (
                 <span className="text-[13px] font-bold text-gray-700 dark:text-gray-300">{po.project}</span>
               )}] : []),

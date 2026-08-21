@@ -39,31 +39,47 @@ const generatePOPDF = /* @__PURE__ */ __name((po, supplier, settings = {}, retur
   doc.text("PURCHASE ORDER", 105, y + 7, { align: "center" });
   doc.setDrawColor(200);
   y += 10;
+  if (po.planId) {
+    doc.setFillColor(219, 234, 254);
+    doc.rect(10, y, 190, 7, "F");
+    doc.setDrawColor(147, 197, 253);
+    doc.rect(10, y, 190, 7, "D");
+    doc.setTextColor(29, 78, 216);
+    doc.setFontSize(8);
+    doc.setFont("helvetica", "bold");
+    doc.text("MASTER PO", 15, y + 4.8);
+    doc.setFont("helvetica", "normal");
+    doc.text(`Material Plan: ${po.planId}`, 105, y + 4.8, { align: "center" });
+    doc.setDrawColor(200);
+    y += 7;
+  }
   const rowH = 7;
-  const c1 = 10, c2 = 52, c3 = 110, c4 = 152;
+  // c1=label1, c2=value1, c3=label2, c4=value2 — labels narrower, values wider
+  const c1 = 10, c2 = 45, c3 = 107, c4 = 142;
+  const W1 = 35, W2 = 62, W3 = 35, W4 = 58; // column widths
   const drawRow = /* @__PURE__ */ __name((l1, v1, l2, v2) => {
     doc.setFontSize(8);
-    const v1Lines = doc.splitTextToSize(safeStr(v1), 54).length;
-    const v2Lines = doc.splitTextToSize(safeStr(v2), 44).length;
+    const v1Lines = doc.splitTextToSize(safeStr(v1), W2 - 4).length;
+    const v2Lines = doc.splitTextToSize(safeStr(v2), W4 - 4).length;
     const maxLines = Math.max(v1Lines, v2Lines, 1);
     const dynamicRowH = Math.max(rowH, maxLines * 4.2 + 1.5);
     checkPage(dynamicRowH);
     doc.setFillColor(248, 250, 252);
-    doc.rect(c1, y, 42, dynamicRowH, "FD");
-    doc.rect(c2, y, 58, dynamicRowH, "D");
-    doc.rect(c3, y, 42, dynamicRowH, "FD");
-    doc.rect(c4, y, 48, dynamicRowH, "D");
+    doc.rect(c1, y, W1, dynamicRowH, "FD");
+    doc.rect(c2, y, W2, dynamicRowH, "D");
+    doc.rect(c3, y, W3, dynamicRowH, "FD");
+    doc.rect(c4, y, W4, dynamicRowH, "D");
     doc.setTextColor(50);
     doc.setFont("helvetica", "bold");
     doc.text(l1.toUpperCase(), c1 + 2, y + 4.8);
     doc.setTextColor(0);
     doc.setFont("helvetica", "normal");
-    doc.text(safeStr(v1), c2 + 2, y + 4.8, { maxWidth: 54 });
+    doc.text(safeStr(v1), c2 + 2, y + 4.8, { maxWidth: W2 - 4 });
     doc.setTextColor(50);
     doc.setFont("helvetica", "bold");
     doc.text(l2.toUpperCase(), c3 + 2, y + 4.8);
     doc.setTextColor(0);
-    doc.text(safeStr(v2), c4 + 2, y + 4.8, { maxWidth: 44 });
+    doc.text(safeStr(v2), c4 + 2, y + 4.8, { maxWidth: W4 - 4 });
     y += dynamicRowH;
   }, "drawRow");
   const _normGST = (s) => (s || "").replace(/\s/g, "").toUpperCase();
@@ -76,22 +92,26 @@ const generatePOPDF = /* @__PURE__ */ __name((po, supplier, settings = {}, retur
   drawRow("Company Name", po.companyName || "HEAVEN HEIGHTS PRIVATE LIMITED", "Vendor Name", _vendorName);
   drawRow("Company GSTIN", po.companyGst || "23AABCH6973R1ZX", "Vendor Address", supplier?.address || po.vendorAddress || "NA");
   drawRow("Company Addr", po.companyAddress || "N.A., Gulmohar City, Near New Collectorate, New City Centre, Gwalior, MP, 474011", "Vendor Contact", String(po.vendorContact || supplier?.mobile || supplier?.phone || "NA"));
-  drawRow("Internal MR No.", po.mrId || "NA", "Vendor Email ID", po.vendorEmail || supplier?.email || "NA");
+  drawRow("MR No.", po.mrId || "NA", "Vendor Email ID", po.vendorEmail || supplier?.email || "NA");
   drawRow("Work Type", po.workType || "NA", "Requirement By", po.requirementBy || "NA");
-  drawRow("MR Location", po.mrLocation || "NA", "", "");
+  drawRow("MR Location", po.mrLocation || "NA", po.planId ? "Material Plan" : "", po.planId || "");
   drawRow("Priority", po.priority || "NORMAL", "Phase/Milestone", po.phase || po.milestone || "NA");
   drawRow("Date of Issue", formatPrettyDate(po.date), "Vendor PAN", po.panNo || supplier?.panNumber || "NA");
   if (po.justification) {
-    checkPage(9);
-    doc.setFillColor(248, 250, 252);
-    doc.rect(c1, y, 42, 8, "FD");
-    doc.rect(c2, y, 148, 8, "D");
     doc.setFontSize(8);
+    const remarkLines = doc.splitTextToSize(po.justification, 151).length;
+    const remarkH = Math.max(8, remarkLines * 4.2 + 3);
+    checkPage(remarkH);
+    doc.setFillColor(248, 250, 252);
+    doc.rect(c1, y, W1, remarkH, "FD");
+    doc.rect(c2, y, 155, remarkH, "D");
     doc.setFont("helvetica", "bold");
-    doc.text("JUSTIFICATION", c1 + 2, y + 5);
+    doc.setTextColor(50);
+    doc.text("REMARKS", c1 + 2, y + 4.8);
     doc.setFont("helvetica", "normal");
-    doc.text(po.justification, c2 + 2, y + 5, { maxWidth: 144 });
-    y += 8;
+    doc.setTextColor(0);
+    doc.text(po.justification, c2 + 2, y + 4.8, { maxWidth: 151 });
+    y += remarkH;
   }
   if (po.remark) {
     checkPage(9);

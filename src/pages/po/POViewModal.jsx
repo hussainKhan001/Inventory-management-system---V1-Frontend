@@ -479,6 +479,7 @@ export function POViewModal({ po, onClose, onApproveL1, onApproveL2, onApproveL3
               ["Internal mr no.", <span className="flex items-center gap-2 text-indigo-600 dark:text-blue-400">{po.mrId || "—"}{po.mrId && <button onClick={() => { const mr = (materialRequirements || []).find(m => m.id === po.mrId || m.mrNumber === po.mrId); mr ? setViewingMR(mr) : toast.error("MR not found"); }} className="flex items-center gap-1 text-[9px] font-black text-blue-600 bg-blue-50 dark:bg-blue-500/10 px-2 py-0.5 rounded border border-blue-100 dark:border-blue-500/20 hover:bg-blue-100 dark:hover:bg-blue-500/20 transition-colors"><Eye className="w-3 h-3" /> View MR</button>}</span>, ""],
               ...(mrLocation ? [["MR location", mrLocation, "text-amber-600 dark:text-amber-400"]] : []),
               ...(mrPurpose ? [["MR purpose", mrPurpose, "leading-tight"]] : []),
+              ...(po.planId ? [["Material Plan", <span className="text-orange-600 dark:text-orange-400 font-bold bg-orange-50 dark:bg-orange-900/20 px-2 py-0.5 rounded text-[11px]">{po.planId}</span>, ""]] : []),
               ...(po.project ? [["Project", po.project, "font-bold text-gray-800 dark:text-gray-200"]] : []),
               ["Date of issue", formatPrettyDate(po.date)],
             ].map(([label, value, extra = ""]) => (

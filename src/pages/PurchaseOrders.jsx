@@ -960,6 +960,7 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
       setNewPO({
         ...newPO,
         mrId: rawValue,
+        planId: mr?.planId || "",
         quotationId: approvedQuoteId || "",
         supplier:
           linkedSupplier?.id || linkedSupplier?._id || linkedSupplierId || "",
@@ -1581,7 +1582,7 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
     return { ...po, items: adjustedItems, totalValue: newTotal };
   }, "getEffectivePO");
 
-  const downloadPDF = /* @__PURE__ */ __name((po) => {
+  const downloadPDF = /* @__PURE__ */ __name(async (po) => {
     const _dl = (po.supplier || "").trim().toLowerCase();
     const supplier = (suppliers || []).find((s) => {
       if (!s) return false;
@@ -1595,15 +1596,22 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
     const poMR = (materialRequirements || []).find(m => m.id === po.mrId || m.mrNumber === po.mrId);
     const mrLocation = poMR ? (poMR.location || poMR.site || poMR.address || "") : "";
     const blob = generatePOPDFBlob({...getEffectivePO(po), mrLocation}, supplier, settings);
+    const filename = `${po.id}_PO.pdf`;
+    try {
+      const res = await api.request({
+        method: "POST", url: "reports/save",
+        data: blob,
+        headers: { "Content-Type": "application/pdf", "x-filename": filename },
+        transformRequest: [(d) => d],
+      });
+      if (res?.url) { window.open(res.url, "_blank"); return; }
+    } catch (_) { /* fall through to blob URL */ }
     const url = URL.createObjectURL(blob);
     const win = window.open(url, "_blank");
     if (!win) {
       const a = document.createElement("a");
-      a.href = url;
-      a.download = `${po.id}_PO.pdf`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
+      a.href = url; a.download = filename;
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
     }
     setTimeout(() => URL.revokeObjectURL(url), 60000);
   }, "downloadPDF");

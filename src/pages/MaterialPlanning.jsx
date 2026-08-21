@@ -291,8 +291,7 @@ const MaterialPlanning = /* @__PURE__ */ __name(() => {
       const num = parseInt(parts[parts.length - 1] || "0");
       return num > max ? num : max;
     }, 0);
-    // Use Date.now() as tiebreaker so paginated plans array can't cause ID collision
-    const safeIdNum = Math.max(maxIdNum, Math.floor(Date.now() / 1000) % 100000);
+    const safeIdNum = maxIdNum;
     const plan = {
       id: genId("MP", safeIdNum),
       project: finalProject,
@@ -1316,6 +1315,7 @@ const MaterialPlanning = /* @__PURE__ */ __name(() => {
       const item = inventory.find((i) => i.sku === sku);
       if (item) addItem(item);
     }}
+    onSearch={setSearchItem}
     placeholder="Search Material..."
   />
             </div>

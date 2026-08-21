@@ -9,7 +9,7 @@ export function MRFormModal({ open, isEditing, initialData, onClose, onSuccess }
   const {
     inventory, catalogue, plans, settings, role, user,
     materialRequirements, actionLoading,
-    addMaterialRequirement, updateMaterialRequirement, api,
+    addMaterialRequirement, updateMaterialRequirement, api, fetchResource,
   } = useAppStore();
 
   const { units: UNITS } = settings;
@@ -32,6 +32,7 @@ export function MRFormModal({ open, isEditing, initialData, onClose, onSuccess }
 
   useEffect(() => {
     if (!open) return;
+    fetchResource("planning", 1, 500, true, "", null, false, false, "", "", true);
     setForm(isEditing && initialData ? JSON.parse(JSON.stringify(initialData)) : emptyForm());
     setErrors({});
     setOtherRequester("");
@@ -69,11 +70,13 @@ export function MRFormModal({ open, isEditing, initialData, onClose, onSuccess }
   }, [isSiteEngineer, form.project, myPlans]);
 
   const availablePlansForForm = useMemo(() => {
-    const approved = plans.filter(p => p.status === "Approved" || p.status === "Open");
+    const LINKABLE = new Set(["Approved", "Open", "PO Raised", "Fulfilled"]);
+    const active = plans.filter(p => LINKABLE.has(p.status));
+    const projectLower = form.project?.trim().toLowerCase();
+    if (projectLower) return active.filter(p => p.project?.trim().toLowerCase() === projectLower);
     if (isSiteEngineer && user?.name)
-      return approved.filter(p => p.engineer?.trim().toLowerCase() === user.name.trim().toLowerCase());
-    if (form.project) return approved.filter(p => p.project === form.project);
-    return approved;
+      return active.filter(p => p.engineer?.trim().toLowerCase() === user.name.trim().toLowerCase());
+    return active;
   }, [isSiteEngineer, user?.name, plans, form.project]);
 
   const planRemainingQty = useMemo(() => {
