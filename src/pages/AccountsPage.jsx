@@ -3115,15 +3115,17 @@ const GRNShipmentCard = /* @__PURE__ */ __name(({ shipment, po, isSubmitting, on
   const grnGrandTotal  = grnValue + freightTotal + loadingTotal + unloadingTotal;
   // Prioritize verified invoice amount entered by Maker/Checker if present, else fallback to calculated shipment value
   const verifiedInvoiceAmount = Number(shipment.invoiceAmount) > 0 ? Number(shipment.invoiceAmount) : 0;
-  const suggestedAmount = verifiedInvoiceAmount
-    || (grnValue > 0 ? Math.round(grnValue) : 0)
-    || (shipment.paymentStatus === "paid" ? (shipment.payment?.amount || 0) : 0)
-    || 0;
-  // Cap against verified invoice amount or GST-inclusive grnValue
-  const validationCap = verifiedInvoiceAmount || (grnValue > 0 ? Math.round(grnValue) : Math.round(shipment.invoiceAmount || 0));
+  const suggestedAmount = grnGrandTotal > 0
+    ? Math.round(grnGrandTotal * 100) / 100
+    : (verifiedInvoiceAmount || (shipment.paymentStatus === "paid" ? (shipment.payment?.amount || 0) : 0) || 0);
+  // Cap = current shipment grand total (items GST + all extra charges)
+  const validationCap = grnGrandTotal > 0 ? grnGrandTotal : (verifiedInvoiceAmount || 0);
 
   const [expanded, setExpanded] = useState(defaultExpanded || false);
   const [verifyForm, setVerifyForm] = useState({ remark: "", invoiceNo: shipment.invoiceNo || "", invoiceAmount: suggestedAmount });
+  useEffect(() => {
+    setVerifyForm(p => ({ ...p, invoiceAmount: Math.round(grnGrandTotal * 100) / 100 || p.invoiceAmount }));
+  }, [grnGrandTotal]);
   const [verifyRemarkError, setVerifyRemarkError] = useState(false);
   const [approveRemark, setApproveRemark] = useState("");
   const [showApproveForm, setShowApproveForm] = useState(false);
@@ -3887,7 +3889,7 @@ const GRNShipmentCard = /* @__PURE__ */ __name(({ shipment, po, isSubmitting, on
                 </div>
                 <div>
                   <label className="text-[10px] font-black text-gray-400 mb-1 block">Invoice Amount (₹)</label>
-                  <input type="number" value={verifyForm.invoiceAmount} onChange={e => setVerifyForm(p => ({...p, invoiceAmount: e.target.value}))} className={`w-full bg-white dark:bg-[#0F172A] border p-2.5 rounded-xl text-[12px] outline-none font-bold text-gray-900 dark:text-white focus:ring-2 ${validationCap > 0 && Number(verifyForm.invoiceAmount) > validationCap ? "border-red-400 dark:border-red-500 ring-red-500/20" : "border-gray-200 dark:border-gray-700 ring-emerald-500/20"}`} placeholder="Invoice amount" />
+                  <input type="number" value={verifyForm.invoiceAmount} onChange={e => setVerifyForm(p => ({...p, invoiceAmount: e.target.value}))} className={`w-full bg-white dark:bg-[#0F172A] border p-2.5 rounded-xl text-[12px] outline-none font-bold text-gray-900 dark:text-white focus:ring-2 ${validationCap > 0 && Number(verifyForm.invoiceAmount) > validationCap + 0.5 ? "border-red-400 dark:border-red-500 ring-red-500/20" : "border-gray-200 dark:border-gray-700 ring-emerald-500/20"}`} placeholder="Invoice amount" />
                   {grnBaseAmount > 0 && grnGstAmount > 0.01 && (
                     <p className="text-[10px] text-gray-400 dark:text-gray-500 mt-1">
                       Base {fmtCur(grnBaseAmount)} + GST {grnGstPct}%: {fmtCur(grnGstAmount)} = {fmtCur(grnValue)}
