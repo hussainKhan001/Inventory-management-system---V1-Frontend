@@ -1604,15 +1604,17 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
         headers: { "Content-Type": "application/pdf", "x-filename": filename },
         transformRequest: [(d) => d],
       });
-      if (res?.url) { window.open(res.url, "_blank"); return; }
+      if (res?.url) {
+        const a = document.createElement("a");
+        a.href = res.url; a.download = filename;
+        document.body.appendChild(a); a.click(); document.body.removeChild(a);
+        return;
+      }
     } catch (_) { /* fall through to blob URL */ }
     const url = URL.createObjectURL(blob);
-    const win = window.open(url, "_blank");
-    if (!win) {
-      const a = document.createElement("a");
-      a.href = url; a.download = filename;
-      document.body.appendChild(a); a.click(); document.body.removeChild(a);
-    }
+    const a = document.createElement("a");
+    a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
     setTimeout(() => URL.revokeObjectURL(url), 60000);
   }, "downloadPDF");
 

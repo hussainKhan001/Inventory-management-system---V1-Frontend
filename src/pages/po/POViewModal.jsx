@@ -332,7 +332,7 @@ export function POViewModal({ po, onClose, onApproveL1, onApproveL2, onApproveL3
           <Btn label="Revise & Submit" color="amber" icon={RotateCcw} onClick={() => onRevise(po)} />
         )}
         <Btn label="Download PO PDF" icon={Download} onClick={() => { if (onDownloadPDF) { onDownloadPDF(po); } else { generatePOPDF({...po, mrLocation}, supplier, settings); } }} className="bg-orange-500 hover:bg-orange-600 text-white border-none shadow-lg shadow-orange-500/20 font-bold" />
-        <Btn label="Close" outline onClick={onClose} className="px-8 border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800" />
+<Btn label="Close" outline onClick={onClose} className="px-8 border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800" />
       </div>
       {showRejectRevisionForm && (
         <div className="w-full mt-3 p-3 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-700 rounded-xl flex flex-col gap-2">
