@@ -46,15 +46,23 @@ instance.interceptors.request.use((config) => {
   return config;
 });
 
-// Response interceptor — single retry on pure network errors (not 4xx/5xx)
+// Response interceptor — single retry on pure network errors; auto-logout on 401
 instance.interceptors.response.use(
   (res) => res,
   async (err) => {
     const cfg = err.config;
+    // Retry once on pure network errors (no response from server)
     if (cfg && !cfg._retried && !err.response) {
       cfg._retried = true;
       await new Promise((r) => setTimeout(r, 600));
       return instance(cfg);
+    }
+    // Auto-logout when session expires (401 Unauthorized) — skip for auth routes to avoid loops
+    if (err.response?.status === 401 && cfg && !cfg.url?.includes("auth/")) {
+      localStorage.removeItem("token");
+      localStorage.removeItem("originalToken");
+      window.location.reload();
+      return Promise.reject(err);
     }
     throw err;
   }

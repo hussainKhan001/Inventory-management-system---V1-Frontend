@@ -57,7 +57,7 @@ function ApprovalStamp({ status, label }) {
 
 export function POViewModal({ po, onClose, onApproveL1, onApproveL2, onApproveL3, onApproveRevision, onRejectRevision, onReject, onCancelApproved, onDownloadPDF, processingId, onRevise }) {
   const { suppliers, settings, role, hasPermission, user, updatePO, patchPoInStore, actionLoading, grns, materialRequirements, catalogue } = useAppStore();
-  const getBrand = (item) => item.brand || catalogue.find(c => c.sku === item.sku)?.brand || "";
+  const getBrand = (item) => item.brand || "";
   const uid = user?._id;
   const TERMINAL_STATUSES = ["Approved", "Cancelled", "Blocked", "Rejected", "PO Closed", "GRN Pending", "Pending GRN", "GRN Fulfilled", "GRN Variance", "Ready for Payment", "Fulfilled"];
   const LEGACY_APPROVER_DEFAULTS = {
