@@ -1016,7 +1016,7 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
         unloadingGstType: approvedQuotation?.unloadingGstType || "Exclusive",
         paymentTimelines: [
           {
-            date: poDate,
+            date: existing[0]?.date || poDate,
             type: "Advance",
             mode: existing[0]?.mode || "Bank Transfer",
             amount: existing[0]?.amount || 0,
@@ -1025,7 +1025,7 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
             ifPayable: existing[0]?.ifPayable || 0,
           },
           {
-            date: deliveryDate,
+            date: existing[1]?.date || deliveryDate,
             type: "On Delivery",
             mode: existing[1]?.mode || "Bank Transfer",
             amount: existing[1]?.amount || 0,
@@ -1034,7 +1034,7 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
             ifPayable: existing[1]?.ifPayable || 0,
           },
           {
-            date: d10.toISOString().split("T")[0],
+            date: existing[2]?.date || d10.toISOString().split("T")[0],
             type: "After 10 Days of Delivery",
             mode: existing[2]?.mode || "Bank Transfer",
             amount: existing[2]?.amount || 0,

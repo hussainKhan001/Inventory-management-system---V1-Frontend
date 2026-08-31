@@ -50,6 +50,10 @@ const AppProvider = /* @__PURE__ */ __name(({ children }) => {
   const [transactionsPagination, setTransactionsPagination] = useState(null);
   const [formConfigs, setFormConfigs] = useState([]);
   const [availableGatePasses, setAvailableGatePasses] = useState([]);
+  const [masterPos, setMasterPos] = useState([]);
+  const [masterPosPagination, setMasterPosPagination] = useState(null);
+  const [emrs, setEmrs] = useState([]);
+  const [emrsPagination, setEmrsPagination] = useState(null);
   const fetchAvailableGatePasses = /* @__PURE__ */ __name(async () => {
     try {
       const res = await api.get("gate-passes/available");
@@ -602,6 +606,14 @@ const AppProvider = /* @__PURE__ */ __name(({ children }) => {
           case "form-configs":
             setFormConfigs(res.data);
             break;
+          case "master-pos":
+            setMasterPos((prev) => append ? [...prev, ...res.data] : res.data);
+            setMasterPosPagination(res.pagination);
+            break;
+          case "emr":
+            setEmrs((prev) => append ? [...prev, ...res.data] : res.data);
+            setEmrsPagination(res.pagination);
+            break;
         }
         return res.data;
       }
@@ -904,6 +916,43 @@ const AppProvider = /* @__PURE__ */ __name(({ children }) => {
     try {
       const res = await api.post(`planning/${id}/reject`, { reason });
       if (res.success) setPlans((prev) => prev.map((p) => p.id === id ? { ...p, ...res.data } : p));
+      return res;
+    } finally {
+      setActionLoading(false);
+    }
+  }, []);
+  const fetchPlanLedger = useCallback(async (planId) => {
+    try {
+      return await api.get(`planning/${planId}/ledger`);
+    } catch {
+      return null;
+    }
+  }, []);
+  const extraApproveMrAgm = useCallback(async (id, remark = "") => {
+    setActionLoading(true);
+    try {
+      const res = await api.post(`material-requirements/${id}/extra-approve-agm`, { remark });
+      if (res.success) await fetchResource("material-requirements", 1, 100, true);
+      return res;
+    } finally {
+      setActionLoading(false);
+    }
+  }, []);
+  const extraApproveMrGm = useCallback(async (id, remark = "") => {
+    setActionLoading(true);
+    try {
+      const res = await api.post(`material-requirements/${id}/extra-approve-gm`, { remark });
+      if (res.success) await fetchResource("material-requirements", 1, 100, true);
+      return res;
+    } finally {
+      setActionLoading(false);
+    }
+  }, []);
+  const extraRejectMr = useCallback(async (id, reason = "") => {
+    setActionLoading(true);
+    try {
+      const res = await api.post(`material-requirements/${id}/extra-reject`, { reason });
+      if (res.success) await fetchResource("material-requirements", 1, 100, true);
       return res;
     } finally {
       setActionLoading(false);
@@ -1434,6 +1483,94 @@ const AppProvider = /* @__PURE__ */ __name(({ children }) => {
       setActionLoading(false);
     }
   }, "resetFormConfig");
+  // ── Master PO ────────────────────────────────────────────────────────────────
+  const addMasterPo = useCallback(async (data) => {
+    setActionLoading(true);
+    try {
+      const res = await api.post("master-pos", data);
+      setMasterPos((prev) => [res.data, ...prev]);
+      return res.data;
+    } finally { setActionLoading(false); }
+  }, []);
+  const updateMasterPo = useCallback(async (id, data) => {
+    setActionLoading(true);
+    try {
+      const res = await api.put("master-pos", id, data);
+      setMasterPos((prev) => prev.map((p) => p.id === id ? { ...p, ...res.data } : p));
+      return res.data;
+    } finally { setActionLoading(false); }
+  }, []);
+  const deleteMasterPo = useCallback(async (id) => {
+    setActionLoading(true);
+    try {
+      await api.delete("master-pos", id);
+      setMasterPos((prev) => prev.filter((p) => p.id !== id));
+      toast.success("Master PO deleted");
+    } catch (err) {
+      toast.error(err.message || "Failed to delete");
+    } finally { setActionLoading(false); }
+  }, []);
+  const approveMasterPo = useCallback(async (id, remark) => {
+    setActionLoading(true);
+    try {
+      const res = await api.post(`master-pos/${id}/approve`, { remark });
+      if (res.success) setMasterPos((prev) => prev.map((p) => p.id === id ? { ...p, ...res.data } : p));
+      return res;
+    } finally { setActionLoading(false); }
+  }, []);
+  const rejectMasterPo = useCallback(async (id, reason) => {
+    setActionLoading(true);
+    try {
+      const res = await api.post(`master-pos/${id}/reject`, { reason });
+      if (res.success) setMasterPos((prev) => prev.map((p) => p.id === id ? { ...p, ...res.data } : p));
+      return res;
+    } finally { setActionLoading(false); }
+  }, []);
+  const cancelMasterPo = useCallback(async (id, reason) => {
+    setActionLoading(true);
+    try {
+      const res = await api.put(`master-pos/${id}/cancel`, { reason });
+      if (res.success) setMasterPos((prev) => prev.map((p) => p.id === id ? { ...p, ...res.data } : p));
+      return res;
+    } finally { setActionLoading(false); }
+  }, []);
+
+  // ── Extra Material Request (EMR) ─────────────────────────────────────────────
+  const addEmr = useCallback(async (data) => {
+    setActionLoading(true);
+    try {
+      const res = await api.post("emr", data);
+      setEmrs((prev) => [res.data, ...prev]);
+      return res.data;
+    } finally { setActionLoading(false); }
+  }, []);
+  const approveEmr = useCallback(async (id) => {
+    setActionLoading(true);
+    try {
+      const res = await api.post(`emr/${id}/approve`, {});
+      if (res.success) setEmrs((prev) => prev.map((e) => e.id === id ? { ...e, ...res.data } : e));
+      return res;
+    } finally { setActionLoading(false); }
+  }, []);
+  const rejectEmr = useCallback(async (id, reason) => {
+    setActionLoading(true);
+    try {
+      const res = await api.post(`emr/${id}/reject`, { reason });
+      if (res.success) setEmrs((prev) => prev.map((e) => e.id === id ? { ...e, ...res.data } : e));
+      return res;
+    } finally { setActionLoading(false); }
+  }, []);
+  const deleteEmr = useCallback(async (id) => {
+    setActionLoading(true);
+    try {
+      await api.delete("emr", id);
+      setEmrs((prev) => prev.filter((e) => e.id !== id));
+      toast.success("EMR deleted");
+    } catch (err) {
+      toast.error(err.message || "Failed to delete");
+    } finally { setActionLoading(false); }
+  }, []);
+
   const uploadImage = /* @__PURE__ */ __name(async (file) => {
     return await api.upload(file);
   }, "uploadImage");
@@ -1721,6 +1858,10 @@ const AppProvider = /* @__PURE__ */ __name(({ children }) => {
       submitPlan,
       approvePlan,
       rejectPlan,
+      fetchPlanLedger,
+      extraApproveMrAgm,
+      extraApproveMrGm,
+      extraRejectMr,
       planRevisions,
       createPlanRevision,
       reviewPlanRevision,
@@ -1799,7 +1940,11 @@ const AppProvider = /* @__PURE__ */ __name(({ children }) => {
       markAsRead,
       markAllAsRead,
       clearNotifications,
-      api
+      api,
+      masterPos, masterPosPagination,
+      addMasterPo, updateMasterPo, deleteMasterPo, approveMasterPo, rejectMasterPo, cancelMasterPo,
+      emrs, emrsPagination,
+      addEmr, approveEmr, rejectEmr, deleteEmr,
     }}
   >
       {children}

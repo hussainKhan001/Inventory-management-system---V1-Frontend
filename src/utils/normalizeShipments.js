@@ -13,6 +13,19 @@ export function normalizeShipments(grn) {
   const shipments = [];
 
   // Shipment 1 — root GRN
+  // grn.items[].received is CUMULATIVE (backend adds each new receipt onto it).
+  // Derive the initial-only qty = cumulative − sum of all receipt qtys for that SKU.
+  const receiptQtyBySku = {};
+  (grn.receipts || []).forEach((r) => {
+    (r.items || []).forEach((item) => {
+      receiptQtyBySku[item.sku] = (receiptQtyBySku[item.sku] || 0) + (item.received || 0);
+    });
+  });
+  const initialItems = (grn.items || []).map((item) => ({
+    ...item,
+    received: Math.max(0, (item.received || 0) - (receiptQtyBySku[item.sku] || 0)),
+  }));
+
   shipments.push({
     key:           `${grn.id}__root`,
     grnId:         grn.id,
@@ -25,7 +38,7 @@ export function normalizeShipments(grn) {
     personName:    grn.personName,
     challanPhotos: grn.challanPhotos || [],
     personPhotos:  grn.personPhotos  || [],
-    items:         grn.items         || [],   // GRNItemSchema (has ordered/received/unit)
+    items:         initialItems,   // initial delivery qty only (not cumulative)
     paymentStatus: grn.paymentStatus || "unpaid",
     invoiceNo:     grn.invoiceNo,
     invoiceAmount: grn.invoiceAmount,

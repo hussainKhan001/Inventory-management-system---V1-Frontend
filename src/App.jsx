@@ -44,6 +44,7 @@ const DRIPortal = lazy(() => import("./pages/DRIPortal").then((m) => ({ default:
 const PublicDieselForm = lazy(() => import("./pages/PublicDieselForm").then((m) => ({ default: m.PublicDieselForm })));
 const DieselConsumption = lazy(() => import("./pages/DieselConsumption").then((m) => ({ default: m.DieselConsumption })));
 const ProcessCoordinatorPage = lazy(() => import("./pages/ProcessCoordinator").then((m) => ({ default: m.ProcessCoordinatorPage })));
+const MasterPOPage = lazy(() => import("./pages/MasterPO").then((m) => ({ default: m.MasterPOPage })));
 const PageLoader = /* @__PURE__ */ __name(() => (
   <div className="p-6 space-y-6 w-full animate-pulse">
     <div className="flex flex-col lg:flex-row justify-between gap-4">
@@ -285,6 +286,7 @@ const AppContent = /* @__PURE__ */ __name(() => {
     { id: "dri-portal",           el: <DRIPortal /> },
     { id: "diesel-consumption",   el: <DieselConsumption /> },
     { id: "process-coordinator",  el: <ProcessCoordinatorPage /> },
+    { id: "master-pos",           el: <MasterPOPage /> },
   ];
 
   const effectiveHash = PAGE_ELEMENTS.find(p => p.id === hash) || hash === "tracking" ? hash : "dashboard";

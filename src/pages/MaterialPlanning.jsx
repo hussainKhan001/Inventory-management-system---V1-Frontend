@@ -10,13 +10,14 @@ import {
   Modal,
   Field,
   SField,
+  MultiSelect,
   Pagination,
   ConfirmModal,
   Skeleton,
   SearchSelect
 } from "../components/ui";
 import { FilterRow, SearchFilter, SelectFilter, DateRangePicker } from "../components/ui/Filters";
-import { Plus, Search, AlertTriangle, Eye, Pencil, Trash2, Package, ChevronDown, ChevronUp, Users, Building2, ClipboardList, CheckCircle2, Send, ThumbsUp, ThumbsDown, XCircle, Clock } from "lucide-react";
+import { Plus, Search, AlertTriangle, Eye, Pencil, Trash2, Package, ChevronDown, ChevronUp, Users, Building2, ClipboardList, CheckCircle2, Send, ThumbsUp, ThumbsDown, XCircle, Clock, BarChart2, ArrowLeft } from "lucide-react";
 import { genId, todayStr, scrollToError, formatDateTime } from "../utils";
 import { cn } from "../lib/utils";
 import toast from "react-hot-toast";
@@ -31,6 +32,7 @@ const MaterialPlanning = /* @__PURE__ */ __name(() => {
     submitPlan,
     approvePlan,
     rejectPlan,
+    fetchPlanLedger,
     role,
     user,
     inventory,
@@ -116,6 +118,88 @@ const MaterialPlanning = /* @__PURE__ */ __name(() => {
   const [addingToPlan, setAddingToPlan] = useState(null);
   const [searchAdditionalItem, setSearchAdditionalItem] = useState("");
 
+  // ── MP Floor Plan tab state ────────────────────────────────────────────────
+  const EMPTY_MP_FLOOR = () => ({ floorNumber: "", location: "", dri: "", driName: "", items: [{ sku: "", itemName: "", brand: "", unit: "", qty: 1, remark: "" }] });
+  const [mpSearch, setMpSearch] = useState("");
+  const [mpStatusFilter, setMpStatusFilter] = useState("");
+  const [mpModal, setMpModal] = useState(false);
+  const [editingMp, setEditingMp] = useState(null);
+  const [viewMp, setViewMp] = useState(null);
+  const [mpRejectModal, setMpRejectModal] = useState(null);
+  const [mpRejectReason, setMpRejectReason] = useState("");
+  const [mpForm, setMpForm] = useState({ project: "", title: "", workType: "", floors: [EMPTY_MP_FLOOR()] });
+
+  // Ledger tab state
+  const [ledgerPlanId, setLedgerPlanId] = useState("");
+  const [ledgerData, setLedgerData] = useState(null);
+  const [ledgerLoading, setLedgerLoading] = useState(false);
+  const [ledgerMeta, setLedgerMeta] = useState(null);
+  const [ledgerSearch, setLedgerSearch] = useState("");
+  const [ledgerStatusFilter, setLedgerStatusFilter] = useState("");
+  const [expandedLedgerRows, setExpandedLedgerRows] = useState(new Set());
+  const allPlansForLedger = useMemo(() => (plans || []).filter((p) => p.planType !== "MP"), [plans]);
+  const allPlansSummary = useMemo(() => {
+    return allPlansForLedger.map((plan) => {
+      const planQty = (plan.items || []).reduce((s, i) => s + (Number(i.required) || 0), 0);
+      const mrRaised = (plan.items || []).reduce((s, item) => {
+        return s + mrAllocations
+          .filter((a) => a.sku === item.sku && a.projectName?.trim().toLowerCase() === (plan.project || "").trim().toLowerCase())
+          .reduce((sum, a) => sum + (a.allocatedQty || 0), 0);
+      }, 0);
+      const balance = planQty - mrRaised;
+      const pct = planQty > 0 ? Math.round((mrRaised / planQty) * 100) : 0;
+      return { ...plan, _planQty: planQty, _mrRaised: mrRaised, _balance: balance, _pct: pct };
+    });
+  }, [allPlansForLedger, mrAllocations]);
+  const filteredLedgerData = useMemo(() => {
+    if (!ledgerData) return [];
+    return ledgerData.filter((row) => {
+      if (ledgerSearch && !row.itemName?.toLowerCase().includes(ledgerSearch.toLowerCase()) && !row.sku?.toLowerCase().includes(ledgerSearch.toLowerCase())) return false;
+      if (ledgerStatusFilter === "pending" && row.remaining <= 0) return false;
+      if (ledgerStatusFilter === "done" && row.remaining > 0) return false;
+      if (ledgerStatusFilter === "overused" && row.used <= row.allocated) return false;
+      return true;
+    });
+  }, [ledgerData, ledgerSearch, ledgerStatusFilter]);
+  const handleLoadLedger = useCallback(async (planId) => {
+    if (!planId) { setLedgerData(null); setLedgerMeta(null); return; }
+    setLedgerLoading(true);
+    try {
+      const res = await fetchPlanLedger(planId);
+      if (res?.success) { setLedgerData(res.data); setLedgerMeta({ planId: res.planId, project: res.project, title: res.title, mrCount: res.mrCount }); }
+    } finally {
+      setLedgerLoading(false);
+    }
+  }, [fetchPlanLedger]);
+
+  const openCreateMp = () => { setEditingMp(null); setMpForm({ project: "", title: "", workType: "", floors: [EMPTY_MP_FLOOR()] }); setMpModal(true); };
+  const openEditMp = (p) => { setEditingMp(p); setMpForm({ project: p.project || "", title: p.milestone || "", workType: p.workType || "", floors: p.floors?.length ? p.floors.map(f => ({ ...f, items: f.items?.map(i => ({ ...i })) || [] })) : [EMPTY_MP_FLOOR()] }); setMpModal(true); };
+
+  const addMpFloor = () => setMpForm(f => ({ ...f, floors: [...f.floors, EMPTY_MP_FLOOR()] }));
+  const removeMpFloor = (fi) => setMpForm(f => ({ ...f, floors: f.floors.filter((_, i) => i !== fi) }));
+  const updateMpFloor = (fi, key, val) => setMpForm(f => ({ ...f, floors: f.floors.map((fl, i) => i === fi ? { ...fl, [key]: val } : fl) }));
+  const addMpItem = (fi) => setMpForm(f => ({ ...f, floors: f.floors.map((fl, i) => i === fi ? { ...fl, items: [...fl.items, { sku: "", itemName: "", brand: "", unit: "", qty: 1, remark: "" }] } : fl) }));
+  const removeMpItem = (fi, ii) => setMpForm(f => ({ ...f, floors: f.floors.map((fl, i) => i === fi ? { ...fl, items: fl.items.filter((_, j) => j !== ii) } : fl) }));
+  const updateMpItem = (fi, ii, key, val) => setMpForm(f => ({ ...f, floors: f.floors.map((fl, i) => i === fi ? { ...fl, items: fl.items.map((it, j) => j === ii ? { ...it, [key]: val } : it) } : fl) }));
+
+  const handleSaveMp = async () => {
+    if (!mpForm.project) return toast.error("Project is required");
+    if (!mpForm.floors.length) return toast.error("Add at least one floor");
+    const payload = { project: mpForm.project, milestone: mpForm.title, workType: mpForm.workType, floors: mpForm.floors, planType: "MP", items: [] };
+    try {
+      if (editingMp) { await updatePlan(editingMp.id, payload); toast.success("MP Plan updated"); }
+      else { await addPlan(payload); toast.success("MP Plan created"); }
+      setMpModal(false);
+    } catch (e) { toast.error(e.message || "Failed to save"); }
+  };
+
+  const mpPlans = plans.filter(p => p.planType === "MP");
+  const filteredMpPlans = mpPlans.filter(p => {
+    if (mpStatusFilter && p.status !== mpStatusFilter) return false;
+    if (mpSearch && !`${p.id} ${p.milestone} ${p.project}`.toLowerCase().includes(mpSearch.toLowerCase())) return false;
+    return true;
+  });
+
   const isGM = hasPermission("APPROVE_MATERIAL_PLAN") || ["Super Admin", "Director", "admin", "GM"].includes(role || "");
   const canReject = hasPermission("REJECT_MATERIAL_PLAN") || ["Super Admin", "Director", "admin", "GM"].includes(role || "");
   const isAGM = hasPermission("CREATE_MATERIAL_PLAN") || ["AGM", "Head", "Project Manager", "Super Admin", "Director", "admin"].includes(role || "");
@@ -173,37 +257,46 @@ const MaterialPlanning = /* @__PURE__ */ __name(() => {
         if (new Date(plan.date) > /* @__PURE__ */ new Date(tabDateRange.endDate + "T23:59:59")) return false;
       }
       if (tabSharedProjectFilter && plan.project !== tabSharedProjectFilter) return false;
-      if (tabSharedEngineerFilter && plan.engineer !== tabSharedEngineerFilter) return false;
+      if (tabSharedEngineerFilter) {
+        const driList = plan.driNames?.length > 0 ? plan.driNames : (plan.driName ? [plan.driName] : []);
+        if (!driList.includes(tabSharedEngineerFilter)) return false;
+      }
       return true;
     });
   }, [plans, tabDateRange, tabSharedProjectFilter, tabSharedEngineerFilter]);
   const engineerSummary = useMemo(() => {
     const map = {};
     filteredPlansForTabs.forEach((plan) => {
-      const eng = plan.engineer || "Unassigned";
-      if (!map[eng]) map[eng] = { name: eng, projects: [], planCount: 0, totalRequired: 0, totalAllotted: 0, totalPending: 0, mrCount: 0, materials: {} };
-      if (plan.project && !map[eng].projects.includes(plan.project)) map[eng].projects.push(plan.project);
-      map[eng].planCount++;
-      (plan.items || []).forEach((item) => {
-        const allotted = mrAllocations.filter((a) => a.sku === item.sku && a.engineerName?.trim().toLowerCase() === eng.trim().toLowerCase() && a.projectName?.trim().toLowerCase() === (plan.project || "").trim().toLowerCase()).reduce((s, a) => s + (a.allocatedQty || 0), 0);
-        const req = Number(item.required) || 0;
-        const pending = Math.max(0, req - allotted);
-        map[eng].totalRequired += req;
-        map[eng].totalAllotted += allotted;
-        map[eng].totalPending += pending;
-        const matKey = item.sku || item.itemName || "unknown";
-        const matName = item.itemName || item.materialName || item.name || item.sku || "Unknown";
-        if (!map[eng].materials[matKey]) {
-          map[eng].materials[matKey] = { name: matName, sku: item.sku || "", unit: item.unit || "", required: 0, allotted: 0, pending: 0 };
-        }
-        map[eng].materials[matKey].required += req;
-        map[eng].materials[matKey].allotted += allotted;
-        map[eng].materials[matKey].pending += pending;
+      const driList = plan.driNames?.length > 0 ? plan.driNames : (plan.driName ? [plan.driName] : ["Unassigned"]);
+      driList.forEach((dri) => {
+        if (!map[dri]) map[dri] = { name: dri, projects: [], plans: [], planCount: 0, totalRequired: 0, totalAllotted: 0, totalPending: 0, mrCount: 0, materials: {} };
+        if (plan.project && !map[dri].projects.includes(plan.project)) map[dri].projects.push(plan.project);
+        map[dri].planCount++;
+        let planRequired = 0;
+        (plan.items || []).forEach((item) => {
+          const allotted = mrAllocations.filter((a) => a.sku === item.sku && a.projectName?.trim().toLowerCase() === (plan.project || "").trim().toLowerCase()).reduce((s, a) => s + (a.allocatedQty || 0), 0);
+          const req = Number(item.required) || 0;
+          const pending = Math.max(0, req - allotted);
+          planRequired += req;
+          map[dri].totalRequired += req;
+          map[dri].totalAllotted += allotted;
+          map[dri].totalPending += pending;
+          const matKey = item.sku || item.itemName || "unknown";
+          const matName = item.itemName || item.materialName || item.name || item.sku || "Unknown";
+          if (!map[dri].materials[matKey]) {
+            map[dri].materials[matKey] = { name: matName, sku: item.sku || "", unit: item.unit || "", required: 0, allotted: 0, pending: 0, plans: [] };
+          }
+          map[dri].materials[matKey].required += req;
+          map[dri].materials[matKey].allotted += allotted;
+          map[dri].materials[matKey].pending += pending;
+          map[dri].materials[matKey].plans.push({ planId: plan.id, date: plan.date, project: plan.project, qty: req });
+        });
+        map[dri].plans.push({ planId: plan.id, date: plan.date, project: plan.project, itemCount: (plan.items || []).length, totalRequired: planRequired, status: plan.status });
       });
     });
     mrAllocations.forEach((mr) => {
-      const eng = mr.engineerName || "Unassigned";
-      if (map[eng]) map[eng].mrCount++;
+      const dri = mr.engineerName || "Unassigned";
+      if (map[dri]) map[dri].mrCount++;
     });
     return Object.values(map).sort((a, b) => b.planCount - a.planCount);
   }, [filteredPlansForTabs, mrAllocations]);
@@ -246,6 +339,12 @@ const MaterialPlanning = /* @__PURE__ */ __name(() => {
     milestone: "",
     workType: "",
     location: "",
+    agm: "",
+    agmName: "",
+    gm: "",
+    gmName: "",
+    dris: [],
+    driNames: [],
     items: []
   });
   const [searchItem, setSearchItem] = useState("");
@@ -276,7 +375,7 @@ const MaterialPlanning = /* @__PURE__ */ __name(() => {
         const wasApproved = newPlan.status === "Approved";
         await updatePlan(newPlan.id, { ...newPlan, project: finalProject });
         setModal(false);
-        setNewPlan({ project: "", milestone: "", workType: "", location: "", items: [] });
+        setNewPlan({ project: "", milestone: "", workType: "", location: "", agm: "", agmName: "", gm: "", gmName: "", dris: [], driNames: [], items: [] });
         setCustomProject("");
         setIsEditing(false);
         setErrors({});
@@ -306,15 +405,21 @@ const MaterialPlanning = /* @__PURE__ */ __name(() => {
     try {
       await addPlan(plan);
       setModal(false);
-      setNewPlan({ project: "", milestone: "", workType: "", location: "", items: [] });
+      setNewPlan({ project: "", milestone: "", workType: "", location: "", agm: "", agmName: "", gm: "", gmName: "", dris: [], driNames: [], items: [] });
       setCustomProject("");
       setErrors({});
-      toast.success("Plan created successfully");
+      toast.success("Plan created and approved");
     } catch (error) {
       toast.error(`Failed to create material plan: ${error.message}`);
     }
   }, "handleCreate");
   const addItem = /* @__PURE__ */ __name((invItem) => {
+    const existing = (newPlan.items || []).find((i) => i.sku === invItem.sku);
+    if (existing) {
+      toast.error(`${invItem.itemName} is already added`);
+      setSearchItem("");
+      return;
+    }
     const reusable = inventory.filter(
       (i) => i.sku === invItem.sku && ["Good", "Needs Repair"].includes(i.condition)
     ).reduce((sum, i) => sum + i.liveStock, 0);
@@ -435,7 +540,7 @@ const MaterialPlanning = /* @__PURE__ */ __name(() => {
       label="New Plan"
       icon={Plus}
       onClick={() => {
-        setNewPlan({ project: "", milestone: "", workType: "", location: "", items: [] });
+        setNewPlan({ project: "", milestone: "", workType: "", location: "", agm: "", agmName: "", gm: "", gmName: "", dris: [], driNames: [], items: [] });
         setCustomProject("");
         setErrors({});
         setIsEditing(false);
@@ -450,7 +555,9 @@ const MaterialPlanning = /* @__PURE__ */ __name(() => {
       <div className="flex gap-1 bg-gray-100/80 dark:bg-gray-800/60 p-1 rounded-xl w-fit border border-gray-200/60 dark:border-gray-700/40">
         {[
     { id: "plans", label: "Plans" },
-    { id: "engineers", label: "Engineers" },
+    { id: "mp", label: "Floor Plans (MP)" },
+    { id: "ledger", label: "Ledger" },
+    { id: "engineers", label: "DRI" },
     { id: "projects", label: "Projects" },
     { id: "gmAgm", label: "GM / AGM" }
   ].map((tab) => <button
@@ -529,14 +636,9 @@ const MaterialPlanning = /* @__PURE__ */ __name(() => {
                   <td className="px-4 py-3"><Skeleton className="h-4 w-12" /></td>
                   <td className="px-4 py-3"><Skeleton className="h-5 w-20 rounded-full" /></td>
                   <td className="px-4 py-3"><Skeleton className="h-4 w-20 ml-auto" /></td>
-                </tr>) : plans.map((plan) => <tr key={plan.id} className="hover:bg-gray-50/60 dark:hover:bg-gray-800/30 transition-colors group">
+                </tr>) : plans.map((plan) => <tr key={plan.id} onClick={() => { setSelectedPlan(plan); setViewModal(true); }} className="hover:bg-gray-50/60 dark:hover:bg-gray-800/30 transition-colors group cursor-pointer">
                   <td className="px-4 py-3">
-                    <button
-                      onClick={() => { setSelectedPlan(plan); setViewModal(true); }}
-                      className="text-[13px] font-medium text-gray-900 dark:text-gray-200 hover:underline text-left leading-tight"
-                    >
-                      {plan.id}
-                    </button>
+                    <span className="text-[13px] font-medium text-gray-900 dark:text-gray-200 leading-tight">{plan.id}</span>
                   </td>
                   <td className="px-4 py-3 whitespace-nowrap">
                     <p className="text-[12px] text-gray-600 dark:text-gray-400">{formatDateTime(plan.date)}</p>
@@ -558,40 +660,46 @@ const MaterialPlanning = /* @__PURE__ */ __name(() => {
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-1.5 justify-end flex-wrap">
-                      <button 
-                        onClick={() => { setSelectedPlan(plan); setViewModal(true); }} 
-                        className="p-1.5 text-gray-500 hover:text-orange-500 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-md transition-all" 
-                        title="View"
-                      >
-                        <Eye className="w-4 h-4" />
-                      </button>
-                      
                       {hasPermission("EDIT_MATERIAL_PLAN") && ["Draft", "Open", "Approved", "Rejected", "Pending Approval"].includes(plan.status) && (
-                        <button 
-                          onClick={() => {
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
                             const isStandardProject = PROJECTS.some((p) => p === plan.project || p?.value === plan.project);
                             setNewPlan({ ...plan, project: isStandardProject ? plan.project : "Other" });
                             setCustomProject(isStandardProject ? "" : plan.project);
                             setIsEditing(true);
                             setModal(true);
-                          }} 
-                          className="p-1.5 text-gray-400 hover:text-blue-500 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-md transition-all" 
+                          }}
+                          className="p-1.5 text-gray-400 hover:text-blue-500 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-md transition-all"
                           title="Edit"
                         >
                           <Pencil className="w-4 h-4" />
                         </button>
                       )}
-
-                      
-                      {hasPermission("DELETE_MATERIAL_PLAN") && ["Draft", "Open"].includes(plan.status) && (
-                        <button 
-                          onClick={() => setDeletingId(plan.id)} 
-                          className="p-1.5 text-red-300 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-md transition-all" 
+                      {hasPermission("DELETE_MATERIAL_PLAN") && (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setDeletingId(plan.id); }}
+                          className="p-1.5 text-red-300 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-md transition-all"
                           title="Delete"
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
                       )}
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setActiveTab("ledger");
+                          setLedgerPlanId(plan.id);
+                          setLedgerSearch("");
+                          setLedgerStatusFilter("");
+                          setExpandedLedgerRows(new Set());
+                          handleLoadLedger(plan.id);
+                        }}
+                        className="p-1.5 text-gray-400 hover:text-purple-500 hover:bg-purple-50 dark:hover:bg-purple-900/20 rounded-md transition-all"
+                        title="View Ledger"
+                      >
+                        <BarChart2 className="w-4 h-4" />
+                      </button>
                     </div>
                   </td>
                 </tr>)}
@@ -676,42 +784,81 @@ const MaterialPlanning = /* @__PURE__ */ __name(() => {
                   {
       /* Material breakdown (expanded) */
     }
-                  {isExpanded && <div className="overflow-x-auto">
-                      <table className="w-full text-left border-collapse">
-                        <thead className="bg-gray-50 dark:bg-gray-800/50">
-                          <tr>
-                            <th className="px-4 py-2.5 text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Material</th>
-                            <th className="px-4 py-2.5 text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider text-right">Required</th>
-                            <th className="px-4 py-2.5 text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider text-right">Allotted</th>
-                            <th className="px-4 py-2.5 text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider text-right">Pending</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-100 dark:divide-gray-800 bg-white dark:bg-gray-900">
-                          {materialList.map((mat, idx) => <tr key={idx} className="hover:bg-gray-50/60 dark:hover:bg-gray-800/30 transition-colors">
-                              <td className="px-4 py-2.5">
-                                <div className="flex items-center gap-2">
-                                  <div className="w-6 h-6 rounded-md bg-orange-50 dark:bg-orange-900/20 flex items-center justify-center shrink-0">
-                                    <Package className="w-3.5 h-3.5 text-orange-500 dark:text-orange-400" />
+                  {isExpanded && <div className="border-t border-gray-100 dark:border-gray-800">
+                      {/* Plans summary */}
+                      <div className="px-4 pt-3 pb-1">
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-2">Plans</p>
+                        <div className="overflow-x-auto rounded-lg border border-gray-100 dark:border-gray-800">
+                          <table className="w-full text-left border-collapse min-w-[520px]">
+                            <thead className="bg-gray-50 dark:bg-gray-800/60">
+                              <tr>
+                                <th className="px-3 py-2 text-[10px] font-bold text-gray-400 uppercase tracking-wider">Plan ID</th>
+                                <th className="px-3 py-2 text-[10px] font-bold text-gray-400 uppercase tracking-wider">Date</th>
+                                <th className="px-3 py-2 text-[10px] font-bold text-gray-400 uppercase tracking-wider">Project</th>
+                                <th className="px-3 py-2 text-[10px] font-bold text-gray-400 uppercase tracking-wider text-right">Items</th>
+                                <th className="px-3 py-2 text-[10px] font-bold text-gray-400 uppercase tracking-wider text-right">Total Req.</th>
+                                <th className="px-3 py-2 text-[10px] font-bold text-gray-400 uppercase tracking-wider">Status</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-100 dark:divide-gray-800 bg-white dark:bg-gray-900">
+                              {eng.plans.map((p) => <tr key={p.planId} className="hover:bg-gray-50/60 dark:hover:bg-gray-800/30 cursor-pointer" onClick={() => { const pl = plans.find(x => x.id === p.planId); if (pl) { setSelectedPlan(pl); setViewModal(true); } }}>
+                                <td className="px-3 py-2 text-[12px] font-bold text-primary">{p.planId}</td>
+                                <td className="px-3 py-2 text-[11px] text-gray-500">{formatDateTime(p.date)}</td>
+                                <td className="px-3 py-2 text-[12px] text-gray-700 dark:text-gray-300">{p.project || "—"}</td>
+                                <td className="px-3 py-2 text-[12px] font-bold text-gray-700 dark:text-gray-300 text-right">{p.itemCount}</td>
+                                <td className="px-3 py-2 text-[12px] font-bold text-orange-500 text-right">{p.totalRequired}</td>
+                                <td className="px-3 py-2"><StatusBadge status={p.status} /></td>
+                              </tr>)}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                      {/* Material detail */}
+                      <div className="px-4 pt-3 pb-3">
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-2">Materials</p>
+                        <div className="overflow-x-auto rounded-lg border border-gray-100 dark:border-gray-800">
+                          <table className="w-full text-left border-collapse min-w-[580px]">
+                            <thead className="bg-gray-50 dark:bg-gray-800/60">
+                              <tr>
+                                <th className="px-3 py-2 text-[10px] font-bold text-gray-400 uppercase tracking-wider">Material</th>
+                                <th className="px-3 py-2 text-[10px] font-bold text-gray-400 uppercase tracking-wider">SKU</th>
+                                <th className="px-3 py-2 text-[10px] font-bold text-gray-400 uppercase tracking-wider text-right">Required</th>
+                                <th className="px-3 py-2 text-[10px] font-bold text-gray-400 uppercase tracking-wider text-right">Allotted</th>
+                                <th className="px-3 py-2 text-[10px] font-bold text-gray-400 uppercase tracking-wider text-right">Pending</th>
+                                <th className="px-3 py-2 text-[10px] font-bold text-gray-400 uppercase tracking-wider">Plans</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-100 dark:divide-gray-800 bg-white dark:bg-gray-900">
+                              {materialList.map((mat, idx) => <tr key={idx} className="hover:bg-gray-50/60 dark:hover:bg-gray-800/30 transition-colors">
+                                <td className="px-3 py-2">
+                                  <div className="flex items-center gap-2">
+                                    <div className="w-5 h-5 rounded bg-orange-50 dark:bg-orange-900/20 flex items-center justify-center shrink-0">
+                                      <Package className="w-3 h-3 text-orange-500" />
+                                    </div>
+                                    <p className="text-[12px] font-semibold text-gray-900 dark:text-white">{mat.name}</p>
                                   </div>
-                                  <div>
-                                    <p className="text-[13px] font-semibold text-gray-900 dark:text-white">{mat.name}</p>
-                                    {mat.sku && <p className="text-[10px] text-gray-400 dark:text-gray-500">{mat.sku}</p>}
+                                </td>
+                                <td className="px-3 py-2 text-[11px] text-gray-400 font-mono">{mat.sku || "—"}</td>
+                                <td className="px-3 py-2 text-[12px] font-bold text-right text-gray-700 dark:text-gray-300">
+                                  {mat.required} <span className="text-[10px] font-normal text-gray-400">{mat.unit}</span>
+                                </td>
+                                <td className="px-3 py-2 text-[12px] font-bold text-right text-emerald-600 dark:text-emerald-400">
+                                  {mat.allotted > 0 ? <>{mat.allotted} <span className="text-[10px] font-normal text-gray-400">{mat.unit}</span></> : <span className="text-gray-300 dark:text-gray-600">—</span>}
+                                </td>
+                                <td className="px-3 py-2 text-[12px] font-bold text-right">
+                                  {mat.pending > 0 ? <span className="text-red-500">{mat.pending} <span className="text-[10px] font-normal">{mat.unit}</span></span> : <span className="text-emerald-500 text-[11px]">✓ Done</span>}
+                                </td>
+                                <td className="px-3 py-2">
+                                  <div className="flex flex-wrap gap-1">
+                                    {mat.plans?.map((pp, pi) => <span key={pi} className="text-[10px] font-bold px-1.5 py-0.5 bg-primary/10 text-primary rounded cursor-pointer hover:bg-primary/20" onClick={() => { const pl = plans.find(x => x.id === pp.planId); if (pl) { setSelectedPlan(pl); setViewModal(true); } }} title={`${formatDateTime(pp.date)} · ${pp.qty} ${mat.unit}`}>{pp.planId}</span>)}
                                   </div>
-                                </div>
-                              </td>
-                              <td className="px-4 py-2.5 text-[13px] font-bold text-right text-gray-700 dark:text-gray-300">
-                                {mat.required} <span className="text-[11px] font-normal text-gray-400">{mat.unit}</span>
-                              </td>
-                              <td className="px-4 py-2.5 text-[13px] font-bold text-right text-emerald-600 dark:text-emerald-400">
-                                {mat.allotted > 0 ? <>{mat.allotted} <span className="text-[11px] font-normal text-gray-400">{mat.unit}</span></> : <span className="text-gray-300 dark:text-gray-600">—</span>}
-                              </td>
-                              <td className="px-4 py-2.5 text-[13px] font-bold text-right">
-                                {mat.pending > 0 ? <span className="text-red-500 dark:text-red-400">{mat.pending} <span className="text-[11px] font-normal">{mat.unit}</span></span> : <span className="text-emerald-600 dark:text-emerald-400">✓ Done</span>}
-                              </td>
-                            </tr>)}
-                          {materialList.length === 0 && <tr><td colSpan={4} className="px-4 py-4 text-center text-[12px] text-gray-400">No materials found.</td></tr>}
-                        </tbody>
-                      </table>
+                                </td>
+                              </tr>)}
+                              {materialList.length === 0 && <tr><td colSpan={6} className="px-4 py-4 text-center text-[12px] text-gray-400">No materials.</td></tr>}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
                     </div>}
                 </Card>;
   })}
@@ -1103,27 +1250,27 @@ const MaterialPlanning = /* @__PURE__ */ __name(() => {
             </div>}
   >
           <div className="space-y-6">
-            <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
-              <div>
-                <p className="text-[11px] font-bold text-gray-500 ">Project</p>
-                <p className="text-[13px] font-medium text-gray-900 dark:text-white">{selectedPlan.project || "-"}</p>
-              </div>
-              <div>
-                <p className="text-[11px] font-bold text-gray-500 ">Date</p>
-                <p className="text-[13px] font-medium text-gray-900 dark:text-white">{formatDateTime(selectedPlan.date)}</p>
-              </div>
-              <div>
-                <p className="text-[11px] font-bold text-gray-500 ">Location</p>
-                <p className="text-[13px] font-medium text-gray-900 dark:text-white">{selectedPlan.location || "-"}</p>
-              </div>
-              <div>
-                <p className="text-[11px] font-bold text-gray-500 ">Engineer</p>
-                <p className="text-[13px] font-medium text-gray-900 dark:text-white">{selectedPlan.engineer || "-"}</p>
-              </div>
-              <div>
-                <p className="text-[11px] font-bold text-gray-500 ">GM / AGM</p>
-                <p className="text-[13px] font-medium text-gray-900 dark:text-white">{selectedPlan.gmAgm || "-"}</p>
-              </div>
+            {/* ── Meta grid ── */}
+            <div className="bg-gray-50 dark:bg-gray-800/40 rounded-xl p-4 grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-4">
+              {[
+                { label: "Plan ID",    value: selectedPlan.id },
+                { label: "Status",     value: <StatusBadge status={selectedPlan.status} /> },
+                { label: "Date",       value: formatDateTime(selectedPlan.date) },
+                { label: "Project",    value: selectedPlan.project || "-" },
+                { label: "Location",   value: selectedPlan.location || "-" },
+                { label: "AGM",        value: selectedPlan.agmName || selectedPlan.gmAgm || "-" },
+                { label: "GM",         value: selectedPlan.gmName || "-" },
+                { label: "DRI",        value: selectedPlan.driNames?.length > 0 ? selectedPlan.driNames.join(", ") : (selectedPlan.driName || "-") },
+                selectedPlan.approvedBy  && { label: "Approved By",  value: `${selectedPlan.approvedBy}${selectedPlan.approvedAt ? " · " + formatDateTime(selectedPlan.approvedAt) : ""}` },
+                selectedPlan.submittedBy && { label: "Submitted By", value: `${selectedPlan.submittedBy}${selectedPlan.submittedAt ? " · " + formatDateTime(selectedPlan.submittedAt) : ""}` },
+                selectedPlan.rejectedBy  && { label: "Rejected By",  value: selectedPlan.rejectedBy },
+                selectedPlan.rejectionReason && { label: "Rejection Reason", value: selectedPlan.rejectionReason },
+              ].filter(Boolean).map(({ label, value }) => (
+                <div key={label}>
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-0.5">{label}</p>
+                  <div className="text-[13px] font-medium text-gray-900 dark:text-white">{value}</div>
+                </div>
+              ))}
             </div>
 
             <div className="border border-gray-100 dark:border-gray-800 rounded-xl overflow-hidden shadow-sm">
@@ -1254,7 +1401,7 @@ const MaterialPlanning = /* @__PURE__ */ __name(() => {
     onClose={() => {
       setModal(false);
       setErrors({});
-      setNewPlan({ project: "", milestone: "", workType: "", location: "", items: [] });
+      setNewPlan({ project: "", milestone: "", workType: "", location: "", agm: "", agmName: "", gm: "", gmName: "", dris: [], driNames: [], items: [] });
       setCustomProject("");
       setIsEditing(false);
     }}
@@ -1289,10 +1436,40 @@ const MaterialPlanning = /* @__PURE__ */ __name(() => {
   />}
             <Field
     label="Location"
-    value={newPlan.location}
+    value={newPlan.location || ""}
     onChange={(e) => setNewPlan({ ...newPlan, location: e.target.value })}
     placeholder="e.g. Site A, Block 3"
   />
+            <MultiSelect
+              label="DRI (Responsible)"
+              options={(users || []).map((u) => ({ value: u._id, label: `${u.name} (${u.role})` }))}
+              selected={newPlan.dris || []}
+              onChange={(vals) => {
+                const sel = vals.map(v => (users || []).find(u => u._id === v)).filter(Boolean);
+                setNewPlan({ ...newPlan, dris: vals, driNames: sel.map(u => u.name) });
+              }}
+              placeholder="Select DRIs..."
+            />
+            <SearchSelect
+              label="AGM"
+              options={(users || []).map((u) => ({ value: u._id, label: `${u.name} (${u.role})` }))}
+              value={newPlan.agm}
+              onChange={(val) => {
+                const u = (users || []).find(u => u._id === val);
+                setNewPlan({ ...newPlan, agm: val, agmName: u?.name || val });
+              }}
+              placeholder="Select AGM..."
+            />
+            <SearchSelect
+              label="GM"
+              options={(users || []).map((u) => ({ value: u._id, label: `${u.name} (${u.role})` }))}
+              value={newPlan.gm}
+              onChange={(val) => {
+                const u = (users || []).find(u => u._id === val);
+                setNewPlan({ ...newPlan, gm: val, gmName: u?.name || val });
+              }}
+              placeholder="Select GM..."
+            />
           </div>
 
           <div className="mb-6">
@@ -1569,6 +1746,446 @@ const MaterialPlanning = /* @__PURE__ */ __name(() => {
               </div>)}
           </div>
         </div>}
+
+      {/* ── Ledger Tab ──────────────────────────────────────────────────────── */}
+      {activeTab === "ledger" && (
+        <div className="space-y-3">
+
+          {/* ── Detail view: a specific plan is selected ── */}
+          {ledgerPlanId ? (
+            <>
+              {/* Header bar */}
+              <div className="flex items-center gap-3 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl px-4 py-3">
+                <button
+                  onClick={() => { setLedgerPlanId(""); setLedgerData(null); setLedgerMeta(null); setLedgerSearch(""); setLedgerStatusFilter(""); }}
+                  className="flex items-center gap-1.5 text-[12px] font-semibold text-gray-500 hover:text-primary transition-colors"
+                >
+                  <ArrowLeft className="w-3.5 h-3.5" /> All Plans
+                </button>
+                <span className="text-gray-300 dark:text-gray-700">|</span>
+                <SearchSelect
+                  options={allPlansForLedger.map((p) => ({
+                    value: p.id,
+                    label: `${p.id} — ${p.project}`,
+                    subLabel: [p.location, p.milestone].filter(Boolean).join(" · "),
+                  }))}
+                  value={ledgerPlanId}
+                  onChange={(val) => { setLedgerPlanId(val); handleLoadLedger(val); setExpandedLedgerRows(new Set()); setLedgerSearch(""); setLedgerStatusFilter(""); }}
+                  placeholder="Switch plan..."
+                />
+              </div>
+
+              {/* KPI cards */}
+              {!ledgerLoading && ledgerData && ledgerMeta && (() => {
+                const totalAllocated = ledgerData.reduce((s, r) => s + r.allocated, 0);
+                const totalUsed      = ledgerData.reduce((s, r) => s + r.used, 0);
+                const totalRemaining = ledgerData.reduce((s, r) => s + r.remaining, 0);
+                return (
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    {[
+                      { label: "Total Plan Qty",  value: totalAllocated, color: "text-blue-600 dark:text-blue-400",    bg: "bg-blue-50 dark:bg-blue-900/20" },
+                      { label: "MR Raised",       value: totalUsed,      color: "text-orange-600 dark:text-orange-400", bg: "bg-orange-50 dark:bg-orange-900/20" },
+                      { label: "Balance",         value: totalRemaining, color: totalRemaining === 0 ? "text-red-500" : "text-emerald-600 dark:text-emerald-400", bg: totalRemaining === 0 ? "bg-red-50 dark:bg-red-900/20" : "bg-emerald-50 dark:bg-emerald-900/20" },
+                      { label: "MRs Linked",      value: ledgerMeta.mrCount, color: "text-purple-600 dark:text-purple-400", bg: "bg-purple-50 dark:bg-purple-900/20" },
+                    ].map(({ label, value, color, bg }) => (
+                      <div key={label} className={`rounded-xl p-4 ${bg} border border-gray-100 dark:border-gray-800`}>
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-1">{label}</p>
+                        <p className={`text-[24px] font-black leading-none tabular-nums ${color}`}>{value}</p>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })()}
+
+              {/* Filter bar */}
+              {!ledgerLoading && ledgerData && (
+                <div className="flex flex-wrap items-center gap-2 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl px-3 py-2">
+                  <div className="flex items-center gap-2 flex-1 min-w-[180px] bg-gray-50 dark:bg-gray-800 rounded-lg px-3 py-2">
+                    <Search className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                    <input
+                      type="text"
+                      value={ledgerSearch}
+                      onChange={(e) => setLedgerSearch(e.target.value)}
+                      placeholder="Search by Item Name or SKU..."
+                      className="flex-1 bg-transparent text-[13px] text-gray-700 dark:text-gray-200 placeholder-gray-400 outline-none"
+                    />
+                  </div>
+                  {[
+                    { label: "All", value: "" },
+                    { label: "Pending",  value: "pending" },
+                    { label: "Done",     value: "done" },
+                    { label: "Overused", value: "overused" },
+                  ].map((opt) => (
+                    <button
+                      key={opt.value}
+                      onClick={() => setLedgerStatusFilter(opt.value)}
+                      className={`px-3 py-1.5 rounded-lg text-[12px] font-semibold transition-all ${ledgerStatusFilter === opt.value ? "bg-primary text-white" : "bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700"}`}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                  <span className="text-[11px] text-gray-400 ml-auto">{filteredLedgerData.length} item{filteredLedgerData.length !== 1 ? "s" : ""}</span>
+                </div>
+              )}
+
+              {/* Loading skeleton */}
+              {ledgerLoading && (
+                <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl p-4 space-y-2">
+                  {[1,2,3,4,5].map((i) => <div key={i} className="h-14 bg-gray-100 dark:bg-gray-800 animate-pulse rounded-lg" />)}
+                </div>
+              )}
+
+              {/* Detail table */}
+              {!ledgerLoading && ledgerData && (
+                <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl overflow-hidden">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse min-w-[680px]">
+                      <thead>
+                        <tr className="bg-gray-50 dark:bg-gray-800/60 border-b border-gray-200 dark:border-gray-700">
+                          <th className="px-4 py-3 text-[11px] font-bold text-gray-400 uppercase tracking-wider">Item</th>
+                          <th className="px-4 py-3 text-[11px] font-bold text-gray-400 uppercase tracking-wider">SKU</th>
+                          <th className="px-4 py-3 text-[11px] font-bold text-gray-400 uppercase tracking-wider">Unit</th>
+                          <th className="px-4 py-3 text-[11px] font-bold text-gray-400 uppercase tracking-wider text-right">Plan Qty</th>
+                          <th className="px-4 py-3 text-[11px] font-bold text-gray-400 uppercase tracking-wider text-right">MR Raised</th>
+                          <th className="px-4 py-3 text-[11px] font-bold text-gray-400 uppercase tracking-wider text-right">Balance</th>
+                          <th className="px-4 py-3 text-[11px] font-bold text-gray-400 uppercase tracking-wider">Status</th>
+                          <th className="px-4 py-3 text-[11px] font-bold text-gray-400 uppercase tracking-wider w-40">Usage</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+                        {filteredLedgerData.length === 0 && (
+                          <tr><td colSpan={8} className="text-center py-10 text-gray-400 text-[13px]">No items match your filter</td></tr>
+                        )}
+                        {filteredLedgerData.map((row, i) => {
+                          const pct = row.percentUsed;
+                          const barColor = pct >= 100 ? "bg-red-500" : pct >= 75 ? "bg-orange-400" : pct >= 40 ? "bg-yellow-400" : "bg-emerald-500";
+                          const pctColor = pct >= 100 ? "text-red-500" : pct >= 75 ? "text-orange-500" : pct >= 40 ? "text-yellow-500" : "text-gray-400";
+                          const remColor = row.remaining === 0 ? "text-red-500 dark:text-red-400" : row.remaining < row.allocated * 0.2 ? "text-orange-500" : "text-emerald-600 dark:text-emerald-400";
+                          const statusLabel = row.used > row.allocated ? "Overused" : row.remaining === 0 ? "Done" : row.used > 0 ? "In Progress" : "Pending";
+                          const statusCls  = row.used > row.allocated ? "bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400" : row.remaining === 0 ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" : row.used > 0 ? "bg-orange-100 text-orange-600 dark:bg-orange-900/30 dark:text-orange-400" : "bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400";
+                          return (
+                            <tr key={i} className="hover:bg-gray-50/60 dark:hover:bg-gray-800/30 transition-colors">
+                              <td className="px-4 py-3">
+                                <div className="flex items-center gap-2">
+                                  <div className="w-7 h-7 rounded-lg bg-orange-50 dark:bg-orange-900/20 flex items-center justify-center shrink-0">
+                                    <Package className="w-3.5 h-3.5 text-orange-500" />
+                                  </div>
+                                  <span className="text-[13px] font-semibold text-gray-900 dark:text-white">{row.itemName || "—"}</span>
+                                </div>
+                              </td>
+                              <td className="px-4 py-3 text-[11px] font-mono text-gray-400">{row.sku || "—"}</td>
+                              <td className="px-4 py-3 text-[12px] text-gray-500">{row.unit || "—"}</td>
+                              <td className="px-4 py-3 text-right text-[13px] font-bold text-gray-700 dark:text-gray-300 tabular-nums">{row.allocated}</td>
+                              <td className={`px-4 py-3 text-right text-[13px] font-bold tabular-nums ${row.used > row.allocated ? "text-red-500" : "text-gray-700 dark:text-gray-300"}`}>{row.used}</td>
+                              <td className={`px-4 py-3 text-right text-[13px] font-bold tabular-nums ${remColor}`}>{row.remaining}</td>
+                              <td className="px-4 py-3">
+                                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${statusCls}`}>{statusLabel}</span>
+                              </td>
+                              <td className="px-4 py-3">
+                                <div className="flex items-center gap-2">
+                                  <div className="flex-1 h-2.5 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden">
+                                    <div className={`h-full rounded-full ${barColor}`} style={{ width: `${Math.min(pct, 100)}%` }} />
+                                  </div>
+                                  <span className={`text-[11px] font-bold tabular-nums w-8 text-right ${pctColor}`}>{pct}%</span>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                      {filteredLedgerData.length > 0 && (
+                        <tfoot className="border-t-2 border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/60">
+                          <tr>
+                            <td colSpan={3} className="px-4 py-3 text-[11px] font-bold text-gray-400 uppercase tracking-wider">Total ({filteredLedgerData.length} items)</td>
+                            <td className="px-4 py-3 text-right text-[13px] font-black text-gray-700 dark:text-gray-200 tabular-nums">{filteredLedgerData.reduce((s, r) => s + r.allocated, 0)}</td>
+                            <td className="px-4 py-3 text-right text-[13px] font-black text-gray-700 dark:text-gray-200 tabular-nums">{filteredLedgerData.reduce((s, r) => s + r.used, 0)}</td>
+                            <td className="px-4 py-3 text-right text-[13px] font-black text-emerald-600 dark:text-emerald-400 tabular-nums">{filteredLedgerData.reduce((s, r) => s + r.remaining, 0)}</td>
+                            <td colSpan={2} className="px-4 py-3" />
+                          </tr>
+                        </tfoot>
+                      )}
+                    </table>
+                  </div>
+                </div>
+              )}
+            </>
+          ) : (
+            /* ── Overview: all plans ── */
+            <>
+              {/* Global KPI cards */}
+              {allPlansSummary.length > 0 && (() => {
+                const totPlanQty  = allPlansSummary.reduce((s, p) => s + p._planQty, 0);
+                const totMrRaised = allPlansSummary.reduce((s, p) => s + p._mrRaised, 0);
+                const totBalance  = allPlansSummary.reduce((s, p) => s + p._balance, 0);
+                return (
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    {[
+                      { label: "Total Plans",    value: allPlansSummary.length,  color: "text-indigo-600 dark:text-indigo-400",  bg: "bg-indigo-50 dark:bg-indigo-900/20" },
+                      { label: "Total Plan Qty", value: totPlanQty,              color: "text-blue-600 dark:text-blue-400",       bg: "bg-blue-50 dark:bg-blue-900/20" },
+                      { label: "MR Raised",      value: totMrRaised,             color: "text-orange-600 dark:text-orange-400",   bg: "bg-orange-50 dark:bg-orange-900/20" },
+                      { label: "Balance",        value: totBalance,              color: totBalance === 0 ? "text-red-500" : "text-emerald-600 dark:text-emerald-400", bg: totBalance === 0 ? "bg-red-50 dark:bg-red-900/20" : "bg-emerald-50 dark:bg-emerald-900/20" },
+                    ].map(({ label, value, color, bg }) => (
+                      <div key={label} className={`rounded-xl p-4 ${bg} border border-gray-100 dark:border-gray-800`}>
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-1">{label}</p>
+                        <p className={`text-[24px] font-black leading-none tabular-nums ${color}`}>{value}</p>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })()}
+
+              {/* All-plans table */}
+              <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse min-w-[800px]">
+                    <thead>
+                      <tr className="bg-gray-50 dark:bg-gray-800/60 border-b border-gray-200 dark:border-gray-700">
+                        <th className="px-4 py-3 text-[11px] font-bold text-gray-400 uppercase tracking-wider">Plan ID</th>
+                        <th className="px-4 py-3 text-[11px] font-bold text-gray-400 uppercase tracking-wider">Project</th>
+                        <th className="px-4 py-3 text-[11px] font-bold text-gray-400 uppercase tracking-wider">Status</th>
+                        <th className="px-4 py-3 text-[11px] font-bold text-gray-400 uppercase tracking-wider text-right">Items</th>
+                        <th className="px-4 py-3 text-[11px] font-bold text-gray-400 uppercase tracking-wider text-right">Plan Qty</th>
+                        <th className="px-4 py-3 text-[11px] font-bold text-gray-400 uppercase tracking-wider text-right">MR Raised</th>
+                        <th className="px-4 py-3 text-[11px] font-bold text-gray-400 uppercase tracking-wider text-right">Balance</th>
+                        <th className="px-4 py-3 text-[11px] font-bold text-gray-400 uppercase tracking-wider w-36">Usage</th>
+                        <th className="px-4 py-3 text-[11px] font-bold text-gray-400 uppercase tracking-wider text-center">Ledger</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+                      {allPlansSummary.length === 0 && (
+                        <tr><td colSpan={9} className="text-center py-12 text-gray-400 text-[13px]">No material plans found</td></tr>
+                      )}
+                      {allPlansSummary.map((plan) => {
+                        const pct = plan._planQty > 0 ? Math.round((plan._mrRaised / plan._planQty) * 100) : 0;
+                        const barColor = pct >= 100 ? "bg-red-500" : pct >= 75 ? "bg-orange-400" : pct >= 40 ? "bg-yellow-400" : "bg-emerald-500";
+                        const pctColor = pct >= 100 ? "text-red-500" : pct >= 75 ? "text-orange-500" : pct >= 40 ? "text-yellow-500" : "text-gray-400";
+                        const balColor = plan._balance < 0 ? "text-red-500" : plan._balance === 0 ? "text-gray-400" : "text-emerald-600 dark:text-emerald-400";
+                        return (
+                          <tr key={plan.id} className="hover:bg-gray-50/60 dark:hover:bg-gray-800/30 transition-colors">
+                            <td className="px-4 py-3">
+                              <span className="text-[13px] font-mono font-semibold text-gray-900 dark:text-gray-100">{plan.id}</span>
+                              {plan.date && <p className="text-[10px] text-gray-400 mt-0.5">{formatDateTime(plan.date)}</p>}
+                            </td>
+                            <td className="px-4 py-3">
+                              <p className="text-[13px] font-medium text-gray-900 dark:text-white">{plan.project || "—"}</p>
+                              {plan.milestone && <p className="text-[11px] text-gray-400 mt-0.5">{plan.milestone}</p>}
+                            </td>
+                            <td className="px-4 py-3"><StatusBadge status={plan.status} /></td>
+                            <td className="px-4 py-3 text-right text-[13px] font-bold text-gray-600 dark:text-gray-300 tabular-nums">{(plan.items || []).length}</td>
+                            <td className="px-4 py-3 text-right text-[13px] font-bold text-blue-600 dark:text-blue-400 tabular-nums">{plan._planQty}</td>
+                            <td className="px-4 py-3 text-right text-[13px] font-bold text-orange-600 dark:text-orange-400 tabular-nums">{plan._mrRaised}</td>
+                            <td className={`px-4 py-3 text-right text-[13px] font-bold tabular-nums ${balColor}`}>{plan._balance}</td>
+                            <td className="px-4 py-3">
+                              <div className="flex items-center gap-2">
+                                <div className="flex-1 h-2 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden">
+                                  <div className={`h-full rounded-full ${barColor}`} style={{ width: `${Math.min(pct, 100)}%` }} />
+                                </div>
+                                <span className={`text-[11px] font-bold tabular-nums w-8 text-right ${pctColor}`}>{pct}%</span>
+                              </div>
+                            </td>
+                            <td className="px-4 py-3 text-center">
+                              <button
+                                onClick={() => {
+                                  setLedgerPlanId(plan.id);
+                                  setLedgerSearch("");
+                                  setLedgerStatusFilter("");
+                                  setExpandedLedgerRows(new Set());
+                                  handleLoadLedger(plan.id);
+                                }}
+                                className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-bold text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-900/20 hover:bg-purple-100 dark:hover:bg-purple-900/40 rounded-lg transition-all"
+                              >
+                                <BarChart2 className="w-3 h-3" /> View
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* ── MP Floor Plans Tab ──────────────────────────────────────────────── */}
+      {activeTab === "mp" && <div className="space-y-4">
+        <div className="flex items-center justify-between gap-3">
+          <FilterRow>
+            <SearchFilter value={mpSearch} onChange={setMpSearch} placeholder="Search by ID, project, title..." />
+            <SelectFilter value={mpStatusFilter} onChange={setMpStatusFilter} placeholder="All Status"
+              options={["Draft","Pending Approval","Approved","Rejected","PO Raised"]} />
+          </FilterRow>
+          {isAGM && <Btn icon={Plus} label="New Floor Plan" onClick={openCreateMp} />}
+        </div>
+
+        {filteredMpPlans.length === 0 ? (
+          <Card><div className="p-12 text-center text-gray-400"><Package size={36} className="mx-auto mb-2 opacity-40" /><p>No floor plans found</p></div></Card>
+        ) : (
+          <Card>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="border-b border-gray-200 dark:border-gray-700">
+                  <tr className="text-left text-gray-500 text-xs uppercase">
+                    <th className="p-3">Plan ID</th><th className="p-3">Project</th><th className="p-3">Title</th>
+                    <th className="p-3">Floors</th><th className="p-3">Status</th><th className="p-3">By</th><th className="p-3">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredMpPlans.map(p => (
+                    <tr key={p.id} className="border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/40">
+                      <td className="p-3 font-mono font-medium text-primary">{p.id}</td>
+                      <td className="p-3">{p.project}</td>
+                      <td className="p-3">{p.milestone || "-"}</td>
+                      <td className="p-3 text-center">{p.floors?.length || 0}</td>
+                      <td className="p-3"><StatusBadge status={p.status} /></td>
+                      <td className="p-3 text-xs text-gray-500">{p.submittedBy || p.engineer || "-"}</td>
+                      <td className="p-3">
+                        <div className="flex gap-1">
+                          <Btn small outline icon={Eye} onClick={() => setViewMp(p)} />
+                          {["Draft","Rejected"].includes(p.status) && isAGM && <Btn small outline icon={Pencil} onClick={() => openEditMp(p)} />}
+                          {["Draft","Rejected"].includes(p.status) && isAGM && (
+                            <Btn small outline icon={Send} onClick={async () => { try { await submitPlan(p.id); toast.success("Submitted for approval"); } catch(e) { toast.error(e.message); } }} />
+                          )}
+                          {p.status === "Pending Approval" && isGM && (
+                            <>
+                              <Btn small color="green" icon={ThumbsUp} onClick={async () => { try { await approvePlan(p.id); toast.success("Approved"); } catch(e) { toast.error(e.message); } }} />
+                              <Btn small color="red" icon={ThumbsDown} onClick={() => { setMpRejectModal(p); setMpRejectReason(""); }} />
+                            </>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </Card>
+        )}
+
+        {/* Create/Edit Modal */}
+        {mpModal && <Modal title={editingMp ? "Edit Floor Plan" : "New Floor Plan (MP)"} onClose={() => setMpModal(false)} size="xl">
+          <div className="space-y-4 p-1">
+            <div className="grid grid-cols-3 gap-3">
+              <SField label="Project" required>
+                <select className="w-full border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-900"
+                  value={mpForm.project} onChange={e => setMpForm(f => ({ ...f, project: e.target.value }))}>
+                  <option value="">Select project...</option>
+                  {(PROJECTS || []).map(pr => <option key={pr} value={pr}>{pr}</option>)}
+                </select>
+              </SField>
+              <Field label="Title / Milestone" value={mpForm.title} onChange={e => setMpForm(f => ({ ...f, title: e.target.value }))} placeholder="e.g. Civil Work Phase 1" />
+              <SField label="Work Type">
+                <select className="w-full border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-900"
+                  value={mpForm.workType} onChange={e => setMpForm(f => ({ ...f, workType: e.target.value }))}>
+                  <option value="">Select...</option>
+                  {(WORK_TYPES || []).map(w => <option key={w} value={w}>{w}</option>)}
+                </select>
+              </SField>
+            </div>
+
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">Floors</p>
+                <Btn small icon={Plus} label="Add Floor" onClick={addMpFloor} />
+              </div>
+              {mpForm.floors.map((fl, fi) => (
+                <div key={fi} className="border border-gray-200 dark:border-gray-700 rounded-xl p-3 space-y-3">
+                  <div className="flex items-center gap-2">
+                    <div className="grid grid-cols-3 gap-2 flex-1">
+                      <Field label="Floor / Level" value={fl.floorNumber} onChange={e => updateMpFloor(fi, "floorNumber", e.target.value)} placeholder="e.g. GF, 1F, Terrace" />
+                      <Field label="Location" value={fl.location} onChange={e => updateMpFloor(fi, "location", e.target.value)} placeholder="Block / Wing" />
+                      <SField label="DRI (Responsible)">
+                        <select className="w-full border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-900"
+                          value={fl.dri} onChange={e => { const u = users?.find(u => u._id === e.target.value); updateMpFloor(fi, "dri", e.target.value); updateMpFloor(fi, "driName", u?.name || ""); }}>
+                          <option value="">Select DRI...</option>
+                          {(users || []).map(u => <option key={u._id} value={u._id}>{u.name} ({u.role})</option>)}
+                        </select>
+                      </SField>
+                    </div>
+                    {mpForm.floors.length > 1 && <button onClick={() => removeMpFloor(fi)} className="text-red-400 hover:text-red-600 mt-4"><XCircle size={16} /></button>}
+                  </div>
+                  <div className="space-y-1">
+                    <div className="grid grid-cols-6 gap-1 text-[11px] font-semibold text-gray-500 px-1"><span className="col-span-2">Item Name</span><span>SKU</span><span>Unit</span><span>Qty</span><span>Remark</span></div>
+                    {fl.items.map((it, ii) => (
+                      <div key={ii} className="grid grid-cols-6 gap-1 items-center">
+                        <input className="col-span-2 border border-gray-200 dark:border-gray-700 rounded-lg px-2 py-1 text-xs bg-white dark:bg-gray-900" placeholder="Item name" value={it.itemName} onChange={e => updateMpItem(fi, ii, "itemName", e.target.value)} />
+                        <input className="border border-gray-200 dark:border-gray-700 rounded-lg px-2 py-1 text-xs bg-white dark:bg-gray-900" placeholder="SKU" value={it.sku} onChange={e => updateMpItem(fi, ii, "sku", e.target.value)} />
+                        <input className="border border-gray-200 dark:border-gray-700 rounded-lg px-2 py-1 text-xs bg-white dark:bg-gray-900" placeholder="Unit" value={it.unit} onChange={e => updateMpItem(fi, ii, "unit", e.target.value)} />
+                        <input type="number" min={0} className="border border-gray-200 dark:border-gray-700 rounded-lg px-2 py-1 text-xs bg-white dark:bg-gray-900" value={it.qty} onChange={e => updateMpItem(fi, ii, "qty", Number(e.target.value))} />
+                        <div className="flex gap-1">
+                          <input className="flex-1 border border-gray-200 dark:border-gray-700 rounded-lg px-2 py-1 text-xs bg-white dark:bg-gray-900" placeholder="Remark" value={it.remark} onChange={e => updateMpItem(fi, ii, "remark", e.target.value)} />
+                          {fl.items.length > 1 && <button onClick={() => removeMpItem(fi, ii)} className="text-red-400 hover:text-red-600"><XCircle size={13} /></button>}
+                        </div>
+                      </div>
+                    ))}
+                    <button onClick={() => addMpItem(fi)} className="text-xs text-primary hover:underline mt-1">+ Add Item</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <Btn outline label="Cancel" onClick={() => setMpModal(false)} />
+              <Btn label={editingMp ? "Save Changes" : "Create Plan"} onClick={handleSaveMp} loading={actionLoading} />
+            </div>
+          </div>
+        </Modal>}
+
+        {/* View Modal */}
+        {viewMp && <Modal title={`Floor Plan — ${viewMp.id}`} onClose={() => setViewMp(null)} size="xl">
+          <div className="space-y-4 p-1">
+            <div className="flex flex-wrap gap-3 text-sm">
+              <span><span className="text-gray-500">Project:</span> <strong>{viewMp.project}</strong></span>
+              {viewMp.milestone && <span><span className="text-gray-500">Title:</span> <strong>{viewMp.milestone}</strong></span>}
+              {viewMp.workType && <span><span className="text-gray-500">Work Type:</span> <strong>{viewMp.workType}</strong></span>}
+              <StatusBadge status={viewMp.status} />
+            </div>
+            {viewMp.rejectionReason && <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 rounded-lg px-3 py-2 text-sm text-red-700 dark:text-red-400"><strong>Rejection reason:</strong> {viewMp.rejectionReason}</div>}
+            <div className="space-y-3">
+              {(viewMp.floors || []).map((fl, fi) => (
+                <div key={fi} className="border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden">
+                  <div className="bg-gray-50 dark:bg-gray-800 px-3 py-2 text-sm font-semibold flex gap-3">
+                    <span>Floor: {fl.floorNumber || "-"}</span>
+                    {fl.location && <span className="text-gray-500">· {fl.location}</span>}
+                    {fl.driName && <span className="text-gray-500">· DRI: {fl.driName}</span>}
+                  </div>
+                  <table className="w-full text-xs">
+                    <thead className="border-b border-gray-200 dark:border-gray-700">
+                      <tr className="text-gray-500"><th className="p-2 text-left">Item</th><th className="p-2 text-left">SKU</th><th className="p-2 text-left">Unit</th><th className="p-2 text-right">Qty</th><th className="p-2 text-left">Remark</th></tr>
+                    </thead>
+                    <tbody>
+                      {(fl.items || []).map((it, ii) => (
+                        <tr key={ii} className="border-b border-gray-100 dark:border-gray-800">
+                          <td className="p-2">{it.itemName}</td><td className="p-2 font-mono">{it.sku}</td><td className="p-2">{it.unit}</td><td className="p-2 text-right">{it.qty}</td><td className="p-2 text-gray-400">{it.remark}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ))}
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              {["Draft","Rejected"].includes(viewMp.status) && isAGM && <Btn outline label="Edit" onClick={() => { setViewMp(null); openEditMp(viewMp); }} />}
+              {["Draft","Rejected"].includes(viewMp.status) && isAGM && <Btn color="blue" label="Submit for Approval" onClick={async () => { try { await submitPlan(viewMp.id); toast.success("Submitted"); setViewMp(null); } catch(e) { toast.error(e.message); } }} loading={actionLoading} />}
+              {viewMp.status === "Pending Approval" && isGM && <Btn color="green" label="Approve" onClick={async () => { try { await approvePlan(viewMp.id); toast.success("Approved"); setViewMp(null); } catch(e) { toast.error(e.message); } }} loading={actionLoading} />}
+              {viewMp.status === "Pending Approval" && isGM && <Btn color="red" outline label="Reject" onClick={() => { setMpRejectModal(viewMp); setMpRejectReason(""); setViewMp(null); }} />}
+              <Btn outline label="Close" onClick={() => setViewMp(null)} />
+            </div>
+          </div>
+        </Modal>}
+
+        {/* Reject Modal */}
+        {mpRejectModal && <Modal title="Reject Floor Plan" onClose={() => setMpRejectModal(null)}>
+          <div className="p-1 space-y-3">
+            <Field label="Rejection Reason" value={mpRejectReason} onChange={e => setMpRejectReason(e.target.value)} placeholder="Enter reason..." />
+            <div className="flex justify-end gap-2">
+              <Btn outline label="Cancel" onClick={() => setMpRejectModal(null)} />
+              <Btn color="red" label="Reject" loading={actionLoading} onClick={async () => { try { await rejectPlan(mpRejectModal.id, mpRejectReason.trim()); toast.success("Rejected"); setMpRejectModal(null); setMpRejectReason(""); } catch(e) { toast.error(e.message); } }} />
+            </div>
+          </div>
+        </Modal>}
+      </div>}
     </div>;
 }, "MaterialPlanning");
 export {

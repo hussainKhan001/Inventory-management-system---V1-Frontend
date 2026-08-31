@@ -274,7 +274,14 @@ const ROUTES = [
     label: "Process Coordinator",
     icon: Layers,
     roles: ["Process Coordinator", "Super Admin", "Director", "AGM"],
-  }
+  },
+  {
+    id: "master-pos",
+    label: "Master PO",
+    icon: ShoppingCart,
+    roles: ALL_ROLES,
+    permission: "VIEW_MASTER_PO",
+  },
 ];
 export {
   ROUTES,

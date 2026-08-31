@@ -80,6 +80,11 @@ const PERMISSION_GROUPS = [
     perms: ["VIEW_MATERIAL_PLAN", "CREATE_MATERIAL_PLAN", "EDIT_MATERIAL_PLAN", "DELETE_MATERIAL_PLAN", "APPROVE_MATERIAL_PLAN", "REJECT_MATERIAL_PLAN"]
   },
   {
+    id: "mp_plan",
+    name: "Material Plan (MP)",
+    perms: ["VIEW_MP_PLAN", "CREATE_MP_PLAN", "APPROVE_MP_PLAN", "REJECT_MP_PLAN"]
+  },
+  {
     id: "requirement",
     name: "Material Requirement",
     perms: [
@@ -128,6 +133,23 @@ const PERMISSION_GROUPS = [
       "HOLD_PURCHASE_ORDER",
       "APPROVE_PO_REVISION"
     ]
+  },
+  {
+    id: "master_po",
+    name: "Master PO",
+    perms: [
+      "VIEW_MASTER_PO",
+      "CREATE_MASTER_PO",
+      "APPROVE_MASTER_PO_L1",
+      "APPROVE_MASTER_PO_L2",
+      "APPROVE_MASTER_PO_L3",
+      "CANCEL_MASTER_PO"
+    ]
+  },
+  {
+    id: "emr",
+    name: "Extra Material Request (EMR)",
+    perms: ["APPROVE_EMR"]
   },
   {
     id: "grn",
