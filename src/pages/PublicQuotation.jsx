@@ -59,7 +59,9 @@ const PublicQuotation = /* @__PURE__ */ __name(() => {
   const [unloadingGstType, setUnloadingGstType] = useState("Exclusive");
   const params = new URLSearchParams(window.location.hash.split("?")[1]);
   const mrId = params.get("mrId");
+  const planId = params.get("planId");
   const categoryFilter = params.get("category");
+  const [plan, setPlan] = useState(null);
   useEffect(() => {
     fetchSuppliers();
     api.get("gst-rates").then((res) => {
@@ -76,10 +78,12 @@ const PublicQuotation = /* @__PURE__ */ __name(() => {
     }).catch(() => {});
     if (mrId) {
       fetchMR();
+    } else if (planId) {
+      fetchPlan();
     } else {
       setLoading(false);
     }
-  }, [mrId, categoryFilter]);
+  }, [mrId, planId, categoryFilter]);
   useEffect(() => {
     const handleClickOutside = (e) => {
       if (supplierDropdownRef.current && !supplierDropdownRef.current.contains(e.target)) {
@@ -160,6 +164,31 @@ const PublicQuotation = /* @__PURE__ */ __name(() => {
       setLoading(false);
     }
   }, "fetchMR");
+  const fetchPlan = /* @__PURE__ */ __name(async () => {
+    try {
+      const res = await api.get(`public/plan/${planId}`);
+      if (res.success) {
+        setPlan(res.data);
+        const initialItems = (res.data.items || []).map((item) => ({
+          materialName: item.itemName || item.materialName || "",
+          sku: item.sku || "",
+          mrQty: Number(item.required) || 0,
+          mrUnit: item.unit || "",
+          qty: Number(item.required) || 0,
+          unit: item.unit || "",
+          rate: 0,
+          gstPct: 18,
+          gstType: "Exclusive",
+          brand: "",
+        }));
+        setItems(initialItems);
+      }
+    } catch (error) {
+      toast.error(error.message || "Failed to load plan details");
+    } finally {
+      setLoading(false);
+    }
+  }, "fetchPlan");
   const handleRateChange = /* @__PURE__ */ __name((index, rate) => {
     const newItems = [...items];
     newItems[index].rate = isNaN(rate) ? 0 : rate;
@@ -217,7 +246,8 @@ const PublicQuotation = /* @__PURE__ */ __name(() => {
     try {
       const grandTotal = calculateGrandTotal();
       const res = await api.post("public/quotation", {
-        mrId,
+        mrId: mrId || undefined,
+        planId: planId || undefined,
         category: categoryFilter,
         supplierName,
         supplierId,
@@ -250,14 +280,14 @@ const PublicQuotation = /* @__PURE__ */ __name(() => {
     }
   }, "handleSubmit");
   const fmt = /* @__PURE__ */ __name((num) => (num || 0).toLocaleString("en-IN", { minimumFractionDigits: 2 }), "fmt");
-  if (!loading && !mrId) {
+  if (!loading && !mrId && !planId) {
     return <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
         <div className="max-w-md w-full text-center space-y-6">
           <div className="w-20 h-20 bg-red-50 rounded-full flex items-center justify-center mx-auto text-red-500">
             <Package className="w-10 h-10" />
           </div>
-          <h1 className="text-2xl font-black text-gray-900">Missing MR ID</h1>
-          <p className="text-gray-500">No Material Requirement ID was found in the URL. Please use the specific link provided by the project manager.</p>
+          <h1 className="text-2xl font-black text-gray-900">Invalid Link</h1>
+          <p className="text-gray-500">No Material Requirement or Plan ID was found in the URL. Please use the specific link provided by the project manager.</p>
         </div>
       </div>;
   }
@@ -266,7 +296,7 @@ const PublicQuotation = /* @__PURE__ */ __name(() => {
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500" />
       </div>;
   }
-  if (!mrId || !mr) {
+  if ((mrId && !mr) || (planId && !plan)) {
     return <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-[#0F172A] p-4 text-center">
         <div className="max-w-md w-full bg-white dark:bg-[#1E293B] p-8 rounded-3xl shadow-xl border border-gray-100 dark:border-gray-800">
           <div className="w-20 h-20 bg-red-50 dark:bg-red-900/20 text-red-500 rounded-full flex items-center justify-center mx-auto mb-6">
@@ -277,7 +307,7 @@ const PublicQuotation = /* @__PURE__ */ __name(() => {
         </div>
       </div>;
   }
-  if (mr.quotationLinkActive === false) {
+  if (mr?.quotationLinkActive === false) {
     return <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-[#0F172A] p-4 text-center">
         <div className="max-w-md w-full bg-white dark:bg-[#1E293B] p-8 rounded-3xl shadow-xl border border-gray-100 dark:border-gray-800">
           <div className="w-20 h-20 bg-red-50 dark:bg-red-900/20 text-red-500 rounded-full flex items-center justify-center mx-auto mb-6">
@@ -288,7 +318,7 @@ const PublicQuotation = /* @__PURE__ */ __name(() => {
         </div>
       </div>;
   }
-  if (mr.status === "Pending") {
+  if (mr?.status === "Pending") {
     return <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-[#0F172A] p-4 text-center">
         <div className="max-w-md w-full bg-white dark:bg-[#1E293B] p-8 rounded-3xl shadow-xl border border-gray-100 dark:border-gray-800">
           <div className="w-20 h-20 bg-blue-50 dark:bg-blue-900/20 text-blue-500 rounded-full flex items-center justify-center mx-auto mb-6">
@@ -310,7 +340,7 @@ const PublicQuotation = /* @__PURE__ */ __name(() => {
             <CheckCircle2 className="w-12 h-12" />
           </div>
           <h2 className="text-3xl font-black text-gray-900 dark:text-white mb-4">Quotation Received!</h2>
-          <p className="text-gray-500 dark:text-gray-400 mb-2">Your quotation for MR <span className="font-bold text-orange-500">{mrId}</span> has been submitted successfully.</p>
+          <p className="text-gray-500 dark:text-gray-400 mb-2">Your quotation for {mrId ? <>MR <span className="font-bold text-orange-500">{mrId}</span></> : <>Plan <span className="font-bold text-orange-500">{planId}</span></>} has been submitted successfully.</p>
           <p className="text-sm font-medium text-gray-400 tracking-widest">Quotation Id: {quotationId}</p>
         </motion.div>
       </div>;
@@ -330,7 +360,7 @@ const PublicQuotation = /* @__PURE__ */ __name(() => {
               <h1 className="text-2xl sm:text-3xl lg:text-4xl font-black tracking-tight text-gray-900 dark:text-white">Submit Quotation</h1>
             </div>
             <p className="text-sm sm:text-base text-gray-500 dark:text-gray-400 font-medium max-w-xl">
-              Quotation for <span className="text-orange-600 dark:text-orange-400 font-bold">MR #{mrId}</span> &bull; {items.length} items requested
+              Quotation for <span className="text-orange-600 dark:text-orange-400 font-bold">{mrId ? `MR #${mrId}` : `Plan #${planId}`}</span> &bull; {items.length} items requested
             </p>
           </div>
           <ThemeToggle theme={theme} toggleTheme={toggleTheme} />
@@ -347,9 +377,15 @@ const PublicQuotation = /* @__PURE__ */ __name(() => {
                 <h3 className="text-xs font-bold text-gray-900 dark:text-white tracking-widest">Requirement overview</h3>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
-                <Field label="Project Name" value={mr.project} disabled className="bg-gray-50/50 dark:bg-gray-400/5" />
-                <Field label="Delivery Location" value={mr.location || "N/A"} disabled className="bg-gray-50/50 dark:bg-gray-400/5" />
-                <Field label="Target Delivery Date" value={mr.requirementDate || "ASAP"} disabled className="bg-gray-50/50 dark:bg-gray-400/5" />
+                {mr ? <>
+                  <Field label="Project Name" value={mr.project} disabled className="bg-gray-50/50 dark:bg-gray-400/5" />
+                  <Field label="Delivery Location" value={mr.location || "N/A"} disabled className="bg-gray-50/50 dark:bg-gray-400/5" />
+                  <Field label="Target Delivery Date" value={mr.requirementDate || "ASAP"} disabled className="bg-gray-50/50 dark:bg-gray-400/5" />
+                </> : plan ? <>
+                  <Field label="Plan ID" value={plan.id} disabled className="bg-gray-50/50 dark:bg-gray-400/5" />
+                  <Field label="Project Name" value={plan.project || "N/A"} disabled className="bg-gray-50/50 dark:bg-gray-400/5" />
+                  <Field label="Milestone / Location" value={[plan.milestone, plan.location].filter(Boolean).join(" – ") || "N/A"} disabled className="bg-gray-50/50 dark:bg-gray-400/5" />
+                </> : null}
               </div>
             </div>
           </Card>

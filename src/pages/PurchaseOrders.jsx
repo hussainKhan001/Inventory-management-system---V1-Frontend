@@ -94,6 +94,7 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
     loading,
     actionLoading,
     materialRequirements,
+    plans,
     quotations,
     catalogue,
     hasPermission,
@@ -336,6 +337,7 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
     fetchResource("catalogue", 1, 1e3, true);
     fetchResource("material-requirements", 1, 1e3, true);
     fetchResource("quotations", 1, 1e3, true);
+    fetchResource("planning", 1, 500, true);
     api.get("pos/occupied-mrs").then((r) => setOccupiedQuoteIds(r.data || [])).catch(() => setOccupiedQuoteIds([]));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
@@ -807,15 +809,29 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
       });
       return;
     }
-    const [mrId, selectedCategory, approvedQuoteId] = rawValue.split("|");
+    const [refId, selectedCategory, approvedQuoteId] = rawValue.split("|");
 
-    const mr = materialRequirements.find((m) => m.id === mrId);
-    if (!mr) {
+    const mr = materialRequirements.find((m) => m.id === refId);
+    const plan = !mr ? (plans || []).find((p) => p.id === refId) : null;
+
+    if (!mr && !plan) {
       setNewPO({ ...newPO, mrId: rawValue });
       return;
     }
-    if (!mr.items || mr.items.length === 0) {
-      toast.error("This MR has no items");
+
+    // Normalize plan items to match MR item shape
+    const sourceItems = mr
+      ? mr.items
+      : (plan.items || []).map((pi) => ({
+          materialName: pi.itemName || pi.materialName || "",
+          sku: pi.sku || "",
+          qty: Number(pi.required) || 1,
+          unit: pi.unit || "",
+          category: pi.category || "General",
+        }));
+
+    if (!sourceItems || sourceItems.length === 0) {
+      toast.error(`This ${mr ? "MR" : "Plan"} has no items`);
       setNewPO({ ...newPO, mrId: rawValue });
       return;
     }
@@ -824,15 +840,18 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
       id: "linking",
     });
     try {
+      const filterKey = mr ? { mrId: refId } : { planId: refId };
       const qRes = await api.get("quotations", {
-        filter: JSON.stringify({ mrId }),
+        filter: JSON.stringify(filterKey),
         limit: 100,
       });
 
       let mrQuotations =
         qRes.success && Array.isArray(qRes.data) ? qRes.data : [];
 
-      const storeQuotes = quotations.filter((q) => q.mrId === mrId);
+      const storeQuotes = quotations.filter((q) =>
+        mr ? q.mrId === refId : q.planId === refId
+      );
 
       const allQuotes = [...mrQuotations];
       storeQuotes.forEach((sq) => {
@@ -867,10 +886,10 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
           ? approvedItems
           : approvedQuotation?.items || [];
 
-      // Only include items that are in the quotation — not all MR items
+      // Only include items that are in the quotation — not all MR/Plan items
       const pItems = itemsToUse.length > 0
         ? itemsToUse.map((qItem) => {
-            const mrItem = mr.items.find((mi) =>
+            const mrItem = sourceItems.find((mi) =>
               (mi.materialName || "").trim().toLowerCase() === (qItem.materialName || "").trim().toLowerCase()
             ) || {};
             const invItem = mrItem.sku ? inventory.find((i) => i.sku === mrItem.sku) : null;
@@ -898,7 +917,7 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
               brand: qItem.brand || invItem?.brand || catalogue.find(c => c.sku === mrItem.sku)?.brand || "",
             };
           })
-        : mr.items.map((mrItem) => {
+        : sourceItems.map((mrItem) => {
             const invItem = mrItem.sku ? inventory.find((i) => i.sku === mrItem.sku) : null;
             return {
               sku: invItem?.sku || mrItem.sku || "N/A",
@@ -936,7 +955,7 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
         .filter((it) => it.rates.some((r) => r > 0));
 
       const linkedSupplierId =
-        approvedQuotation?.supplierId || mr.approvedSupplier;
+        approvedQuotation?.supplierId || mr?.approvedSupplier;
 
       const _linkedLower = (linkedSupplierId || "").trim().toLowerCase();
       const linkedSupplier = suppliers.find((s) => {
@@ -960,13 +979,13 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
       const existing = newPO.paymentTimelines || [];
       setNewPO({
         ...newPO,
-        mrId: rawValue,
-        planId: mr?.planId || "",
+        mrId: mr ? rawValue : "",
+        planId: plan ? refId : (mr?.planId || ""),
         quotationId: approvedQuoteId || "",
         supplier:
           linkedSupplier?.id || linkedSupplier?._id || linkedSupplierId || "",
-        project: mr?.project || "",
-        location: mr?.location || "",
+        project: mr?.project || plan?.project || "",
+        location: mr?.location || plan?.location || "",
         workType: selectedCategory || mr?.workType || "",
         requirementBy: mr?.requesterName || "",
         items: pItems,
@@ -1095,21 +1114,30 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
 
     const mrMap = new Map();
     (materialRequirements || []).forEach((m) => m && mrMap.set(m.id, m));
+    const planMap = new Map();
+    (plans || []).forEach((p) => p && planMap.set(p.id, p));
     const list = [];
     (quotations || []).forEach((q) => {
       if (q && q.status === "Approved" && !occupiedSet.has(q.id)) {
         const m = mrMap.get(q.mrId);
+        const p = !m ? planMap.get(q.planId) : null;
         if (m) {
           const category = q.category || "General";
           list.push({
             label: `${m.mrNumber || m.id} - ${m.project} (${category}) - ${q.supplierName}`,
             value: `${m.id}|${category}|${q.id}`,
           });
+        } else if (p) {
+          const category = q.category || "General";
+          list.push({
+            label: `${p.id} - ${p.project} (${category}) - ${q.supplierName}`,
+            value: `${p.id}|${category}|${q.id}`,
+          });
         }
       }
     });
     return list;
-  }, [materialRequirements, quotations, occupiedQuoteIds, pos, isEditing, newPO.quotationId]);
+  }, [materialRequirements, plans, quotations, occupiedQuoteIds, pos, isEditing, newPO.quotationId]);
 
   const normalizeTimelineType = /* @__PURE__ */ __name((type) => {
     if (type === "Progress") return "On Delivery";

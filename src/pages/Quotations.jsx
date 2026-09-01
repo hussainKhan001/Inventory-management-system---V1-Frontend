@@ -48,6 +48,7 @@ const Quotations = /* @__PURE__ */ __name(() => {
     deleteQuotation,
     updateMaterialRequirement,
     materialRequirements,
+    plans,
     pos,
     suppliers,
     addNotification,
@@ -94,6 +95,7 @@ const Quotations = /* @__PURE__ */ __name(() => {
     const finalFilter = Object.keys(filterObj).length > 0 ? filterObj : null;
     fetchResource("quotations", 1, 50, false, debouncedSearch, finalFilter, false, false, startDate, endDate);
     fetchResource("material-requirements", 1, 1e3, true);
+    fetchResource("planning", 1, 500, true);
     fetchResource("pos", 1, 1e3, true);
     if (suppliers.length === 0) fetchResource("suppliers", 1, 5000, true);
     // Run migration once per session to link legacy POs to their source quotations
@@ -225,8 +227,11 @@ const Quotations = /* @__PURE__ */ __name(() => {
   }, "handleStatusUpdate");
   const groupedQuotations = React.useMemo(() => {
     return quotations.reduce((acc, q) => {
+      const refId = q.planId || q.mrId;
       const mr = materialRequirements.find((m) => m.id === q.mrId);
-      if (filterProject && mr?.project !== filterProject) {
+      const plan = !q.mrId ? (plans || []).find((p) => p.id === q.planId) : null;
+      const project = mr?.project || plan?.project;
+      if (filterProject && project !== filterProject) {
         return acc;
       }
       if (filterCategory && q.category !== filterCategory) {
@@ -238,12 +243,12 @@ const Quotations = /* @__PURE__ */ __name(() => {
       if (filterStatus && q.status !== filterStatus) {
         return acc;
       }
-      const key = q.category ? `${q.mrId}|${q.category}` : q.mrId;
+      const key = q.category ? `${refId}|${q.category}` : refId;
       if (!acc[key]) acc[key] = [];
       acc[key].push(q);
       return acc;
     }, {});
-  }, [quotations, materialRequirements, hasPermission, filterProject, filterCategory, filterSupplier, filterStatus]);
+  }, [quotations, materialRequirements, plans, hasPermission, filterProject, filterCategory, filterSupplier, filterStatus]);
   const sortedGroupEntries = React.useMemo(() => {
     return Object.entries(groupedQuotations).sort(([, a], [, b]) => {
       const latestA = Math.max(...a.map(q => new Date(q.createdAt || 0).getTime()));
@@ -254,13 +259,14 @@ const Quotations = /* @__PURE__ */ __name(() => {
 
   const flatQuotations = React.useMemo(() => {
     return sortedGroupEntries.flatMap(([key, mrQuotations]) => {
-      const [mrId, category] = key.split("|");
-      const mr = materialRequirements.find((m) => m.id === mrId);
-      return mrQuotations.map((q) => ({ ...q, _mr: mr, _mrId: mrId, _category: category || "" }));
+      const [refId, category] = key.split("|");
+      const mr = materialRequirements.find((m) => m.id === refId);
+      const plan = !mr ? (plans || []).find((p) => p.id === refId) : null;
+      return mrQuotations.map((q) => ({ ...q, _mr: mr, _plan: plan, _refId: refId, _mrId: refId, _category: category || "" }));
     });
-  }, [sortedGroupEntries, materialRequirements]);
-  const getMrDetails = /* @__PURE__ */ __name((mrId) => {
-    return materialRequirements.find((m) => m.id === mrId);
+  }, [sortedGroupEntries, materialRequirements, plans]);
+  const getMrDetails = /* @__PURE__ */ __name((refId) => {
+    return materialRequirements.find((m) => m.id === refId);
   }, "getMrDetails");
   if (loading && quotations.length === 0) {
     return <Skeleton className="h-screen" />;
@@ -368,12 +374,12 @@ const Quotations = /* @__PURE__ */ __name(() => {
               </thead>
               <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
                 {flatQuotations
-                  .filter(q => !tableFilter.trim() || [q._mrId, q._mr?.project, q._category, q.supplierName, q.status].some(f => f?.toLowerCase().includes(tableFilter.trim().toLowerCase())))
+                  .filter(q => !tableFilter.trim() || [q._refId || q._mrId, q._mr?.project || q._plan?.project, q._category, q.supplierName, q.status].some(f => f?.toLowerCase().includes(tableFilter.trim().toLowerCase())))
                   .map((q) => (
                   <tr key={q.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
                     <td className="px-4 py-3 text-xs text-gray-600 dark:text-gray-400 whitespace-nowrap">{formatDate(q.createdAt || "")}</td>
-                    <td className="px-4 py-3 text-xs font-semibold text-gray-900 dark:text-white whitespace-nowrap">{safeStr(q._mrId)}</td>
-                    <td className="px-4 py-3 text-xs text-gray-600 dark:text-gray-400 max-w-[150px] truncate">{safeStr(q._mr?.project)}</td>
+                    <td className="px-4 py-3 text-xs font-semibold text-gray-900 dark:text-white whitespace-nowrap">{safeStr(q._refId || q._mrId)}</td>
+                    <td className="px-4 py-3 text-xs text-gray-600 dark:text-gray-400 max-w-[150px] truncate">{safeStr(q._mr?.project || q._plan?.project)}</td>
                     <td className="px-4 py-3 text-xs text-orange-600 dark:text-orange-400 font-medium whitespace-nowrap">{safeStr(q._category)}</td>
                     <td className="px-4 py-3 text-xs text-gray-700 dark:text-gray-300 whitespace-nowrap">{safeStr(q.supplierName)}</td>
                     <td className="px-4 py-3 text-xs font-bold text-gray-900 dark:text-white text-right whitespace-nowrap">{fmt(q.totalAmount)}</td>
@@ -421,8 +427,11 @@ const Quotations = /* @__PURE__ */ __name(() => {
     data={sortedGroupEntries}
     increaseViewportBy={300}
     itemContent={(_index, [key, mrQuotations]) => {
-      const [mrId, category] = key.split("|");
-      const mr = getMrDetails(mrId);
+      const [refId, category] = key.split("|");
+      const mr = getMrDetails(refId);
+      const isPlan = !mr && refId?.startsWith("MP-");
+      const plan = isPlan ? (plans || []).find((p) => p.id === refId) : null;
+      const mrId = refId;
       const isExpanded = activeMrId === key;
       const nonZeroAmounts = mrQuotations.map((q) => q.totalAmount || 0).filter((a) => a > 0);
       const bestPrice = nonZeroAmounts.length > 0 ? Math.min(...nonZeroAmounts) : 0;
@@ -448,7 +457,7 @@ const Quotations = /* @__PURE__ */ __name(() => {
                                 NEW
                              </span>}
                            <h3 className="text-sm sm:text-lg font-black text-gray-900 dark:text-white truncate">
-                             MR: {safeStr(mrId)} {category && <span className="text-orange-500 ml-1">({category})</span>}
+                             {isPlan ? "Plan" : "MR"}: {safeStr(refId)} {category && <span className="text-orange-500 ml-1">({category})</span>}
                            </h3>
                            {mr?.status === "Approved" && <StatusBadge status="Approved" />}
                            {mrQuotations.some((q) => q.status === "Pending") && <span className="flex items-center gap-1 text-[10px] font-bold text-orange-600 animate-bounce ml-1">
@@ -457,7 +466,7 @@ const Quotations = /* @__PURE__ */ __name(() => {
                              </span>}
                         </div>
                         <div className="flex items-center gap-3 mt-1 overflow-hidden">
-                          <p className="text-[10px] sm:text-[11px] font-bold text-gray-400 tracking-widest truncate">{safeStr(mr?.project) || "Unknown project"}</p>
+                          <p className="text-[10px] sm:text-[11px] font-bold text-gray-400 tracking-widest truncate">{safeStr(mr?.project || plan?.project) || "Unknown project"}</p>
                           <span className="w-1 h-1 bg-gray-300 rounded-full shrink-0" />
                           <p className="text-[10px] sm:text-[11px] font-bold text-orange-500 tracking-widest shrink-0">{mrQuotations.length} Received</p>
                         </div>
@@ -501,7 +510,7 @@ const Quotations = /* @__PURE__ */ __name(() => {
                         <div className="px-4 md:px-6 pb-6 pt-4 bg-gray-50/80 dark:bg-gray-900/40 border-t border-gray-100 dark:border-gray-800">
                           <div className="flex flex-wrap items-center justify-between gap-3 mb-2 pb-2 border-b border-gray-200/60 dark:border-gray-800/60">
                             <span className="text-xs font-bold text-gray-500 dark:text-gray-400">
-                              Comparing {mrQuotations.length} Quotations for MR: <strong className="text-gray-900 dark:text-white">{mrId}</strong> {category ? `(${category})` : ""}
+                              Comparing {mrQuotations.length} Quotations for {isPlan ? "Plan" : "MR"}: <strong className="text-gray-900 dark:text-white">{refId}</strong> {category ? `(${category})` : ""}
                             </span>
                             <button
                               onClick={(e) => {

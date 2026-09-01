@@ -839,7 +839,7 @@ const generateGRNReportPDF = /* @__PURE__ */ __name((rows, meta = {}) => {
   doc.save(`GRN_Report${suffix}_${fmtDate(meta.generatedAt || Date.now()).replace(/\s+/g, "_")}.pdf`);
 }, "generateGRNReportPDF");
 
-const generateGRNPDF = /* @__PURE__ */ __name((grn, supplier) => {
+const generateGRNPDF = /* @__PURE__ */ __name((grn, supplier, po) => {
   const doc = new jsPDF({ orientation: "p", unit: "mm", format: "a4" });
   const pc = [26, 54, 93];
   const fmtDate = (d) => {
@@ -902,22 +902,68 @@ const generateGRNPDF = /* @__PURE__ */ __name((grn, supplier) => {
   doc.text("RECEIVED MATERIALS", 105, y + 5.5, { align: "center" });
   y += 8;
 
+  // Lookup ordered qty from PO by SKU or item name
+  const getOrdered = (sku, itemName) => {
+    if (!po?.items) return 0;
+    const pi = po.items.find((p) =>
+      (sku && p.sku && p.sku === sku) ||
+      (p.materialName || p.itemName || "").toLowerCase() === (itemName || "").toLowerCase()
+    );
+    return pi?.qty || pi?.quantity || 0;
+  };
+
+  // Build a merged item map: grn.items (cumulative received) + any receipt-only items
+  const rootKeys = new Set((grn.items || []).map((i) => i.sku || i.itemName || i.name || ""));
+  const grnItemMap = new Map();
+  (grn.items || []).forEach((item) => {
+    const key = item.sku || item.itemName || item.name || "";
+    const ordered = item.ordered || item.qty || getOrdered(item.sku, item.itemName || item.name) || 0;
+    grnItemMap.set(key, {
+      itemName: item.itemName || item.name || item.material || "—",
+      sku: item.sku || "—",
+      unit: item.unit || "—",
+      ordered,
+      received: item.received || 0,  // already cumulative across all shipments
+    });
+  });
+  // Items that only appear in receipts (not in root grn.items)
+  const receiptOnlyMap = new Map();
+  (grn.receipts || []).forEach((receipt) => {
+    (receipt.items || []).forEach((item) => {
+      const key = item.sku || item.itemName || item.name || "";
+      if (rootKeys.has(key)) return; // already covered by cumulative grn.items
+      const name = item.itemName || item.name || item.material || "—";
+      if (!receiptOnlyMap.has(key)) {
+        receiptOnlyMap.set(key, {
+          itemName: name,
+          sku: item.sku || "—",
+          unit: item.unit || "—",
+          ordered: getOrdered(item.sku, name),
+          received: 0,
+        });
+      }
+      receiptOnlyMap.get(key).received += (item.received || 0);
+    });
+  });
+  receiptOnlyMap.forEach((val, key) => grnItemMap.set(key, val));
+  const allGrnItems = Array.from(grnItemMap.values());
+
   autoTable(doc, {
     startY: y,
     margin: { left: 10, right: 10 },
     head: [["#", "MATERIAL DESCRIPTION", "SKU", "ORDERED", "RECEIVED", "VARIANCE", "UNIT"]],
-    body: (grn.items || []).map((item, i) => {
-      const ordered  = item.ordered  || 0;
-      const received = item.received || 0;
+    body: allGrnItems.map((item, i) => {
+      const ordered  = item.ordered;
+      const received = item.received;
       const variance = received - ordered;
       return [
         i + 1,
-        item.itemName || item.name || item.material || "—",
-        item.sku || "—",
+        item.itemName,
+        item.sku,
         ordered,
         received,
         variance === 0 ? "0" : (variance > 0 ? `+${variance}` : String(variance)),
-        item.unit || "—",
+        item.unit,
       ];
     }),
     styles: { fontSize: 8.5, cellPadding: 1.8, lineColor: [220, 220, 220], lineWidth: 0.1 },

@@ -17,7 +17,7 @@ import {
   SearchSelect
 } from "../components/ui";
 import { FilterRow, SearchFilter, SelectFilter, DateRangePicker } from "../components/ui/Filters";
-import { Plus, Search, AlertTriangle, Eye, Pencil, Trash2, Package, ChevronDown, ChevronUp, Users, Building2, ClipboardList, CheckCircle2, Send, ThumbsUp, ThumbsDown, XCircle, Clock, BarChart2, ArrowLeft } from "lucide-react";
+import { Plus, Search, AlertTriangle, Eye, Pencil, Trash2, Package, ChevronDown, ChevronUp, Users, Building2, ClipboardList, CheckCircle2, Send, ThumbsUp, ThumbsDown, XCircle, Clock, BarChart2, ArrowLeft, FileText } from "lucide-react";
 import { genId, todayStr, scrollToError, formatDateTime } from "../utils";
 import { cn } from "../lib/utils";
 import toast from "react-hot-toast";
@@ -45,7 +45,7 @@ const MaterialPlanning = /* @__PURE__ */ __name(() => {
     hasPermission,
     settings,
     users,
-    fetchUsers
+    fetchUsers,
   } = useAppStore();
   const isAdmin = ["Super Admin", "Director", "Project Manager", "admin", "AGM", "Head"].includes(role || "");
   useEffect(() => {
@@ -94,6 +94,14 @@ const MaterialPlanning = /* @__PURE__ */ __name(() => {
     }
   }, [errors]);
   const [deletingId, setDeletingId] = useState(null);
+  const copyQuotLink = (plan) => {
+    const url = `${window.location.origin}${window.location.pathname}#public-quotation?planId=${plan.id}`;
+    navigator.clipboard.writeText(url).then(() => {
+      toast.success("Quotation link copied! Share it with the supplier.");
+    }).catch(() => {
+      toast.error("Failed to copy link");
+    });
+  };
   const [customProject, setCustomProject] = useState("");
   const [revisionModal, setRevisionModal] = useState(false);
   const [revisionItem, setRevisionItem] = useState(null);
@@ -686,6 +694,13 @@ const MaterialPlanning = /* @__PURE__ */ __name(() => {
                         </button>
                       )}
                       <button
+                        onClick={(e) => { e.stopPropagation(); copyQuotLink(plan); }}
+                        className="p-1.5 text-gray-400 hover:text-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 rounded-md transition-all"
+                        title="Create Quotation"
+                      >
+                        <FileText className="w-4 h-4" />
+                      </button>
+                      <button
                         onClick={(e) => {
                           e.stopPropagation();
                           setActiveTab("ledger");
@@ -1211,7 +1226,13 @@ const MaterialPlanning = /* @__PURE__ */ __name(() => {
     title={`Material Plan Details - ${selectedPlan.id}`}
     wide
     onClose={() => setViewModal(false)}
-    footer={<div className="flex justify-end gap-2 w-full">
+    footer={<div className="flex justify-between gap-2 w-full">
+              <Btn
+                icon={FileText}
+                label="Get Quotation"
+                onClick={() => { copyQuotLink(selectedPlan); setViewModal(false); }}
+              />
+              <div className="flex gap-2">
               {isAGM && ["Draft", "Open", "Rejected"].includes(selectedPlan.status) && (
                 <Btn
                   icon={Send}
@@ -1247,6 +1268,7 @@ const MaterialPlanning = /* @__PURE__ */ __name(() => {
                 />
               )}
               <Btn label="Close" outline onClick={() => setViewModal(false)} />
+              </div>
             </div>}
   >
           <div className="space-y-6">

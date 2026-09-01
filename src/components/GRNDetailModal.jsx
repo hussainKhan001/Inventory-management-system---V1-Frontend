@@ -7,6 +7,7 @@ import { formatDateTime } from "../utils";
 import { cn } from "../lib/utils";
 import toast from "react-hot-toast";
 import { generateGRNPDF } from "../utils/pdfGenerator";
+import { api } from "../services/api";
 
 export function GRNDetailModal({ grn, grns, onClose, onEditReceipt }) {
   const { suppliers, pos, hasPermission } = useAppStore();
@@ -21,6 +22,7 @@ export function GRNDetailModal({ grn, grns, onClose, onEditReceipt }) {
 
   const supplierId = grnDoc.vendor || grnDoc.supplier;
   const supplier = suppliers?.find((s) => s.id === supplierId);
+  const linkedPO = pos?.find((p) => p.id === grnDoc.poId);
 
   return (
     <>
@@ -34,7 +36,19 @@ export function GRNDetailModal({ grn, grns, onClose, onEditReceipt }) {
               label="Download PDF"
               icon={Download}
               className="rounded-xl h-10 text-[13px] bg-[#F97316] text-white border-none shadow-lg shadow-orange-500/20"
-              onClick={() => generateGRNPDF(grnDoc, supplier)}
+              onClick={async () => {
+                try {
+                  let po = linkedPO;
+                  if (!po && grnDoc.poId) {
+                    const res = await api.get("pos", { search: grnDoc.poId, limit: 1 }).catch(() => null);
+                    po = res?.data?.[0] || null;
+                  }
+                  generateGRNPDF(grnDoc, supplier, po);
+                } catch (err) {
+                  console.error("PDF generation failed:", err);
+                  toast.error("Failed to generate PDF");
+                }
+              }}
             />
             <Btn
               label="Close"
