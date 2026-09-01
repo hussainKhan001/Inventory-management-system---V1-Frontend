@@ -545,7 +545,10 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
           if (l1?.status === "Approved") acc.pendingApproved++;
           if (l1?.status === "Approved" && (!l3 || l3.status !== "Approved")) acc.l2DirectorCount++;
         } else {
-          const hasApprovedGRN = grns.some(g => (g.paymentStatus || "").toLowerCase() === "bill_approved");
+          const hasApprovedGRN = grns.some(g =>
+            (g.paymentStatus || "").toLowerCase() === "bill_approved" ||
+            ((g.paymentStatus || "").toLowerCase() === "payment_pending" && !p.l2ApprovedBy)
+          );
           if (hasApprovedGRN) { acc.pendingApproved++; acc.l2DirectorCount++; }
         }
       }
@@ -560,7 +563,10 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
         }
         if (!myMatch && hasDIR) {
           const isBillApproved = st === "bill_approved" || Boolean(p.billApprovedBy) || Boolean(p.billApprovedDate) ||
-            grns.some(g => (g.paymentStatus || "").toLowerCase() === "bill_approved");
+            grns.some(g =>
+              (g.paymentStatus || "").toLowerCase() === "bill_approved" ||
+              ((g.paymentStatus || "").toLowerCase() === "payment_pending" && !p.l2ApprovedBy)
+            );
           if (isBillApproved) {
             myMatch = true;
           } else if (st === "payment_initiated") {
@@ -722,7 +728,10 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
         }
         if (!match && hasPermission("APPROVE_PAYMENT_DIRECTOR")) {
           const isBillApproved = st === "bill_approved" || Boolean(p.billApprovedBy) || Boolean(p.billApprovedDate) ||
-            (grnsByPoId.get(p.id) || []).some(g => (g.paymentStatus || "").toLowerCase() === "bill_approved");
+            (grnsByPoId.get(p.id) || []).some(g =>
+              (g.paymentStatus || "").toLowerCase() === "bill_approved" ||
+              ((g.paymentStatus || "").toLowerCase() === "payment_pending" && !p.l2ApprovedBy)
+            );
           if (isBillApproved) match = true;
           if (!match && st === "payment_initiated") {
             const approvals = p.paymentApprovals || [];
@@ -737,8 +746,12 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
         const st = (p.accountStatus || "").toLowerCase();
         if (["payment_pending", "physical_check", "paid", "rejected"].includes(st)) return false;
         // bill_approved (old flow waiting for Director) OR payment_initiated where L1 done but L3 pending
+        // Also catch GRNs where backend set payment_pending (L1 approved) but PO accountStatus wasn't synced
         const isBillApproved = st === "bill_approved" || Boolean(p.billApprovedBy) || Boolean(p.billApprovedDate) ||
-          (grnsByPoId.get(p.id) || []).some(g => (g.paymentStatus || "").toLowerCase() === "bill_approved");
+          (grnsByPoId.get(p.id) || []).some(g =>
+            (g.paymentStatus || "").toLowerCase() === "bill_approved" ||
+            ((g.paymentStatus || "").toLowerCase() === "payment_pending" && !p.l2ApprovedBy)
+          );
         const isPaymentL2Pending = st === "payment_initiated" && (() => {
           const approvals = p.paymentApprovals || [];
           const l1 = approvals.find(a => a.level === 1);
@@ -818,7 +831,8 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
       const totalPaidCard = shipments.reduce((sum, s) => sum + (s.payment?.amount || 0), 0);
       const hasVerifiedGRN = shipments.some(s => (s.paymentStatus || "").toLowerCase() === "bill_verified");
       const hasApprovedGRN = shipments.some(s => (s.paymentStatus || "").toLowerCase() === "bill_approved");
-      map.set(poId, { shipments, paidCount, pendingCount, verifiedCount, unpaidCount, totalPaidCard, hasVerifiedGRN, hasApprovedGRN });
+      const hasPendingPaymentGRN = shipments.some(s => (s.paymentStatus || "").toLowerCase() === "payment_pending");
+      map.set(poId, { shipments, paidCount, pendingCount, verifiedCount, unpaidCount, totalPaidCard, hasVerifiedGRN, hasApprovedGRN, hasPendingPaymentGRN });
     }
     return map;
   }, [grnsByPoId]);
@@ -1150,17 +1164,18 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
     finally { setIsSubmitting(false); }
   }, "handleGRNPaymentSubmit");
 
-  const handleGRNVerifyRevert = /* @__PURE__ */ __name(async (grnId, receiptIdx = null, isReVerifyApproval = false) => {
+  const handleGRNVerifyRevert = /* @__PURE__ */ __name(async (grnId, receiptIdx = null, isReVerifyApproval = false, remark = "") => {
     const requiredPerm = isReVerifyApproval ? "APPROVE_REVERIFY" : "REVERT_VERIFY";
-    if (!hasPermission(requiredPerm)) { toast.error("Unauthorized"); return; }
+    if (!hasPermission(requiredPerm) && !hasPermission("APPROVE_PAYMENT_AGM")) { toast.error("Unauthorized"); return; }
     setIsSubmitting(true);
     try {
       const path = receiptIdx !== null
         ? `grn/${grnId}/receipt/${receiptIdx}/bill-verify-revert`
         : `grn/${grnId}/bill-verify-revert`;
-      const res = await api.putSimple(path, isReVerifyApproval ? { approveReVerify: true } : {});
+      const body = isReVerifyApproval ? { approveReVerify: true } : (remark ? { remark } : {});
+      const res = await api.putSimple(path, body);
       if (!res.success) throw new Error(res.message);
-      const revertedFields = { paymentStatus: "unpaid", verifiedBy: null, verifiedAt: null, verifyRemark: null, approvedBy: null, approvedAt: null };
+      const revertedFields = { paymentStatus: "unpaid", verifiedBy: null, verifiedAt: null, verifyRemark: null, approvedBy: null, approvedAt: null, rejectReason: remark || null };
       setAllGrns(prev => prev.map(g => {
         if (g.id !== grnId) return g;
         if (receiptIdx === null) return { ...g, ...revertedFields, ...(isReVerifyApproval ? { reVerifyApprovedBy: "approved" } : {}) };
@@ -2295,7 +2310,7 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
             itemContent={(_index, po) => {
               const cardGRNs = grnsByPoId.get(po.id) || [];
               const stats = shipmentStatsByPoId.get(po.id) || {};
-              const { paidCount = 0, pendingCount = 0, verifiedCount = 0, unpaidCount = 0, totalPaidCard = 0, hasVerifiedGRN = false, hasApprovedGRN = false } = stats;
+              const { paidCount = 0, pendingCount = 0, verifiedCount = 0, unpaidCount = 0, totalPaidCard = 0, hasVerifiedGRN = false, hasApprovedGRN = false, hasPendingPaymentGRN = false } = stats;
               
               const hasRejectedShipmentCard = cardGRNs.some(g =>
                 (g.paymentStatus || "").toLowerCase() === "bill_rejected" ||
@@ -2321,6 +2336,7 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
                 : (["payment_pending", "payment_initiated", "physical_check"].includes(po.accountStatus)) ? "Pending Payment"
                 : po.accountStatus === "paid" ? "Paid"
                 : (po.accountStatus === "bill_approved" || hasApprovedGRN) ? "L1 Approved"
+                : (hasPendingPaymentGRN && !po.l2ApprovedBy) ? "L2 Pending"
                 : (po.accountStatus === "bill_verified" || hasVerifiedGRN || filter === "Verified") ? "Verified"
                 : po.accountStatus === "partial_paid" && (po.status || "").toLowerCase() === "grn fulfilled" ? "Draft"
                 : po.accountStatus === "partial_paid" ? "Partial Paid"
@@ -3130,6 +3146,8 @@ const GRNShipmentCard = /* @__PURE__ */ __name(({ shipment, po, isSubmitting, on
   const [approveRemark, setApproveRemark] = useState("");
   const [showApproveForm, setShowApproveForm] = useState(false);
   const [approveRemarkError, setApproveRemarkError] = useState(false);
+  const [showL1RejectForm, setShowL1RejectForm] = useState(false);
+  const [l1RejectRemark, setL1RejectRemark] = useState("");
   const [showRejectForm, setShowRejectForm] = useState(false);
   const [rejectionReason, setRejectionReason] = useState("");
   const [showPaymentModal, setShowPaymentModal] = useState(false);
@@ -3238,7 +3256,7 @@ const GRNShipmentCard = /* @__PURE__ */ __name(({ shipment, po, isSubmitting, on
         <div className="flex items-center justify-between sm:justify-end gap-3 shrink-0">
           <div className="text-right">
             <p className="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider">Shipment Value</p>
-            <p className="text-[14px] font-black text-gray-900 dark:text-white tabular-nums">{fmtCur(shipment.invoiceAmount || grnValue)}</p>
+            <p className="text-[14px] font-black text-gray-900 dark:text-white tabular-nums">{fmtCur(grnValue || shipment.invoiceAmount || 0)}</p>
           </div>
           <div className="p-2 rounded-lg text-gray-400">
             <ChevronRight className="w-4 h-4" />
@@ -3520,9 +3538,30 @@ const GRNShipmentCard = /* @__PURE__ */ __name(({ shipment, po, isSubmitting, on
                   </div>
                 );
               }
+              if (showL1RejectForm) {
+                return (
+                  <div className="space-y-2 w-full">
+                    <textarea
+                      value={l1RejectRemark}
+                      onChange={e => setL1RejectRemark(e.target.value)}
+                      placeholder="Rejection remark (required)..."
+                      rows={2}
+                      className="w-full text-[12px] border border-gray-200 dark:border-gray-700 rounded-xl px-3 py-2 bg-white dark:bg-gray-800 text-gray-900 dark:text-white resize-none focus:outline-none focus:ring-2 focus:ring-red-400"
+                    />
+                    <div className="flex justify-end gap-2">
+                      <Btn label="Cancel" outline onClick={() => { setShowL1RejectForm(false); setL1RejectRemark(""); }} />
+                      <Btn label="Confirm Reject" color="red" loading={isSubmitting} disabled={!l1RejectRemark.trim() || isSubmitting} onClick={() => {
+                        onVerifyRevert(shipment.grnId, shipment.receiptIdx, false, l1RejectRemark.trim());
+                        setShowL1RejectForm(false);
+                        setL1RejectRemark("");
+                      }} />
+                    </div>
+                  </div>
+                );
+              }
               return (
                 <div className="flex justify-end gap-2 w-full">
-                  <Btn label="Reject (L1)" outline onClick={() => onVerifyRevert(shipment.grnId, shipment.receiptIdx)} disabled={isSubmitting} />
+                  <Btn label="Reject (L1)" outline onClick={() => setShowL1RejectForm(true)} disabled={isSubmitting} />
                   <Btn label="L1 Approve (AGM) ✓" color="green" loading={isSubmitting} disabled={isSubmitting} onClick={() => setShowApproveForm(true)} />
                 </div>
               );

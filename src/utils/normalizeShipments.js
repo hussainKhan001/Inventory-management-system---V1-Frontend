@@ -15,16 +15,26 @@ export function normalizeShipments(grn) {
   // Shipment 1 — root GRN
   // grn.items[].received is CUMULATIVE (backend adds each new receipt onto it).
   // Derive the initial-only qty = cumulative − sum of all receipt qtys for that SKU.
+  // Receipt items may lack SKU, so fall back to itemName matching when SKU lookup misses.
   const receiptQtyBySku = {};
+  const receiptQtyByName = {};
   (grn.receipts || []).forEach((r) => {
     (r.items || []).forEach((item) => {
-      receiptQtyBySku[item.sku] = (receiptQtyBySku[item.sku] || 0) + (item.received || 0);
+      if (item.sku) receiptQtyBySku[item.sku] = (receiptQtyBySku[item.sku] || 0) + (item.received || 0);
+      const name = (item.itemName || "").toLowerCase().trim();
+      if (name) receiptQtyByName[name] = (receiptQtyByName[name] || 0) + (item.received || 0);
     });
   });
-  const initialItems = (grn.items || []).map((item) => ({
-    ...item,
-    received: Math.max(0, (item.received || 0) - (receiptQtyBySku[item.sku] || 0)),
-  }));
+  const initialItems = (grn.items || []).map((item) => {
+    let deduction = 0;
+    if (item.sku && receiptQtyBySku[item.sku] != null) {
+      deduction = receiptQtyBySku[item.sku];
+    } else {
+      const name = (item.itemName || "").toLowerCase().trim();
+      if (name) deduction = receiptQtyByName[name] || 0;
+    }
+    return { ...item, received: Math.max(0, (item.received || 0) - deduction) };
+  });
 
   shipments.push({
     key:           `${grn.id}__root`,
@@ -40,8 +50,11 @@ export function normalizeShipments(grn) {
     personPhotos:  grn.personPhotos  || [],
     items:         initialItems,   // initial delivery qty only (not cumulative)
     paymentStatus: grn.paymentStatus || "unpaid",
-    invoiceNo:     grn.invoiceNo,
-    invoiceAmount: grn.invoiceAmount,
+    invoiceNo:      grn.invoiceNo,
+    invoiceAmount:  grn.invoiceAmount,
+    freightAmount:  grn.freightAmount,
+    loadingAmount:  grn.loadingAmount,
+    unloadingAmount: grn.unloadingAmount,
     verifiedBy:    grn.verifiedBy,
     verifiedAt:    grn.verifiedAt,
     verifyRemark:  grn.verifyRemark,
@@ -74,8 +87,11 @@ export function normalizeShipments(grn) {
       personPhotos:  r.personPhotos  || [],
       items:         r.items         || [],   // GRNReceiptItemSchema (has received only)
       paymentStatus: r.paymentStatus || "unpaid",
-      invoiceNo:     r.invoiceNo,
-      invoiceAmount: r.invoiceAmount,
+      invoiceNo:      r.invoiceNo,
+      invoiceAmount:  r.invoiceAmount,
+      freightAmount:  r.freightAmount,
+      loadingAmount:  r.loadingAmount,
+      unloadingAmount: r.unloadingAmount,
       verifiedBy:    r.verifiedBy,
       verifiedAt:    r.verifiedAt,
       verifyRemark:  r.verifyRemark,
