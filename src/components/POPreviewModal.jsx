@@ -305,42 +305,48 @@ const POPreviewModal = /* @__PURE__ */ __name(({
                   </div>
                 </div>
               </div>
-              <div className="p-3">
-                <p className="text-[9px] font-bold text-gray-400 mb-2">AGM Purchase (L1)</p>
-                <p className="text-[11px] font-bold mb-1">{settings?.approvers?.l1 || "L1 Approver"}</p>
-                <p className="text-[10px] text-gray-500 mb-4">{po.approvalL1At ? formatPrettyDate(po.approvalL1At) : "Pending"}</p>
-                <div className="h-10 border-t border-dashed border-gray-200 mt-2 flex items-center justify-center">
-                   {po.approvalL1 === "Approved" ? <div className="border-2 border-emerald-500/50 px-1 py-0.5 rounded rotate-[-5deg]">
-                       <span className="text-[10px] text-emerald-600 font-black tracking-tighter">Approved</span>
-                     </div> : po.status === "rejected" ? <div className="border-2 border-rose-500/50 px-1 py-0.5 rounded rotate-[-5deg]">
-                        <span className="text-[10px] text-red-500 font-black tracking-tighter">Rejected</span>
-                      </div> : <span className="text-[8px] text-gray-300 italic">Signature</span>}
-                </div>
-              </div>
-              <div className="p-3">
-                <p className="text-[9px] font-bold text-gray-400 mb-2">Project Head / Head (L2)</p>
-                <p className="text-[11px] font-bold mb-1">{settings?.approvers?.l2 || "L2 Approver"}</p>
-                <p className="text-[10px] text-gray-500 mb-4">{po.approvalL2At ? formatPrettyDate(po.approvalL2At) : "Pending"}</p>
-                <div className="h-10 border-t border-dashed border-gray-200 mt-2 flex items-center justify-center">
-                   {po.approvalL2 === "Approved" ? <div className="border-2 border-emerald-500/50 px-1 py-0.5 rounded rotate-[-5deg]">
-                       <span className="text-[10px] text-emerald-600 font-black tracking-tighter">Approved</span>
-                     </div> : po.status === "rejected" ? <div className="border-2 border-rose-500/50 px-1 py-0.5 rounded rotate-[-5deg]">
-                        <span className="text-[10px] text-red-500 font-black tracking-tighter">Rejected</span>
-                      </div> : <span className="text-[8px] text-gray-300 italic">Signature</span>}
-                </div>
-              </div>
-              <div className="p-3">
-                <p className="text-[9px] font-bold text-gray-400 mb-2">Director (L3)</p>
-                <p className="text-[11px] font-bold mb-1">{settings?.approvers?.l3 || "L3 Approver"}</p>
-                <p className="text-[10px] text-gray-500 mb-4">{po.approvalL3At ? formatPrettyDate(po.approvalL3At) : "Pending"}</p>
-                <div className="h-10 border-t border-dashed border-gray-200 mt-2 flex items-center justify-center">
-                   {po.approvalL3 === "Approved" ? <div className="border-2 border-emerald-500/50 px-1 py-0.5 rounded rotate-[-5deg]">
-                       <span className="text-[10px] text-emerald-600 font-black tracking-tighter">Approved</span>
-                     </div> : po.status === "rejected" ? <div className="border-2 border-rose-500/50 px-1 py-0.5 rounded rotate-[-5deg]">
-                        <span className="text-[10px] text-red-500 font-black tracking-tighter">Rejected</span>
-                      </div> : <span className="text-[8px] text-gray-300 italic">Signature</span>}
-                </div>
-              </div>
+              {(() => {
+                const byp1 = po.approvalL1 === "Approved" && !po.approvalL1At;
+                const byp2 = po.approvalL2 === "Approved" && !po.approvalL2At && po.approvalL1 === "Approved";
+                const byp3 = po.approvalL3 === "Approved" && !po.approvalL3At && po.approvalL2 === "Approved";
+                const StampCell = ({ approved, approvedAt, isBypassed, bypassDate }) => {
+                  if (approved && approvedAt) return <div className="border-2 border-emerald-500/50 px-1 py-0.5 rounded rotate-[-5deg]"><span className="text-[10px] text-emerald-600 font-black tracking-tighter">Approved</span></div>;
+                  if (approved && isBypassed) return <div className="border-2 border-orange-500/50 px-1 py-0.5 rounded rotate-[-5deg]"><span className="text-[10px] text-orange-500 font-black tracking-tighter">Bypassed</span></div>;
+                  if (po.status === "rejected") return <div className="border-2 border-rose-500/50 px-1 py-0.5 rounded rotate-[-5deg]"><span className="text-[10px] text-red-500 font-black tracking-tighter">Rejected</span></div>;
+                  return <span className="text-[8px] text-gray-300 italic">Signature</span>;
+                };
+                const dateFor = (approvedAt, isBypassed, bypassDate) => {
+                  if (approvedAt) return formatPrettyDate(approvedAt);
+                  if (isBypassed) return bypassDate ? formatPrettyDate(bypassDate) : "—";
+                  return "Pending";
+                };
+                return <>
+                  <div className="p-3">
+                    <p className="text-[9px] font-bold text-gray-400 mb-2">AGM Purchase (L1)</p>
+                    <p className="text-[11px] font-bold mb-1">{settings?.approvers?.l1 || "L1 Approver"}</p>
+                    <p className="text-[10px] text-gray-500 mb-4">{dateFor(po.approvalL1At, byp1, po.date)}</p>
+                    <div className="h-10 border-t border-dashed border-gray-200 mt-2 flex items-center justify-center">
+                      <StampCell approved={po.approvalL1 === "Approved"} approvedAt={po.approvalL1At} isBypassed={byp1} bypassDate={po.date} />
+                    </div>
+                  </div>
+                  <div className="p-3">
+                    <p className="text-[9px] font-bold text-gray-400 mb-2">Project Head / Head (L2)</p>
+                    <p className="text-[11px] font-bold mb-1">{settings?.approvers?.l2 || "L2 Approver"}</p>
+                    <p className="text-[10px] text-gray-500 mb-4">{dateFor(po.approvalL2At, byp2, po.approvalL1At)}</p>
+                    <div className="h-10 border-t border-dashed border-gray-200 mt-2 flex items-center justify-center">
+                      <StampCell approved={po.approvalL2 === "Approved"} approvedAt={po.approvalL2At} isBypassed={byp2} bypassDate={po.approvalL1At} />
+                    </div>
+                  </div>
+                  <div className="p-3">
+                    <p className="text-[9px] font-bold text-gray-400 mb-2">Director (L3)</p>
+                    <p className="text-[11px] font-bold mb-1">{settings?.approvers?.l3 || "L3 Approver"}</p>
+                    <p className="text-[10px] text-gray-500 mb-4">{dateFor(po.approvalL3At, byp3, po.approvalL2At)}</p>
+                    <div className="h-10 border-t border-dashed border-gray-200 mt-2 flex items-center justify-center">
+                      <StampCell approved={po.approvalL3 === "Approved"} approvedAt={po.approvalL3At} isBypassed={byp3} bypassDate={po.approvalL2At} />
+                    </div>
+                  </div>
+                </>;
+              })()}
             </div>
           </div>
 

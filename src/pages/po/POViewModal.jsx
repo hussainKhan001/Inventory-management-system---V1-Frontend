@@ -34,12 +34,20 @@ function calcItemTotal(item) {
   return calcItemBase(item) + calcItemGST(item);
 }
 
-function ApprovalStamp({ status, label }) {
+function ApprovalStamp({ status }) {
   if (status === "Approved") {
     return (
       <div className="flex flex-col items-center">
         <div className="text-emerald-500 font-black text-[14px] border-2 border-emerald-500 px-2 py-0.5 rounded rotate-[-5deg] tracking-tighter opacity-80 mb-1">Approved</div>
         <span className="text-[7px] text-emerald-500/60 tracking-widest font-bold">Digitally signed</span>
+      </div>
+    );
+  }
+  if (status === "bypassed") {
+    return (
+      <div className="flex flex-col items-center">
+        <div className="text-orange-500 font-black text-[13px] border-2 border-orange-500 px-2 py-0.5 rounded rotate-[-5deg] tracking-tighter opacity-80 mb-1">Bypassed</div>
+        <span className="text-[7px] text-orange-400/70 tracking-widest font-bold">Auto-skipped</span>
       </div>
     );
   }
@@ -734,12 +742,24 @@ export function POViewModal({ po, onClose, onApproveL1, onApproveL2, onApproveL3
                   const rejectLevel = isRejected
                     ? (po.approvalL1 !== "Approved" ? 1 : po.approvalL2 !== "Approved" ? 2 : 3)
                     : -1;
+                  // Bypass: "Approved" with no human timestamp means it was auto-skipped.
+                  // Only show "Bypassed" stamp once the prior level has already been handled.
+                  const byp1 = po.approvalL1 === "Approved" && !po.approvalL1At;
+                  const byp2 = po.approvalL2 === "Approved" && !po.approvalL2At && po.approvalL1 === "Approved";
+                  const byp3 = po.approvalL3 === "Approved" && !po.approvalL3At && po.approvalL2 === "Approved";
+                  const getStamp = (approval, approvalAt, isBypassed, isRejLevel) => {
+                    if (isRejLevel) return "rejected";
+                    if (approval !== "Approved") return "pending";
+                    if (approvalAt) return "Approved";
+                    if (isBypassed) return "bypassed";
+                    return "pending"; // bypass not yet effective (prior level not done)
+                  };
                   return [
-                    { title: getApproverTitle(approverNames.purchaseCoordTitle, null, "PURCHASE COORDINATOR"), name: approverNames.purchaseCoord || "Purchase Coordinator", date: po.date, approval: "Initiated", color: "blue" },
-                    { title: getApproverTitle(approverNames.l1Title, "L1", "AGM PURCHASE (L1)"), name: approverNames.l1 || "L1 Approver", date: po.approvalL1At, approval: po.approvalL1 },
-                    { title: getApproverTitle(approverNames.l2Title, "L2", "PROJECT HEAD (L2)"), name: approverNames.l2 || "L2 Approver", date: po.approvalL2At, approval: po.approvalL2 },
-                    { title: getApproverTitle(approverNames.l3Title, "L3", "DIRECTOR (L3)"), name: approverNames.l3 || "L3 Approver", date: po.approvalL3At, approval: po.approvalL3 },
-                  ].map((col, i) => ({ ...col, stampStatus: (isRejected && i === rejectLevel) ? "rejected" : col.approval === "Approved" ? "Approved" : "pending" }));
+                    { title: getApproverTitle(approverNames.purchaseCoordTitle, null, "PURCHASE COORDINATOR"), name: approverNames.purchaseCoord || "Purchase Coordinator", date: po.date, approval: "Initiated" },
+                    { title: getApproverTitle(approverNames.l1Title, "L1", "AGM PURCHASE (L1)"), name: approverNames.l1 || "L1 Approver", date: byp1 ? po.date : po.approvalL1At, approval: po.approvalL1, stampStatus: getStamp(po.approvalL1, po.approvalL1At, byp1, isRejected && rejectLevel === 1) },
+                    { title: getApproverTitle(approverNames.l2Title, "L2", "PROJECT HEAD (L2)"), name: approverNames.l2 || "L2 Approver", date: byp2 ? po.approvalL1At : po.approvalL2At, approval: po.approvalL2, stampStatus: getStamp(po.approvalL2, po.approvalL2At, byp2, isRejected && rejectLevel === 2) },
+                    { title: getApproverTitle(approverNames.l3Title, "L3", "DIRECTOR (L3)"), name: approverNames.l3 || "L3 Approver", date: byp3 ? po.approvalL2At : po.approvalL3At, approval: po.approvalL3, stampStatus: getStamp(po.approvalL3, po.approvalL3At, byp3, isRejected && rejectLevel === 3) },
+                  ].map((col, i) => col.stampStatus ? col : { ...col, stampStatus: i === 0 ? "initiated" : "pending" });
                 })().map((col, i) => (
                   <div key={i} className="flex flex-col text-[9px] divide-y divide-[#1A365D]">
                     <div className="p-2 bg-[#1A365D]/10 dark:bg-[#1A365D]/30 font-black text-center border-b border-[#1A365D]">{col.title}</div>

@@ -1002,7 +1002,7 @@ const SettingsPage = /* @__PURE__ */ __name(() => {
                         { label: "L2 — Project Head", key: "l2" },
                         { label: "L3 — Director",     key: "l3" },
                       ].map(({ label, key }) => (
-                        <div key={key}>
+                        <div key={key} className="space-y-1.5">
                           <label className="block text-[10px] font-bold text-gray-400 tracking-widest mb-1">{label}</label>
                           <CustomDropdown
                             options={[
@@ -1021,6 +1021,16 @@ const SettingsPage = /* @__PURE__ */ __name(() => {
                               updateCA({ [key]: u?.name || "", [`${key}Id`]: selectedId, [`${key}Title`]: title });
                             }}
                           />
+                          <label className="flex items-center justify-between px-1 cursor-pointer select-none mt-1">
+                            <span className="text-[10px] font-bold text-gray-400">Bypass {key.toUpperCase()}</span>
+                            <button
+                              type="button"
+                              onClick={() => updateCA({ [`bypass${key.toUpperCase()}`]: !ca[`bypass${key.toUpperCase()}`] })}
+                              className={`relative inline-flex h-4 w-8 items-center rounded-full transition-colors duration-200 focus:outline-none ${ca[`bypass${key.toUpperCase()}`] ? "bg-orange-500" : "bg-gray-300 dark:bg-gray-600"}`}
+                            >
+                              <span className={`inline-block h-3 w-3 transform rounded-full bg-white shadow transition-transform duration-200 ${ca[`bypass${key.toUpperCase()}`] ? "translate-x-4" : "translate-x-1"}`} />
+                            </button>
+                          </label>
                         </div>
                       ))}
                     </div>

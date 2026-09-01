@@ -1251,9 +1251,10 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
     }
 
     const isAutoApproved = totalValue <= settings.poThreshold;
-    const bypassL1 = !!settings.bypassApprovals?.l1;
-    const bypassL2 = !!settings.bypassApprovals?.l2;
-    const bypassL3 = !!settings.bypassApprovals?.l3;
+    const _companyCA = (settings.companyApprovers || []).find(x => x.companyName === newPO.companyName);
+    const bypassL1 = !!(_companyCA?.bypassL1 ?? settings.bypassApprovals?.l1);
+    const bypassL2 = !!(_companyCA?.bypassL2 ?? settings.bypassApprovals?.l2);
+    const bypassL3 = !!(_companyCA?.bypassL3 ?? settings.bypassApprovals?.l3);
     const allBypassed = bypassL1 && bypassL2 && bypassL3;
 
     let poStatus, initL1, initL2, initL3;
@@ -1263,9 +1264,9 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
     } else if (bypassL1 && bypassL2) {
       poStatus = "Pending L3"; initL1 = "Approved"; initL2 = "Approved"; initL3 = "Pending";
     } else if (bypassL1) {
-      poStatus = "Pending L2"; initL1 = "Approved"; initL2 = "Pending"; initL3 = bypassL3 ? "Approved" : "Pending";
+      poStatus = "Pending L2"; initL1 = "Approved"; initL2 = "Pending"; initL3 = "Pending";
     } else {
-      poStatus = "Pending L1"; initL1 = "Pending"; initL2 = bypassL2 ? "Approved" : "Pending"; initL3 = bypassL3 ? "Approved" : "Pending";
+      poStatus = "Pending L1"; initL1 = "Pending"; initL2 = "Pending"; initL3 = "Pending";
     }
 
     if (isEditing && newPO.id) {
@@ -1419,8 +1420,10 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
   const handleApproveL1 = /* @__PURE__ */ __name(async (id) => {
     setProcessingId(`approve-${id}`);
     try {
-      const bl2 = !!settings.bypassApprovals?.l2;
-      const bl3 = !!settings.bypassApprovals?.l3;
+      const _poForBypass = pos.find(p => p.id === id) || selectedPO;
+      const _caForBypass = (settings.companyApprovers || []).find(x => x.companyName === _poForBypass?.companyName);
+      const bl2 = !!(_caForBypass?.bypassL2 ?? settings.bypassApprovals?.l2);
+      const bl3 = !!(_caForBypass?.bypassL3 ?? settings.bypassApprovals?.l3);
       const nextStatus = bl2 ? (bl3 ? "GRN Pending" : "Pending L3") : "Pending L2";
       const updateData = {
         approvalL1: "Approved",
@@ -1471,7 +1474,9 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
   const handleApproveL2 = /* @__PURE__ */ __name(async (id) => {
     setProcessingId(`approve-${id}`);
     try {
-      const bl3 = !!settings.bypassApprovals?.l3;
+      const _poForBypass2 = pos.find(p => p.id === id) || selectedPO;
+      const _caForBypass2 = (settings.companyApprovers || []).find(x => x.companyName === _poForBypass2?.companyName);
+      const bl3 = !!(_caForBypass2?.bypassL3 ?? settings.bypassApprovals?.l3);
       const nextStatus = bl3 ? "GRN Pending" : "Pending L3";
       const updateData = {
         approvalL2: "Approved",
