@@ -1120,6 +1120,9 @@ const AppProvider = /* @__PURE__ */ __name(({ children }) => {
       const res = await api.post("grn", data);
       bustCache("pos");
       setGrns((prev) => [res.data, ...prev]);
+      if (data.poId && res.newPoStatus) {
+        patchPoInStore(data.poId, { status: res.newPoStatus });
+      }
       return res.data;
     } finally {
       setActionLoading(false);
@@ -1131,6 +1134,10 @@ const AppProvider = /* @__PURE__ */ __name(({ children }) => {
       const res = await api.post(`grn/${grnId}/receipt`, receiptData);
       bustCache("pos");
       setGrns((prev) => prev.map((g) => g.id === grnId ? { ...g, ...res.data.data || res.data } : g));
+      const poId = receiptData.poId || grns.find((g) => g.id === grnId)?.poId;
+      if (poId && res.newPoStatus) {
+        patchPoInStore(poId, { status: res.newPoStatus });
+      }
       return res.data;
     } finally {
       setActionLoading(false);

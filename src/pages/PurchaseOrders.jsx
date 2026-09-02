@@ -31,7 +31,6 @@ import {
   Pencil,
   Trash2,
   Link2,
-  RefreshCw,
   Download,
   TrendingUp,
   BarChart2,
@@ -1429,8 +1428,8 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
         approvalL1: "Approved",
         approvalL1At: /* @__PURE__ */ new Date().toISOString(),
         status: nextStatus,
-        ...(bl2 ? { approvalL2: "Approved" } : {}),
-        ...(bl3 ? { approvalL3: "Approved" } : {}),
+        ...(bl2 ? { approvalL2: "Approved" } : { approvalL2: "Pending", approvalL2At: null }),
+        ...(bl3 ? { approvalL3: "Approved" } : { approvalL3: "Pending", approvalL3At: null }),
       };
       await updatePO(id, updateData);
       if (selectedPO) setSelectedPO({ ...selectedPO, ...updateData });
@@ -1482,7 +1481,7 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
         approvalL2: "Approved",
         approvalL2At: /* @__PURE__ */ new Date().toISOString(),
         status: nextStatus,
-        ...(bl3 ? { approvalL3: "Approved" } : {}),
+        ...(bl3 ? { approvalL3: "Approved" } : { approvalL3: "Pending", approvalL3At: null }),
       };
       await updatePO(id, updateData);
       if (selectedPO) setSelectedPO({ ...selectedPO, ...updateData });
