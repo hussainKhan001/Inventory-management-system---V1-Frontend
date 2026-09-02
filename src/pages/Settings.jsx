@@ -867,6 +867,18 @@ const SettingsPage = /* @__PURE__ */ __name(() => {
                     <p className="text-[10px] text-amber-500 dark:text-amber-400 mt-1">Currently: "{settings.approvers.l1}" — select a user to enable dynamic permissions</p>
                   )}
                 </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-gray-500 dark:text-gray-400 tracking-widest mb-1">Slack Channel ID (for L1 approval messages)</label>
+                  <input
+                    type="text"
+                    placeholder="C0XXXXXXXXX"
+                    disabled={!isSuperAdmin}
+                    value={settings.approvers?.l1SlackChannelId || ""}
+                    onChange={e => setSettings({ ...settings, approvers: { ...settings.approvers, l1SlackChannelId: e.target.value.trim() } })}
+                    className="w-full px-3 py-1.5 text-[12px] rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 font-mono focus:outline-none focus:ring-1 focus:ring-orange-400 disabled:opacity-50"
+                  />
+                  <p className="text-[10px] text-gray-400 mt-0.5">Right-click Slack channel → Copy Channel ID</p>
+                </div>
                 <label className="flex items-center justify-between px-1 cursor-pointer select-none">
                   <span className="text-[11px] font-bold text-gray-500 dark:text-gray-400">Bypass L1 Approval</span>
                   <button
@@ -898,6 +910,18 @@ const SettingsPage = /* @__PURE__ */ __name(() => {
                     <p className="text-[10px] text-amber-500 dark:text-amber-400 mt-1">Currently: "{settings.approvers.l2}" — select a user to enable dynamic permissions</p>
                   )}
                 </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-gray-500 dark:text-gray-400 tracking-widest mb-1">Slack Channel ID (for L2 approval messages)</label>
+                  <input
+                    type="text"
+                    placeholder="C0XXXXXXXXX"
+                    disabled={!isSuperAdmin}
+                    value={settings.approvers?.l2SlackChannelId || ""}
+                    onChange={e => setSettings({ ...settings, approvers: { ...settings.approvers, l2SlackChannelId: e.target.value.trim() } })}
+                    className="w-full px-3 py-1.5 text-[12px] rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 font-mono focus:outline-none focus:ring-1 focus:ring-orange-400 disabled:opacity-50"
+                  />
+                  <p className="text-[10px] text-gray-400 mt-0.5">Right-click Slack channel → Copy Channel ID</p>
+                </div>
                 <label className="flex items-center justify-between px-1 cursor-pointer select-none">
                   <span className="text-[11px] font-bold text-gray-500 dark:text-gray-400">Bypass L2 Approval</span>
                   <button
@@ -928,6 +952,30 @@ const SettingsPage = /* @__PURE__ */ __name(() => {
                   {!settings.approvers?.l3Id && settings.approvers?.l3 && (
                     <p className="text-[10px] text-amber-500 dark:text-amber-400 mt-1">Currently: "{settings.approvers.l3}" — select a user to enable dynamic permissions</p>
                   )}
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-gray-500 dark:text-gray-400 tracking-widest mb-1">Slack Member ID (for approval DMs)</label>
+                  <input
+                    type="text"
+                    placeholder="U0XXXXXXXXX"
+                    disabled={!isSuperAdmin}
+                    value={settings.approvers?.l3SlackId || ""}
+                    onChange={e => setSettings({ ...settings, approvers: { ...settings.approvers, l3SlackId: e.target.value.trim() } })}
+                    className="w-full px-3 py-1.5 text-[12px] rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 font-mono focus:outline-none focus:ring-1 focus:ring-orange-400 disabled:opacity-50"
+                  />
+                  <p className="text-[10px] text-gray-400 mt-0.5">Right-click Slack profile → Copy Member ID</p>
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-gray-500 dark:text-gray-400 tracking-widest mb-1">Slack Channel ID (for L3 approval messages)</label>
+                  <input
+                    type="text"
+                    placeholder="C0XXXXXXXXX"
+                    disabled={!isSuperAdmin}
+                    value={settings.approvers?.l3SlackChannelId || ""}
+                    onChange={e => setSettings({ ...settings, approvers: { ...settings.approvers, l3SlackChannelId: e.target.value.trim() } })}
+                    className="w-full px-3 py-1.5 text-[12px] rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 font-mono focus:outline-none focus:ring-1 focus:ring-orange-400 disabled:opacity-50"
+                  />
+                  <p className="text-[10px] text-gray-400 mt-0.5">Right-click Slack channel → Copy Channel ID</p>
                 </div>
                 <label className="flex items-center justify-between px-1 cursor-pointer select-none">
                   <span className="text-[11px] font-bold text-gray-500 dark:text-gray-400">Bypass L3 Approval</span>
