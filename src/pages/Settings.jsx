@@ -194,6 +194,8 @@ const SettingsPage = /* @__PURE__ */ __name(() => {
     { value: "GRN",          label: "GRN",                  cls: "bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400" },
     { value: "Inventory",    label: "Inventory",            cls: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400" },
     { value: "Inward",       label: "Inward",               cls: "bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-400" },
+    { value: "Outward",      label: "Outward",              cls: "bg-fuchsia-100 text-fuchsia-700 dark:bg-fuchsia-900/30 dark:text-fuchsia-400" },
+    { value: "PendingMR",    label: "Pending MR Report",    cls: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400" },
     { value: "Quotation",    label: "Quotations",           cls: "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400" },
     { value: "PO-Report",    label: "PO Report",            cls: "bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400" },
     { value: "Accounts",     label: "Accounts",             cls: "bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400" },
