@@ -137,7 +137,8 @@ const AppProvider = /* @__PURE__ */ __name(({ children }) => {
     },
     bypassApprovals: { l1: false, l2: false, l3: false },
     stores: [],
-    slaConfig: null
+    slaConfig: null,
+    autoReorder: { enabled: false, staleRateDays: 90 }
   });
   const [gstRates, setGstRates] = useState([]);
   const fetchGSTRates = /* @__PURE__ */ __name(async () => {
@@ -555,6 +556,7 @@ const AppProvider = /* @__PURE__ */ __name(({ children }) => {
                 reportAutomations: Array.isArray(serverData.reportAutomations) ? serverData.reportAutomations : prev.reportAutomations ?? [],
                 companyApprovers: Array.isArray(serverData.companyApprovers) ? serverData.companyApprovers : prev.companyApprovers ?? [],
                 companyBankDetails: serverData.companyBankDetails ?? prev.companyBankDetails ?? {},
+                autoReorder: serverData.autoReorder ?? prev.autoReorder ?? { enabled: false, staleRateDays: 90 },
               };
               const isEmpty = !serverData.projects?.length && !serverData.requesters?.length && !serverData.categories?.length && !serverData.units?.length && !serverData.workTypes?.length && !serverData.companies?.length;
               if (resource === "settings" && isEmpty) {

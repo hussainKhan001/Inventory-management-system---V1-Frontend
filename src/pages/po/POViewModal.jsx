@@ -117,10 +117,25 @@ export function POViewModal({ po, onClose, onApproveL1, onApproveL2, onApproveL3
   const [rejectRevisionReason, setRejectRevisionReason] = useState("");
   // Defer heavy sections (price comparison, timelines) until after first paint
   const [heavyReady, setHeavyReady] = useState(false);
+  const [reorderRule, setReorderRule] = useState(null);
 
   useEffect(() => {
     setLocalStatus(po.status || "");
   }, [po.status]);
+
+  // Auto-Reorder POs: fetch the rule so we can show a "rate not reviewed in N days" warning
+  useEffect(() => {
+    if (po.source !== "Auto-Reorder" || !po.items?.[0]?.sku) { setReorderRule(null); return; }
+    api.get(`reorder-rules/${po.items[0].sku}`)
+      .then((res) => setReorderRule(res.success ? res.data : null))
+      .catch(() => setReorderRule(null));
+  }, [po.source, po.items]);
+
+  const staleRateDays = (() => {
+    if (!reorderRule?.lastReviewedDate) return null;
+    return Math.floor((Date.now() - new Date(reorderRule.lastReviewedDate).getTime()) / 86400000);
+  })();
+  const isStaleRate = staleRateDays !== null && staleRateDays > (settings.autoReorder?.staleRateDays ?? 90);
 
   useEffect(() => {
     setHeavyReady(false);
@@ -187,8 +202,8 @@ export function POViewModal({ po, onClose, onApproveL1, onApproveL2, onApproveL3
 
   if (!po) return null;
 
-  const poMR = (materialRequirements || []).find(m => m.id === po.mrId || m.mrNumber === po.mrId);
-  const mrLocation = poMR ? (poMR.location || poMR.site || poMR.address || "") : "";
+  const poMR = po.mrId ? (materialRequirements || []).find(m => m.id === po.mrId || m.mrNumber === po.mrId) : null;
+  const mrLocation = poMR ? (poMR.location || poMR.site || poMR.address || "") : (po.location || po.project || "");
   const mrPurpose = poMR?.purpose || "";
 
   const _normId = (str) => (str || "").replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
@@ -371,6 +386,20 @@ export function POViewModal({ po, onClose, onApproveL1, onApproveL2, onApproveL3
     <>
     <Modal title={`Purchase Order Details - ${po.id}`} extraWide onClose={onClose} footer={footerButtons}>
       <div id="printable-po" className="p-1 sm:p-2 bg-white dark:bg-gray-900 text-[#1A365D] dark:text-gray-200 font-sans">
+
+        {/* Auto-Reorder source + stale-rate badges */}
+        {po.source === "Auto-Reorder" && (
+          <div className="no-print mb-4 flex flex-wrap items-center gap-2">
+            <span className="inline-flex items-center gap-1 text-[10px] font-black px-2 py-0.5 rounded-md border bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-500/30">
+              AUTO REORDER
+            </span>
+            {isStaleRate && (
+              <span className="inline-flex items-center gap-1 text-[10px] font-black px-2 py-0.5 rounded-md border bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-200 dark:border-amber-500/30">
+                <AlertTriangle className="w-3 h-3" /> Rate not reviewed in {staleRateDays} days
+              </span>
+            )}
+          </div>
+        )}
 
         {/* Cancellation banner */}
         {showCloseConfirm && (
@@ -755,7 +784,7 @@ export function POViewModal({ po, onClose, onApproveL1, onApproveL2, onApproveL3
                     return "pending"; // bypass not yet effective (prior level not done)
                   };
                   return [
-                    { title: getApproverTitle(approverNames.purchaseCoordTitle, null, "PURCHASE COORDINATOR"), name: approverNames.purchaseCoord || "Purchase Coordinator", date: po.date, approval: "Initiated" },
+                    { title: getApproverTitle(approverNames.purchaseCoordTitle, null, "PURCHASE COORDINATOR"), name: po.source === "Auto-Reorder" ? "System (Auto-Reorder)" : (approverNames.purchaseCoord || "Purchase Coordinator"), date: po.date, approval: "Initiated" },
                     { title: getApproverTitle(approverNames.l1Title, "L1", "AGM PURCHASE (L1)"), name: approverNames.l1 || "L1 Approver", date: byp1 ? po.date : po.approvalL1At, approval: po.approvalL1, stampStatus: getStamp(po.approvalL1, po.approvalL1At, byp1, isRejected && rejectLevel === 1) },
                     { title: getApproverTitle(approverNames.l2Title, "L2", "PROJECT HEAD (L2)"), name: approverNames.l2 || "L2 Approver", date: byp2 ? po.approvalL1At : po.approvalL2At, approval: po.approvalL2, stampStatus: getStamp(po.approvalL2, po.approvalL2At, byp2, isRejected && rejectLevel === 2) },
                     { title: getApproverTitle(approverNames.l3Title, "L3", "DIRECTOR (L3)"), name: approverNames.l3 || "L3 Approver", date: byp3 ? po.approvalL2At : po.approvalL3At, approval: po.approvalL3, stampStatus: getStamp(po.approvalL3, po.approvalL3At, byp3, isRejected && rejectLevel === 3) },

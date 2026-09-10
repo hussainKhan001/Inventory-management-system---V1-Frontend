@@ -14,8 +14,8 @@ const POPreviewModal = /* @__PURE__ */ __name(({
 }) => {
   const { settings, materialRequirements } = useAppStore();
   if (!po) return null;
-  const poMR = (materialRequirements || []).find(m => m.id === po.mrId || m.mrNumber === po.mrId);
-  const mrLocation = poMR ? (poMR.location || poMR.site || poMR.address || "") : "";
+  const poMR = po.mrId ? (materialRequirements || []).find(m => m.id === po.mrId || m.mrNumber === po.mrId) : null;
+  const mrLocation = poMR ? (poMR.location || poMR.site || poMR.address || "") : (po.location || po.project || "");
   return <Modal
     title={`Purchase Order Details - ${po.id}`}
     ultraWide
@@ -297,7 +297,7 @@ const POPreviewModal = /* @__PURE__ */ __name(({
             <div className="grid grid-cols-1 sm:grid-cols-4 border border-[#1A365D] rounded-b-lg overflow-hidden divide-y sm:divide-y-0 sm:divide-x divide-[#1A365D]">
               <div className="p-3">
                 <p className="text-[9px] font-bold text-gray-400 mb-2">Purchase Coordinator</p>
-                <p className="text-[11px] font-bold mb-1">{settings?.approvers?.purchaseCoord || "Purchase Coordinator"}</p>
+                <p className="text-[11px] font-bold mb-1">{po.source === "Auto-Reorder" ? "System (Auto-Reorder)" : (settings?.approvers?.purchaseCoord || "Purchase Coordinator")}</p>
                 <p className="text-[10px] text-gray-500 mb-4">{formatPrettyDate(po.date)}</p>
                 <div className="h-10 border-t border-dashed border-gray-200 mt-2 flex items-center justify-center">
                   <div className="border border-blue-400 px-1 py-0.5 rounded rotate-[-2deg] opacity-70">

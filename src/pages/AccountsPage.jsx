@@ -2642,8 +2642,8 @@ const AccountsPage = /* @__PURE__ */ __name(() => {
             if (_dl.length >= 4 && (cD.startsWith(_dl) || oD.startsWith(_dl))) return true;
             return false;
           });
-          const poMR = (materialRequirements || []).find(m => m.id === selectedPO.mrId || m.mrNumber === selectedPO.mrId);
-          const mrLoc = poMR ? (poMR.location || poMR.site || poMR.address || "") : "";
+          const poMR = selectedPO.mrId ? (materialRequirements || []).find(m => m.id === selectedPO.mrId || m.mrNumber === selectedPO.mrId) : null;
+          const mrLoc = poMR ? (poMR.location || poMR.site || poMR.address || "") : (selectedPO.location || selectedPO.project || "");
           generatePOPDF({...selectedPO, mrLocation: mrLoc}, sup, settings);
         };
 

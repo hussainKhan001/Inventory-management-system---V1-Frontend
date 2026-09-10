@@ -2,7 +2,7 @@ var __defProp = Object.defineProperty;
 var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
 import { useState, useRef, useEffect } from "react";
 import { useAppStore } from "../store";
-import { PageHeader, Card, Btn, Field, CustomDropdown } from "../components/ui";
+import { PageHeader, Card, Btn, Field, SField, CustomDropdown, Modal } from "../components/ui";
 import { FormBuilder } from "../components/FormBuilder";
 import {
   Settings as SettingsIcon,
@@ -28,6 +28,8 @@ import {
   CreditCard,
   Send,
   Zap,
+  RefreshCw,
+  AlertTriangle,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 const ListManager = /* @__PURE__ */ __name(({
@@ -175,6 +177,10 @@ const SettingsPage = /* @__PURE__ */ __name(() => {
     removeGSTRate,
     users,
     fetchUsers,
+    api,
+    inventory,
+    suppliers,
+    fetchResource,
   } = useAppStore();
   const isSuperAdmin = role === "Super Admin";
   const [activeTab, setActiveTab] = useState("branding");
@@ -288,6 +294,126 @@ const SettingsPage = /* @__PURE__ */ __name(() => {
     return `${String(h % 12 || 12).padStart(2, "0")}:${String(m).padStart(2, "0")} ${ap}`;
   };
   const mergeSlaForm = (patch) => setSlaForm((prev) => ({ ...prev, ...patch }));
+
+  // ── Auto-Reorder ──────────────────────────────────────────────────────────
+  const [autoReorderForm, setAutoReorderForm] = useState(() => ({
+    enabled: settings.autoReorder?.enabled || false,
+    staleRateDays: settings.autoReorder?.staleRateDays ?? 90,
+  }));
+  useEffect(() => {
+    setAutoReorderForm({
+      enabled: settings.autoReorder?.enabled || false,
+      staleRateDays: settings.autoReorder?.staleRateDays ?? 90,
+    });
+  }, [settings.autoReorder]);
+  const saveAutoReorderConfig = async (patch) => {
+    const next = { ...autoReorderForm, ...patch };
+    setAutoReorderForm(next);
+    try { await saveSettings({ autoReorder: next }); }
+    catch (err) { toast.error(`Failed to save: ${err.message}`); }
+  };
+
+  const [reorderRules, setReorderRules] = useState([]);
+  const [loadingRules, setLoadingRules] = useState(false);
+  const fetchReorderRules = async () => {
+    setLoadingRules(true);
+    try {
+      const res = await api.get("reorder-rules");
+      if (res.success) setReorderRules(res.data);
+    } catch (err) { toast.error("Failed to load reorder rules"); }
+    finally { setLoadingRules(false); }
+  };
+  const [loadingItemPicker, setLoadingItemPicker] = useState(false);
+  const reorderPickersFetchedRef = useRef(false);
+  useEffect(() => {
+    if (activeTab !== "reorder-rules") return;
+    fetchReorderRules();
+    // Fetch the full inventory/supplier lists once per visit to Settings, not on every
+    // tab switch back to this one — the inventory list is large and slow to refetch.
+    if (!reorderPickersFetchedRef.current) {
+      reorderPickersFetchedRef.current = true;
+      setLoadingItemPicker(true);
+      Promise.all([
+        fetchResource("inventory", 1, 5000, true),
+        fetchResource("suppliers", 1, 5000, true),
+      ]).finally(() => setLoadingItemPicker(false));
+    }
+  }, [activeTab]);
+
+  const emptyRule = { sku: "", companyName: "", thresholdQty: "", reorderQty: "", vendor: "", rate: "", gstPct: "", gstType: "Exclusive" };
+  const [newRule, setNewRule] = useState(emptyRule);
+  const mergeNewRule = (patch) => setNewRule((prev) => ({ ...prev, ...patch }));
+
+  const addReorderRule = async () => {
+    if (!newRule.sku) { toast.error("Select an item"); return; }
+    if (!newRule.companyName) { toast.error("Select a company"); return; }
+    if (!newRule.vendor) { toast.error("Select a vendor"); return; }
+    if (!newRule.thresholdQty || !newRule.reorderQty || !newRule.rate) { toast.error("Threshold qty, reorder qty and rate are required"); return; }
+    const invItem = inventory.find((i) => i.sku === newRule.sku);
+    try {
+      const res = await api.post("reorder-rules", {
+        ...newRule,
+        itemName: invItem?.itemName || "",
+        thresholdQty: Number(newRule.thresholdQty),
+        reorderQty: Number(newRule.reorderQty),
+        rate: Number(newRule.rate),
+        gstPct: Number(newRule.gstPct) || 0,
+      });
+      setReorderRules((prev) => [res.data, ...prev]);
+      setNewRule(emptyRule);
+      toast.success("Reorder rule added");
+    } catch (err) { toast.error(err.message); }
+  };
+
+  const [editingRuleSku, setEditingRuleSku] = useState(null);
+  const [editRuleForm, setEditRuleForm] = useState({});
+  const mergeEditRule = (patch) => setEditRuleForm((prev) => ({ ...prev, ...patch }));
+  const startEditRule = (rule) => {
+    setEditingRuleSku(rule.sku);
+    setEditRuleForm({
+      companyName: rule.companyName, thresholdQty: rule.thresholdQty, reorderQty: rule.reorderQty,
+      vendor: rule.vendor, rate: rule.rate, gstPct: rule.gstPct, gstType: rule.gstType,
+    });
+  };
+  const saveEditRule = async () => {
+    try {
+      const res = await api.put("reorder-rules", editingRuleSku, {
+        ...editRuleForm,
+        thresholdQty: Number(editRuleForm.thresholdQty),
+        reorderQty: Number(editRuleForm.reorderQty),
+        rate: Number(editRuleForm.rate),
+        gstPct: Number(editRuleForm.gstPct) || 0,
+      });
+      setReorderRules((prev) => prev.map((r) => (r.sku === editingRuleSku ? res.data : r)));
+      setEditingRuleSku(null);
+      toast.success("Reorder rule updated");
+    } catch (err) { toast.error(err.message); }
+  };
+  const toggleRuleActive = async (rule) => {
+    try {
+      const res = await api.put("reorder-rules", rule.sku, { isActive: !rule.isActive });
+      setReorderRules((prev) => prev.map((r) => (r.sku === rule.sku ? res.data : r)));
+    } catch (err) { toast.error(err.message); }
+  };
+  const markRuleReviewed = async (sku) => {
+    try {
+      const res = await api.post(`reorder-rules/${sku}/review`);
+      setReorderRules((prev) => prev.map((r) => (r.sku === sku ? res.data : r)));
+      toast.success("Marked as reviewed");
+    } catch (err) { toast.error(err.message); }
+  };
+  const deleteReorderRule = async (sku) => {
+    try {
+      await api.delete("reorder-rules", sku);
+      setReorderRules((prev) => prev.filter((r) => r.sku !== sku));
+      toast.success("Reorder rule deleted");
+    } catch (err) { toast.error(err.message); }
+  };
+  const staleRuleDays = (rule) => {
+    if (!rule.lastReviewedDate) return null;
+    const days = Math.floor((Date.now() - new Date(rule.lastReviewedDate).getTime()) / 86400000);
+    return days;
+  };
 
   useEffect(() => {
     if ((activeTab === "approvers" || activeTab === "mr-report") && !users.length) fetchUsers();
@@ -450,6 +576,7 @@ const SettingsPage = /* @__PURE__ */ __name(() => {
     { id: "sla", label: "SLA & Tasks", icon: Clock },
     { id: "form-builder", label: "Form Builder", icon: Layout },
     { id: "mr-report", label: "Report Automation", icon: FileText },
+    { id: "reorder-rules", label: "Auto-Reorder", icon: RefreshCw },
   ].map((t) => <button
     key={t.id}
     onClick={() => setActiveTab(t.id)}
@@ -1798,6 +1925,192 @@ const SettingsPage = /* @__PURE__ */ __name(() => {
           }
         </Card>
       </div>}
+
+      {activeTab === "reorder-rules" && <div className="animate-in fade-in slide-in-from-bottom-4 duration-300 space-y-6">
+
+        {/* ── Master toggle ── */}
+        <Card className="p-6 space-y-5">
+          <h3 className="text-sm font-bold tracking-wider text-gray-400 flex items-center gap-2 border-b border-gray-100 dark:border-gray-800 pb-3">
+            <RefreshCw className="w-4 h-4 text-primary" /> Auto-Reorder on Low Stock
+          </h3>
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <p className="text-[13px] font-semibold text-gray-900 dark:text-white">Enable Auto-Reorder</p>
+              <p className="text-[11px] text-gray-400 mt-0.5">When ON, a PO auto-creates (same approval flow as a manual PO) whenever an item's stock plus what's already on order drops to/below its reorder rule threshold.</p>
+            </div>
+            <button onClick={() => saveAutoReorderConfig({ enabled: !autoReorderForm.enabled })}
+              className={`relative w-9 h-5 rounded-full transition-colors duration-200 focus:outline-none shrink-0 ${autoReorderForm.enabled ? "bg-primary" : "bg-gray-300 dark:bg-gray-600"}`}>
+              <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform duration-200 ${autoReorderForm.enabled ? "translate-x-4" : "translate-x-0"}`} />
+            </button>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Field
+              label="Warn if rate not reviewed in (days)"
+              type="number"
+              value={autoReorderForm.staleRateDays}
+              onChange={(e) => setAutoReorderForm((p) => ({ ...p, staleRateDays: e.target.value }))}
+              onBlur={() => saveAutoReorderConfig({ staleRateDays: Number(autoReorderForm.staleRateDays) || 90 })}
+            />
+          </div>
+        </Card>
+
+        {/* ── Add New Rule ── */}
+        <Card className="p-6 space-y-5">
+          <h3 className="text-sm font-bold tracking-wider text-gray-400 flex items-center gap-2 border-b border-gray-100 dark:border-gray-800 pb-3">
+            <Zap className="w-4 h-4 text-primary" /> New Reorder Rule
+          </h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <SField
+              label="Item (SKU)"
+              value={newRule.sku}
+              onChange={(e) => mergeNewRule({ sku: e.target.value })}
+              options={inventory.map((i) => ({ value: i.sku, label: i.itemName, subLabel: `${i.sku} — Live: ${i.liveStock ?? 0}` }))}
+              placeholder={loadingItemPicker ? "Loading items…" : "Select item..."}
+              disabled={loadingItemPicker}
+              helperText={loadingItemPicker ? "Loading inventory items — this can take a few seconds the first time." : undefined}
+              required
+            />
+            <div className="space-y-1.5">
+              <label className="block text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Company</label>
+              <CustomDropdown
+                options={(settings.companies || []).map((c) => ({ value: c.name, label: c.name }))}
+                value={newRule.companyName}
+                onChange={(v) => mergeNewRule({ companyName: v })}
+              />
+            </div>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <label className="block text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Vendor</label>
+              <CustomDropdown
+                options={suppliers.map((s) => ({ value: s.id, label: s.companyName }))}
+                value={newRule.vendor}
+                onChange={(v) => mergeNewRule({ vendor: v })}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="block text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">GST Type</label>
+              <CustomDropdown
+                options={[{ value: "Exclusive", label: "Exclusive" }, { value: "Inclusive", label: "Inclusive" }]}
+                value={newRule.gstType}
+                onChange={(v) => mergeNewRule({ gstType: v })}
+              />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            <Field label="Threshold Qty" type="number" value={newRule.thresholdQty} onChange={(e) => mergeNewRule({ thresholdQty: e.target.value })} required />
+            <Field label="Reorder Qty" type="number" value={newRule.reorderQty} onChange={(e) => mergeNewRule({ reorderQty: e.target.value })} required />
+            <Field label="Rate (₹)" type="number" value={newRule.rate} onChange={(e) => mergeNewRule({ rate: e.target.value })} required />
+            <Field label="GST %" type="number" value={newRule.gstPct} onChange={(e) => mergeNewRule({ gstPct: e.target.value })} />
+          </div>
+          <Btn label="Add Reorder Rule" icon={Plus} onClick={addReorderRule} />
+        </Card>
+
+        {/* ── Active Rules ── */}
+        <Card className="p-6 space-y-4">
+          <h3 className="text-sm font-bold tracking-wider text-gray-400 flex items-center gap-2 border-b border-gray-100 dark:border-gray-800 pb-3">
+            <AlarmClock className="w-4 h-4 text-primary" />
+            Reorder Rules
+            {reorderRules.length > 0 && <span className="ml-1 text-[11px] font-semibold text-primary bg-primary/10 px-2 py-0.5 rounded-full">{reorderRules.length}</span>}
+          </h3>
+
+          {loadingRules
+            ? <p className="text-[13px] text-gray-400 text-center py-6">Loading...</p>
+            : reorderRules.length === 0
+              ? <p className="text-[13px] text-gray-400 text-center py-6">No reorder rules yet — add one above.</p>
+              : reorderRules.map((rule) => {
+                  const vendor = suppliers.find((s) => s.id === rule.vendor);
+                  const days = staleRuleDays(rule);
+                  const isStale = days !== null && days > (settings.autoReorder?.staleRateDays ?? 90);
+                  return (
+                    <div key={rule.sku} className="p-4 border border-gray-200 dark:border-gray-700 rounded-xl bg-gray-50/50 dark:bg-gray-800/30 space-y-3">
+                      <div className="flex items-center gap-3 flex-wrap">
+                        <span className="text-[11px] font-bold px-2.5 py-1 rounded-lg shrink-0 bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-400">{rule.sku}</span>
+
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[13px] font-semibold text-gray-900 dark:text-white">{rule.itemName || rule.sku}</p>
+                          <p className="text-[11px] text-gray-400 mt-0.5">
+                            {rule.companyName} &nbsp;·&nbsp; Reorder {rule.reorderQty} when ≤ {rule.thresholdQty} &nbsp;·&nbsp; {vendor?.companyName || rule.vendor} &nbsp;·&nbsp; ₹{rule.rate} ({rule.gstPct || 0}% {rule.gstType})
+                          </p>
+                          {isStale && (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-black px-2 py-0.5 rounded-md border bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-200 dark:border-amber-500/30 mt-1.5">
+                              <AlertTriangle className="w-3 h-3" /> Rate not reviewed in {days} days
+                            </span>
+                          )}
+                        </div>
+
+                        <button onClick={() => toggleRuleActive(rule)}
+                          className={`relative w-9 h-5 rounded-full transition-colors duration-200 focus:outline-none shrink-0 ${rule.isActive ? "bg-primary" : "bg-gray-300 dark:bg-gray-600"}`}>
+                          <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform duration-200 ${rule.isActive ? "translate-x-4" : "translate-x-0"}`} />
+                        </button>
+
+                        <button onClick={() => markRuleReviewed(rule.sku)} title="Mark rate as reviewed today"
+                          className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-semibold border border-gray-200 dark:border-gray-600 rounded-lg text-gray-600 dark:text-gray-300 hover:border-primary hover:text-primary transition-colors shrink-0">
+                          <Check className="w-3 h-3" /> Reviewed
+                        </button>
+                        <button onClick={() => startEditRule(rule)} title="Edit" className="p-1.5 text-gray-400 hover:text-primary transition-colors rounded-lg hover:bg-primary/10 shrink-0">
+                          <Pencil className="w-4 h-4" />
+                        </button>
+                        <button onClick={() => deleteReorderRule(rule.sku)} title="Delete" className="p-1.5 text-gray-400 hover:text-red-500 transition-colors rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 shrink-0">
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })
+          }
+        </Card>
+      </div>}
+
+      {/* ── Edit Reorder Rule drawer ── */}
+      {editingRuleSku && (
+        <Modal
+          title={`Edit Reorder Rule — ${editingRuleSku}`}
+          icon={Pencil}
+          onClose={() => setEditingRuleSku(null)}
+          footer={
+            <div className="flex justify-end gap-2 w-full">
+              <Btn label="Cancel" outline onClick={() => setEditingRuleSku(null)} />
+              <Btn label="Save Changes" icon={Check} onClick={saveEditRule} />
+            </div>
+          }
+        >
+          <div className="space-y-5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <label className="block text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Company</label>
+                <CustomDropdown
+                  options={(settings.companies || []).map((c) => ({ value: c.name, label: c.name }))}
+                  value={editRuleForm.companyName}
+                  onChange={(v) => mergeEditRule({ companyName: v })}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className="block text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Vendor</label>
+                <CustomDropdown
+                  options={suppliers.map((s) => ({ value: s.id, label: s.companyName }))}
+                  value={editRuleForm.vendor}
+                  onChange={(v) => mergeEditRule({ vendor: v })}
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+              <Field label="Threshold Qty" type="number" value={editRuleForm.thresholdQty} onChange={(e) => mergeEditRule({ thresholdQty: e.target.value })} required />
+              <Field label="Reorder Qty" type="number" value={editRuleForm.reorderQty} onChange={(e) => mergeEditRule({ reorderQty: e.target.value })} required />
+              <Field label="Rate (₹)" type="number" value={editRuleForm.rate} onChange={(e) => mergeEditRule({ rate: e.target.value })} required />
+              <Field label="GST %" type="number" value={editRuleForm.gstPct} onChange={(e) => mergeEditRule({ gstPct: e.target.value })} />
+            </div>
+            <div className="w-full sm:w-1/2 sm:pr-2 space-y-1.5">
+              <label className="block text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">GST Type</label>
+              <CustomDropdown
+                options={[{ value: "Exclusive", label: "Exclusive" }, { value: "Inclusive", label: "Inclusive" }]}
+                value={editRuleForm.gstType}
+                onChange={(v) => mergeEditRule({ gstType: v })}
+              />
+            </div>
+          </div>
+        </Modal>
+      )}
     </div>;
 }, "SettingsPage");
 const DatabaseIcon = /* @__PURE__ */ __name((props) => <svg

@@ -94,7 +94,12 @@ const generatePOPDF = /* @__PURE__ */ __name((po, supplier, settings = {}, retur
   drawRow("Company Addr", po.companyAddress || "N.A., Gulmohar City, Near New Collectorate, New City Centre, Gwalior, MP, 474011", "Vendor Contact", String(po.vendorContact || supplier?.mobile || supplier?.phone || "NA"));
   drawRow("MR No.", po.mrId || "NA", "Vendor Email ID", po.vendorEmail || supplier?.email || "NA");
   drawRow("Work Type", po.workType || "NA", "Requirement By", po.requirementBy || "NA");
-  drawRow("MR Location", po.mrLocation || "NA", po.planId ? "Material Plan" : "", po.planId || "");
+  if (po.planId) {
+    drawRow("Project", po.project || "NA", "Material Plan", po.planId);
+    drawRow("MR Location", po.mrLocation || "NA", "", "");
+  } else {
+    drawRow("Project", po.project || "NA", "MR Location", po.mrLocation || "NA");
+  }
   drawRow("Priority", po.priority || "NORMAL", "Phase/Milestone", po.phase || po.milestone || "NA");
   drawRow("Date of Issue", formatPrettyDate(po.date), "Vendor PAN", po.panNo || supplier?.panNumber || "NA");
   if (po.justification) {
@@ -336,7 +341,7 @@ const generatePOPDF = /* @__PURE__ */ __name((po, supplier, settings = {}, retur
   const sigCols = [
     {
       title: approvers.purchaseCoordTitle || "PURCHASE COORD",
-      name: approvers.purchaseCoord || "Purchase Coordinator",
+      name: po.source === "Auto-Reorder" ? "System (Auto-Reorder)" : (approvers.purchaseCoord || "Purchase Coordinator"),
       date: formatPrettyDate(po.date),
       status: "INITIATED",
       color: [22, 163, 74],

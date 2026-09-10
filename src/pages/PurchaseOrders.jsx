@@ -211,6 +211,23 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
 
   const [selectedPO, setSelectedPO] = useState(null);
 
+  // Reorder rules — only needed to show the "rate not reviewed in N days" warning on Auto-Reorder POs
+  const [reorderRulesBySku, setReorderRulesBySku] = useState({});
+  useEffect(() => {
+    if (!pos.some((p) => p.source === "Auto-Reorder")) return;
+    api.get("reorder-rules").then((res) => {
+      if (!res.success) return;
+      setReorderRulesBySku(Object.fromEntries(res.data.map((r) => [r.sku, r])));
+    }).catch(() => {});
+  }, [pos]);
+  const staleRateDaysFor = (po) => {
+    if (po.source !== "Auto-Reorder") return null;
+    const rule = reorderRulesBySku[po.items?.[0]?.sku];
+    if (!rule?.lastReviewedDate) return null;
+    const days = Math.floor((Date.now() - new Date(rule.lastReviewedDate).getTime()) / 86400000);
+    return days > (settings.autoReorder?.staleRateDays ?? 90) ? days : null;
+  };
+
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [closePOConfirm, setClosePOConfirm] = useState(null);
 
@@ -1626,8 +1643,8 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
       if (_dl.length >= 4 && (cD.startsWith(_dl) || oD.startsWith(_dl))) return true;
       return false;
     });
-    const poMR = (materialRequirements || []).find(m => m.id === po.mrId || m.mrNumber === po.mrId);
-    const mrLocation = poMR ? (poMR.location || poMR.site || poMR.address || "") : "";
+    const poMR = po.mrId ? (materialRequirements || []).find(m => m.id === po.mrId || m.mrNumber === po.mrId) : null;
+    const mrLocation = poMR ? (poMR.location || poMR.site || poMR.address || "") : (po.location || po.project || "");
     const blob = generatePOPDFBlob({...getEffectivePO(po), mrLocation}, supplier, settings);
     const filename = `${po.id}_PO.pdf`;
     try {
@@ -2031,6 +2048,16 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
                   ) : (
                     <StatusBadge status={po.status} accountStatus={po.accountStatus} />
                   )}
+                  {po.source === "Auto-Reorder" && (
+                    <span className="inline-flex items-center gap-1 text-[9px] font-black px-2 py-0.5 rounded-md bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 mt-1" title="Auto-created because live stock hit its reorder rule threshold">
+                      AUTO REORDER
+                    </span>
+                  )}
+                  {staleRateDaysFor(po) !== null && (
+                    <span className="inline-flex items-center gap-1 text-[9px] font-black px-2 py-0.5 rounded-md border bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-200 dark:border-amber-500/30 mt-1">
+                      <AlertTriangle className="w-2.5 h-2.5" /> Rate not reviewed in {staleRateDaysFor(po)}d
+                    </span>
+                  )}
                   {["Pending L1", "Pending L2", "Pending L3"].includes(po.status) && (() => {
                     const lvl = po.status === "Pending L1" ? "l1" : po.status === "Pending L2" ? "l2" : "l3";
                     const ca = (settings?.companyApprovers || []).find(c => c.companyName === po.companyName);
@@ -2175,6 +2202,11 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
                           {isNew && (
                             <span className="px-1.5 py-0.5 rounded text-[8px] font-black bg-orange-600 text-white animate-pulse">
                               NEW
+                            </span>
+                          )}{" "}
+                          {po.source === "Auto-Reorder" && (
+                            <span className="px-1.5 py-0.5 rounded text-[8px] font-black bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400" title="Auto-created because live stock hit its reorder rule threshold">
+                              AUTO REORDER
                             </span>
                           )}{" "}
                           <p className="text-[13px] font-bold text-gray-900 dark:text-white tracking-tight">
