@@ -7,7 +7,7 @@ import {
 import {
   Plus, Eye, Pencil, Trash2, User, MapPin, Building, Package,
   Check, Link2, CheckCircle, TrendingUp, AlertTriangle, FileText,
-  LayoutList, Table as TableIcon, Search, Download,
+  LayoutList, Table as TableIcon, Search, Download, History,
 } from "lucide-react";
 import { formatDateTime, safeStr, isNewItem } from "../utils";
 import { toast } from "react-hot-toast";
@@ -16,6 +16,7 @@ import { SearchFilter, DateRangePicker, SelectFilter, FilterRow } from "../compo
 import { Virtuoso } from "react-virtuoso";
 import { MRFormModal } from "./mr/MRFormModal";
 import { MRDetailModal } from "./mr/MRDetailModal";
+import { RecycleBinModal } from "../components/RecycleBinModal";
 
 const STATUS_OPTIONS = [
   { label: "Store Pending", value: "Store Pending" },
@@ -105,6 +106,7 @@ export function MaterialRequirementPage() {
 
   // Modal state
   const [modal, setModal] = useState(false);
+  const [showRecycleBin, setShowRecycleBin] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [successModal, setSuccessModal] = useState(null);
   const [viewModal, setViewModal] = useState(false);
@@ -407,6 +409,9 @@ export function MaterialRequirementPage() {
         actions={
           <div className="flex gap-2">
             <Btn label="Download Report" icon={Download} outline onClick={handleDownloadReport} />
+            {hasPermission("VIEW_RECYCLE_BIN_MATERIAL_REQUIREMENT") && (
+              <Btn label="Recycle Bin" icon={History} outline onClick={() => setShowRecycleBin(true)} />
+            )}
             {hasPermission("CREATE_MATERIAL_REQUIREMENT") && (
               <Btn label="New Requirement" icon={Plus} onClick={() => { setIsEditing(false); setSelectedRequirement(null); setModal(true); }} />
             )}
@@ -1262,6 +1267,19 @@ export function MaterialRequirementPage() {
           onConfirm={handleConfirmDelete}
           onCancel={() => setDeletingId(null)}
           loading={actionLoading}
+        />
+      )}
+
+      {/* Recycle bin */}
+      {showRecycleBin && (
+        <RecycleBinModal
+          resource="material-requirements"
+          restorePermission="RESTORE_MATERIAL_REQUIREMENT"
+          title="Material Requirements"
+          getLabel={(mr) => mr.mrNumber || mr.id}
+          getSubLabel={(mr) => `${mr.requesterName || "—"} · ${mr.project || "—"}`}
+          onClose={() => setShowRecycleBin(false)}
+          onChanged={() => fetchResource("material-requirements", 1, 2000, true, "", null, false, false, "", "", true)}
         />
       )}
 

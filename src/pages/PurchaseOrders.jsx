@@ -30,6 +30,7 @@ import {
   Eye,
   Pencil,
   Trash2,
+  History,
   Link2,
   Download,
   TrendingUp,
@@ -74,6 +75,8 @@ import { POMonthlyReport } from "./po/POMonthlyReport";
 import { POFormModal } from "./po/POFormModal";
 
 import { POViewModal } from "./po/POViewModal";
+
+import { RecycleBinModal } from "../components/RecycleBinModal";
 
 const PurchaseOrders = /* @__PURE__ */ __name(() => {
   const {
@@ -229,6 +232,7 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
   };
 
   const [deleteConfirm, setDeleteConfirm] = useState(null);
+  const [showRecycleBin, setShowRecycleBin] = useState(false);
   const [closePOConfirm, setClosePOConfirm] = useState(null);
 
   const [isEditing, setIsEditing] = useState(false);
@@ -1843,6 +1847,9 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
               outline
               onClick={() => setShowMonthly((v) => !v)}
             />{" "}
+            {hasPermission("VIEW_RECYCLE_BIN_PURCHASE_ORDER") && (
+              <Btn label="Recycle Bin" icon={History} outline onClick={() => setShowRecycleBin(true)} />
+            )}{" "}
             {hasPermission("CREATE_PURCHASE_ORDER") && (
               <Btn
                 label="Create PO"
@@ -2401,6 +2408,17 @@ const PurchaseOrders = /* @__PURE__ */ __name(() => {
           onConfirm={confirmDelete}
           onCancel={() => setDeleteConfirm(null)}
           loading={actionLoading}
+        />
+      )}{" "}
+      {showRecycleBin && (
+        <RecycleBinModal
+          resource="pos"
+          restorePermission="RESTORE_PURCHASE_ORDER"
+          title="Purchase Orders"
+          getLabel={(po) => po.id}
+          getSubLabel={(po) => `${po.supplier || "—"} · ${po.companyName || "—"}`}
+          onClose={() => setShowRecycleBin(false)}
+          onChanged={() => fetchResource("pos", page)}
         />
       )}{" "}
       {closePOConfirm && (

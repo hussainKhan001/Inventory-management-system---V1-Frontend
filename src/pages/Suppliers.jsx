@@ -16,7 +16,8 @@ import {
   ImageUpload,
   Skeleton
 } from "../components/ui";
-import { Plus, CheckCircle2, AlertCircle, Eye, Pencil, Trash2, Search, Building2, Banknote, FileDown } from "lucide-react";
+import { Plus, CheckCircle2, AlertCircle, Eye, Pencil, Trash2, Search, Building2, Banknote, FileDown, History } from "lucide-react";
+import { RecycleBinModal } from "../components/RecycleBinModal";
 import { scrollToError, formatAccountNo, safeStr } from "../utils";
 import { TableVirtuoso } from "react-virtuoso";
 import { cn } from "../lib/utils";
@@ -72,6 +73,7 @@ const Suppliers = /* @__PURE__ */ __name(() => {
   };
   const [modal, setModal] = useState(false);
   const [viewModal, setViewModal] = useState(false);
+  const [showRecycleBin, setShowRecycleBin] = useState(false);
   const [selectedSupplier, setSelectedSupplier] = useState(null);
   const [section, setSection] = useState(1);
   const [error, setError] = useState("");
@@ -262,6 +264,12 @@ const Suppliers = /* @__PURE__ */ __name(() => {
         <FileDown className="w-4 h-4" />
         {pdfLoading ? "Generating…" : "Download PDF"}
       </button>
+      {hasPermission("VIEW_RECYCLE_BIN_SUPPLIER") && <Btn
+        label="Recycle Bin"
+        icon={History}
+        outline
+        onClick={() => setShowRecycleBin(true)}
+      />}
       {hasPermission("CREATE_SUPPLIER") && <Btn
         label="Add Supplier"
         icon={Plus}
@@ -723,6 +731,17 @@ const Suppliers = /* @__PURE__ */ __name(() => {
     onCancel={() => setDeletingId(null)}
     loading={actionLoading}
   />}
+      {showRecycleBin && (
+        <RecycleBinModal
+          resource="suppliers"
+          restorePermission="RESTORE_SUPPLIER"
+          title="Suppliers"
+          getLabel={(s) => s.companyName || s.id}
+          getSubLabel={(s) => `${s.ownerName || "—"} · ${s.mobile || "—"}`}
+          onClose={() => setShowRecycleBin(false)}
+          onChanged={() => fetchResource("suppliers", 1, 50, true, search)}
+        />
+      )}
     </div>;
 }, "Suppliers");
 export {

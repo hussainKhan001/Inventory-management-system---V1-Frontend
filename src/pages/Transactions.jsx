@@ -4,7 +4,8 @@ import React, { useState, useEffect, useRef, useMemo } from "react";
 import { useAppStore } from "../store";
 import { PageHeader, Card, Btn, Modal, Field, SField, ConfirmModal, Badge, StatusBadge, Skeleton, SearchSelect, MultipleImageUpload, Th, Td } from "../components/ui";
 import { SearchFilter, DateRangePicker, SelectFilter, FilterRow } from "../components/ui/Filters";
-import { Plus, Camera, AlertCircle, Eye, Pencil, Trash2, ArrowRightLeft, ArrowUpRight, ArrowDownLeft, Loader2, X, FileText, Package, Clock } from "lucide-react";
+import { Plus, Camera, AlertCircle, Eye, Pencil, Trash2, ArrowRightLeft, ArrowUpRight, ArrowDownLeft, Loader2, X, FileText, Package, Clock, History } from "lucide-react";
+import { RecycleBinModal } from "../components/RecycleBinModal";
 import { TableVirtuoso } from "react-virtuoso";
 import { genId, scrollToError, formatDateTime } from "../utils";
 import { cn } from "../lib/utils";
@@ -83,6 +84,16 @@ const TransactionsPage = /* @__PURE__ */ __name(({ type }) => {
     "Public Transfer Outward": "outward"
   };
   const resourceName = type ? resourceMap[type] || "transactions" : "transactions";
+  // Recycle bin — only the 4 soft-delete-enabled resources; "transactions" (the unfiltered
+  // "All Transactions" view) has no bin of its own.
+  const recycleBinPermMap = {
+    "inward": "INWARD",
+    "outward": "OUTWARD",
+    "inward-returns": "INWARD_RETURN",
+    "outward-returns": "OUTWARD_RETURN",
+  };
+  const recycleBinPerm = recycleBinPermMap[resourceName];
+  const [showRecycleBin, setShowRecycleBin] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [startDate, setStartDate] = useState("");
@@ -538,19 +549,24 @@ const TransactionsPage = /* @__PURE__ */ __name(({ type }) => {
       <PageHeader
     title={type === "Inward" ? "Inward Transactions" : type === "Outward" ? "Outward & Material Issue" : type ? `${type} Transactions` : "All Transactions"}
     sub={type === "Inward" ? "Record of all materials received" : type === "Outward" ? "Issue materials to site locations" : "Manage inventory movements"}
-    actions={canCreate() && <Btn
-      label={type === "Inward" ? "Manual Inward" : type === "Outward" ? "Issue Material" : `New ${type || "Transaction"}`}
-      icon={Plus}
-      onClick={() => {
-        const isTransferOutward = (type || "Inward") === "Transfer Outward" || (type || "Inward") === "Public Transfer Outward";
-        setNewTransaction({
-          ...INITIAL_TRANSACTION,
-          type: type || "Inward",
-          gatePassNo: isTransferOutward ? genId("GP", Date.now() % 1e3) : ""
-        });
-        setModal(true);
-      }}
-    />}
+    actions={<div className="flex items-center gap-2">
+      {recycleBinPerm && hasPermission(`VIEW_RECYCLE_BIN_${recycleBinPerm}`) && (
+        <Btn label="Recycle Bin" icon={History} outline onClick={() => setShowRecycleBin(true)} />
+      )}
+      {canCreate() && <Btn
+        label={type === "Inward" ? "Manual Inward" : type === "Outward" ? "Issue Material" : `New ${type || "Transaction"}`}
+        icon={Plus}
+        onClick={() => {
+          const isTransferOutward = (type || "Inward") === "Transfer Outward" || (type || "Inward") === "Public Transfer Outward";
+          setNewTransaction({
+            ...INITIAL_TRANSACTION,
+            type: type || "Inward",
+            gatePassNo: isTransferOutward ? genId("GP", Date.now() % 1e3) : ""
+          });
+          setModal(true);
+        }}
+      />}
+    </div>}
   />
 
       <div className="mb-6 flex flex-col gap-3">
@@ -2149,6 +2165,17 @@ const TransactionsPage = /* @__PURE__ */ __name(({ type }) => {
     }}
     onCancel={() => setDeleteConfirm(null)}
   />}
+      {showRecycleBin && recycleBinPerm && (
+        <RecycleBinModal
+          resource={resourceName}
+          restorePermission={`RESTORE_${recycleBinPerm}`}
+          title={type || resourceName}
+          getLabel={(t) => t.id}
+          getSubLabel={(t) => `${t.type || ""} · ${t.project || t.store || "—"} · ${t.items?.length || 0} item(s)`}
+          onClose={() => setShowRecycleBin(false)}
+          onChanged={() => fetchResource(resourceName, page, 100, true, debouncedSearch, Object.keys(filter).length ? filter : null, page > 1, false, startDate, endDate)}
+        />
+      )}
     </div>;
 }, "TransactionsPage");
 export {

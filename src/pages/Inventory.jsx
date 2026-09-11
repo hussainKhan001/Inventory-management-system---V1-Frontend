@@ -15,7 +15,8 @@ import {
   Tr,
   Td
 } from "../components/ui";
-import { Plus, Eye, Pencil, Trash2, Package, Download } from "lucide-react";
+import { Plus, Eye, Pencil, Trash2, Package, Download, History } from "lucide-react";
+import { RecycleBinModal } from "../components/RecycleBinModal";
 import { scrollToError, safeStr } from "../utils";
 import toast from "react-hot-toast";
 import { cn } from "../lib/utils";
@@ -358,6 +359,7 @@ const Inventory = /* @__PURE__ */ __name(() => {
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [viewModal, setViewModal] = useState(null);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [showRecycleBin, setShowRecycleBin] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [isSkuManuallyEdited, setIsSkuManuallyEdited] = useState(false);
   const [filterProject, setFilterProject] = useState("");
@@ -669,6 +671,12 @@ const Inventory = /* @__PURE__ */ __name(() => {
       outline
       onClick={exportToExcel}
     />
+            {hasPermission("VIEW_RECYCLE_BIN_INVENTORY") && <Btn
+      label="Recycle Bin"
+      icon={History}
+      outline
+      onClick={() => setShowRecycleBin(true)}
+    />}
             {hasPermission("CREATE_INVENTORY") && <Btn
       label="Add Item"
       icon={Plus}
@@ -1087,6 +1095,18 @@ const Inventory = /* @__PURE__ */ __name(() => {
     onCancel={() => setDeleteConfirm(null)}
     loading={actionLoading}
   />}
+      {showRecycleBin && (
+        <RecycleBinModal
+          resource="inventory"
+          restorePermission="RESTORE_INVENTORY"
+          idField="sku"
+          title="Inventory"
+          getLabel={(i) => i.itemName || i.sku}
+          getSubLabel={(i) => `${i.sku} · ${i.category || "—"}`}
+          onClose={() => setShowRecycleBin(false)}
+          onChanged={() => fetchResource("inventory", page, 50, true, debouncedSearch, Object.keys(filter).length > 0 ? filter : null, page > 1)}
+        />
+      )}
     </div>;
 }, "Inventory");
 var stdin_default = Inventory;

@@ -6,9 +6,10 @@ import {
 } from "../components/ui";
 import { FilterRow, SearchFilter, SelectFilter } from "../components/ui/Filters";
 import {
-  Plus, Eye, Pencil, Trash2, ThumbsUp, ThumbsDown, XCircle, Package,
+  Plus, Eye, Pencil, Trash2, ThumbsUp, ThumbsDown, XCircle, Package, History,
 } from "lucide-react";
 import toast from "react-hot-toast";
+import { RecycleBinModal } from "../components/RecycleBinModal";
 
 const MPO_STATUS_COLORS = {
   Draft: "gray",
@@ -88,6 +89,7 @@ export function MasterPOPage() {
 
   // MPO Modal
   const [mpoModal, setMpoModal] = useState(false);
+  const [showRecycleBin, setShowRecycleBin] = useState(false);
   const [editingMpo, setEditingMpo] = useState(null);
   const [viewMpo, setViewMpo] = useState(null);
   const [deletingMpoId, setDeletingMpoId] = useState(null);
@@ -224,9 +226,15 @@ export function MasterPOPage() {
     <div className="p-4 space-y-4">
       <PageHeader
         title="Master PO"
-        subtitle="Master Purchase Orders & Extra Material Requests"
-        action={
+        sub="Master Purchase Orders & Extra Material Requests"
+        actions={
           <div className="flex gap-2">
+            {tab === "mpo" && hasPermission("VIEW_RECYCLE_BIN_MASTER_PO") && (
+              <Btn onClick={() => setShowRecycleBin(true)} icon={History} outline label="Recycle Bin" />
+            )}
+            {tab === "emr" && hasPermission("VIEW_RECYCLE_BIN_EMR") && (
+              <Btn onClick={() => setShowRecycleBin(true)} icon={History} outline label="Recycle Bin" />
+            )}
             {tab === "mpo" && canCreateMpo && (
               <Btn onClick={openCreateMpo} icon={Plus} label="New Master PO" />
             )}
@@ -601,6 +609,29 @@ export function MasterPOPage() {
       {deletingEmrId && <ConfirmModal onCancel={() => setDeletingEmrId(null)}
         onConfirm={async () => { await deleteEmr(deletingEmrId); setDeletingEmrId(null); }}
         title="Delete EMR" message="Delete this EMR?" loading={actionLoading} />}
+
+      {showRecycleBin && tab === "mpo" && (
+        <RecycleBinModal
+          resource="master-pos"
+          restorePermission="RESTORE_MASTER_PO"
+          title="Master POs"
+          getLabel={(m) => m.id}
+          getSubLabel={(m) => `${m.project || "—"} · ${m.status || "—"}`}
+          onClose={() => setShowRecycleBin(false)}
+          onChanged={() => fetchResource("master-pos", page, 50, true, debouncedSearch, Object.keys(filter).length ? filter : null)}
+        />
+      )}
+      {showRecycleBin && tab === "emr" && (
+        <RecycleBinModal
+          resource="emr"
+          restorePermission="RESTORE_EMR"
+          title="Extra Material Requests"
+          getLabel={(e) => e.id}
+          getSubLabel={(e) => `${e.project || "—"} · ${e.status || "—"}`}
+          onClose={() => setShowRecycleBin(false)}
+          onChanged={() => fetchResource("emr", 1, 100, true)}
+        />
+      )}
     </div>
   );
 }

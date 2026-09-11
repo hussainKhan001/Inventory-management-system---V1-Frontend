@@ -29,7 +29,7 @@ const Profile = /* @__PURE__ */ __name(() => {
     }
   }, "handlePasswordChange");
   if (!user) return null;
-  return <div className="max-w-4xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+  return <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <PageHeader
     title="My Profile"
     sub="Manage your personal information and security settings"

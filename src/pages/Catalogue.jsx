@@ -12,8 +12,9 @@ import {
   ImageUpload,
   Skeleton
 } from "../components/ui";
-import { Plus, Search, Image as ImageIcon, Check, Pencil, Trash2, LayoutList, Table as TableIcon } from "lucide-react";
+import { Plus, Search, Image as ImageIcon, Check, Pencil, Trash2, LayoutList, Table as TableIcon, History } from "lucide-react";
 import { ConfirmModal } from "../components/ui";
+import { RecycleBinModal } from "../components/RecycleBinModal";
 import { cn } from "../lib/utils";
 import { scrollToError, safeStr } from "../utils";
 const Catalogue = /* @__PURE__ */ __name(() => {
@@ -75,6 +76,7 @@ const Catalogue = /* @__PURE__ */ __name(() => {
     return () => observer.disconnect();
   }, [cataloguePagination, page, loading]);
   const [modal, setModal] = useState(false);
+  const [showRecycleBin, setShowRecycleBin] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [selectedEntry, setSelectedEntry] = useState(null);
   const [deletingSku, setDeletingSku] = useState(null);
@@ -198,22 +200,25 @@ const Catalogue = /* @__PURE__ */ __name(() => {
         <PageHeader
     title="Product Catalogue"
     sub="Detailed product specifications and images"
-    actions={hasPermission("CREATE_CATALOGUE") && <Btn label="Add Entry" icon={Plus} onClick={() => {
-      setIsEditing(false);
-      setNewEntry({
-        sku: "",
-        itemName: "",
-        brand: "",
-        description: "",
-        category: "",
-        uom: "",
-        location: "",
-        minStock: 0,
-        imageUrl: "",
-        status: "Draft"
-      });
-      setModal(true);
-    }} />}
+    actions={<div className="flex items-center gap-2">
+      {hasPermission("VIEW_RECYCLE_BIN_CATALOGUE") && <Btn label="Recycle Bin" icon={History} outline onClick={() => setShowRecycleBin(true)} />}
+      {hasPermission("CREATE_CATALOGUE") && <Btn label="Add Entry" icon={Plus} onClick={() => {
+        setIsEditing(false);
+        setNewEntry({
+          sku: "",
+          itemName: "",
+          brand: "",
+          description: "",
+          category: "",
+          uom: "",
+          location: "",
+          minStock: 0,
+          imageUrl: "",
+          status: "Draft"
+        });
+        setModal(true);
+      }} />}
+    </div>}
   />
 
         <div className="flex justify-end mb-2">
@@ -764,6 +769,18 @@ const Catalogue = /* @__PURE__ */ __name(() => {
     onCancel={() => setDeletingSku(null)}
     loading={actionLoading}
   />}
+      {showRecycleBin && (
+        <RecycleBinModal
+          resource="catalogue"
+          restorePermission="RESTORE_CATALOGUE"
+          idField="sku"
+          title="Catalogue"
+          getLabel={(c) => c.itemName || c.sku}
+          getSubLabel={(c) => `${c.sku} · ${c.category || "—"}`}
+          onClose={() => setShowRecycleBin(false)}
+          onChanged={() => fetchResource("catalogue", 1, 50, true, search, filter)}
+        />
+      )}
     </div>;
 }, "Catalogue");
 export {

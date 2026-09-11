@@ -1,10 +1,11 @@
 var __defProp = Object.defineProperty;
 var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
-import React, { useCallback, useEffect } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 import { useAppStore } from "../store";
 import { PageHeader, Card, StatusBadge, Btn, Pagination, ConfirmModal, Skeleton } from "../components/ui";
-import { Check, X, Trash2 } from "lucide-react";
+import { Check, X, Trash2, History } from "lucide-react";
 import { formatDateTime } from "../utils";
+import { RecycleBinModal } from "../components/RecycleBinModal";
 const WriteOffPage = /* @__PURE__ */ __name(() => {
   const {
     writeOffs,
@@ -19,6 +20,7 @@ const WriteOffPage = /* @__PURE__ */ __name(() => {
     actionLoading,
     hasPermission
   } = useAppStore();
+  const [showRecycleBin, setShowRecycleBin] = useState(false);
   useEffect(() => {
     fetchResource("writeoffs", 1);
   }, [fetchResource]);
@@ -54,6 +56,7 @@ const WriteOffPage = /* @__PURE__ */ __name(() => {
       <PageHeader
     title="Write-off Approvals"
     sub="Review and approve damaged or lost inventory write-offs"
+    actions={hasPermission("VIEW_RECYCLE_BIN_WRITE_OFF") && <Btn label="Recycle Bin" icon={History} outline onClick={() => setShowRecycleBin(true)} />}
   />
 
       <Card className="p-0 overflow-hidden border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900">
@@ -142,6 +145,17 @@ const WriteOffPage = /* @__PURE__ */ __name(() => {
     onCancel={() => setDeleteConfirm(null)}
     loading={actionLoading}
   />}
+      {showRecycleBin && (
+        <RecycleBinModal
+          resource="writeoffs"
+          restorePermission="RESTORE_WRITE_OFF"
+          title="Write-offs"
+          getLabel={(w) => w.id}
+          getSubLabel={(w) => `${w.itemName || w.sku || "—"} · Qty ${w.qty ?? "—"}`}
+          onClose={() => setShowRecycleBin(false)}
+          onChanged={() => fetchResource("writeoffs", 1)}
+        />
+      )}
     </div>;
 }, "WriteOffPage");
 export {

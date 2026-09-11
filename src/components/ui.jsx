@@ -223,6 +223,10 @@ const Field = React.memo(({
     </div>;
 });
 import { DatePicker as DatePicker2 } from "./ui/DatePicker";
+// Cap how many options SField actually renders as DOM nodes — huge lists (thousands of
+// inventory items etc.) were hanging the browser on open; search still filters the full set,
+// only the visible render is capped.
+const OPTION_RENDER_CAP = 150;
 const SField = React.memo(({
   label,
   value,
@@ -349,7 +353,7 @@ const SField = React.memo(({
   >
                       {placeholder || "Select..."}
                     </div>}
-                    {filteredOptions.map((opt, idx) => <div
+                    {filteredOptions.slice(0, OPTION_RENDER_CAP).map((opt, idx) => <div
     key={`${opt.value}-${idx}`}
     onClick={() => {
       onChange?.({ target: { value: opt.value, name: props.name } });
@@ -366,6 +370,11 @@ const SField = React.memo(({
                           {opt.subLabel && <span className="text-[10px] opacity-60 truncate mt-0.5">{opt.subLabel}</span>}
                         </div>
                       </div>)}
+                    {filteredOptions.length > OPTION_RENDER_CAP && (
+                      <div className="px-4 py-2 text-[11px] text-gray-400 italic text-center">
+                        Showing {OPTION_RENDER_CAP} of {filteredOptions.length} — keep typing to narrow down
+                      </div>
+                    )}
                   </>}
               </div>
             </motion.div>}

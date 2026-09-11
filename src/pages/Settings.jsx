@@ -1,6 +1,6 @@
 var __defProp = Object.defineProperty;
 var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { useAppStore } from "../store";
 import { PageHeader, Card, Btn, Field, SField, CustomDropdown, Modal } from "../components/ui";
 import { FormBuilder } from "../components/FormBuilder";
@@ -324,25 +324,31 @@ const SettingsPage = /* @__PURE__ */ __name(() => {
     finally { setLoadingRules(false); }
   };
   const [loadingItemPicker, setLoadingItemPicker] = useState(false);
-  const reorderPickersFetchedRef = useRef(false);
   useEffect(() => {
     if (activeTab !== "reorder-rules") return;
     fetchReorderRules();
-    // Fetch the full inventory/supplier lists once per visit to Settings, not on every
-    // tab switch back to this one — the inventory list is large and slow to refetch.
-    if (!reorderPickersFetchedRef.current) {
-      reorderPickersFetchedRef.current = true;
+    // Reuse whatever's already in the shared inventory/suppliers state (e.g. loaded when the
+    // Inventory/Suppliers page was visited) — only fetch here if that state is genuinely empty.
+    if (!inventory.length) {
       setLoadingItemPicker(true);
-      Promise.all([
-        fetchResource("inventory", 1, 5000, true),
-        fetchResource("suppliers", 1, 5000, true),
-      ]).finally(() => setLoadingItemPicker(false));
+      fetchResource("inventory", 1, 5000, true).finally(() => setLoadingItemPicker(false));
     }
+    if (!suppliers.length) fetchResource("suppliers", 1, 5000, true);
   }, [activeTab]);
 
   const emptyRule = { sku: "", companyName: "", thresholdQty: "", reorderQty: "", vendor: "", rate: "", gstPct: "", gstType: "Exclusive" };
   const [newRule, setNewRule] = useState(emptyRule);
   const mergeNewRule = (patch) => setNewRule((prev) => ({ ...prev, ...patch }));
+
+  // Memoized so opening the picker doesn't re-map thousands of items on every render
+  const inventoryItemOptions = useMemo(
+    () => inventory.map((i) => ({ value: i.sku, label: i.itemName, subLabel: `${i.sku} — Live: ${i.liveStock ?? 0}` })),
+    [inventory]
+  );
+  const supplierOptions = useMemo(
+    () => suppliers.map((s) => ({ value: s.id, label: s.companyName })),
+    [suppliers]
+  );
 
   const addReorderRule = async () => {
     if (!newRule.sku) { toast.error("Select an item"); return; }
@@ -544,7 +550,7 @@ const SettingsPage = /* @__PURE__ */ __name(() => {
       toast.error(`Failed to save settings: ${error.message}`);
     }
   }, "handleCommitSettings");
-  return <div className="space-y-6 max-w-6xl mx-auto pb-12">
+  return <div className="space-y-6 pb-12">
       <PageHeader
     title="Settings Hub"
     sub="Control look-and-feel, dynamic theme styling, compliance protocols, and master databases."
@@ -1730,7 +1736,7 @@ const SettingsPage = /* @__PURE__ */ __name(() => {
           </h3>
 
           {/* Module + Schedule + Range */}
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div className="space-y-1.5">
               <label className="block text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Module</label>
               <CustomDropdown
@@ -1749,7 +1755,7 @@ const SettingsPage = /* @__PURE__ */ __name(() => {
                 const upd = (nh, nm, na) => { let h = Number(nh); if (na === "PM" && h !== 12) h += 12; if (na === "AM" && h === 12) h = 0; mergeNewAuto({ scheduleTime: `${String(h).padStart(2,"0")}:${nm}` }); };
                 const hrs = Array.from({ length: 12 }, (_, i) => ({ value: String(i+1).padStart(2,"0"), label: String(i+1).padStart(2,"0") }));
                 const mns = ["00","05","10","15","20","25","30","35","40","45","50","55"].map(m => ({ value: m, label: m }));
-                return <div className="flex gap-1"><CustomDropdown options={hrs} value={h12} onChange={v => upd(v,min,ampm)} /><CustomDropdown options={mns} value={min} onChange={v => upd(h12,v,ampm)} /><CustomDropdown options={[{value:"AM",label:"AM"},{value:"PM",label:"PM"}]} value={ampm} onChange={v => upd(h12,min,v)} /></div>;
+                return <div className="grid grid-cols-3 gap-1"><CustomDropdown options={hrs} value={h12} onChange={v => upd(v,min,ampm)} /><CustomDropdown options={mns} value={min} onChange={v => upd(h12,v,ampm)} /><CustomDropdown options={[{value:"AM",label:"AM"},{value:"PM",label:"PM"}]} value={ampm} onChange={v => upd(h12,min,v)} /></div>;
               })()}
             </div>
             <div className="space-y-1.5">
@@ -1827,7 +1833,7 @@ const SettingsPage = /* @__PURE__ */ __name(() => {
                 const isTriggering = triggeringId === auto.id;
                 return (
                   <div key={auto.id} className="p-4 border border-gray-200 dark:border-gray-700 rounded-xl bg-gray-50/50 dark:bg-gray-800/30 space-y-3">
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-3 flex-wrap">
                       {/* Module badge */}
                       <span className={`text-[11px] font-bold px-2.5 py-1 rounded-lg shrink-0 ${mod.cls}`}>{auto.module}</span>
 
@@ -1964,7 +1970,7 @@ const SettingsPage = /* @__PURE__ */ __name(() => {
               label="Item (SKU)"
               value={newRule.sku}
               onChange={(e) => mergeNewRule({ sku: e.target.value })}
-              options={inventory.map((i) => ({ value: i.sku, label: i.itemName, subLabel: `${i.sku} — Live: ${i.liveStock ?? 0}` }))}
+              options={inventoryItemOptions}
               placeholder={loadingItemPicker ? "Loading items…" : "Select item..."}
               disabled={loadingItemPicker}
               helperText={loadingItemPicker ? "Loading inventory items — this can take a few seconds the first time." : undefined}
@@ -1983,7 +1989,7 @@ const SettingsPage = /* @__PURE__ */ __name(() => {
             <div className="space-y-1.5">
               <label className="block text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Vendor</label>
               <CustomDropdown
-                options={suppliers.map((s) => ({ value: s.id, label: s.companyName }))}
+                options={supplierOptions}
                 value={newRule.vendor}
                 onChange={(v) => mergeNewRule({ vendor: v })}
               />
@@ -2088,7 +2094,7 @@ const SettingsPage = /* @__PURE__ */ __name(() => {
               <div className="space-y-1.5">
                 <label className="block text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Vendor</label>
                 <CustomDropdown
-                  options={suppliers.map((s) => ({ value: s.id, label: s.companyName }))}
+                  options={supplierOptions}
                   value={editRuleForm.vendor}
                   onChange={(v) => mergeEditRule({ vendor: v })}
                 />

@@ -18,9 +18,11 @@ function _cacheKey(path, params) {
 }
 
 function _bust(path) {
-  // Remove leading slash and strip any trailing /:id segment so that
-  // "pos/abc123" and "pos" both bust the "pos" cache bucket.
-  const base = path.replace(/^\//, "").replace(/\/[^/]+$/, "");
+  // Resource root is always the first path segment — "pos", "pos/abc123",
+  // and "pos/abc123/restore" must all bust the same "pos" cache bucket.
+  // (Stripping only the last segment breaks on any 2+-level nested action
+  // path, e.g. restore/permanent-delete, leaving stale list data cached.)
+  const base = path.replace(/^\//, "").split("/")[0];
   for (const k of _cache.keys()) {
     if (k.startsWith(base) || k.startsWith("/" + base)) _cache.delete(k);
   }

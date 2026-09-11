@@ -29,7 +29,8 @@ import {
   Table as TableIcon,
   Search,
   RefreshCw,
-  Download
+  Download,
+  History
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { formatDate, fmt, safeStr, isNewItem } from "../utils";
@@ -39,6 +40,7 @@ import { cn } from "../lib/utils";
 import { Virtuoso } from "react-virtuoso";
 import { DatePicker } from "../components/ui/DatePicker";
 import { api, bustCache } from "../services/api";
+import { RecycleBinModal } from "../components/RecycleBinModal";
 const Quotations = /* @__PURE__ */ __name(() => {
   const {
     quotations,
@@ -127,6 +129,7 @@ const Quotations = /* @__PURE__ */ __name(() => {
   }, [fetchResource, debouncedSearch, filterCategory, filterSupplier, filterStatus, startDate, endDate]);
   const [viewModal, setViewModal] = useState(false);
   const [editModal, setEditModal] = useState(false);
+  const [showRecycleBin, setShowRecycleBin] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [selectedQuotation, setSelectedQuotation] = useState(null);
   const [activeMrId, setActiveMrId] = useState(null);
@@ -276,14 +279,26 @@ const Quotations = /* @__PURE__ */ __name(() => {
     title="Quotation Comparison"
     subtitle="Manage and compare supplier quotations separately for each category"
     actions={
-      <button
-        onClick={handleRefresh}
-        className="flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-medium text-gray-500 dark:text-gray-400 hover:text-primary dark:hover:text-primary border border-gray-200 dark:border-gray-700 rounded-lg hover:border-primary/40 transition-all"
-        title="Refresh quotations"
-      >
-        <RefreshCw className="w-3.5 h-3.5" />
-        Refresh
-      </button>
+      <div className="flex items-center gap-2">
+        <button
+          onClick={handleRefresh}
+          className="flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-medium text-gray-500 dark:text-gray-400 hover:text-primary dark:hover:text-primary border border-gray-200 dark:border-gray-700 rounded-lg hover:border-primary/40 transition-all"
+          title="Refresh quotations"
+        >
+          <RefreshCw className="w-3.5 h-3.5" />
+          Refresh
+        </button>
+        {hasPermission("VIEW_RECYCLE_BIN_QUOTATION") && (
+          <button
+            onClick={() => setShowRecycleBin(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-medium text-gray-500 dark:text-gray-400 hover:text-primary dark:hover:text-primary border border-gray-200 dark:border-gray-700 rounded-lg hover:border-primary/40 transition-all"
+            title="Recycle Bin"
+          >
+            <History className="w-3.5 h-3.5" />
+            Recycle Bin
+          </button>
+        )}
+      </div>
     }
   />
 
@@ -1052,6 +1067,17 @@ const Quotations = /* @__PURE__ */ __name(() => {
     }}
     onCancel={() => setDeleteConfirm(null)}
   />}
+      {showRecycleBin && (
+        <RecycleBinModal
+          resource="quotations"
+          restorePermission="RESTORE_QUOTATION"
+          title="Quotations"
+          getLabel={(q) => q.id}
+          getSubLabel={(q) => `${q.supplierName || "—"} · MR ${q.mrId || "—"}`}
+          onClose={() => setShowRecycleBin(false)}
+          onChanged={() => fetchResource("quotations", 1, 50, true, debouncedSearch, finalFilter, false, false, startDate, endDate, true)}
+        />
+      )}
     </div>;
 }, "Quotations");
 const QuotationForm = /* @__PURE__ */ __name(({ initialData, mrData: initialMrData, onClose, onSave }) => {

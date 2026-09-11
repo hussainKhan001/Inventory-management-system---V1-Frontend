@@ -17,7 +17,8 @@ import {
   SearchSelect
 } from "../components/ui";
 import { FilterRow, SearchFilter, SelectFilter, DateRangePicker } from "../components/ui/Filters";
-import { Plus, Search, AlertTriangle, Eye, Pencil, Trash2, Package, ChevronDown, ChevronUp, Users, Building2, ClipboardList, CheckCircle2, Send, ThumbsUp, ThumbsDown, XCircle, Clock, BarChart2, ArrowLeft, FileText } from "lucide-react";
+import { Plus, Search, AlertTriangle, Eye, Pencil, Trash2, Package, ChevronDown, ChevronUp, Users, Building2, ClipboardList, CheckCircle2, Send, ThumbsUp, ThumbsDown, XCircle, Clock, BarChart2, ArrowLeft, FileText, History } from "lucide-react";
+import { RecycleBinModal } from "../components/RecycleBinModal";
 import { genId, todayStr, scrollToError, formatDateTime } from "../utils";
 import { cn } from "../lib/utils";
 import toast from "react-hot-toast";
@@ -84,6 +85,7 @@ const MaterialPlanning = /* @__PURE__ */ __name(() => {
   }, [debouncedSearch, statusFilter, projectFilter, dateRange]);
   const [modal, setModal] = useState(false);
   const [viewModal, setViewModal] = useState(false);
+  const [showRecycleBin, setShowRecycleBin] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
   const [errors, setErrors] = useState({});
@@ -544,17 +546,20 @@ const MaterialPlanning = /* @__PURE__ */ __name(() => {
       <PageHeader
     title="Material Planning"
     sub="Plan materials for upcoming project milestones"
-    actions={hasPermission("CREATE_MATERIAL_PLAN") && <Btn
-      label="New Plan"
-      icon={Plus}
-      onClick={() => {
-        setNewPlan({ project: "", milestone: "", workType: "", location: "", agm: "", agmName: "", gm: "", gmName: "", dris: [], driNames: [], items: [] });
-        setCustomProject("");
-        setErrors({});
-        setIsEditing(false);
-        setModal(true);
-      }}
-    />}
+    actions={<div className="flex items-center gap-2">
+      {hasPermission("VIEW_RECYCLE_BIN_MATERIAL_PLAN") && <Btn label="Recycle Bin" icon={History} outline onClick={() => setShowRecycleBin(true)} />}
+      {hasPermission("CREATE_MATERIAL_PLAN") && <Btn
+        label="New Plan"
+        icon={Plus}
+        onClick={() => {
+          setNewPlan({ project: "", milestone: "", workType: "", location: "", agm: "", agmName: "", gm: "", gmName: "", dris: [], driNames: [], items: [] });
+          setCustomProject("");
+          setErrors({});
+          setIsEditing(false);
+          setModal(true);
+        }}
+      />}
+    </div>}
   />
 
       {
@@ -1577,6 +1582,18 @@ const MaterialPlanning = /* @__PURE__ */ __name(() => {
     onCancel={() => setDeletingId(null)}
     loading={actionLoading}
   />}
+
+      {showRecycleBin && (
+        <RecycleBinModal
+          resource="planning"
+          restorePermission="RESTORE_MATERIAL_PLAN"
+          title="Material Plans"
+          getLabel={(p) => p.id}
+          getSubLabel={(p) => `${p.project || "—"} · ${p.milestone || "—"}`}
+          onClose={() => setShowRecycleBin(false)}
+          onChanged={() => fetchResource("planning", page, 50, true, debouncedSearch, Object.keys(filter).length > 0 ? filter : null, false, false, dateRange.startDate, dateRange.endDate)}
+        />
+      )}
 
       {rejectModal && <Modal
     title={`Reject Plan — ${rejectModal.id}`}

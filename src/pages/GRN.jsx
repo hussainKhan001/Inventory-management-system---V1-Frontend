@@ -15,7 +15,8 @@ import {
   Field,
   Td
 } from "../components/ui";
-import { Plus, X, Eye, Pencil, Trash2, Download, Package, PackagePlus, AlertTriangle, Calendar, Building2, GitMerge, ChevronRight } from "lucide-react";
+import { Plus, X, Eye, Pencil, Trash2, Download, Package, PackagePlus, AlertTriangle, Calendar, Building2, GitMerge, ChevronRight, History } from "lucide-react";
+import { RecycleBinModal } from "../components/RecycleBinModal";
 import { TableVirtuoso } from "react-virtuoso";
 import { SearchFilter, DateRangePicker, SelectFilter, FilterRow } from "../components/ui/Filters";
 import { genId, scrollToError, formatDateTime, safeStr } from "../utils";
@@ -163,6 +164,7 @@ const GRNPage = /* @__PURE__ */ __name(() => {
   }, [grnsPagination, page, loading]);
   const [modal, setModal] = useState(false);
   const [viewModal, setViewModal] = useState(false);
+  const [showRecycleBin, setShowRecycleBin] = useState(false);
   const [selectedGRN, setSelectedGRN] = useState(null);
   const [mergeModal, setMergeModal] = useState(null); // { target: grn, sources: [grn, ...] }
   const [merging, setMerging] = useState(false);
@@ -543,6 +545,9 @@ const GRNPage = /* @__PURE__ */ __name(() => {
     title="Goods Receipt Note (GRN)"
     sub="Receive materials against approved POs"
     actions={<div className="flex items-center gap-2">
+      {hasPermission("VIEW_RECYCLE_BIN_GRN") && (
+        <Btn label="Recycle Bin" icon={History} outline small onClick={() => setShowRecycleBin(true)} />
+      )}
       {["super admin","superadmin"].includes((role||"").toLowerCase()) && (
         <Btn
           label="Renumber GRNs"
@@ -1247,6 +1252,18 @@ const GRNPage = /* @__PURE__ */ __name(() => {
     onCancel={() => setDeleteConfirm(null)}
     loading={actionLoading}
   />}
+
+      {showRecycleBin && (
+        <RecycleBinModal
+          resource="grn"
+          restorePermission="RESTORE_GRN"
+          title="GRN"
+          getLabel={(g) => g.id}
+          getSubLabel={(g) => `${g.supplier || g.vendor || "—"} · PO ${g.poId || "—"}`}
+          onClose={() => setShowRecycleBin(false)}
+          onChanged={() => fetchResource("grn", 1, 50, true)}
+        />
+      )}
 
       {/* ── Merge GRNs Confirmation Modal ─────────────────────────────────── */}
       {mergeModal && (
